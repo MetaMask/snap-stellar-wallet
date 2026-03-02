@@ -1,4 +1,4 @@
-import styled, { useTheme } from 'styled-components';
+import { styled, useTheme } from 'styled-components';
 
 import { MetaMask } from './MetaMask';
 import { PoweredBy } from './PoweredBy';

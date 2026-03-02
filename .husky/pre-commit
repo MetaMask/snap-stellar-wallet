@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# Check if any snap package files are staged
+if git diff --cached --name-only | grep -q "^packages/snap/"; then
+  echo "🔨 Snap files staged - building with production settings..."
+  yarn workspace @metamask/stellar-wallet-snap build:prod
+  git add packages/snap/snap.manifest.json
+fi
+
+# Run lint:fix on the entire codebase
+yarn lint:fix
+
+# Re-add any files that were modified by linting
+git diff --name-only | xargs -r git add

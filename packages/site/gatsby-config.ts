@@ -1,4 +1,9 @@
+import { config as dotenvConfig } from 'dotenv';
 import type { GatsbyConfig } from 'gatsby';
+
+dotenvConfig({
+  path: `.env`,
+});
 
 const config: GatsbyConfig = {
   // This is required to make use of the React 17+ JSX transform.
@@ -12,10 +17,8 @@ const config: GatsbyConfig = {
       options: {
         name: 'Template Snap',
         icon: 'src/assets/logo.svg',
-        /* eslint-disable @typescript-eslint/naming-convention */
-        theme_color: '#6F4CFF',
-        background_color: '#FFFFFF',
-        /* eslint-enable @typescript-eslint/naming-convention */
+        themeColor: '#6F4CFF',
+        backgroundColor: '#FFFFFF',
         display: 'standalone',
       },
     },

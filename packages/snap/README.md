@@ -1,12 +1,27 @@
-# TypeScript Example Snap
+# Stellar Snap
 
-This snap demonstrates how to develop a snap with TypeScript. It is a simple
-snap that displays a confirmation dialog when the `hello` JSON-RPC method is
-called.
+## Configuration
 
-## Testing
+Rename `.env.example` to `.env`
+Configurations are setup though `.env`,
 
-The snap comes with some basic tests, to demonstrate how to write tests for
-snaps. To test the snap, run `yarn test` in this directory. This will use
-[`@metamask/snaps-jest`](https://github.com/MetaMask/snaps/tree/main/packages/snaps-jest)
-to run the tests in `src/index.test.ts`.
+## API:
+
+### `keyring_createAccount`
+
+example:
+
+```typescript
+provider.request({
+  method: 'wallet_invokeKeyring',
+  params: {
+    snapId,
+    request: {
+      method: 'keyring_createAccount',
+      params: {
+        scope: 'stellar:pubnet', // the CAIP-2 chain ID of the network
+      },
+    },
+  },
+});
+```

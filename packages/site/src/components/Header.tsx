@@ -1,4 +1,4 @@
-import styled, { useTheme } from 'styled-components';
+import { styled, useTheme } from 'styled-components';
 
 import { HeaderButtons } from './Buttons';
 import { SnapLogo } from './SnapLogo';

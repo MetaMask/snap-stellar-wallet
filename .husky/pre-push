@@ -1,0 +1,6 @@
+#!/bin/sh
+
+echo "🧪 Running tests..."
+yarn test
+
+echo "✅ Pre-push checks passed!"

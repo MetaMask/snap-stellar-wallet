@@ -26,9 +26,9 @@ const theme = {
   },
   breakpoints,
   mediaQueries: {
-    small: `@media screen and (max-width: ${breakpoints[0] as string})`,
-    medium: `@media screen and (min-width: ${breakpoints[1] as string})`,
-    large: `@media screen and (min-width: ${breakpoints[2] as string})`,
+    small: `@media screen and (max-width: ${breakpoints[0]})`,
+    medium: `@media screen and (min-width: ${breakpoints[1]})`,
+    large: `@media screen and (min-width: ${breakpoints[2]})`,
   },
   shadows: {
     default: '0px 7px 42px rgba(0, 0, 0, 0.1)',
