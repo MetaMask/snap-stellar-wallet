@@ -1,69 +1,64 @@
 import base, { createConfig } from '@metamask/eslint-config';
 import browser from '@metamask/eslint-config-browser';
 import jest from '@metamask/eslint-config-jest';
-import nodejs from '@metamask/eslint-config-nodejs';
 import typescript from '@metamask/eslint-config-typescript';
+import prettierConfig from 'eslint-config-prettier';
+import prettier from 'eslint-plugin-prettier';
 
-const config = createConfig([
+export default createConfig([
   {
     ignores: [
-      '**/build/',
-      '**/.cache/',
-      '**/dist/',
-      '**/docs/',
-      '**/public/',
-      '.yarn/',
+      'packages/snap/dist/',
+      'packages/site/.cache/',
+      'packages/site/public/',
     ],
   },
-
   {
-    extends: base,
-
-    languageOptions: {
-      sourceType: 'module',
-      parserOptions: {
-        tsconfigRootDir: import.meta.dirname,
-        project: ['./tsconfig.json'],
-      },
+    files: ['packages/snap/**/*.{ts,tsx}'],
+    extends: [base, typescript, prettierConfig],
+    plugins: {
+      prettier,
     },
-
-    settings: {
-      'import-x/extensions': ['.js', '.mjs'],
-    },
-  },
-
-  {
-    files: ['**/*.ts', '**/*.tsx'],
-    extends: typescript,
-
     rules: {
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-shadow': ['error', { allow: ['Text'] }],
+      '@typescript-eslint/no-explicit-any': 'error',
+      'id-length': ['warn', { exceptions: ['t'] }], // Used for the localized translator helper.
+      'prettier/prettier': 'error',
     },
   },
-
   {
-    files: ['**/*.js', '**/*.cjs', 'packages/snap/snap.config.ts'],
-    extends: nodejs,
-
-    languageOptions: {
-      sourceType: 'script',
+    files: ['packages/site/**/*.{ts,tsx}'],
+    extends: [base, typescript, browser, prettierConfig],
+    plugins: {
+      prettier,
+    },
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off', // this rule should be removed eventually for non tests files,
+      '@typescript-eslint/no-misused-promises': 'off',
+      'prettier/prettier': 'error',
     },
   },
-
   {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js'],
-    extends: [jest, nodejs],
-
+    files: ['**/*.test.ts', '**/*.test.tsx'],
+    extends: [base, typescript, jest, prettierConfig],
+    plugins: {
+      prettier,
+    },
     rules: {
       '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      'prettier/prettier': 'error',
     },
   },
-
   {
-    files: ['packages/site/src/**'],
-    extends: [browser],
+    files: ['**/snap.config.ts'],
+    extends: [prettierConfig],
+    plugins: {
+      prettier,
+    },
+    rules: {
+      'import-x/no-nodejs-modules': 'off',
+      'no-restricted-globals': 'off',
+      'prettier/prettier': 'error',
+    },
   },
 ]);
-
-export default config;

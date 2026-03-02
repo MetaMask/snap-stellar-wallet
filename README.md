@@ -1,53 +1,67 @@
-# @metamask/template-snap-monorepo
+# Stellar
 
-This repository demonstrates how to develop a snap with TypeScript. For detailed
-instructions, see [the MetaMask documentation](https://docs.metamask.io/guide/snaps.html#serving-a-snap-to-your-local-environment).
-
-MetaMask Snaps is a system that allows anyone to safely expand the capabilities
-of MetaMask. A _snap_ is a program that we run in an isolated environment that
-can customize the wallet experience.
-
-## Snaps is pre-release software
-
-To interact with (your) Snaps, you will need to install [MetaMask Flask](https://metamask.io/flask/),
-a canary distribution for developers that provides access to upcoming features.
+<img src="./packages/snap/images/icon.svg" width="200" style="display: block; margin: 0 auto;" alt="Stellar Logo" />
 
 ## Getting Started
 
-Clone the template-snap repository [using this template](https://github.com/MetaMask/template-snap-monorepo/generate)
-and set up the development environment:
+The Stellar Snap allows MetaMask and dapps to support all Stellar-related networks and address types.
 
-```shell
-yarn install && yarn start
+- [@metamask/stellar-wallet-snap](packages/snap/README.md)
+- [@metamask/stellar-wallet-test-dapp](packages/site/README.md)
+
+### Prerequisites
+
+- [MetaMask Flask](https://metamask.io/flask/)
+- Nodejs `22`. We **strongly** recommend you install via [NVM](https://github.com/nvm-sh/nvm) to avoid incompatibility issues between different node projects.
+- Once installed, you should also install [Yarn](http://yarnpkg.com/) with `npm i -g yarn` to make working with this repository easiest.
+
+## Installing
+
+```bash
+nvm use
+yarn install
 ```
 
-## Cloning
+## Configuration
 
-This repository contains GitHub Actions that you may find useful, see
-`.github/workflows` and [Releasing & Publishing](https://github.com/MetaMask/template-snap-monorepo/edit/main/README.md#releasing--publishing)
-below for more information.
+Please see `./src/packages/.env.example` for reference
 
-If you clone or create this repository outside the MetaMask GitHub organization,
-you probably want to run `./scripts/cleanup.sh` to remove some files that will
-not work properly outside the MetaMask GitHub organization.
+## Running
 
-If you don't wish to use any of the existing GitHub actions in this repository,
-simply delete the `.github/workflows` directory.
+### Quick Start
 
-## Contributing
+```bash
+yarn start
+```
 
-### Testing and Linting
+- Snap server and debug page: http://localhost:8080/
+- Example UI dapp: http://localhost:3000/
 
-Run `yarn test` to run the tests once.
+### Snap
 
-Run `yarn lint` to run the linter, or run `yarn lint:fix` to run the linter and
-fix any automatically fixable issues.
+⚠️ When snap updates you will need to still reconnect from the dapp to see changes
 
-### Using NPM packages with scripts
+```bash
+# Running Snap via watch mode
+yarn workspace @metamask/stellar-wallet-snap start
+```
 
-Scripts are disabled by default for security reasons. If you need to use NPM
-packages with scripts, you can run `yarn allow-scripts auto`, and enable the
-script in the `lavamoat.allowScripts` section of `package.json`.
+## Git Hooks & Manifest Handling
 
-See the documentation for [@lavamoat/allow-scripts](https://github.com/LavaMoat/LavaMoat/tree/main/packages/allow-scripts)
-for more information.
+The `snap.manifest.json` contains a `shasum` that differs between local and production builds. Git hooks ensure the repository always contains production-ready builds:
+
+### On Commit (with snap changes)
+
+1. Detects if any `packages/snap/` files are staged
+2. Runs `build:prod` → updates manifest with production settings and shasum
+3. Stages the updated `snap.manifest.json`
+4. Runs `lint:fix` on all files
+
+### On Push
+
+1. Runs the test suite
+2. Push proceeds if tests pass
+
+### Local Development
+
+`yarn start` builds with local settings (adds `localhost` origins and dev permissions). These are automatically converted to production settings when you commit.

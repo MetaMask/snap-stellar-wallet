@@ -1,6 +1,18 @@
-# TypeScript Example Snap Front-end
+# Tron Wallet Test dApp
+
+A comprehensive web-based testing interface designed for developers to interact with and validate Metamask's Tron wallet integration. This dapp provides a controlled environment for testing essential wallet operations including:
+
+- Transaction signing and verification
+- Transaction broadcasting
+- Account management
+- Wallet connection and state handling
+- Balance checking and token operations
+
+The dapp serves as a development sandbox, enabling thorough testing of Tron-based smart contract interactions and wallet functionality within the Metamask ecosystem.
 
 This project was bootstrapped with [Gatsby](https://www.gatsbyjs.com/).
+
+![Site UI](./docs/site-ui.png)
 
 ## Available Scripts
 
@@ -9,7 +21,7 @@ In the project directory, you can run:
 ### `yarn start`
 
 Runs the app in the development mode.\
-Open [http://localhost:8000](http://localhost:8000) to view it in the browser.
+Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 
 The page will reload if you make edits.\
 You will also see any lint errors in the console.
