@@ -79,7 +79,7 @@ jobs:
       - prepare
     env:
       ENVIRONMENT: test
-      LOG_LEVEL: slient
+      LOG_LEVEL: silent
       RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
       HORIZON_URL_MAINNET: ${{ secrets.HORIZON_URL_MAINNET }}
       EXPLORER_MAINNET_BASE_URL: ${{ secrets.EXPLORER_MAINNET_BASE_URL }}

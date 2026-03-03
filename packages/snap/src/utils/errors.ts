@@ -28,9 +28,7 @@ import { logger as defaultLogger } from './logger';
  * @param error - The error to sanitize.
  * @returns A sanitized error with generic message if sensitive info detected.
  */
-// TODO: Replace `any` with type
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function sanitizeSensitiveError(error: any): Error {
+export function sanitizeSensitiveError(error: Error): Error {
   const message = error?.message?.toLowerCase() ?? '';
   const stack = error?.stack?.toLowerCase() ?? '';
 
@@ -48,7 +46,6 @@ export function sanitizeSensitiveError(error: any): Error {
   ];
 
   const containsSensitiveInfo = sensitiveKeywords.some(
-    // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     (keyword) => message.includes(keyword) || stack.includes(keyword),
   );
 
@@ -59,10 +56,17 @@ export function sanitizeSensitiveError(error: any): Error {
     const sanitizedError = new Error(maskedMessage);
     // Preserve error type if it's a Snap error
     if (isSnapRpcError(error)) {
-      // All snap errors should have a constructor that can be called with a message
-      return error.constructor
-        ? new error.constructor(maskedMessage)
-        : sanitizedError;
+      const Ctor = error.constructor;
+      if (typeof Ctor === 'function') {
+        try {
+          return new (Ctor as new (message: unknown) => typeof error)(
+            maskedMessage,
+          );
+        } catch {
+          return sanitizedError;
+        }
+      }
+      return sanitizedError;
     }
     return sanitizedError;
   }

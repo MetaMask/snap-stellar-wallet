@@ -48,7 +48,7 @@ const withLogLevel =
   };
 
 /**
- * A basic logger that wraps the console, extending its functionality to properly log Tron errors.
+ * A basic logger that wraps the console, extending its functionality to properly log errors.
  */
 export const logger: ILogger = {
   log: withLogLevel(console.log, LogLevel.ALL),
@@ -84,8 +84,8 @@ export const createPrefixedLogger = (
     get(target, prop: keyof ILogger): unknown {
       const method = target[prop];
       if (typeof method === 'function') {
-        return (message: string, ...args: unknown[]) => {
-          return method.call(target, prefix, message, ...args);
+        return (...args: unknown[]) => {
+          return method.call(target, prefix, ...args);
         };
       }
       return method;

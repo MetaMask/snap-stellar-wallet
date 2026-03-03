@@ -61,6 +61,7 @@ export function validateResponse<Type, Schema>(
   try {
     assert(response, struct);
   } catch {
+    // Mask the error message for security reasons.
     throw new SnapError('Invalid Response');
   }
 }

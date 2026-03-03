@@ -16,8 +16,12 @@ export const createPrefixedLogger = (
     get(target, prop: keyof ILogger): unknown {
       const method = target[prop];
       if (typeof method === 'function') {
-        return (message: string, ...args: unknown[]) => {
-          return method.call(target, prefix, message, ...args);
+        return (...args: unknown[]) => {
+          return (method as (...args: unknown[]) => unknown).call(
+            target,
+            prefix,
+            ...args,
+          );
         };
       }
       return method;

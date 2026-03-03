@@ -19,14 +19,10 @@ import type {
   CaipChainId,
 } from '@metamask/utils';
 
-import {
-  createPrefixedLogger,
-  type ILogger,
-  validateOrigin,
-  withCatchAndThrowSnapError,
-} from '../utils';
+import { createPrefixedLogger, type ILogger, validateOrigin } from '../utils';
 
 export class KeyringHandler implements Keyring {
+  // eslint-disable-next-line no-unused-private-class-members
   readonly #logger: ILogger;
 
   constructor({ logger }: { logger: ILogger }) {
@@ -36,11 +32,7 @@ export class KeyringHandler implements Keyring {
   async handle(origin: string, request: JsonRpcRequest): Promise<Json> {
     validateOrigin(origin, request.method);
 
-    const result =
-      (await withCatchAndThrowSnapError(
-        async () => handleKeyringRequest(this, request),
-        this.#logger,
-      )) ?? null;
+    const result = (await handleKeyringRequest(this, request)) ?? null;
 
     return result;
   }
@@ -71,7 +63,7 @@ export class KeyringHandler implements Keyring {
     throw new Error('Method not implemented.');
   }
 
-  async discoverAccounts?(
+  async discoverAccounts(
     scopes: CaipChainId[],
     entropySource: EntropySourceId,
     groupIndex: number,
