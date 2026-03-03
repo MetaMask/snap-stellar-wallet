@@ -13,7 +13,14 @@ const config = {
   coverageDirectory: 'coverage',
 
   // An array of regexp pattern strings used to skip coverage collection
-  coveragePathIgnorePatterns: ['.*/index\\.ts'],
+  coveragePathIgnorePatterns: [
+    '.*/index\\.ts$', // any index.ts
+    '.*/constants\\.ts$', // any file named constants.ts
+    '.*/constants/', // any file in a folder named constants
+    '.*/utils/logger\\.ts$', // skip logger.ts
+    '.*/permissions\\.ts$', // skip permissions.ts
+    '.*/context\\.ts$', // skip context.ts
+  ],
 
   // Indicates which provider should be used to instrument code for coverage
   coverageProvider: 'babel',
@@ -24,10 +31,10 @@ const config = {
   // An object that configures minimum threshold enforcement for coverage results
   coverageThreshold: {
     global: {
-      branches: 52.58,
-      functions: 55.53,
-      lines: 67.34,
-      statements: 67.41,
+      branches: 90,
+      functions: 100,
+      lines: 97.45,
+      statements: 97.52,
     },
   },
 
