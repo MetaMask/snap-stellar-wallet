@@ -1,4 +1,4 @@
-import { KnownCaip19ChainId } from './network';
+import { KnownCaip2ChainId } from './network';
 
 /** Stellar Asset namespace */
 /** please see https://namespaces.chainagnostic.org/stellar/caip19#asset-namespaces */
@@ -13,6 +13,6 @@ export const CoinType = 148;
 
 /** Known CAIP-19 IDs */
 export enum KnownCaip19Id {
-  Slip44Mainnet = `${KnownCaip19ChainId.Mainnet}/${NativeAssetType.Native}:${CoinType}`,
-  Slip44Testnet = `${KnownCaip19ChainId.Testnet}/${NativeAssetType.Native}:${CoinType}`,
+  Slip44Mainnet = `${KnownCaip2ChainId.Mainnet}/${NativeAssetType.Native}:${CoinType}`,
+  Slip44Testnet = `${KnownCaip2ChainId.Testnet}/${NativeAssetType.Native}:${CoinType}`,
 }

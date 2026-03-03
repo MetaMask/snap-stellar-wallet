@@ -3,7 +3,7 @@ import { handleKeyringRequest } from '@metamask/keyring-snap-sdk';
 import type { JsonRpcRequest } from '@metamask/snaps-sdk';
 
 import { KeyringHandler } from './keyring';
-import { KnownCaip19ChainId, KnownCaip19Id } from '../constants';
+import { KnownCaip2ChainId, KnownCaip19Id } from '../constants';
 import { logger } from '../utils/logger';
 
 jest.mock('../utils/logger');
@@ -100,7 +100,7 @@ describe('KeyringHandler', () => {
     it('throws `Method not implemented.` error', async () => {
       await expect(
         keyringHandler.discoverAccounts?.(
-          [KnownCaip19ChainId.Mainnet],
+          [KnownCaip2ChainId.Mainnet],
           'entropy-source-1',
           0,
         ),
@@ -119,7 +119,7 @@ describe('KeyringHandler', () => {
   describe('resolveAccountAddress', () => {
     it('throws `Method not implemented.` error', async () => {
       await expect(
-        keyringHandler.resolveAccountAddress(KnownCaip19ChainId.Mainnet, {
+        keyringHandler.resolveAccountAddress(KnownCaip2ChainId.Mainnet, {
           method: 'resolveAccountAddress',
           params: ['1'],
           id: '1',
@@ -132,7 +132,7 @@ describe('KeyringHandler', () => {
   describe('filterAccountChains', () => {
     it('throws `Method not implemented.` error', async () => {
       await expect(
-        keyringHandler.filterAccountChains('1', [KnownCaip19ChainId.Mainnet]),
+        keyringHandler.filterAccountChains('1', [KnownCaip2ChainId.Mainnet]),
       ).rejects.toThrow('Method not implemented.');
     });
   });
@@ -144,7 +144,7 @@ describe('KeyringHandler', () => {
           type: 'any:account',
           id: '1',
           address: '1',
-          scopes: [KnownCaip19ChainId.Mainnet],
+          scopes: [KnownCaip2ChainId.Mainnet],
           options: {},
           methods: [],
         }),
@@ -167,7 +167,7 @@ describe('KeyringHandler', () => {
           id: '1',
           origin: 'metamask',
           request: { method: 'submitRequest', params: ['1'] },
-          scope: KnownCaip19ChainId.Mainnet,
+          scope: KnownCaip2ChainId.Mainnet,
           account: '1',
         }),
       ).rejects.toThrow('Method not implemented.');

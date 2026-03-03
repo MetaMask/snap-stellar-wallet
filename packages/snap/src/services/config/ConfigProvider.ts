@@ -89,6 +89,9 @@ export class ConfigProvider {
    * @returns The config.
    */
   static get(): Config {
+    if (!ConfigProvider.config) {
+      ConfigProvider.initializeConfig();
+    }
     return ConfigProvider.config;
   }
 }
