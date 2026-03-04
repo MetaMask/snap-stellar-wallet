@@ -12,8 +12,7 @@ const logLevelPriority = {
   [LogLevel.WARN]: 2,
   [LogLevel.INFO]: 3,
   [LogLevel.DEBUG]: 4,
-  [LogLevel.TRACE]: 5,
-  [LogLevel.ALL]: 6,
+  [LogLevel.ALL]: 5,
 };
 
 /**

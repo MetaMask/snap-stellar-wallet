@@ -109,3 +109,4 @@ export class KeyringHandler implements Keyring {
     throw new Error('Method not implemented.');
   }
 }
+/* eslint-enable @typescript-eslint/no-unused-vars */

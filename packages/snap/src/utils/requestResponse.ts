@@ -65,3 +65,4 @@ export function validateResponse<Type, Schema>(
     throw new SnapError('Invalid Response');
   }
 }
+/* eslint-enable @typescript-eslint/only-throw-error */

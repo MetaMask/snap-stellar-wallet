@@ -1,7 +1,9 @@
 import { KeyringRpcMethod } from '@metamask/keyring-api';
 
-// eslint-disable-next-line no-restricted-globals
-const isDev = process.env.ENVIRONMENT !== 'production';
+import { AppConfig } from './config';
+import { Environment } from './constants';
+
+const isDev = AppConfig.environment !== Environment.Production;
 
 const prodOrigins = ['https://portfolio.metamask.io'];
 const allowedOrigins = isDev ? ['http://localhost:3000'] : prodOrigins;
