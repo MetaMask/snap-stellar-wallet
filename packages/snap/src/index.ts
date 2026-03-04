@@ -1,9 +1,6 @@
-import type {
-  OnRpcRequestHandler,
-  OnKeyringRequestHandler,
-} from '@metamask/snaps-sdk';
+import type { OnKeyringRequestHandler } from '@metamask/snaps-sdk';
 
-import { keyringHandler, rpcHandler } from './context';
+import { keyringHandler } from './context';
 import { withCatchAndThrowSnapError } from './utils';
 
 export const onKeyringRequest: OnKeyringRequestHandler = async ({
@@ -13,6 +10,3 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
   withCatchAndThrowSnapError(async () =>
     keyringHandler.handle(origin, request),
   );
-
-export const onRpcRequest: OnRpcRequestHandler = async ({ origin, request }) =>
-  withCatchAndThrowSnapError(async () => rpcHandler.handle(origin, request));

@@ -20,6 +20,7 @@ const config = {
     '.*/utils/logger\\.ts$', // skip logger.ts
     '.*/permissions\\.ts$', // skip permissions.ts
     '.*/context\\.ts$', // skip context.ts
+    '.*/config\\.ts$', // skip config.ts
   ],
 
   // Indicates which provider should be used to instrument code for coverage
@@ -31,10 +32,10 @@ const config = {
   // An object that configures minimum threshold enforcement for coverage results
   coverageThreshold: {
     global: {
-      branches: 88.7,
+      branches: 89.47,
       functions: 100,
-      lines: 95.76,
-      statements: 95.86,
+      lines: 95.83,
+      statements: 95.95,
     },
   },
 

@@ -1,6 +1,6 @@
 /* eslint-disable no-empty-function */
+import { AppConfig } from '../config';
 import { LogLevel } from '../constants/loglevel';
-import { ConfigProvider } from '../services/config';
 
 /**
  * A map of log levels to their priority.
@@ -40,8 +40,8 @@ const withLogLevel =
   (fn: (...args: unknown[]) => void, level: LogLevel) =>
   (...args: unknown[]): void => {
     if (
-      ConfigProvider.get().logLevel in logLevelPriority &&
-      logLevelPriority[level] <= logLevelPriority[ConfigProvider.get().logLevel]
+      AppConfig.logLevel in logLevelPriority &&
+      logLevelPriority[level] <= logLevelPriority[AppConfig.logLevel]
     ) {
       fn(...args);
     }
