@@ -44,7 +44,7 @@ describe('KeyringHandler', () => {
 
     it('returns null if handleKeyringRequest returns null', async () => {
       const handleKeyringRequestSpy = jest.mocked(handleKeyringRequest);
-      handleKeyringRequestSpy.mockReturnThis();
+      handleKeyringRequestSpy.mockResolvedValue(null);
 
       const result = await keyringHandler.handle('metamask', request);
 

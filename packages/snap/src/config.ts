@@ -50,26 +50,40 @@ const ConfigStruct = object({
 export type Config = Infer<typeof ConfigStruct>;
 
 /**
+ * Reads an env var. Used so config has a single, documented source for build-time env.
+ * Values are injected at build time via snap.config.ts `environment`; they are not
+ * read from the host at Snap runtime.
+ *
+ * @param key - The environment variable name (e.g. 'ENVIRONMENT', 'LOG_LEVEL').
+ * @returns The value if set and a string, otherwise ''.
+ */
+const getEnv = (key: string): string => {
+  if (typeof process === 'undefined' || !process.env) return '';
+  const value = process.env[key];
+  return typeof value === 'string' ? value : '';
+};
+
+/**
  * The app config.
- * Validates and coerces the environment variables into a config object.
- * Throws an error if the config is invalid.
+ * Built at module load from env vars injected at build time (see snap.config.ts).
+ * Validation throws if the config is invalid; ensure required env vars are set when building the Snap.
  */
 export const AppConfig = create(
   {
-    environment: process.env.ENVIRONMENT,
+    environment: getEnv('ENVIRONMENT'),
     networks: {
       mainnet: {
-        rpcUrl: process.env.RPC_URL_MAINNET,
-        horizonUrl: process.env.HORIZON_URL_MAINNET,
-        explorerBaseUrl: process.env.EXPLORER_MAINNET_BASE_URL,
+        rpcUrl: getEnv('RPC_URL_MAINNET'),
+        horizonUrl: getEnv('HORIZON_URL_MAINNET'),
+        explorerBaseUrl: getEnv('EXPLORER_MAINNET_BASE_URL'),
       },
       testnet: {
-        rpcUrl: process.env.RPC_URL_TESTNET,
-        horizonUrl: process.env.HORIZON_URL_TESTNET,
-        explorerBaseUrl: process.env.EXPLORER_TESTNET_BASE_URL,
+        rpcUrl: getEnv('RPC_URL_TESTNET'),
+        horizonUrl: getEnv('HORIZON_URL_TESTNET'),
+        explorerBaseUrl: getEnv('EXPLORER_TESTNET_BASE_URL'),
       },
     },
-    logLevel: process.env.LOG_LEVEL,
+    logLevel: getEnv('LOG_LEVEL'),
   },
   ConfigStruct,
 );

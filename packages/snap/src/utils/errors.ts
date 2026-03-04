@@ -74,13 +74,33 @@ export function sanitizeSensitiveError(error: Error): Error {
   return error;
 }
 
+/** Union of Snap RPC error instance types (for type narrowing). */
+export type SnapRpcError =
+  | InstanceType<typeof SnapError>
+  | InstanceType<typeof MethodNotFoundError>
+  | InstanceType<typeof UserRejectedRequestError>
+  | InstanceType<typeof MethodNotSupportedError>
+  | InstanceType<typeof ParseError>
+  | InstanceType<typeof ResourceNotFoundError>
+  | InstanceType<typeof ResourceUnavailableError>
+  | InstanceType<typeof TransactionRejected>
+  | InstanceType<typeof ChainDisconnectedError>
+  | InstanceType<typeof DisconnectedError>
+  | InstanceType<typeof UnauthorizedError>
+  | InstanceType<typeof UnsupportedMethodError>
+  | InstanceType<typeof InternalError>
+  | InstanceType<typeof InvalidInputError>
+  | InstanceType<typeof InvalidParamsError>
+  | InstanceType<typeof InvalidRequestError>
+  | InstanceType<typeof LimitExceededError>;
+
 /**
  * Determines if the given error is a Snap RPC error.
  *
  * @param error - The error instance to be checked.
  * @returns A boolean indicating whether the error is a Snap RPC error.
  */
-export function isSnapRpcError(error: Error): boolean {
+export function isSnapRpcError(error: Error): error is SnapRpcError {
   const errors = [
     SnapError,
     MethodNotFoundError,
@@ -116,18 +136,22 @@ export const withCatchAndThrowSnapError = async <ResponseT>(
 ): Promise<ResponseT> => {
   try {
     return await fn();
-    // TODO: Replace `any` with type
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (errorInstance: any) {
-    const error = isSnapRpcError(errorInstance)
-      ? errorInstance
-      : new SnapError(errorInstance);
+  } catch (errorInstance: unknown) {
+    let error: SnapRpcError;
+
+    if (errorInstance instanceof Error) {
+      error = isSnapRpcError(errorInstance)
+        ? errorInstance
+        : new SnapError(errorInstance);
+    } else {
+      error = new SnapError(errorInstance as string | Error);
+    }
 
     logger.error(
       { error },
       `[SnapError] ${JSON.stringify(error.toJSON(), null, 2)}`,
     );
-
+    // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw error;
   }
 };

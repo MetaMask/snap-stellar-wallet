@@ -19,10 +19,14 @@ import type {
   CaipChainId,
 } from '@metamask/utils';
 
-import { createPrefixedLogger, type ILogger, validateOrigin } from '../utils';
+import {
+  createPrefixedLogger,
+  type ILogger,
+  validateOrigin,
+  withCatchAndThrowSnapError,
+} from '../utils';
 
 export class KeyringHandler implements Keyring {
-  // eslint-disable-next-line no-unused-private-class-members
   readonly #logger: ILogger;
 
   constructor({ logger }: { logger: ILogger }) {
@@ -30,9 +34,11 @@ export class KeyringHandler implements Keyring {
   }
 
   async handle(origin: string, request: JsonRpcRequest): Promise<Json> {
-    validateOrigin(origin, request.method);
-
-    const result = (await handleKeyringRequest(this, request)) ?? null;
+    const result =
+      (await withCatchAndThrowSnapError(async () => {
+        validateOrigin(origin, request.method);
+        return handleKeyringRequest(this, request);
+      }, this.#logger)) ?? null;
 
     return result;
   }
