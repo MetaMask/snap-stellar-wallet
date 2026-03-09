@@ -10,7 +10,7 @@
  * const overridee = { name: 'John' };
  * const overrider = { name: undefined, age: 30 };
  * const merged = safeMerge(overridee, overrider);
- * // merged is { name: 'John' }
+ * // merged is { name: 'John', age: 30 }
  */
 export const safeMerge = <TOverridee extends object, TOverrider extends object>(
   overridee: TOverridee,

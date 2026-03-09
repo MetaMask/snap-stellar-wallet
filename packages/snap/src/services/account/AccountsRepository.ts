@@ -54,14 +54,12 @@ export class AccountsRepository {
    * Finds accounts by their ids.
    *
    * @param ids - The ids of the accounts to find.
-   * @returns The accounts if found, otherwise null.
+   * @returns The accounts if found.
    */
-  async findByIds(ids: string[]): Promise<StellarKeyringAccount[] | null> {
+  async findByIds(ids: string[]): Promise<StellarKeyringAccount[]> {
     const accounts = await this.getAll();
     const idsSet = new Set(ids.map((id) => id.toLowerCase()));
-    return (
-      accounts.filter((account) => idsSet.has(account.id.toLowerCase())) ?? null
-    );
+    return accounts.filter((account) => idsSet.has(account.id.toLowerCase()));
   }
 
   /**
@@ -97,6 +95,6 @@ export class AccountsRepository {
    * @returns The deleted account.
    */
   async delete(id: string): Promise<void> {
-    await Promise.all([this.#state.deleteKey(`${this.#storageKey}.${id}`)]);
+    await this.#state.deleteKey(`${this.#storageKey}.${id}`);
   }
 }

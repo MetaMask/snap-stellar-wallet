@@ -47,7 +47,7 @@ import {
 
 /**
  * The struct for validating createAccount options.
- * - entropySource: Optional string for the entropy source (UUID or ULID format)
+ * - entropySource: Optional string for the entropy source
  * - index: Optional non-negative integer for account derivation index
  */
 export const CreateAccountOptionsStruct = optional(

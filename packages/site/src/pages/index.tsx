@@ -111,11 +111,10 @@ const Index = () => {
     : snapsDetected;
 
   const handleCreateStellarAccountClick = async () => {
-    const result = await invokeKeyring({
+    await invokeKeyring({
       method: 'keyring_createAccount',
       params: { options: {} },
     });
-    console.log('result', result);
   };
 
   return (
@@ -178,8 +177,7 @@ const Index = () => {
         <Card
           content={{
             title: 'Create Stellar Account',
-            description:
-              'Display a custom message within a confirmation screen in MetaMask.',
+            description: 'Create a new Stellar Account.',
             button: (
               <SendHelloButton
                 onClick={handleCreateStellarAccountClick}

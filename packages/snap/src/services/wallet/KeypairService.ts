@@ -46,7 +46,7 @@ export class KeypairService {
    * @param params - The parameters for the key derivation.
    * @param params.index - The index of the account to derive the key pair for.
    * @param params.entropySource - The entropy source to use for key derivation.
-   * @returns A Promise that resolves to the derivation path, private key bytes, and address.
+   * @returns A Promise that resolves to the derivation path and address.
    * @throws An error if unable to derive the key pair.
    */
   async deriveAddress({
@@ -77,7 +77,7 @@ export class KeypairService {
       }
 
       // node.privateKey is a 66 length hex string with 0x prefix
-      // hexToBytes remove the tailing 0x prefix and return a 32 bytes Uint8Array
+      // hexToBytes removes the leading 0x prefix and returns a 32-byte Uint8Array
       const privateKeyBytes = hexToBytes(node.privateKey);
 
       // Derive a stellar keypair from a seed, we use the SNAP provided private key as seed

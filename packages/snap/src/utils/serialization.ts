@@ -26,7 +26,7 @@ export type Serializable =
  * @returns The serialized value.
  * @throws If an unsupported case is encountered. This indicates a missing implementation.
  */
-export const serialize = (value: Serializable): Record<string, Json> =>
+export const serialize = (value: Serializable): Json =>
   cloneDeepWith(value, (val: unknown) => {
     if (val === undefined) {
       return {
@@ -90,7 +90,6 @@ export const deserialize = (serializedValue: Json): Serializable =>
     }
 
     if (value.__type === 'Uint8Array') {
-      // Use TextEncoder to decode base64 string to Uint8Array
       const binaryString = atob(value.value);
       const bytes = new Uint8Array(binaryString.length);
       for (let index = 0; index < binaryString.length; index++) {

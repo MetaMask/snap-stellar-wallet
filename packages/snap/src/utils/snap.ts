@@ -1,6 +1,6 @@
 import type { JsonSLIP10Node } from '@metamask/key-tree';
 import type { EntropySourceId } from '@metamask/keyring-api';
-import type { EntropySource, SnapsProvider } from '@metamask/snaps-sdk';
+import type { EntropySource, Json, SnapsProvider } from '@metamask/snaps-sdk';
 
 import { type Serializable, serialize, deserialize } from './serialization';
 
@@ -85,14 +85,14 @@ export async function updateState({
   newState,
   encrypted,
 }: {
-  newState: Serializable;
+  newState: Record<string, Serializable>;
   encrypted: boolean;
 }): Promise<void> {
   await getSnapProvider().request({
     method: 'snap_manageState',
     params: {
       operation: 'update',
-      newState: serialize(newState),
+      newState: serialize(newState) as Record<string, Json>,
       encrypted,
     },
   });
