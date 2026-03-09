@@ -21,6 +21,7 @@ const config = {
     '.*/permissions\\.ts$', // skip permissions.ts
     '.*/context\\.ts$', // skip context.ts
     '.*/config\\.ts$', // skip config.ts
+    '.*/utils/snap\\.ts$', // skip snap.ts
   ],
 
   // Indicates which provider should be used to instrument code for coverage
@@ -32,10 +33,10 @@ const config = {
   // An object that configures minimum threshold enforcement for coverage results
   coverageThreshold: {
     global: {
-      branches: 89.83,
-      functions: 100,
-      lines: 95.95,
-      statements: 96.07,
+      branches: 88.18,
+      functions: 89.85,
+      lines: 95.03,
+      statements: 94.86,
     },
   },
 

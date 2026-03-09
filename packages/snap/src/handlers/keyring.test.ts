@@ -1,25 +1,62 @@
-import { KeyringRpcMethod } from '@metamask/keyring-api';
-import { handleKeyringRequest } from '@metamask/keyring-snap-sdk';
+import { KeyringEvent, KeyringRpcMethod } from '@metamask/keyring-api';
+import {
+  emitSnapKeyringEvent,
+  handleKeyringRequest,
+} from '@metamask/keyring-snap-sdk';
 import type { JsonRpcRequest } from '@metamask/snaps-sdk';
+import { assert } from '@metamask/superstruct';
 
-import { KeyringHandler } from './keyring';
+import { KeyringHandler, CreateAccountOptionsStruct } from './keyring';
 import { KnownCaip2ChainId, KnownCaip19Id } from '../constants';
+import { AccountService } from '../services/account/AccountService';
+import { AccountsRepository } from '../services/account/AccountsRepository';
+import { State } from '../services/state';
+import { KeypairService } from '../services/wallet/KeypairService';
+import {
+  getBip32Entropy,
+  getDefaultEntropySource,
+  getSnapProvider,
+} from '../utils';
+import { mockBip32Node } from '../utils/__mocks__/fixtures';
 import { logger } from '../utils/logger';
 
 jest.mock('../utils/logger');
+jest.mock('../utils/snap');
 jest.mock('../utils/requestResponse', () => ({
   validateOrigin: jest.fn(),
 }));
 jest.mock('@metamask/keyring-snap-sdk', () => ({
   handleKeyringRequest: jest.fn(),
+  emitSnapKeyringEvent: jest.fn(),
 }));
 
 describe('KeyringHandler', () => {
   let keyringHandler: KeyringHandler;
 
+  const entropySourceId = 'entropy-source-1';
+
   beforeEach(() => {
     jest.clearAllMocks();
-    keyringHandler = new KeyringHandler({ logger });
+    jest.mocked(getBip32Entropy).mockResolvedValue(mockBip32Node);
+    jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySourceId);
+
+    const accountsRepository = new AccountsRepository(
+      new State({
+        encrypted: false,
+        defaultState: {
+          keyringAccounts: {},
+        },
+      }),
+    );
+    const accountService = new AccountService({
+      logger,
+      keypairService: new KeypairService({ logger }),
+      accountsRepository,
+    });
+    keyringHandler = new KeyringHandler({
+      logger,
+      accountService,
+    });
   });
 
   describe('handle', () => {
@@ -73,9 +110,79 @@ describe('KeyringHandler', () => {
   });
 
   describe('createAccount', () => {
-    it('throws `Method not implemented.` error', async () => {
+    it('creates an account', async () => {
+      const expectedIndex = 0;
+      const expectedDerivationPath =
+        KeypairService.getDerivationPath(expectedIndex);
+      const result = await keyringHandler.createAccount();
+
+      expect(result).toStrictEqual({
+        id: expect.any(String),
+        address: expect.any(String),
+        type: 'any:account',
+        options: {
+          entropy: {
+            type: 'mnemonic',
+            id: entropySourceId,
+            derivationPath: expectedDerivationPath,
+            groupIndex: expectedIndex,
+          },
+          exportable: true,
+          groupIndex: expectedIndex,
+        },
+        methods: ['signMessage', 'signTransaction'],
+        scopes: [KnownCaip2ChainId.Mainnet],
+      });
+    });
+
+    it('emits the account created event', async () => {
+      const expectedIndex = 0;
+      const expectedDerivationPath =
+        KeypairService.getDerivationPath(expectedIndex);
+      const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
+      emitSnapKeyringEventSpy.mockResolvedValue();
+
+      await keyringHandler.createAccount({
+        metamask: {
+          correlationId: '123',
+        },
+      });
+
+      expect(emitSnapKeyringEventSpy).toHaveBeenCalledWith(
+        getSnapProvider(),
+        KeyringEvent.AccountCreated,
+        expect.objectContaining({
+          account: {
+            id: expect.any(String),
+            address: expect.any(String),
+            type: 'any:account',
+            options: {
+              entropy: {
+                type: 'mnemonic',
+                id: entropySourceId,
+                derivationPath: expectedDerivationPath,
+                groupIndex: expectedIndex,
+              },
+              exportable: true,
+              groupIndex: expectedIndex,
+            },
+            methods: ['signMessage', 'signTransaction'],
+            scopes: [KnownCaip2ChainId.Mainnet],
+          },
+          displayConfirmation: false,
+          correlationId: '123',
+        }),
+      );
+    });
+
+    it('throws an error if the account creation fails', async () => {
+      const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
+      emitSnapKeyringEventSpy.mockRejectedValue(
+        new Error('Account creation failed'),
+      );
+
       await expect(keyringHandler.createAccount()).rejects.toThrow(
-        'Method not implemented.',
+        'Error creating account: Account creation failed',
       );
     });
   });
@@ -181,4 +288,23 @@ describe('KeyringHandler', () => {
       );
     });
   });
+});
+
+describe('CreateAccountOptionsStruct', () => {
+  it.each([
+    {},
+    undefined,
+    { index: 0 },
+    { index: 1 },
+    { entropySource: 'ulid-123', index: 0 },
+  ])('accepts valid options', (options) => {
+    expect(() => assert(options, CreateAccountOptionsStruct)).not.toThrow();
+  });
+
+  it.each([{ index: -1 }, { entropySource: 1, index: 0 }])(
+    'rejects invalid options',
+    (options) => {
+      expect(() => assert(options, CreateAccountOptionsStruct)).toThrow(Error);
+    },
+  );
 });

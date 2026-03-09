@@ -10,9 +10,9 @@ import {
 import { defaultSnapOrigin } from '../config';
 import {
   useMetaMask,
-  useInvokeSnap,
   useMetaMaskContext,
   useRequestSnap,
+  useInvokeKeyring,
 } from '../hooks';
 import { isLocalSnap, shouldDisplayReconnectButton } from '../utils';
 
@@ -104,14 +104,18 @@ const Index = () => {
   const { error } = useMetaMaskContext();
   const { isFlask, snapsDetected, installedSnap } = useMetaMask();
   const requestSnap = useRequestSnap();
-  const invokeSnap = useInvokeSnap();
+  const invokeKeyring = useInvokeKeyring();
 
   const isMetaMaskReady = isLocalSnap(defaultSnapOrigin)
     ? isFlask
     : snapsDetected;
 
-  const handleSendHelloClick = async () => {
-    await invokeSnap({ method: 'hello' });
+  const handleCreateStellarAccountClick = async () => {
+    const result = await invokeKeyring({
+      method: 'keyring_createAccount',
+      params: { options: {} },
+    });
+    console.log('result', result);
   };
 
   return (
@@ -173,12 +177,12 @@ const Index = () => {
         )}
         <Card
           content={{
-            title: 'Send Hello message',
+            title: 'Create Stellar Account',
             description:
               'Display a custom message within a confirmation screen in MetaMask.',
             button: (
               <SendHelloButton
-                onClick={handleSendHelloClick}
+                onClick={handleCreateStellarAccountClick}
                 disabled={!installedSnap}
               />
             ),
