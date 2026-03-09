@@ -1,11 +1,12 @@
 /**
- * Merges two objects, keeping values from the overridee object when the overrider's corresponding properties are undefined,
- * null, or empty objects. Non-undefined values from the overrider take precedence. Empty objects in the overrider are
- * filtered out to preserve the overridee's values.
+ * Shallowly merges two objects at the top level, keeping values from the overridee object when the overrider's
+ * corresponding top-level properties are undefined, null, or empty objects. Non-undefined values from the overrider
+ * take precedence. Empty objects in the overrider are filtered out to preserve the overridee's values. Nested objects
+ * are not merged recursively: if a nested property exists in the overrider, it replaces the overridee's value entirely.
  *
  * @param overridee - The object to override.
  * @param overrider - The object to override with.
- * @returns The merged object.
+ * @returns The merged object (using shallow, top-level merge semantics).
  * @example
  * const overridee = { name: 'John' };
  * const overrider = { name: undefined, age: 30 };

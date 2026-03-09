@@ -38,6 +38,13 @@ class StateLock {
     }
   }
 
+  /**
+   * Wraps a regular state operation in a mutex to protect against concurrent access.
+   * This is used for operations that modify the state blob, such as snap_getState and snap_setState.
+   *
+   * @param callback - The callback to wrap.
+   * @returns The result of the callback.
+   */
   async wrapRegularStateOperation<ReturnType>(
     callback: MutexInterface.Worker<ReturnType>,
   ): Promise<ReturnType> {
@@ -64,20 +71,28 @@ class StateLock {
     }
   }
 
+  /**
+   * Wraps a regular state operation in a mutex to protect against concurrent access.
+   * This is used for operations that modify the entire state blob, such as snap_manageState.
+   *
+   * @param callback - The callback to wrap.
+   * @returns The result of the callback.
+   */
   async wrapManageStateOperation<ReturnType>(
     callback: MutexInterface.Worker<ReturnType>,
   ): Promise<ReturnType> {
-    await this.#regularStateUpdateMutex.waitForUnlock();
-
-    return await this.#blobModificationMutex.runExclusive(callback);
+    return await this.#blobModificationMutex.runExclusive(async () => {
+      await this.#regularStateUpdateMutex.waitForUnlock();
+      return await callback();
+    });
   }
 }
 
 /**
- * This class is a layer on top the the `snap_manageState` API that facilitates its usage:
+ * This class is a layer on top the `snap_manageState` API that facilitates its usage:
  *
  * Basic usage:
- * - Get and update the sate of the snap
+ * - Get and update the state of the snap
  *
  * Serialization:
  * - It serializes the data before storing it in the snap state because only JSON-assignable data can be stored.

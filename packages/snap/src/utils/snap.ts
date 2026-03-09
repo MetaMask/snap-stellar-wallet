@@ -67,7 +67,8 @@ export async function getDefaultEntropySource(): Promise<EntropySourceId> {
   const defaultEntropySource = entropySources.find(({ primary }) => primary);
 
   if (!defaultEntropySource) {
-    throw new Error('No default entropy source found - this can never happen');
+    // This can never happen because the snap SDK always returns a default entropy source
+    throw new Error('No default entropy source found');
   }
 
   return defaultEntropySource.id;

@@ -41,7 +41,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
    * const state = await stateManager.get();
    * // state is { users: [ { name: 'Alice', age: 20 }, { name: 'Bob', age: 25 } ] }
    *
-   * await stateManager.set('users.1.name', 'John');
+   * await stateManager.setKey('users.1.name', 'John');
    * // state is now { users: [ { name: 'Alice', age: 20 }, { name: 'John', age: 25 } ] }
    * ```
    * @param key - The key to set, which is a json path to the location.

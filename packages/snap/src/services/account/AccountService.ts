@@ -5,7 +5,7 @@ import type {
   StellarKeyringAccount,
 } from './AccountsRepository';
 import { KnownCaip2ChainId } from '../../constants';
-import type { CreateAccountOptions } from '../../handlers/keyring';
+import type { CreateAccountOptions } from '../../handlers/keyring/types';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
@@ -161,7 +161,7 @@ export class AccountService {
    * Finds the lowest unused index for a given entropy source and accounts.
    *
    * Generating a new index for the KeyringAccount is not as straightforward as one might think.
-   * We cannot assume that this number will continuosly increase because one can delete an account with
+   * We cannot assume that this number will continuously increase because one can delete an account with
    * an index in the middle of the list. The right way to do it is to find the lowest index that is
    * not yet used.
    *

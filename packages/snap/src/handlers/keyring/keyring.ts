@@ -17,15 +17,7 @@ import {
   handleKeyringRequest,
 } from '@metamask/keyring-snap-sdk';
 import type { Json, JsonRpcRequest } from '@metamask/snaps-sdk';
-import type { Infer } from '@metamask/superstruct';
-import {
-  assert,
-  object,
-  min,
-  optional,
-  string,
-  integer,
-} from '@metamask/superstruct';
+import { assert } from '@metamask/superstruct';
 import {
   ensureError,
   type CaipAssetType,
@@ -33,41 +25,19 @@ import {
   type CaipChainId,
 } from '@metamask/utils';
 
+import type { CreateAccountOptions } from './types';
+import { CreateAccountOptionsStruct } from './types';
 import type {
   AccountService,
   StellarKeyringAccount,
-} from '../services/account';
+} from '../../services/account';
 import {
   createPrefixedLogger,
   getSnapProvider,
   type ILogger,
   validateOrigin,
   withCatchAndThrowSnapError,
-} from '../utils';
-
-/**
- * The struct for validating createAccount options.
- * - entropySource: Optional string for the entropy source
- * - index: Optional non-negative integer for account derivation index
- */
-export const CreateAccountOptionsStruct = optional(
-  object({
-    entropySource: optional(string()),
-    index: optional(min(integer(), 0)),
-    addressType: optional(string()),
-    scope: optional(string()),
-    metamask: optional(
-      object({
-        correlationId: optional(string()),
-      }),
-    ),
-  }),
-);
-
-/**
- * The options for the createAccount method.
- */
-export type CreateAccountOptions = Infer<typeof CreateAccountOptionsStruct>;
+} from '../../utils';
 
 export class KeyringHandler implements Keyring {
   readonly #logger: ILogger;

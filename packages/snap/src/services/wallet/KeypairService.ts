@@ -81,7 +81,7 @@ export class KeypairService {
       const privateKeyBytes = hexToBytes(node.privateKey);
 
       // Derive a stellar keypair from a seed, we use the SNAP provided private key as seed
-      // Keypair.fromRawEd25519Seed require a 32 bytes Uint8Array as seed
+      // Keypair.fromRawEd25519Seed requires a 32-byte Uint8Array as seed
       const keypair = Keypair.fromRawEd25519Seed(privateKeyBytes as Buffer);
       // In Stellar, the address is the public key
       const address = keypair.publicKey();

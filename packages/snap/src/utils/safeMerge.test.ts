@@ -49,7 +49,7 @@ describe('safeMerge', () => {
     });
   });
 
-  it('handles nested objects', () => {
+  it('replaces nested objects entirely', () => {
     const overridee = {
       user: {
         name: 'John',
