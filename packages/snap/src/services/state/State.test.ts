@@ -1,6 +1,7 @@
 /* eslint-disable jest/prefer-strict-equal */
 /* eslint-disable @typescript-eslint/naming-convention */
 import { BigNumber } from 'bignumber.js';
+import { cloneDeep } from 'lodash';
 
 import { State } from './State';
 import { getSnapProvider } from '../../utils/snap';
@@ -35,12 +36,12 @@ describe('State', () => {
   const snapProvider = getSnapProvider() as { request: jest.Mock };
 
   beforeEach(() => {
+    jest.clearAllMocks();
     state = new State<MockStateValue>({
       encrypted: false,
-      defaultState: DEFAULT_STATE,
+      // Clone the default state to avoid mutating the original object
+      defaultState: cloneDeep(DEFAULT_STATE),
     });
-
-    jest.clearAllMocks();
   });
 
   afterEach(() => {
@@ -377,9 +378,31 @@ describe('State', () => {
 
   describe('deleteKeys', () => {
     it('deletes multiple keys', async () => {
-      await state.deleteKeys(['users.1.name', 'users.2.name']);
-      // TODO: check the state after the deletion
-      expect(snapProvider.request).toHaveBeenCalledTimes(2);
+      // remove the name key from the first and second user
+      await state.deleteKeys(['users.0.name', 'users.1.name']);
+
+      expect(snapProvider.request).toHaveBeenNthCalledWith(1, {
+        method: 'snap_getState',
+        params: { encrypted: false },
+      });
+
+      expect(snapProvider.request).toHaveBeenNthCalledWith(2, {
+        method: 'snap_manageState',
+        params: {
+          operation: 'update',
+          encrypted: false,
+          newState: {
+            users: [
+              {
+                age: 30,
+              },
+              {
+                age: 25,
+              },
+            ],
+          },
+        },
+      });
     });
   });
 });

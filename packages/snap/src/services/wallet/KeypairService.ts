@@ -95,8 +95,8 @@ export class KeypairService {
         derivationPath,
       };
     } catch (error) {
-      // logging is depends on log level,
-      // it wont output any log from production build.
+      // Logging depends on the log level;
+      // it won't output logs in production builds.
       this.#logger.debug({ error }, 'Error deriving address');
       // Sanitize errors to prevent leaking sensitive cryptographic information
       throw sanitizeSensitiveError(error as Error);
