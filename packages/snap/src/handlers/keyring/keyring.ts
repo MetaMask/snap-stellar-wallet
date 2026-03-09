@@ -91,10 +91,9 @@ export class KeyringHandler implements Keyring {
   }
 
   /**
-   * Emits the account created event to wallet.
-   * This will trigger the wallet to prompt the user to add the account to the wallet
-   * if the user accepts, the account will be added to the wallet
-   * if the user rejects, it will throw an error
+   * Emits the account-created event to the wallet.
+   * This triggers the wallet to prompt the user to add the account.
+   * If the user accepts, the account is added; if the user rejects, an error is thrown.
    *
    * @param account - The account to emit the event for.
    * @param options - The options for the account creation.

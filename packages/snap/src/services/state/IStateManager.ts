@@ -17,7 +17,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
    */
   get(): Promise<TStateValue>;
   /**
-   * Gets the value of passed key in the state object.
+   * Gets the value of the passed key in the state object.
    * The key is the json path to the value to get.
    *
    * @example
@@ -33,7 +33,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
     key: string,
   ): Promise<TResponse | undefined>;
   /**
-   * Sets the value of passed key in the state object.
+   * Sets the value of the passed key in the state object.
    * The key is a json path to the value to set.
    *
    * @example
@@ -53,12 +53,12 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
    *
    * Typically used for bulk `set`s or `delete`s, because:
    * - Atomicity: Using a single `state.update` ensures that all changes are applied atomically. If any part of the operation fails, none of the changes will be applied. This prevents partial updates that could leave the underlying data store in an inconsistent state.
-   * - Performance: Making multiple individual `state.set` or `state.delete` calls would require multiple round trips to the state storage system, causing potential overheads.
+   * - Performance: Making multiple individual `state.setKey` or `state.deleteKey` calls would require multiple round trips to the state storage system, causing potential overheads.
    * - State Consistency: Maintains better state consistency by reading the state once, making all modifications in memory and writing the complete updated state back.
    *
    * ⚠️ WARNING: Use with caution because:
    * - it will override the whole state.
-   * - it transfers the whole state back and forth the data store, which might consume a lot of bandwidth.
+   * - it transfers the whole state back and forth to the data store, which might consume a lot of bandwidth.
    *
    * For single updates, use instead `setKey` or `deleteKey`.
    *
@@ -69,7 +69,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
     updaterFunction: (state: TStateValue) => TStateValue,
   ): Promise<TStateValue>;
   /**
-   * Deletes the value of passed key in the state object.
+   * Deletes the value of the passed key in the state object.
    * The key is a json path to the value to delete.
    *
    * @example

@@ -28,7 +28,7 @@ export type ILogger = {
 };
 
 /**
- * A decorator function that noops if the log level is less than the configured log level,
+ * A decorator function that is a no-op if the log level is less than the configured log level,
  * and runs the decorated function otherwise.
  *
  * @param fn - The function to wrap.

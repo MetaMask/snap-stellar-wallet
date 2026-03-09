@@ -68,7 +68,7 @@ export class AccountService {
   }
 
   /**
-   * Creates a Stellar account from a given id and create account options.
+   * Creates a Stellar account with the given create-account options.
    *
    * @param options - The options for the account creation.
    * @param options.entropySource - The entropy source to use for account derivation.
@@ -76,7 +76,7 @@ export class AccountService {
    * @param options.addressType - The address type to use for account derivation.
    * @param options.scope - The scope to use for account derivation.
    * @param options.metamask - The metamask options to use for account derivation.
-   * @param options.metamask.correlationId - The correlation id to use for account derivation.
+   * @param options.metamask.correlationId - The correlation ID to use for account derivation.
    * @param callback - The callback to call after the account is created.
    * @returns A Promise that resolves to the created account.
    */
@@ -177,8 +177,7 @@ export class AccountService {
     entropySource: EntropySourceId;
     accounts: StellarKeyringAccount[];
   }): number {
-    const sortedIndices = [];
-
+    const sortedIndices: number[] = [];
     if (accounts.length > 0) {
       for (const account of accounts) {
         if (account.entropySource === entropySource) {

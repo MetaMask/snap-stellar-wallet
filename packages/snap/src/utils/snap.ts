@@ -103,7 +103,7 @@ export async function updateState({
  * Sets the state for the given key.
  *
  * @param params - The parameters for the state update.
- * @param params.key - The key to update the state for.
+ * @param params.key - The key (path) to set.
  * @param params.newState - The new state to set.
  * @param params.encrypted - Whether the state is encrypted.
  * @returns A Promise that resolves when the state is updated.
@@ -131,7 +131,7 @@ export async function setState({
  * Retrieves the state for the given key.
  *
  * @param params - The parameters for the state retrieval.
- * @param params.key - [optional] The key to get the state for, if not provided, the whole state is returned.
+ * @param params.key - (optional) The key to get the state for. If not provided, the whole state is returned.
  * @param params.encrypted - Whether the state is encrypted.
  * @returns The state for the given key.
  */

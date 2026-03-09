@@ -11,7 +11,7 @@ import { refine, string } from '@metamask/superstruct';
  * - Invalid hostname characters (backslashes, @ symbol, forward slashes, encoded forward slashes)
  * - Directory traversal attempts (../, ..%2f, ..%2F)
  *
- * Dangerous patterns including:
+ * Dangerous patterns include:
  * - HTML tags.
  * - JavaScript protocol.
  * - Data URI scheme.

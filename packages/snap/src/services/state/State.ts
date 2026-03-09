@@ -19,7 +19,7 @@ export type StateConfig<TValue extends Record<string, Serializable>> = {
 /**
  * Because we use both snap_manageState and snap_setState, we must protect against them being used at the same time.
  * We must also protect against multiple parallel requests to snap_manageState.
- * snap_setState, snap_getState etc does not have this limitation and can be accessed safely as long as
+ * snap_setState, snap_getState, etc. do not have this limitation and can be accessed safely as long as
  * an ongoing manageState operation is not occurring.
  */
 class StateLock {
@@ -40,7 +40,7 @@ class StateLock {
 
   /**
    * Wraps a regular state operation in a mutex to protect against concurrent access.
-   * This is used for operations that modify the state blob, such as snap_getState and snap_setState.
+   * This is used for operations that read or modify parts of the state (e.g. snap_getState, snap_setState).
    *
    * @param callback - The callback to wrap.
    * @returns The result of the callback.
@@ -49,7 +49,7 @@ class StateLock {
     callback: MutexInterface.Worker<ReturnType>,
   ): Promise<ReturnType> {
     // If we are currently doing a full blob update, wait it out.
-    // Signal that regular state operations are ongoing by acquring the mutex.
+    // Signal that regular state operations are ongoing by acquiring the mutex.
     // Other regular state operations can skip this, as they are safe to do in parallel.
     await Promise.all([
       this.#blobModificationMutex.waitForUnlock(),
@@ -72,7 +72,7 @@ class StateLock {
   }
 
   /**
-   * Wraps a regular state operation in a mutex to protect against concurrent access.
+   * Wraps a manage-state (full blob) operation in a mutex to protect against concurrent access.
    * This is used for operations that modify the entire state blob, such as snap_manageState.
    *
    * @param callback - The callback to wrap.
@@ -89,7 +89,7 @@ class StateLock {
 }
 
 /**
- * This class is a layer on top the `snap_manageState` API that facilitates its usage:
+ * This class is a layer on top of the `snap_manageState` API that facilitates its usage:
  *
  * Basic usage:
  * - Get and update the state of the snap
@@ -100,7 +100,7 @@ class StateLock {
  * - So you don't need to worry about the data format when storing or retrieving data.
  *
  * Default values:
- * - It  merges the default state with the underlying snap state to ensure that we always have default values,
+ * - It merges the default state with the underlying snap state to ensure that we always have default values,
  * letting us avoid a ton of null checks everywhere.
  */
 export class State<

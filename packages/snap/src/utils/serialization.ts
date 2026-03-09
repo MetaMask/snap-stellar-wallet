@@ -49,11 +49,11 @@ export const serialize = (value: Serializable): Json =>
     }
 
     if (val instanceof Uint8Array) {
-      // Convert Uint8Array to base64 string without using Buffer
-      let binaryString = '';
-      for (const byte of val) {
-        binaryString += String.fromCharCode(byte);
-      }
+      // Convert Uint8Array to base64 string without using Buffer.
+      // Build string via array + join to avoid O(n^2) from repeated concatenation.
+      const binaryString = Array.from(val, (byte) =>
+        String.fromCharCode(byte),
+      ).join('');
       return {
         __type: 'Uint8Array',
         value: btoa(binaryString),
@@ -65,7 +65,7 @@ export const serialize = (value: Serializable): Json =>
   });
 
 /**
- * Deserializes the passed value from a JSON object to an object with its the original values.
+ * Deserializes the passed value from a JSON object back to its original values.
  * It transforms the JSON-serializable representation of non-JSON-serializable values back into their original values.
  *
  * @param serializedValue - The value to deserialize.

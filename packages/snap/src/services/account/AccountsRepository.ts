@@ -92,7 +92,7 @@ export class AccountsRepository {
    * Deletes an account by its id.
    *
    * @param id - The id of the account to delete.
-   * @returns The deleted account.
+   * @returns A Promise that resolves when the account is deleted.
    */
   async delete(id: string): Promise<void> {
     await this.#state.deleteKey(`${this.#storageKey}.${id}`);
