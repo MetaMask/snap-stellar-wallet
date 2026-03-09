@@ -18,7 +18,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
   get(): Promise<TStateValue>;
   /**
    * Gets the value of the passed key in the state object.
-   * The key is the json path to the value to get.
+   * The key is the JSON path to the value to get.
    *
    * @example
    * ```typescript
@@ -34,7 +34,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
   ): Promise<TResponse | undefined>;
   /**
    * Sets the value of the passed key in the state object.
-   * The key is a json path to the value to set.
+   * The key is a JSON path to the value to set.
    *
    * @example
    * ```typescript
@@ -44,7 +44,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
    * await stateManager.setKey('users.1.name', 'John');
    * // state is now { users: [ { name: 'Alice', age: 20 }, { name: 'John', age: 25 } ] }
    * ```
-   * @param key - The key to set, which is a json path to the location.
+   * @param key - The key to set, which is a JSON path to the location.
    * @param value - The value to set.
    */
   setKey(key: string, value: Serializable): Promise<void>;
@@ -53,7 +53,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
    *
    * Typically used for bulk `set`s or `delete`s, because:
    * - Atomicity: Using a single `state.update` ensures that all changes are applied atomically. If any part of the operation fails, none of the changes will be applied. This prevents partial updates that could leave the underlying data store in an inconsistent state.
-   * - Performance: Making multiple individual `state.setKey` or `state.deleteKey` calls would require multiple round trips to the state storage system, causing potential overheads.
+   * - Performance: Making multiple individual `state.setKey` or `state.deleteKey` calls would require multiple round trips to the state storage system, causing potential overhead.
    * - State Consistency: Maintains better state consistency by reading the state once, making all modifications in memory and writing the complete updated state back.
    *
    * ⚠️ WARNING: Use with caution because:
@@ -70,7 +70,7 @@ export type IStateManager<TStateValue extends Record<string, Serializable>> = {
   ): Promise<TStateValue>;
   /**
    * Deletes the value of the passed key in the state object.
-   * The key is a json path to the value to delete.
+   * The key is a JSON path to the value to delete.
    *
    * @example
    * ```typescript

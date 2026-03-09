@@ -3,13 +3,13 @@
 ## Configuration
 
 Rename `.env.example` to `.env`
-Configurations are setup though `.env`,
+Configurations are set up through `.env`.
 
-## API:
+## API
 
 ### `keyring_createAccount`
 
-example:
+Example:
 
 ```typescript
 provider.request({

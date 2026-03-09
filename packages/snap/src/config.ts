@@ -22,7 +22,7 @@ const networkConfigStruct = object({
 });
 
 /**
- * A Struct to validate and coerce log level from env.
+ * A struct to validate and coerce log level from env.
  * Converts the log level to lowercase and checks if it is a valid log level.
  * If the log level is empty, it returns the default log level.
  */

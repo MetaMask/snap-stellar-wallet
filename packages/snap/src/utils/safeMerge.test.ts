@@ -1,7 +1,7 @@
 import { safeMerge } from './safeMerge';
 
 describe('safeMerge', () => {
-  it('merges two objects and keeps existing values when overrider has undefined', () => {
+  it('merges two objects and keeps existing values when the overrider has undefined', () => {
     const overridee = { name: 'John', age: 25 };
     const overrider = { name: undefined, title: 'Developer' };
 
@@ -14,7 +14,7 @@ describe('safeMerge', () => {
     });
   });
 
-  it('overrides values when overrider has non-undefined values', () => {
+  it('overrides values when the overrider has non-undefined values', () => {
     const overridee = { name: 'John', age: 25 };
     const overrider = { name: 'Jane', title: 'Engineer' };
 
@@ -73,7 +73,7 @@ describe('safeMerge', () => {
     });
   });
 
-  it('filters out empty objects in overrider', () => {
+  it('filters out empty objects in the overrider', () => {
     const overridee = { name: 'John', settings: { theme: 'dark' } };
     const overrider = { name: 'Jane', settings: {} };
 
@@ -85,7 +85,7 @@ describe('safeMerge', () => {
     });
   });
 
-  it('keeps non-empty objects in overrider', () => {
+  it('keeps non-empty objects in the overrider', () => {
     const overridee = { settings: { theme: 'dark' } };
     const overrider = { settings: { language: 'en' } };
 

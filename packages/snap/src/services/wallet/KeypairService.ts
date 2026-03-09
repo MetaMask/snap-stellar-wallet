@@ -14,7 +14,7 @@ import {
 export const STELLAR_CURVE = 'ed25519';
 
 /** Stellar derivation path */
-/** example: m/44'/148'/0' */
+/** Example: m/44'/148'/0' */
 export const STELLAR_DERIVATION_PATH = `m/44'/${STELLAR_COIN_TYPE}'`;
 
 /** Stellar derivation path type */
@@ -65,7 +65,7 @@ export class KeypairService {
       this.#logger.log({ derivationPath }, 'Generating Stellar wallet');
 
       const path = derivationPath.split('/');
-      // get the BIP44 coin type entropy from the snap service
+      // Get the BIP44 coin type entropy from the Snap service
       const node = await getBip32Entropy({
         entropySource,
         path,
@@ -76,11 +76,11 @@ export class KeypairService {
         throw new Error('Unable to derive private key or public key');
       }
 
-      // node.privateKey is a 66 length hex string with 0x prefix
+      // node.privateKey is a 66-character hex string with 0x prefix
       // hexToBytes removes the leading 0x prefix and returns a 32-byte Uint8Array
       const privateKeyBytes = hexToBytes(node.privateKey);
 
-      // Derive a stellar keypair from a seed, we use the SNAP provided private key as seed
+      // Derive a Stellar keypair from a seed; we use the Snap-provided private key as seed
       // Keypair.fromRawEd25519Seed requires a 32-byte Uint8Array as seed
       const keypair = Keypair.fromRawEd25519Seed(privateKeyBytes as Buffer);
       // In Stellar, the address is the public key
@@ -95,7 +95,7 @@ export class KeypairService {
         derivationPath,
       };
     } catch (error) {
-      // Logging is disabled in production builds, so this will not output any log.
+      // Logging is disabled in production builds, so this will not output any logs.
       this.#logger.debug({ error }, 'Error deriving address');
       // Sanitize errors to prevent leaking sensitive cryptographic information
       throw sanitizeSensitiveError(error as Error);

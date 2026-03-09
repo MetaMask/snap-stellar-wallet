@@ -19,8 +19,7 @@ export type StateConfig<TValue extends Record<string, Serializable>> = {
 /**
  * Because we use both snap_manageState and snap_setState, we must protect against them being used at the same time.
  * We must also protect against multiple parallel requests to snap_manageState.
- * snap_setState, snap_getState, etc. do not have this limitation and can be accessed safely as long as
- * an ongoing manageState operation is not occurring.
+ * snap_setState, snap_getState, etc.
  */
 class StateLock {
   readonly #blobModificationMutex = new Mutex();
@@ -95,12 +94,12 @@ class StateLock {
  * - Get and update the state of the snap
  *
  * Serialization:
- * - It serializes the data before storing it in the snap state because only JSON-assignable data can be stored.
- * - It deserializes the data after retrieving it from the snap state.
+ * - It serializes the data before storing it in the Snap state because only JSON-assignable data can be stored.
+ * - It deserializes the data after retrieving it from the Snap state.
  * - So you don't need to worry about the data format when storing or retrieving data.
  *
  * Default values:
- * - It merges the default state with the underlying snap state to ensure that we always have default values,
+ * - It merges the default state with the underlying Snap state to ensure that we always have default values,
  * letting us avoid a ton of null checks everywhere.
  */
 export class State<
@@ -121,7 +120,7 @@ export class State<
 
     const stateDeserialized = (state as TStateValue) ?? {};
 
-    // Merge the default state with the underlying snap state
+    // Merge the default state with the underlying Snap state
     // to ensure that we always have default values. It lets us avoid a ton of null checks everywhere.
     const stateWithDefaults = safeMerge(
       this.#config.defaultState,
@@ -168,7 +167,7 @@ export class State<
 
       const newState = updaterFunction(currentState);
 
-      // Generally we should try to use snap_getState and snap_setState over this
+      // Generally we should try to use snap_getState and snap_setState instead of this,
       // as snap_manageState is slower and error-prone due to requiring manual mutex management.
       await updateState({
         newState,
@@ -181,7 +180,7 @@ export class State<
 
   async deleteKey(key: string): Promise<void> {
     await this.update((state) => {
-      // Using lodash's unset to leverage the json path capabilities
+      // Using lodash's unset to leverage the JSON path capabilities
       unset(state, key);
       return state;
     });

@@ -5,9 +5,9 @@ import type { EntropySource, Json, SnapsProvider } from '@metamask/snaps-sdk';
 import { type Serializable, serialize, deserialize } from './serialization';
 
 /**
- * Returns the snap provider.
+ * Returns the Snap provider.
  *
- * @returns The snap provider.
+ * @returns The Snap provider.
  */
 export function getSnapProvider(): SnapsProvider {
   // snap is a global variable provided by the Snap SDK
@@ -67,7 +67,7 @@ export async function getDefaultEntropySource(): Promise<EntropySourceId> {
   const defaultEntropySource = entropySources.find(({ primary }) => primary);
 
   if (!defaultEntropySource) {
-    // This can never happen because the snap SDK always returns a default entropy source
+    // This can never happen because the Snap SDK always returns a default entropy source
     throw new Error('No default entropy source found');
   }
 

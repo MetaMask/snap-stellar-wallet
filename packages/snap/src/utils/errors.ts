@@ -26,7 +26,7 @@ import { logger as defaultLogger } from './logger';
  * This prevents leaking details about private keys, entropy, or derivation paths.
  *
  * @param error - The error to sanitize.
- * @returns A sanitized error with generic message if sensitive info detected.
+ * @returns A sanitized error with a generic message if sensitive info is detected.
  */
 export function sanitizeSensitiveError(error: Error): Error {
   const message = error?.message?.toLowerCase() ?? '';

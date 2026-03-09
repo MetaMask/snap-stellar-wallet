@@ -62,7 +62,7 @@ describe('State', () => {
       expect(stateValue).toStrictEqual(mockUnderlyingState);
     });
 
-    it('gets the default state if the snap state is empty', async () => {
+    it('gets the default state if the Snap state is empty', async () => {
       const mockUnderlyingState = {};
       snapProvider.request.mockResolvedValue(mockUnderlyingState);
 

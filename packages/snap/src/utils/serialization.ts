@@ -19,7 +19,7 @@ export type Serializable =
     };
 
 /**
- * Serializes the passed value to a JSON object so it can be stored in JSON-serializable storage like the snap state and interface context.
+ * Serializes the passed value to a JSON object so it can be stored in JSON-serializable storage like the Snap state and interface context.
  * It transforms non-JSON-serializable values into a specific JSON-serializable representation that can be deserialized later.
  *
  * @param value - The value to serialize.

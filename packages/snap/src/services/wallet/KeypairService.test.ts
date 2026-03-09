@@ -24,7 +24,7 @@ describe('KeypairService', () => {
     const index = 0;
     const entropySource = 'entropy-source-1';
 
-    it('derive an address', async () => {
+    it('derives an address', async () => {
       jest.mocked(getBip32Entropy).mockResolvedValue(mockBip32Node);
 
       assert(mockBip32Node.privateKey);
@@ -44,7 +44,7 @@ describe('KeypairService', () => {
       });
     });
 
-    it('throws an error if the private key or public key is not available from SNAP bip32 entropy', async () => {
+    it('throws an error if the private key or public key is not available from Snap BIP32 entropy', async () => {
       jest.mocked(getBip32Entropy).mockResolvedValue({
         ...mockBip32Node,
         privateKey: undefined,

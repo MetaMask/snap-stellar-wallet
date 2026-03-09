@@ -75,7 +75,7 @@ export class AccountService {
    * @param options.index - The index of the account to derive.
    * @param options.addressType - The address type to use for account derivation.
    * @param options.scope - The scope to use for account derivation.
-   * @param options.metamask - The metamask options to use for account derivation.
+   * @param options.metamask - The MetaMask options to use for account derivation.
    * @param options.metamask.correlationId - The correlation ID to use for account derivation.
    * @param callback - The callback to call after the account is created.
    * @returns A Promise that resolves to the created account.
@@ -147,9 +147,9 @@ export class AccountService {
   }
 
   /**
-   * Deletes a Stellar account from a given id.
+   * Deletes a Stellar account with the given ID.
    *
-   * @param id - The id of the account to delete.
+   * @param id - The ID of the account to delete.
    * @returns A Promise that resolves when the account is deleted.
    */
   async delete(id: string): Promise<void> {

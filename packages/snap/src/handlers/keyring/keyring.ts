@@ -108,7 +108,7 @@ export class KeyringHandler implements Keyring {
     await emitSnapKeyringEvent(getSnapProvider(), KeyringEvent.AccountCreated, {
       /**
        * We can't pass the `keyringAccount` object because it contains the index
-       * and the snaps sdk does not allow extra properties.
+       * and the Snaps SDK does not allow extra properties.
        */
       account: keyringAccount,
       /**
@@ -117,7 +117,7 @@ export class KeyringHandler implements Keyring {
        */
       displayConfirmation: false,
       /**
-       * Internal options to MetaMask that includes a correlation ID. We need
+       * Internal options to MetaMask that include a correlation ID. We need
        * to also emit this ID to the Snap keyring.
        */
       ...(options?.metamask ?? {}),

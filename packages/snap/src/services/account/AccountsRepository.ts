@@ -36,9 +36,9 @@ export class AccountsRepository {
   }
 
   /**
-   * Finds an account by its id.
+   * Finds an account by its ID.
    *
-   * @param id - The id of the account to find.
+   * @param id - The ID of the account to find.
    * @returns The account if found, otherwise null.
    */
   async findById(id: string): Promise<StellarKeyringAccount | null> {
@@ -51,9 +51,9 @@ export class AccountsRepository {
   }
 
   /**
-   * Finds accounts by their ids.
+   * Finds accounts by their IDs.
    *
-   * @param ids - The ids of the accounts to find.
+   * @param ids - The IDs of the accounts to find.
    * @returns The accounts if found.
    */
   async findByIds(ids: string[]): Promise<StellarKeyringAccount[]> {
@@ -89,9 +89,9 @@ export class AccountsRepository {
   }
 
   /**
-   * Deletes an account by its id.
+   * Deletes an account by its ID.
    *
-   * @param id - The id of the account to delete.
+   * @param id - The ID of the account to delete.
    * @returns A Promise that resolves when the account is deleted.
    */
   async delete(id: string): Promise<void> {
