@@ -1,11 +1,14 @@
-import type { EntropySourceId } from '@metamask/keyring-api';
+import type { CaipChainId, EntropySourceId } from '@metamask/keyring-api';
 
 import type {
   AccountsRepository,
   StellarKeyringAccount,
 } from './AccountsRepository';
 import { KnownCaip2ChainId } from '../../constants';
-import type { CreateAccountOptions } from '../../handlers/keyring/types';
+import type {
+  CreateAccountOptions,
+  StellarAddress,
+} from '../../handlers/keyring/types';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
@@ -15,12 +18,15 @@ import {
 import type {
   KeypairService,
   StellarDerivationPath,
-} from '../wallet/KeypairService';
+  WalletService,
+} from '../wallet';
 
 export class AccountService {
   readonly #logger: ILogger;
 
   readonly #keypairService: KeypairService;
+
+  readonly #walletService: WalletService;
 
   readonly #accountsRepository: AccountsRepository;
 
@@ -28,13 +34,16 @@ export class AccountService {
     logger,
     keypairService,
     accountsRepository,
+    walletService,
   }: {
     logger: ILogger;
     keypairService: KeypairService;
     accountsRepository: AccountsRepository;
+    walletService: WalletService;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 AccountService]');
     this.#keypairService = keypairService;
+    this.#walletService = walletService;
     this.#accountsRepository = accountsRepository;
   }
 
@@ -65,6 +74,62 @@ export class AccountService {
       index,
       address,
     });
+  }
+
+  /**
+   * Resolves an account address from a given scope and address by:
+   * - Verifying the address is associated with an account in the keyring that matches the scope.
+   * - Verifying the address is activated in the Stellar network.
+   * - Verifying the address is the same as the derived account address.
+   *
+   * @param params - The parameters for the account resolution.
+   * @param params.scope - The scope of the account to resolve.
+   * @param params.address - The address of the account to resolve.
+   * @returns A Promise that resolves to the resolved account address.
+   * @throws If the account is not found or the address is not associated with an account in the keyring that matches the scope.
+   */
+  async resolveAccount({
+    scope,
+    address,
+  }: {
+    scope: CaipChainId;
+    address: StellarAddress;
+  }): Promise<StellarAddress> {
+    this.#logger.debug('Resolving account address', { scope, address });
+
+    // Verify the address is associated with an account in the keyring that matches the scope.
+    const account = await this.#accountsRepository.findByAddressAndScope(
+      address,
+      scope,
+    );
+    if (!account) {
+      throw new Error(
+        `Account not found in keyring for address: ${address} and scope: ${scope}`,
+      );
+    }
+
+    // Verify the address is the same as the derived account address.
+    const derivedAccount = await this.deriveAccount({
+      entropySource: account.entropySource,
+      index: account.index,
+    });
+    if (derivedAccount.address.toLowerCase() !== address.toLowerCase()) {
+      throw new Error(
+        `Derived account address does not match the provided address: ${address}`,
+      );
+    }
+
+    // Verify the address is activated in the Stellar network.
+    const stellarAccount = await this.#walletService.loadAccount(
+      account.address,
+    );
+    if (!stellarAccount) {
+      throw new Error(
+        `Account not found in Stellar network for address: ${address}`,
+      );
+    }
+
+    return address;
   }
 
   /**
@@ -151,10 +216,32 @@ export class AccountService {
    *
    * @param id - The ID of the account to delete.
    * @returns A Promise that resolves when the account is deleted.
+   * @throws {Error} If the account is not found.
    */
   async delete(id: string): Promise<void> {
     this.#logger.debug('Deleting account', { id });
     await this.#accountsRepository.delete(id);
+  }
+
+  /**
+   * Lists all Stellar accounts.
+   *
+   * @returns A Promise that resolves to the list of accounts.
+   */
+  async listAccounts(): Promise<StellarKeyringAccount[]> {
+    this.#logger.debug('Listing accounts');
+    return await this.#accountsRepository.getAll();
+  }
+
+  /**
+   * Finds a Stellar account by its ID.
+   *
+   * @param id - The ID of the account to find.
+   * @returns A Promise that resolves to the account if found, otherwise undefined.
+   */
+  async findById(id: string): Promise<StellarKeyringAccount | undefined> {
+    this.#logger.debug('Finding account by ID', { id });
+    return (await this.#accountsRepository.findById(id)) ?? undefined;
   }
 
   /**

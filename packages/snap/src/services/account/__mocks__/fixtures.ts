@@ -1,3 +1,5 @@
+import { Keypair } from '@stellar/stellar-sdk';
+
 import { KnownCaip2ChainId } from '../../../constants';
 import { KeypairService } from '../../wallet';
 import type { StellarKeyringAccount } from '../AccountsRepository';
@@ -33,8 +35,8 @@ export const generateMockStellarKeyringAccounts = (
 ): StellarKeyringAccount[] =>
   Array.from({ length: count }, (_, index) =>
     generateStellarKeyringAccount(
-      `test-account-id-${index}`,
-      `test-address-${index}`,
+      globalThis.crypto.randomUUID(),
+      Keypair.random().publicKey(),
       entropySource,
       index,
     ),

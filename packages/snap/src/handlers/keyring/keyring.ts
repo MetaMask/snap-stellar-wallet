@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
+  DiscoveredAccountType,
   KeyringEvent,
   type Balance,
   type DiscoveredAccount,
@@ -17,16 +18,26 @@ import {
   handleKeyringRequest,
 } from '@metamask/keyring-snap-sdk';
 import type { Json, JsonRpcRequest } from '@metamask/snaps-sdk';
-import { assert } from '@metamask/superstruct';
 import {
   ensureError,
   type CaipAssetType,
   type CaipAssetTypeOrId,
-  type CaipChainId,
 } from '@metamask/utils';
 
-import type { CreateAccountOptions } from './types';
-import { CreateAccountOptionsStruct } from './types';
+import type {
+  CreateAccountOptions,
+  ResolveAccountAddressJsonRpcRequest,
+  GetAccountRequest,
+  CaipChainId,
+} from './types';
+import {
+  CreateAccountOptionsStruct,
+  ResolveAccountAddressRequestStruct,
+  GetAccountRequestStruct,
+  DiscoverAccountsStruct,
+  DeleteAccountRequestStruct,
+  SetSelectedAccountsRequestStruct,
+} from './types';
 import type {
   AccountService,
   StellarKeyringAccount,
@@ -36,6 +47,7 @@ import {
   getSnapProvider,
   type ILogger,
   validateOrigin,
+  validateRequest,
   withCatchAndThrowSnapError,
 } from '../../utils';
 
@@ -66,17 +78,31 @@ export class KeyringHandler implements Keyring {
   }
 
   async listAccounts(): Promise<KeyringAccount[]> {
-    throw new Error('Method not implemented.');
+    try {
+      const accounts = await this.#accountService.listAccounts();
+      return accounts.map((account) => this.#toKeyringAccount(account));
+    } catch (error: unknown) {
+      throw new Error(`Error listing accounts: ${ensureError(error).message}`);
+    }
   }
 
-  async getAccount(accountId: string): Promise<KeyringAccount | undefined> {
-    throw new Error('Method not implemented.');
+  async getAccount(
+    accountId: GetAccountRequest,
+  ): Promise<KeyringAccount | undefined> {
+    validateRequest(accountId, GetAccountRequestStruct);
+
+    try {
+      const account = await this.#accountService.findById(accountId);
+      return account ? this.#toKeyringAccount(account) : undefined;
+    } catch (error: unknown) {
+      throw new Error(`Error getting account: ${ensureError(error).message}`);
+    }
   }
 
   async createAccount(options?: CreateAccountOptions): Promise<KeyringAccount> {
-    try {
-      assert(options, CreateAccountOptionsStruct);
+    validateRequest(options, CreateAccountOptionsStruct);
 
+    try {
       const account = await this.#accountService.create(
         options,
         async (stellarKeyringAccount: StellarKeyringAccount) =>
@@ -85,7 +111,6 @@ export class KeyringHandler implements Keyring {
 
       return this.#toKeyringAccount(account);
     } catch (error: unknown) {
-      this.#logger.error({ error }, 'Error creating account');
       throw new Error(`Error creating account: ${ensureError(error).message}`);
     }
   }
@@ -137,7 +162,7 @@ export class KeyringHandler implements Keyring {
   }
 
   async listAccountAssets(accountId: string): Promise<CaipAssetTypeOrId[]> {
-    throw new Error('Method not implemented.');
+    throw new Error('Method not implemented. - listAccountAssets');
   }
 
   async listAccountTransactions(
@@ -147,7 +172,7 @@ export class KeyringHandler implements Keyring {
     data: Transaction[];
     next: string | null;
   }> {
-    throw new Error('Method not implemented.');
+    throw new Error('Method not implemented. - listAccountTransactions');
   }
 
   async discoverAccounts(
@@ -155,33 +180,96 @@ export class KeyringHandler implements Keyring {
     entropySource: EntropySourceId,
     groupIndex: number,
   ): Promise<DiscoveredAccount[]> {
-    throw new Error('Method not implemented.');
+    validateRequest(
+      { scopes, entropySource, groupIndex },
+      DiscoverAccountsStruct,
+    );
+
+    try {
+      const account = await this.#accountService.deriveAccount({
+        entropySource,
+        index: groupIndex,
+      });
+
+      // TODO: Verify the account has at least one transaction.
+
+      return [
+        {
+          type: DiscoveredAccountType.Bip44,
+          scopes,
+          derivationPath: account.derivationPath,
+        },
+      ];
+    } catch (error: unknown) {
+      throw new Error(
+        `Error discovering accounts: ${ensureError(error).message}`,
+      );
+    }
   }
 
   async getAccountBalances(
     accountId: string,
     assets: CaipAssetType[],
   ): Promise<Record<CaipAssetType, Balance>> {
-    throw new Error('Method not implemented.');
+    throw new Error('Method not implemented. - getAccountBalances');
   }
 
   async resolveAccountAddress(
     scope: CaipChainId,
-    request: JsonRpcRequest,
+    request: ResolveAccountAddressJsonRpcRequest,
   ): Promise<ResolvedAccountAddress> {
-    throw new Error('Method not implemented.');
+    validateRequest(
+      {
+        request,
+        scope,
+      },
+      ResolveAccountAddressRequestStruct,
+    );
+
+    try {
+      const address = await this.#accountService.resolveAccount({
+        scope,
+        address: request.params.address,
+      });
+      return { address: `${scope}:${address}` };
+    } catch (error: unknown) {
+      throw new Error(
+        `Error resolving account address: ${ensureError(error).message}`,
+      );
+    }
   }
 
   async filterAccountChains(id: string, chains: string[]): Promise<string[]> {
-    throw new Error('Method not implemented.');
+    throw new Error('Method not implemented. - filterAccountChains');
   }
 
   async updateAccount(account: KeyringAccount): Promise<void> {
-    throw new Error('Method not implemented.');
+    throw new Error('Method not implemented. - updateAccount');
   }
 
   async deleteAccount(accountId: string): Promise<void> {
-    throw new Error('Method not implemented.');
+    validateRequest(accountId, DeleteAccountRequestStruct);
+
+    try {
+      const account = await this.#getAccountOrThrow(accountId);
+
+      await emitSnapKeyringEvent(
+        getSnapProvider(),
+        KeyringEvent.AccountDeleted,
+        {
+          id: account.id,
+        },
+      );
+
+      await this.#accountService.delete(accountId);
+    } catch (error: unknown) {
+      throw new Error(`Error deleting account: ${ensureError(error).message}`);
+    }
+  }
+
+  async setSelectedAccounts(accountIds: string[]): Promise<void> {
+    validateRequest(accountIds, SetSelectedAccountsRequestStruct);
+    // TODO: Implement the setSelectedAccounts method.
   }
 
   async submitRequest(request: KeyringRequest): Promise<KeyringResponse> {
@@ -192,8 +280,12 @@ export class KeyringHandler implements Keyring {
     throw new Error('Method not implemented.');
   }
 
-  async setSelectedAccounts(accountIds: string[]): Promise<void> {
-    throw new Error('Method not implemented.');
+  async #getAccountOrThrow(accountId: string): Promise<StellarKeyringAccount> {
+    const account = await this.#accountService.findById(accountId);
+    if (!account) {
+      throw new Error(`Account not found: ${accountId}`);
+    }
+    return account;
   }
 }
 /* eslint-enable @typescript-eslint/no-unused-vars */

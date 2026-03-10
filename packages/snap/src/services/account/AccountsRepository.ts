@@ -1,4 +1,8 @@
-import type { EntropySourceId, KeyringAccount } from '@metamask/keyring-api';
+import type {
+  CaipChainId,
+  EntropySourceId,
+  KeyringAccount,
+} from '@metamask/keyring-api';
 
 import type { IStateManager } from '../state/IStateManager';
 import type { StellarDerivationPath } from '../wallet/KeypairService';
@@ -73,6 +77,27 @@ export class AccountsRepository {
     return (
       accounts.find(
         (account) => account.address.toLowerCase() === address.toLowerCase(),
+      ) ?? null
+    );
+  }
+
+  /**
+   * Finds an account by its address and scope.
+   *
+   * @param address - The address of the account to find.
+   * @param scope - The scope of the account to find.
+   * @returns The account if found, otherwise null.
+   */
+  async findByAddressAndScope(
+    address: string,
+    scope: CaipChainId,
+  ): Promise<StellarKeyringAccount | null> {
+    const accounts = await this.getAll();
+    return (
+      accounts.find(
+        (account) =>
+          account.address.toLowerCase() === address.toLowerCase() &&
+          account.scopes.includes(scope),
       ) ?? null
     );
   }

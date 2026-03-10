@@ -1,17 +1,22 @@
-import { KeyringEvent, KeyringRpcMethod } from '@metamask/keyring-api';
+import type { KeyringAccount } from '@metamask/keyring-api';
+import {
+  DiscoveredAccountType,
+  KeyringEvent,
+  KeyringRpcMethod,
+} from '@metamask/keyring-api';
 import {
   emitSnapKeyringEvent,
   handleKeyringRequest,
 } from '@metamask/keyring-snap-sdk';
-import type { JsonRpcRequest } from '@metamask/snaps-sdk';
-import { assert } from '@metamask/superstruct';
+import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
 
 import { KeyringHandler } from './keyring';
-import { CreateAccountOptionsStruct } from './types';
+import { StellarMultichainMethod } from './types';
+import { mockAccountService } from '../../__mocks__/services';
 import { KnownCaip2ChainId, KnownCaip19Id } from '../../constants';
+import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/fixtures';
 import { AccountService } from '../../services/account/AccountService';
-import { AccountsRepository } from '../../services/account/AccountsRepository';
-import { State } from '../../services/state';
+import type { StellarKeyringAccount } from '../../services/account/AccountsRepository';
 import { KeypairService } from '../../services/wallet/KeypairService';
 import {
   getBip32Entropy,
@@ -24,6 +29,7 @@ import { logger } from '../../utils/logger';
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
 jest.mock('../../utils/requestResponse', () => ({
+  ...jest.requireActual('../../utils/requestResponse'),
   validateOrigin: jest.fn(),
 }));
 jest.mock('@metamask/keyring-snap-sdk', () => ({
@@ -35,25 +41,30 @@ describe('KeyringHandler', () => {
   let keyringHandler: KeyringHandler;
 
   const entropySourceId = 'entropy-source-1';
+  const mockAccount = generateMockStellarKeyringAccounts(
+    1,
+    entropySourceId,
+  )[0] as StellarKeyringAccount;
+  const mockAccountId = mockAccount.id;
+
+  const toKeyringAccount = (account: StellarKeyringAccount): KeyringAccount => {
+    const { id, address, type, options, methods, scopes } = account;
+    return {
+      id,
+      address,
+      type,
+      options,
+      methods,
+      scopes,
+    };
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(getBip32Entropy).mockResolvedValue(mockBip32Node);
     jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySourceId);
 
-    const accountsRepository = new AccountsRepository(
-      new State({
-        encrypted: false,
-        defaultState: {
-          keyringAccounts: {},
-        },
-      }),
-    );
-    const accountService = new AccountService({
-      logger,
-      keypairService: new KeypairService({ logger }),
-      accountsRepository,
-    });
+    const { accountService } = mockAccountService();
     keyringHandler = new KeyringHandler({
       logger,
       accountService,
@@ -95,17 +106,66 @@ describe('KeyringHandler', () => {
   });
 
   describe('listAccounts', () => {
-    it('throws `Method not implemented.` error', async () => {
+    it('lists all accounts', async () => {
+      const expectedAccounts = generateMockStellarKeyringAccounts(
+        5,
+        'entropy-source-1',
+      );
+      jest
+        .spyOn(AccountService.prototype, 'listAccounts')
+        .mockResolvedValue(expectedAccounts);
+
+      const result = await keyringHandler.listAccounts();
+
+      expect(result).toStrictEqual(
+        expectedAccounts.map((account) => toKeyringAccount(account)),
+      );
+    });
+
+    it('throws an error if the account listing fails', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'listAccounts')
+        .mockRejectedValue(new Error('Account listing failed'));
+
       await expect(keyringHandler.listAccounts()).rejects.toThrow(
-        'Method not implemented.',
+        'Error listing accounts: Account listing failed',
       );
     });
   });
 
   describe('getAccount', () => {
-    it('throws `Method not implemented.` error', async () => {
-      await expect(keyringHandler.getAccount('1')).rejects.toThrow(
-        'Method not implemented.',
+    it('gets an account by its ID', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'findById')
+        .mockResolvedValue(mockAccount);
+
+      const result = await keyringHandler.getAccount(mockAccountId);
+      expect(result).toStrictEqual(toKeyringAccount(mockAccount));
+    });
+
+    it('returns undefined if the account is not found', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'findById')
+        .mockResolvedValue(undefined);
+
+      const result = await keyringHandler.getAccount(mockAccountId);
+
+      expect(result).toBeUndefined();
+    });
+
+    it('throws an error if the account retrieval fails', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'findById')
+        .mockRejectedValue(new Error('Account retrieval failed'));
+
+      await expect(keyringHandler.getAccount(mockAccountId)).rejects.toThrow(
+        'Error getting account: Account retrieval failed',
+      );
+    });
+
+    it('throws an error if the account ID is not a valid account ID', async () => {
+      await expect(keyringHandler.getAccount('not-uuid')).rejects.toThrow(
+        InvalidParamsError,
       );
     });
   });
@@ -136,7 +196,7 @@ describe('KeyringHandler', () => {
       });
     });
 
-    it('emits the account created event', async () => {
+    it('emits the account-created event', async () => {
       const expectedIndex = 0;
       const expectedDerivationPath =
         KeypairService.getDerivationPath(expectedIndex);
@@ -205,14 +265,48 @@ describe('KeyringHandler', () => {
   });
 
   describe('discoverAccounts', () => {
-    it('throws `Method not implemented.` error', async () => {
+    it('discovers an account', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'deriveAccount')
+        .mockResolvedValue(mockAccount);
+
+      const result = await keyringHandler.discoverAccounts(
+        [KnownCaip2ChainId.Mainnet],
+        'entropy-source-1',
+        0,
+      );
+
+      expect(result).toStrictEqual([
+        {
+          type: DiscoveredAccountType.Bip44,
+          scopes: [KnownCaip2ChainId.Mainnet],
+          derivationPath: mockAccount.derivationPath,
+        },
+      ]);
+    });
+
+    it('throws an error if the account discovery fails', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'deriveAccount')
+        .mockRejectedValue(new Error('Account discovery failed'));
+
       await expect(
-        keyringHandler.discoverAccounts?.(
+        keyringHandler.discoverAccounts(
           [KnownCaip2ChainId.Mainnet],
           'entropy-source-1',
           0,
         ),
-      ).rejects.toThrow('Method not implemented.');
+      ).rejects.toThrow('Error discovering accounts: Account discovery failed');
+    });
+
+    it('throws an error if the account discovery request is invalid', async () => {
+      await expect(
+        keyringHandler.discoverAccounts(
+          ['invalid:chain' as KnownCaip2ChainId],
+          'entropy-source-1',
+          0,
+        ),
+      ).rejects.toThrow(InvalidParamsError);
     });
   });
 
@@ -225,15 +319,58 @@ describe('KeyringHandler', () => {
   });
 
   describe('resolveAccountAddress', () => {
-    it('throws `Method not implemented.` error', async () => {
-      await expect(
-        keyringHandler.resolveAccountAddress(KnownCaip2ChainId.Mainnet, {
-          method: 'resolveAccountAddress',
-          params: ['1'],
+    it('resolves an account address', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'resolveAccount')
+        .mockResolvedValue(mockAccount.address);
+
+      const result = await keyringHandler.resolveAccountAddress(
+        KnownCaip2ChainId.Mainnet,
+        {
+          method: StellarMultichainMethod.SignMessage,
           id: '1',
           jsonrpc: '2.0',
+          params: {
+            address: mockAccount.address,
+          },
+        },
+      );
+
+      expect(result).toStrictEqual({
+        address: `${KnownCaip2ChainId.Mainnet}:${mockAccount.address}`,
+      });
+    });
+
+    it('throws an error if the account address resolution fails', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'resolveAccount')
+        .mockRejectedValue(new Error('Account address resolution failed'));
+
+      await expect(
+        keyringHandler.resolveAccountAddress(KnownCaip2ChainId.Mainnet, {
+          method: StellarMultichainMethod.SignMessage,
+          id: '1',
+          jsonrpc: '2.0',
+          params: {
+            address: mockAccount.address,
+          },
         }),
-      ).rejects.toThrow('Method not implemented.');
+      ).rejects.toThrow(
+        'Error resolving account address: Account address resolution failed',
+      );
+    });
+
+    it('throws an error if the account address resolution request is invalid', async () => {
+      await expect(
+        keyringHandler.resolveAccountAddress(KnownCaip2ChainId.Mainnet, {
+          method: 'invalid:method' as StellarMultichainMethod,
+          id: '1',
+          jsonrpc: '2.0',
+          params: {
+            address: mockAccount.address,
+          },
+        }),
+      ).rejects.toThrow(InvalidParamsError);
     });
   });
 
@@ -261,9 +398,59 @@ describe('KeyringHandler', () => {
   });
 
   describe('deleteAccount', () => {
-    it('throws `Method not implemented.` error', async () => {
-      await expect(keyringHandler.deleteAccount('1')).rejects.toThrow(
-        'Method not implemented.',
+    it('deletes an account', async () => {
+      const deleteSpy = jest
+        .spyOn(AccountService.prototype, 'delete')
+        .mockResolvedValue();
+      const findByIdSpy = jest
+        .spyOn(AccountService.prototype, 'findById')
+        .mockResolvedValue(mockAccount);
+      const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
+      emitSnapKeyringEventSpy.mockResolvedValue();
+
+      await keyringHandler.deleteAccount(mockAccountId);
+
+      expect(deleteSpy).toHaveBeenCalledWith(mockAccountId);
+      expect(findByIdSpy).toHaveBeenCalledWith(mockAccountId);
+      expect(emitSnapKeyringEventSpy).toHaveBeenCalledWith(
+        getSnapProvider(),
+        KeyringEvent.AccountDeleted,
+        {
+          id: mockAccountId,
+        },
+      );
+    });
+
+    it('throws an error if the account deletion fails', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'delete')
+        .mockRejectedValue(new Error('Account deletion failed'));
+      jest
+        .spyOn(AccountService.prototype, 'findById')
+        .mockResolvedValue(mockAccount);
+      const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
+      emitSnapKeyringEventSpy.mockResolvedValue();
+
+      await expect(keyringHandler.deleteAccount(mockAccountId)).rejects.toThrow(
+        'Error deleting account: Account deletion failed',
+      );
+    });
+
+    it('throws an error if the account to delete is not found', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'findById')
+        .mockResolvedValue(undefined);
+      const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
+      emitSnapKeyringEventSpy.mockResolvedValue();
+
+      await expect(keyringHandler.deleteAccount(mockAccountId)).rejects.toThrow(
+        `Error deleting account: Account not found: ${mockAccountId}`,
+      );
+    });
+
+    it('throws an error if the account deletion request is invalid', async () => {
+      await expect(keyringHandler.deleteAccount('not-uuid')).rejects.toThrow(
+        InvalidParamsError,
       );
     });
   });
@@ -281,31 +468,4 @@ describe('KeyringHandler', () => {
       ).rejects.toThrow('Method not implemented.');
     });
   });
-
-  describe('setSelectedAccounts', () => {
-    it('throws `Method not implemented.` error', async () => {
-      await expect(keyringHandler.setSelectedAccounts(['1'])).rejects.toThrow(
-        'Method not implemented.',
-      );
-    });
-  });
-});
-
-describe('CreateAccountOptionsStruct', () => {
-  it.each([
-    {},
-    undefined,
-    { index: 0 },
-    { index: 1 },
-    { entropySource: 'ulid-123', index: 0 },
-  ])('accepts valid options', (options) => {
-    expect(() => assert(options, CreateAccountOptionsStruct)).not.toThrow();
-  });
-
-  it.each([{ index: -1 }, { entropySource: 1, index: 0 }])(
-    'rejects invalid options',
-    (options) => {
-      expect(() => assert(options, CreateAccountOptionsStruct)).toThrow(Error);
-    },
-  );
 });
