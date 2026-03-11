@@ -7,10 +7,13 @@ import {
   defaulted,
   coerce,
   string,
+  record,
 } from '@metamask/superstruct';
 
-import { Environment, LogLevel } from './constants';
+import { Environment, LogLevel, KnownCaip2ChainId } from './constants';
 import { UrlStruct } from './structs';
+
+const KnownCaip2ChainIdEnumStruct = enums(Object.values(KnownCaip2ChainId));
 
 /**
  * A struct for validating the network config.
@@ -33,15 +36,24 @@ const LogLevelStruct = coerce(
 );
 
 /**
+ * A struct to validate and coerce the selected network from env.
+ * Converts the selected network to lowercase and checks if it is a valid selected network.
+ * If the selected network is empty, it returns the default selected network.
+ */
+const selectedNetworkStruct = coerce(
+  defaulted(KnownCaip2ChainIdEnumStruct, KnownCaip2ChainId.Mainnet),
+  string(),
+  (value: string) => (value === '' ? undefined : value.toLowerCase()),
+);
+
+/**
  * A struct for validating the config.
  */
 const ConfigStruct = object({
   environment: enums(Object.values(Environment)),
   logLevel: LogLevelStruct,
-  networks: object({
-    mainnet: networkConfigStruct,
-    testnet: networkConfigStruct,
-  }),
+  networks: record(KnownCaip2ChainIdEnumStruct, networkConfigStruct),
+  selectedNetwork: selectedNetworkStruct,
 });
 
 /**
@@ -58,17 +70,18 @@ export const AppConfig = create(
   {
     environment: process.env.ENVIRONMENT,
     networks: {
-      mainnet: {
+      [KnownCaip2ChainId.Mainnet]: {
         rpcUrl: process.env.RPC_URL_MAINNET,
         horizonUrl: process.env.HORIZON_URL_MAINNET,
         explorerBaseUrl: process.env.EXPLORER_MAINNET_BASE_URL,
       },
-      testnet: {
+      [KnownCaip2ChainId.Testnet]: {
         rpcUrl: process.env.RPC_URL_TESTNET,
         horizonUrl: process.env.HORIZON_URL_TESTNET,
         explorerBaseUrl: process.env.EXPLORER_TESTNET_BASE_URL,
       },
     },
+    selectedNetwork: KnownCaip2ChainId.Mainnet,
     logLevel: process.env.LOG_LEVEL,
   },
   ConfigStruct,

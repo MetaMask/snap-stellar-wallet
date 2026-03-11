@@ -15,7 +15,7 @@ import {
 import type { Infer } from '@metamask/superstruct';
 
 import { KnownCaip2ChainId } from '../../constants';
-import { UuidStruct } from '../../structs/uuid';
+import { UuidStruct } from '../../structs';
 
 /**
  * Validation struct for Stellar address: must be a string matching the Stellar address format.

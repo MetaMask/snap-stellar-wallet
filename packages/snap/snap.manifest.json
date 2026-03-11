@@ -22,6 +22,9 @@
     "https://portfolio.metamask.io": {}
   },
   "initialPermissions": {
+    "endowment:keyring": {
+      "allowedOrigins": ["https://portfolio.metamask.io"]
+    },
     "snap_getBip32Entropy": [
       {
         "path": ["m", "44'", "148'"],

@@ -12,8 +12,11 @@ export class WalletService {
 
   constructor({ logger }: { logger: ILogger }) {
     this.#logger = createPrefixedLogger(logger, '[💼 WalletService]');
+
+    // There is only one network to support for now,
+    // so we can create only one instance of the Stellar Horizon client.
     this.#stellarHorizonClient = new StellarHorizon.Server(
-      AppConfig.networks.mainnet.horizonUrl,
+      AppConfig.networks[AppConfig.selectedNetwork].horizonUrl,
     );
   }
 

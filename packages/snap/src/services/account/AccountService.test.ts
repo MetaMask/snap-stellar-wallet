@@ -1,6 +1,6 @@
 import { Account } from '@stellar/stellar-sdk';
 
-import type { AccountService } from './AccountService';
+import { AccountService } from './AccountService';
 import type { StellarKeyringAccount } from './AccountsRepository';
 import { AccountsRepository } from './AccountsRepository';
 import { mockAccountService } from '../../__mocks__/services';
@@ -358,5 +358,41 @@ describe('AccountService', () => {
         `Account not found in Stellar network for address: ${account.address}`,
       );
     });
+  });
+
+  describe('discoverActivatedAccount', () => {
+    it('discovers an activated account', async () => {
+      const { loadAccountSpy } = getWalletServiceSpies();
+      const deriveAccountSpy = jest.spyOn(
+        AccountService.prototype,
+        'deriveAccount',
+      );
+      const mockAccounts = generateMockStellarKeyringAccounts(
+        1,
+        'entropy-source-1',
+      );
+      const mockAccount = mockAccounts[0] as StellarKeyringAccount;
+      loadAccountSpy.mockResolvedValue(new Account(mockAccount.address, '1'));
+      deriveAccountSpy.mockResolvedValue(mockAccount);
+
+      const account = await accountService.discoverActivatedAccount({
+        entropySource: 'entropy-source-1',
+        index: 0,
+      });
+
+      expect(account).toStrictEqual(mockAccount);
+    });
+  });
+
+  it('returns null if the account is not activated on the Stellar network', async () => {
+    const { loadAccountSpy } = getWalletServiceSpies();
+    loadAccountSpy.mockResolvedValue(null);
+
+    const account = await accountService.discoverActivatedAccount({
+      entropySource: 'entropy-source-1',
+      index: 0,
+    });
+
+    expect(account).toBeNull();
   });
 });

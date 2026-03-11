@@ -267,7 +267,7 @@ describe('KeyringHandler', () => {
   describe('discoverAccounts', () => {
     it('discovers an account', async () => {
       jest
-        .spyOn(AccountService.prototype, 'deriveAccount')
+        .spyOn(AccountService.prototype, 'discoverActivatedAccount')
         .mockResolvedValue(mockAccount);
 
       const result = await keyringHandler.discoverAccounts(
@@ -285,9 +285,23 @@ describe('KeyringHandler', () => {
       ]);
     });
 
+    it('returns empty array if the account is not activated on the Stellar network', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'discoverActivatedAccount')
+        .mockResolvedValue(null);
+
+      const result = await keyringHandler.discoverAccounts(
+        [KnownCaip2ChainId.Mainnet],
+        'entropy-source-1',
+        0,
+      );
+
+      expect(result).toStrictEqual([]);
+    });
+
     it('throws an error if the account discovery fails', async () => {
       jest
-        .spyOn(AccountService.prototype, 'deriveAccount')
+        .spyOn(AccountService.prototype, 'discoverActivatedAccount')
         .mockRejectedValue(new Error('Account discovery failed'));
 
       await expect(

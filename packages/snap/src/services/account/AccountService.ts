@@ -77,8 +77,37 @@ export class AccountService {
   }
 
   /**
+   * Discovers an account at the given derivation index if it is activated on the Stellar network.
+   *
+   * Derives the account from the entropy source and index, then checks whether that address
+   * exists and is activated (has been funded) on Stellar. Does not check whether the account
+   * is already present in keyring state.
+   *
+   * @param params - The parameters for the account discovery.
+   * @param params.entropySource - The entropy source used to derive the account.
+   * @param params.index - The derivation index of the account to discover.
+   * @returns A Promise that resolves to the derived account if it is activated on Stellar, otherwise null.
+   */
+  async discoverActivatedAccount({
+    entropySource,
+    index,
+  }: {
+    entropySource: EntropySourceId;
+    index: number;
+  }): Promise<StellarKeyringAccount | null> {
+    // Derive the account by the given entropy source and index.
+    const account = await this.deriveAccount({ entropySource, index });
+
+    // Verify the account is activated in the Stellar network.
+    if (await this.#walletService.loadAccount(account.address)) {
+      return account;
+    }
+    return null;
+  }
+
+  /**
    * Resolves an account address from a given scope and address by:
-   * - Verifying the address is associated with an account in the keyring that matches the scope.
+   * - Verifying the address is associated with an account in the state that matches the scope.
    * - Verifying the address is activated in the Stellar network.
    * - Verifying the address is the same as the derived account address.
    *
@@ -97,7 +126,7 @@ export class AccountService {
   }): Promise<StellarAddress> {
     this.#logger.debug('Resolving account address', { scope, address });
 
-    // Verify the address is associated with an account in the keyring that matches the scope.
+    // Verify the address is associated with an account in the state that matches the scope.
     const account = await this.#accountsRepository.findByAddressAndScope(
       address,
       scope,

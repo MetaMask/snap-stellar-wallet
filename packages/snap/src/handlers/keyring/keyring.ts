@@ -186,12 +186,15 @@ export class KeyringHandler implements Keyring {
     );
 
     try {
-      const account = await this.#accountService.deriveAccount({
+      // Discover an account if it exists on the blockchain.
+      const account = await this.#accountService.discoverActivatedAccount({
         entropySource,
         index: groupIndex,
       });
 
-      // TODO: Verify the account has at least one transaction.
+      if (!account) {
+        return [];
+      }
 
       return [
         {

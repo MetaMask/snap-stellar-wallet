@@ -5,9 +5,6 @@ import { KeypairService } from '../services/wallet/KeypairService';
 import { WalletService } from '../services/wallet/WalletService';
 import { logger } from '../utils/logger';
 
-jest.mock('../utils/logger');
-jest.mock('../utils/snap');
-
 export const mockAccountService = () => {
   const accountService = new AccountService({
     logger,
