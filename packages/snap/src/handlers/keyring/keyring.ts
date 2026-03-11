@@ -36,6 +36,7 @@ import {
   getSnapProvider,
   type ILogger,
   validateOrigin,
+  validateRequest,
   withCatchAndThrowSnapError,
 } from '../../utils';
 
@@ -74,9 +75,9 @@ export class KeyringHandler implements Keyring {
   }
 
   async createAccount(options?: CreateAccountOptions): Promise<KeyringAccount> {
-    try {
-      assert(options, CreateAccountOptionsStruct);
+    validateRequest(options, CreateAccountOptionsStruct);
 
+    try {
       const account = await this.#accountService.create(
         options,
         async (stellarKeyringAccount: StellarKeyringAccount) =>
@@ -85,7 +86,6 @@ export class KeyringHandler implements Keyring {
 
       return this.#toKeyringAccount(account);
     } catch (error: unknown) {
-      this.#logger.error({ error }, 'Error creating account');
       throw new Error(`Error creating account: ${ensureError(error).message}`);
     }
   }

@@ -4,7 +4,7 @@ import type {
   AccountsRepository,
   StellarKeyringAccount,
 } from './AccountsRepository';
-import { KnownCaip2ChainId } from '../../constants';
+import { KnownCaip2ChainId } from '../../api';
 import type { CreateAccountOptions } from '../../handlers/keyring/types';
 import type { ILogger } from '../../utils';
 import {

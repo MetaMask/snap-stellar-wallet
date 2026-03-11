@@ -7,7 +7,7 @@
     "url": "https://github.com/MetaMask/snap-stellar-wallet.git"
   },
   "source": {
-    "shasum": "Gk+svYaHqJXK0aHfBpljVWkdQRRLCXz0cs6vS7diqGk=",
+    "shasum": "6JfdPbTHZmEJiZoPAzrPE2eP6nr4m8lEgnWy6CC0M6s=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",
@@ -22,15 +22,13 @@
     "https://portfolio.metamask.io": {}
   },
   "initialPermissions": {
+    "endowment:keyring": {
+      "allowedOrigins": []
+    },
     "snap_getBip32Entropy": [
       {
         "path": ["m", "44'", "148'"],
         "curve": "ed25519"
-      }
-    ],
-    "snap_getBip44Entropy": [
-      {
-        "coinType": 148
       }
     ],
     "endowment:network-access": {},

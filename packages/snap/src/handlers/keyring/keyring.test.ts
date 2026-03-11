@@ -8,7 +8,7 @@ import { assert } from '@metamask/superstruct';
 
 import { KeyringHandler } from './keyring';
 import { CreateAccountOptionsStruct } from './types';
-import { KnownCaip2ChainId, KnownCaip19Id } from '../../constants';
+import { KnownCaip2ChainId, KnownCaip19Id } from '../../api';
 import { AccountService } from '../../services/account/AccountService';
 import { AccountsRepository } from '../../services/account/AccountsRepository';
 import { State } from '../../services/state';
@@ -24,6 +24,7 @@ import { logger } from '../../utils/logger';
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
 jest.mock('../../utils/requestResponse', () => ({
+  ...jest.requireActual('../../utils/requestResponse'),
   validateOrigin: jest.fn(),
 }));
 jest.mock('@metamask/keyring-snap-sdk', () => ({
@@ -136,7 +137,7 @@ describe('KeyringHandler', () => {
       });
     });
 
-    it('emits the account created event', async () => {
+    it('emits the account-created event', async () => {
       const expectedIndex = 0;
       const expectedDerivationPath =
         KeypairService.getDerivationPath(expectedIndex);

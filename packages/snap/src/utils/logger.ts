@@ -1,6 +1,6 @@
 /* eslint-disable no-empty-function */
+import { LogLevel } from '../api/loglevel';
 import { AppConfig } from '../config';
-import { LogLevel } from '../constants/loglevel';
 
 /**
  * A map of log levels to their priority.

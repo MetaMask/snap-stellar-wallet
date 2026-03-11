@@ -2,7 +2,7 @@ import type { EntropySourceId } from '@metamask/keyring-api';
 import { hexToBytes } from '@metamask/utils';
 import { Keypair } from '@stellar/stellar-sdk';
 
-import { STELLAR_COIN_TYPE } from '../../constants';
+import { STELLAR_COIN_TYPE } from '../../api';
 import {
   createPrefixedLogger,
   type ILogger,

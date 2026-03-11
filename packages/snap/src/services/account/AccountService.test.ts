@@ -1,6 +1,6 @@
 import { AccountService } from './AccountService';
 import { AccountsRepository } from './AccountsRepository';
-import { KnownCaip2ChainId } from '../../constants';
+import { KnownCaip2ChainId } from '../../api';
 import { logger } from '../../utils';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { getBip32Entropy, getDefaultEntropySource } from '../../utils/snap';
