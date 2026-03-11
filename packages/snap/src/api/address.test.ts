@@ -1,4 +1,5 @@
 import { assert, StructError } from '@metamask/superstruct';
+
 import { StellarAddressStruct } from './address';
 
 describe('StellarAddressStruct', () => {
