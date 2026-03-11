@@ -10,10 +10,13 @@ import {
   record,
 } from '@metamask/superstruct';
 
-import { Environment, LogLevel, KnownCaip2ChainId } from './constants';
-import { UrlStruct } from './structs';
-
-const KnownCaip2ChainIdEnumStruct = enums(Object.values(KnownCaip2ChainId));
+import {
+  Environment,
+  LogLevelStruct,
+  KnownCaip2ChainIdStruct,
+  UrlStruct,
+  KnownCaip2ChainId,
+} from './api';
 
 /**
  * A struct for validating the network config.
@@ -25,23 +28,12 @@ const networkConfigStruct = object({
 });
 
 /**
- * A struct to validate and coerce log level from env.
- * Converts the log level to lowercase and checks if it is a valid log level.
- * If the log level is empty, it returns the default log level.
- */
-const LogLevelStruct = coerce(
-  defaulted(enums(Object.values(LogLevel)), LogLevel.ERROR),
-  string(),
-  (value: string) => (value === '' ? undefined : value.toLowerCase()),
-);
-
-/**
  * A struct to validate and coerce the selected network from env.
  * Converts the selected network to lowercase and checks if it is a valid selected network.
  * If the selected network is empty, it returns the default selected network.
  */
 const selectedNetworkStruct = coerce(
-  defaulted(KnownCaip2ChainIdEnumStruct, KnownCaip2ChainId.Mainnet),
+  defaulted(KnownCaip2ChainIdStruct, KnownCaip2ChainId.Mainnet),
   string(),
   (value: string) => (value === '' ? undefined : value.toLowerCase()),
 );
@@ -52,7 +44,7 @@ const selectedNetworkStruct = coerce(
 const ConfigStruct = object({
   environment: enums(Object.values(Environment)),
   logLevel: LogLevelStruct,
-  networks: record(KnownCaip2ChainIdEnumStruct, networkConfigStruct),
+  networks: record(KnownCaip2ChainIdStruct, networkConfigStruct),
   selectedNetwork: selectedNetworkStruct,
 });
 

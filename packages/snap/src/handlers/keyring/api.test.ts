@@ -1,31 +1,16 @@
 import { assert, StructError } from '@metamask/superstruct';
 
 import {
-  StellarAddressStruct,
   CreateAccountOptionsStruct,
-  CaipChainIdStruct,
   ResolveAccountAddressRequestStruct,
-  StellarMultichainMethod,
   DiscoverAccountsStruct,
-} from './types';
-import { KnownCaip2ChainId } from '../../constants';
+} from './api';
+import { KnownCaip2ChainId, MultichainMethod } from '../../api';
 import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/fixtures';
 import type { StellarKeyringAccount } from '../../services/account/AccountsRepository';
 
 const mockAccounts = generateMockStellarKeyringAccounts(1, 'entropy-source-1');
 const account = mockAccounts[0] as StellarKeyringAccount;
-
-describe('StellarAddressStruct', () => {
-  it('accepts a valid Stellar address', () => {
-    const { address } = account;
-    expect(() => assert(address, StellarAddressStruct)).not.toThrow();
-  });
-
-  it('rejects an invalid Stellar address', () => {
-    const address = 'invalid-address';
-    expect(() => assert(address, StellarAddressStruct)).toThrow(StructError);
-  });
-});
 
 describe('CreateAccountOptionsStruct', () => {
   it.each([
@@ -48,41 +33,27 @@ describe('CreateAccountOptionsStruct', () => {
   );
 });
 
-describe('CaipChainIdStruct', () => {
-  it.each([KnownCaip2ChainId.Mainnet, KnownCaip2ChainId.Testnet])(
-    'accepts valid chain ID',
-    (chainId) => {
-      expect(() => assert(chainId, CaipChainIdStruct)).not.toThrow();
-    },
-  );
-
-  it('rejects an invalid chain ID', () => {
-    const chainId = 'invalid-chain-id';
-    expect(() => assert(chainId, CaipChainIdStruct)).toThrow(StructError);
-  });
-});
-
 describe('ResolveAccountAddressRequestStruct', () => {
   it.each([
     // Test case: SignMessage are allowed
     {
       jsonrpc: '2.0',
       id: '1',
-      method: StellarMultichainMethod.SignMessage,
+      method: MultichainMethod.SignMessage,
       params: { address: account.address },
     },
     // Test case: SignTransaction are allowed
     {
       jsonrpc: '2.0',
       id: '1',
-      method: StellarMultichainMethod.SignTransaction,
+      method: MultichainMethod.SignTransaction,
       params: { address: account.address },
     },
     // Test case: Additional Params are allowed
     {
       jsonrpc: '2.0',
       id: '1',
-      method: StellarMultichainMethod.SignTransaction,
+      method: MultichainMethod.SignTransaction,
       params: { address: account.address, message: 'Hello, world!' },
     },
   ])(
@@ -114,7 +85,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
     // Test case: Missing JSON-RPC fields
     {
       request: {
-        method: StellarMultichainMethod.SignMessage,
+        method: MultichainMethod.SignMessage,
         params: { address: account.address },
       },
       scope: KnownCaip2ChainId.Mainnet,
@@ -124,7 +95,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
       request: {
         jsonrpc: '2.0',
         id: '1',
-        method: StellarMultichainMethod.SignMessage,
+        method: MultichainMethod.SignMessage,
         params: { address: 'invalid-address' },
       },
       scope: KnownCaip2ChainId.Mainnet,
@@ -134,7 +105,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
       request: {
         jsonrpc: '2.0',
         id: '1',
-        method: StellarMultichainMethod.SignMessage,
+        method: MultichainMethod.SignMessage,
         params: 1,
       },
       scope: KnownCaip2ChainId.Mainnet,

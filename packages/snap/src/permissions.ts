@@ -1,7 +1,7 @@
 import { KeyringRpcMethod } from '@metamask/keyring-api';
 
+import { Environment } from './api';
 import { AppConfig } from './config';
-import { Environment } from './constants';
 
 const isDev = AppConfig.environment !== Environment.Production;
 

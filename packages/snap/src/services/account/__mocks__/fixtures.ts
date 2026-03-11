@@ -1,6 +1,6 @@
 import { Keypair } from '@stellar/stellar-sdk';
 
-import { KnownCaip2ChainId } from '../../../constants';
+import { KnownCaip2ChainId } from '../../../api';
 import { KeypairService } from '../../wallet';
 import type { StellarKeyringAccount } from '../AccountsRepository';
 

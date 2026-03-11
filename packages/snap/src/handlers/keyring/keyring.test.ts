@@ -11,9 +11,8 @@ import {
 import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
 
 import { KeyringHandler } from './keyring';
-import { StellarMultichainMethod } from './types';
 import { mockAccountService } from '../../__mocks__/services';
-import { KnownCaip2ChainId, KnownCaip19Id } from '../../constants';
+import { KnownCaip2ChainId, KnownCaip19Id, MultichainMethod } from '../../api';
 import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/fixtures';
 import { AccountService } from '../../services/account/AccountService';
 import type { StellarKeyringAccount } from '../../services/account/AccountsRepository';
@@ -341,7 +340,7 @@ describe('KeyringHandler', () => {
       const result = await keyringHandler.resolveAccountAddress(
         KnownCaip2ChainId.Mainnet,
         {
-          method: StellarMultichainMethod.SignMessage,
+          method: MultichainMethod.SignMessage,
           id: '1',
           jsonrpc: '2.0',
           params: {
@@ -362,7 +361,7 @@ describe('KeyringHandler', () => {
 
       await expect(
         keyringHandler.resolveAccountAddress(KnownCaip2ChainId.Mainnet, {
-          method: StellarMultichainMethod.SignMessage,
+          method: MultichainMethod.SignMessage,
           id: '1',
           jsonrpc: '2.0',
           params: {
@@ -377,7 +376,7 @@ describe('KeyringHandler', () => {
     it('throws an error if the account address resolution request is invalid', async () => {
       await expect(
         keyringHandler.resolveAccountAddress(KnownCaip2ChainId.Mainnet, {
-          method: 'invalid:method' as StellarMultichainMethod,
+          method: 'invalid:method' as MultichainMethod,
           id: '1',
           jsonrpc: '2.0',
           params: {

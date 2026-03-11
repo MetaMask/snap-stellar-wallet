@@ -28,8 +28,7 @@ import type {
   CreateAccountOptions,
   ResolveAccountAddressJsonRpcRequest,
   GetAccountRequest,
-  CaipChainId,
-} from './types';
+} from './api';
 import {
   CreateAccountOptionsStruct,
   ResolveAccountAddressRequestStruct,
@@ -37,7 +36,8 @@ import {
   DiscoverAccountsStruct,
   DeleteAccountRequestStruct,
   SetSelectedAccountsRequestStruct,
-} from './types';
+} from './api';
+import type { KnownCaip2ChainId } from '../../api';
 import type {
   AccountService,
   StellarKeyringAccount,
@@ -176,7 +176,7 @@ export class KeyringHandler implements Keyring {
   }
 
   async discoverAccounts(
-    scopes: CaipChainId[],
+    scopes: KnownCaip2ChainId[],
     entropySource: EntropySourceId,
     groupIndex: number,
   ): Promise<DiscoveredAccount[]> {
@@ -218,7 +218,7 @@ export class KeyringHandler implements Keyring {
   }
 
   async resolveAccountAddress(
-    scope: CaipChainId,
+    scope: KnownCaip2ChainId,
     request: ResolveAccountAddressJsonRpcRequest,
   ): Promise<ResolvedAccountAddress> {
     validateRequest(

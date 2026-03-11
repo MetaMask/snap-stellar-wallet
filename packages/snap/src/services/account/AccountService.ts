@@ -4,11 +4,8 @@ import type {
   AccountsRepository,
   StellarKeyringAccount,
 } from './AccountsRepository';
-import { KnownCaip2ChainId } from '../../constants';
-import type {
-  CreateAccountOptions,
-  StellarAddress,
-} from '../../handlers/keyring/types';
+import { KnownCaip2ChainId, MultichainMethod } from '../../api';
+import type { StellarAddress } from '../../api';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
@@ -167,15 +164,14 @@ export class AccountService {
    * @param options - The options for the account creation.
    * @param options.entropySource - The entropy source to use for account derivation.
    * @param options.index - The index of the account to derive.
-   * @param options.addressType - The address type to use for account derivation.
-   * @param options.scope - The scope to use for account derivation.
-   * @param options.metamask - The MetaMask options to use for account derivation.
-   * @param options.metamask.correlationId - The correlation ID to use for account derivation.
    * @param callback - The callback to call after the account is created.
    * @returns A Promise that resolves to the created account.
    */
   async create(
-    options?: CreateAccountOptions,
+    options?: {
+      entropySource?: EntropySourceId;
+      index?: number;
+    },
     callback?: (account: StellarKeyringAccount) => Promise<void>,
   ): Promise<StellarKeyringAccount> {
     this.#logger.debug('Creating account', { options });
@@ -337,7 +333,7 @@ export class AccountService {
         },
         exportable: true,
       },
-      methods: ['signMessage', 'signTransaction'],
+      methods: [MultichainMethod.SignMessage, MultichainMethod.SignTransaction],
     };
   }
 }

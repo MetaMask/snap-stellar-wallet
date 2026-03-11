@@ -4,7 +4,7 @@ import { AccountService } from './AccountService';
 import type { StellarKeyringAccount } from './AccountsRepository';
 import { AccountsRepository } from './AccountsRepository';
 import { mockAccountService } from '../../__mocks__/services';
-import { KnownCaip2ChainId } from '../../constants';
+import { KnownCaip2ChainId, MultichainMethod } from '../../api';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { getBip32Entropy, getDefaultEntropySource } from '../../utils/snap';
 import { KeypairService, WalletService } from '../wallet';
@@ -54,7 +54,10 @@ describe('AccountService', () => {
         type: 'any:account',
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
-        methods: ['signMessage', 'signTransaction'],
+        methods: [
+          MultichainMethod.SignMessage,
+          MultichainMethod.SignTransaction,
+        ],
         options: {
           entropy: {
             type: 'mnemonic',
@@ -121,7 +124,10 @@ describe('AccountService', () => {
         type: 'any:account',
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
-        methods: ['signMessage', 'signTransaction'],
+        methods: [
+          MultichainMethod.SignMessage,
+          MultichainMethod.SignTransaction,
+        ],
         options: {
           entropy: {
             type: 'mnemonic',
@@ -161,7 +167,10 @@ describe('AccountService', () => {
         type: 'any:account',
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
-        methods: ['signMessage', 'signTransaction'],
+        methods: [
+          MultichainMethod.SignMessage,
+          MultichainMethod.SignTransaction,
+        ],
         options: {
           entropy: {
             type: 'mnemonic',
