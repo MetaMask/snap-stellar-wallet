@@ -63,26 +63,46 @@ describe('CaipChainIdStruct', () => {
 });
 
 describe('ResolveAccountAddressRequestStruct', () => {
-  it.each(Object.values(StellarMultichainMethod))(
-    'accepts a valid resolveAccountAddress request',
-    (method) => {
-      const request = {
-        request: {
-          jsonrpc: '2.0',
-          id: '1',
-          method,
-          params: { address: account.address },
-        },
-        scope: KnownCaip2ChainId.Mainnet,
-      };
+  it.each([
+    // Test case: SignMessage are allowed
+    {
+      jsonrpc: '2.0',
+      id: '1',
+      method: StellarMultichainMethod.SignMessage,
+      params: { address: account.address },
+    },
+    // Test case: SignTransaction are allowed
+    {
+      jsonrpc: '2.0',
+      id: '1',
+      method: StellarMultichainMethod.SignTransaction,
+      params: { address: account.address },
+    },
+    // Test case: Additional Params are allowed
+    {
+      jsonrpc: '2.0',
+      id: '1',
+      method: StellarMultichainMethod.SignTransaction,
+      params: { address: account.address, message: 'Hello, world!' },
+    },
+  ])(
+    'accepts a valid resolveAccountAddressJsonRpcRequest request',
+    (request) => {
       expect(() =>
-        assert(request, ResolveAccountAddressRequestStruct),
+        assert(
+          {
+            request,
+            scope: KnownCaip2ChainId.Mainnet,
+          },
+          ResolveAccountAddressRequestStruct,
+        ),
       ).not.toThrow();
     },
   );
 
   it.each([
     {
+      // Test case: Invalid method
       request: {
         jsonrpc: '2.0',
         id: '1',
@@ -91,6 +111,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
+    // Test case: Missing JSON-RPC fields
     {
       request: {
         method: StellarMultichainMethod.SignMessage,
@@ -98,6 +119,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
+    // Test case: Invalid address
     {
       request: {
         jsonrpc: '2.0',
@@ -107,6 +129,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
+    // Test case: Invalid params
     {
       request: {
         jsonrpc: '2.0',

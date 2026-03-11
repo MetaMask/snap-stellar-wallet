@@ -21,7 +21,7 @@ import { UuidStruct } from '../../structs';
  * Validation struct for Stellar address: must be a string matching the Stellar address format.
  * We only support non-muxed addresses.
  */
-export const StellarAddressStruct = pattern(string(), /^G[A-Z0-9]{55}$/u);
+export const StellarAddressStruct = pattern(string(), /^G[A-Z2-7]{55}$/u);
 
 /**
  * Enum of Stellar Multichain API methods that are handled via submitRequest.
