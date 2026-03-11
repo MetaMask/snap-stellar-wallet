@@ -1,2 +1,2 @@
 export * from './keyring';
-export * from './types';
+export * from './api';
