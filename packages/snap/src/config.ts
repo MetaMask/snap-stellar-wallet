@@ -7,10 +7,16 @@ import {
   defaulted,
   coerce,
   string,
+  record,
 } from '@metamask/superstruct';
 
-import { Environment, LogLevel } from './constants';
-import { UrlStruct } from './structs';
+import {
+  Environment,
+  LogLevelStruct,
+  KnownCaip2ChainIdStruct,
+  UrlStruct,
+  KnownCaip2ChainId,
+} from './api';
 
 /**
  * A struct for validating the network config.
@@ -22,12 +28,12 @@ const networkConfigStruct = object({
 });
 
 /**
- * A Struct to validate and coerce log level from env.
- * Converts the log level to lowercase and checks if it is a valid log level.
- * If the log level is empty, it returns the default log level.
+ * A struct to validate and coerce the selected network from env.
+ * Converts the selected network to lowercase and checks if it is a valid selected network.
+ * If the selected network is empty, it returns the default selected network.
  */
-const LogLevelStruct = coerce(
-  defaulted(enums(Object.values(LogLevel)), LogLevel.ERROR),
+const selectedNetworkStruct = coerce(
+  defaulted(KnownCaip2ChainIdStruct, KnownCaip2ChainId.Mainnet),
   string(),
   (value: string) => (value === '' ? undefined : value.toLowerCase()),
 );
@@ -38,10 +44,8 @@ const LogLevelStruct = coerce(
 const ConfigStruct = object({
   environment: enums(Object.values(Environment)),
   logLevel: LogLevelStruct,
-  networks: object({
-    mainnet: networkConfigStruct,
-    testnet: networkConfigStruct,
-  }),
+  networks: record(KnownCaip2ChainIdStruct, networkConfigStruct),
+  selectedNetwork: selectedNetworkStruct,
 });
 
 /**
@@ -58,17 +62,18 @@ export const AppConfig = create(
   {
     environment: process.env.ENVIRONMENT,
     networks: {
-      mainnet: {
+      [KnownCaip2ChainId.Mainnet]: {
         rpcUrl: process.env.RPC_URL_MAINNET,
         horizonUrl: process.env.HORIZON_URL_MAINNET,
         explorerBaseUrl: process.env.EXPLORER_MAINNET_BASE_URL,
       },
-      testnet: {
+      [KnownCaip2ChainId.Testnet]: {
         rpcUrl: process.env.RPC_URL_TESTNET,
         horizonUrl: process.env.HORIZON_URL_TESTNET,
         explorerBaseUrl: process.env.EXPLORER_TESTNET_BASE_URL,
       },
     },
+    selectedNetwork: KnownCaip2ChainId.Mainnet,
     logLevel: process.env.LOG_LEVEL,
   },
   ConfigStruct,

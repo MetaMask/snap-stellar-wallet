@@ -22,15 +22,13 @@
     "https://portfolio.metamask.io": {}
   },
   "initialPermissions": {
+    "endowment:keyring": {
+      "allowedOrigins": ["http://localhost:3000"]
+    },
     "snap_getBip32Entropy": [
       {
         "path": ["m", "44'", "148'"],
         "curve": "ed25519"
-      }
-    ],
-    "snap_getBip44Entropy": [
-      {
-        "coinType": 148
       }
     ],
     "endowment:network-access": {},

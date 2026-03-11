@@ -1,6 +1,6 @@
 /* eslint-disable no-empty-function */
+import { LogLevel } from '../api/loglevel';
 import { AppConfig } from '../config';
-import { LogLevel } from '../constants/loglevel';
 
 /**
  * A map of log levels to their priority.
@@ -28,7 +28,7 @@ export type ILogger = {
 };
 
 /**
- * A decorator function that noops if the log level is less than the configured log level,
+ * A decorator function that is a no-op if the log level is less than the configured log level,
  * and runs the decorated function otherwise.
  *
  * @param fn - The function to wrap.

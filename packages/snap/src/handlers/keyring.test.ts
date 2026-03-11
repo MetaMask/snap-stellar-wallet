@@ -3,7 +3,7 @@ import { handleKeyringRequest } from '@metamask/keyring-snap-sdk';
 import type { JsonRpcRequest } from '@metamask/snaps-sdk';
 
 import { KeyringHandler } from './keyring';
-import { KnownCaip2ChainId, KnownCaip19Id } from '../constants';
+import { KnownCaip2ChainId, KnownCaip19Id } from '../api';
 import { logger } from '../utils/logger';
 
 jest.mock('../utils/logger');
