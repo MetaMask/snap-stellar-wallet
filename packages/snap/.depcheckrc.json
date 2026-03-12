@@ -1,3 +1,13 @@
 {
-  "ignores": ["jest-transform-stub", "ts-jest", "@metamask/auto-changelog"]
+  "ignores": [
+    "jest-transform-stub",
+    "ts-jest",
+    "@metamask/auto-changelog",
+    "@metamask/key-tree",
+    "@stellar/stellar-sdk",
+    "@types/lodash",
+    "async-mutex",
+    "bignumber.js",
+    "lodash"
+  ]
 }

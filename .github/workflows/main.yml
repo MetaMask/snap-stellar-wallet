@@ -9,6 +9,13 @@ jobs:
   build-lint-test:
     name: Validate
     uses: ./.github/workflows/build-lint-test.yml
+    secrets:
+      RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+      HORIZON_URL_MAINNET: ${{ secrets.HORIZON_URL_MAINNET }}
+      EXPLORER_MAINNET_BASE_URL: ${{ secrets.EXPLORER_MAINNET_BASE_URL }}
+      RPC_URL_TESTNET: ${{ secrets.RPC_URL_TESTNET }}
+      HORIZON_URL_TESTNET: ${{ secrets.HORIZON_URL_TESTNET }}
+      EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}
 
   all-jobs-completed:
     name: All jobs completed
@@ -57,3 +64,12 @@ jobs:
     permissions:
       contents: write
     uses: ./.github/workflows/publish-release.yml
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+      HORIZON_URL_MAINNET: ${{ secrets.HORIZON_URL_MAINNET }}
+      EXPLORER_MAINNET_BASE_URL: ${{ secrets.EXPLORER_MAINNET_BASE_URL }}
+      RPC_URL_TESTNET: ${{ secrets.RPC_URL_TESTNET }}
+      HORIZON_URL_TESTNET: ${{ secrets.HORIZON_URL_TESTNET }}
+      EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}

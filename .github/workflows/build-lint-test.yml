@@ -3,6 +3,18 @@ name: Validate
 on:
   workflow_call:
     secrets:
+      RPC_URL_MAINNET:
+        required: true
+      HORIZON_URL_MAINNET:
+        required: true
+      EXPLORER_MAINNET_BASE_URL:
+        required: true
+      RPC_URL_TESTNET:
+        required: true
+      HORIZON_URL_TESTNET:
+        required: true
+      EXPLORER_TESTNET_BASE_URL:
+        required: true
 
 jobs:
   prepare:
@@ -23,6 +35,13 @@ jobs:
       - prepare
     env:
       ENVIRONMENT: production
+      LOG_LEVEL: silent
+      RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+      HORIZON_URL_MAINNET: ${{ secrets.HORIZON_URL_MAINNET }}
+      EXPLORER_MAINNET_BASE_URL: ${{ secrets.EXPLORER_MAINNET_BASE_URL }}
+      RPC_URL_TESTNET: ${{ secrets.RPC_URL_TESTNET }}
+      HORIZON_URL_TESTNET: ${{ secrets.HORIZON_URL_TESTNET }}
+      EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}
     steps:
       - name: Checkout and setup environment
         uses: MetaMask/action-checkout-and-setup@v1
@@ -60,6 +79,13 @@ jobs:
       - prepare
     env:
       ENVIRONMENT: test
+      LOG_LEVEL: silent
+      RPC_URL_MAINNET: ${{ secrets.RPC_URL_MAINNET }}
+      HORIZON_URL_MAINNET: ${{ secrets.HORIZON_URL_MAINNET }}
+      EXPLORER_MAINNET_BASE_URL: ${{ secrets.EXPLORER_MAINNET_BASE_URL }}
+      RPC_URL_TESTNET: ${{ secrets.RPC_URL_TESTNET }}
+      HORIZON_URL_TESTNET: ${{ secrets.HORIZON_URL_TESTNET }}
+      EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}
     steps:
       - name: Checkout and setup environment
         uses: MetaMask/action-checkout-and-setup@v1
