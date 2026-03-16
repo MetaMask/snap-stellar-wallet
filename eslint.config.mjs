@@ -38,7 +38,7 @@ export default createConfig([
     },
   },
   {
-    files: ['**/*.test.ts', '**/*.test.tsx'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/__mocks__/*.ts'],
     extends: [base, typescript, jest, prettierConfig],
     plugins: {
       prettier,
@@ -47,6 +47,7 @@ export default createConfig([
       '@typescript-eslint/unbound-method': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       'prettier/prettier': 'error',
+      'jest/no-mocks-import': 'off',
     },
   },
   {

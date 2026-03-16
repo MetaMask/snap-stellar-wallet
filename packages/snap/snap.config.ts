@@ -18,6 +18,9 @@ const config: SnapConfig = {
     RPC_URL_TESTNET: process.env.RPC_URL_TESTNET ?? '',
     HORIZON_URL_TESTNET: process.env.HORIZON_URL_TESTNET ?? '',
     EXPLORER_TESTNET_BASE_URL: process.env.EXPLORER_TESTNET_BASE_URL ?? '',
+    TRANSACTION_TIMEOUT: process.env.TRANSACTION_TIMEOUT ?? '',
+    TRANSACTION_POLLING_ATTEMPTS:
+      process.env.TRANSACTION_POLLING_ATTEMPTS ?? '',
   },
   polyfills: true,
 };

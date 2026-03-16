@@ -23,7 +23,7 @@
   },
   "initialPermissions": {
     "endowment:keyring": {
-      "allowedOrigins": ["http://localhost:3000"]
+      "allowedOrigins": ["https://portfolio.metamask.io"]
     },
     "snap_getBip32Entropy": [
       {
