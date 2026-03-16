@@ -9,6 +9,8 @@ import {
   literal,
   number,
   union,
+  size,
+  nonempty,
 } from '@metamask/superstruct';
 import type { Infer } from '@metamask/superstruct';
 
@@ -26,10 +28,10 @@ import {
  */
 export const CreateAccountOptionsStruct = optional(
   object({
-    entropySource: optional(string()),
+    entropySource: optional(nonempty(string())),
     index: optional(min(integer(), 0)),
-    addressType: optional(string()),
-    scope: optional(string()),
+    addressType: optional(nonempty(string())),
+    scope: optional(nonempty(string())),
     metamask: optional(
       object({
         correlationId: optional(string()),
@@ -53,15 +55,15 @@ export const ResolveAccountAddressJsonRpcRequestStruct = object({
  */
 export const ResolveAccountAddressRequestStruct = object({
   request: ResolveAccountAddressJsonRpcRequestStruct,
-  scope: KnownCaip2ChainIdStruct,
+  scope: nonempty(KnownCaip2ChainIdStruct),
 });
 
 /**
  * Validation struct for the discoverAccounts request.
  */
 export const DiscoverAccountsStruct = object({
-  scopes: array(KnownCaip2ChainIdStruct),
-  entropySource: string(),
+  scopes: size(array(KnownCaip2ChainIdStruct), 1, 1),
+  entropySource: nonempty(string()),
   groupIndex: min(integer(), 0),
 });
 

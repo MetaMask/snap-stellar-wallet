@@ -1,9 +1,8 @@
-import type { CaipChainId, EntropySourceId } from '@metamask/keyring-api';
+import type { EntropySourceId } from '@metamask/keyring-api';
 
-import type {
-  AccountsRepository,
-  StellarKeyringAccount,
-} from './AccountsRepository';
+import type { AccountsRepository } from './AccountsRepository';
+import type { StellarKeyringAccount, StellarDerivationPath } from './api';
+import { getDerivationPath } from './derivation';
 import { KnownCaip2ChainId, MultichainMethod } from '../../api';
 import type { StellarAddress } from '../../api';
 import type { ILogger } from '../../utils';
@@ -12,16 +11,17 @@ import {
   getDefaultEntropySource,
   getLowestIndex,
 } from '../../utils';
-import type {
-  KeypairService,
-  StellarDerivationPath,
-  WalletService,
-} from '../wallet';
+import type { Wallet, WalletService } from '../wallet';
+import {
+  DerivedAccountAddressMismatchException,
+  AccountNotFoundException,
+} from './exceptions';
 
+/**
+ * Manages Stellar keyring accounts: discovery, creation, resolution, and persistence.
+ */
 export class AccountService {
   readonly #logger: ILogger;
-
-  readonly #keypairService: KeypairService;
 
   readonly #walletService: WalletService;
 
@@ -29,143 +29,128 @@ export class AccountService {
 
   constructor({
     logger,
-    keypairService,
     accountsRepository,
     walletService,
   }: {
     logger: ILogger;
-    keypairService: KeypairService;
     accountsRepository: AccountsRepository;
     walletService: WalletService;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 AccountService]');
-    this.#keypairService = keypairService;
     this.#walletService = walletService;
     this.#accountsRepository = accountsRepository;
   }
 
   /**
-   * Derives a Stellar account from a given entropy source and index.
+   * Derives an account from the given entropy source and index, then checks whether that address
+   * is activated on Stellar, regardless of whether the account exists in keyring state.
    *
-   * @param params - The parameters for the account derivation.
-   * @param params.entropySource - The entropy source to use for account derivation.
-   * @param params.index - The index of the account to derive.
-   * @returns A Promise that resolves to the derived account.
+   * @param options - The parameters for the account discovery.
+   * @param options.entropySource - The entropy source used to derive the account.
+   * @param options.index - The derivation index of the account to discover.
+   * @param options.scope - The network scope (e.g. mainnet/testnet).
+   * @returns A Promise that resolves to the derived account if it is activated on Stellar, otherwise `null`.
    */
-  async deriveAccount({
+  async discoverOnChainAccount({
     entropySource,
     index,
+    scope,
   }: {
     entropySource: EntropySourceId;
     index: number;
-  }): Promise<StellarKeyringAccount> {
-    const { address, derivationPath } =
-      await this.#keypairService.deriveAddress({
-        entropySource,
-        index,
-      });
-
-    return this.#toStellarKeyringAccount({
-      entropySource,
-      derivationPath,
-      index,
-      address,
-    });
-  }
-
-  /**
-   * Discovers an account at the given derivation index if it is activated on the Stellar network.
-   *
-   * Derives the account from the entropy source and index, then checks whether that address
-   * exists and is activated (has been funded) on Stellar. Does not check whether the account
-   * is already present in keyring state.
-   *
-   * @param params - The parameters for the account discovery.
-   * @param params.entropySource - The entropy source used to derive the account.
-   * @param params.index - The derivation index of the account to discover.
-   * @returns A Promise that resolves to the derived account if it is activated on Stellar, otherwise null.
-   */
-  async discoverActivatedAccount({
-    entropySource,
-    index,
-  }: {
-    entropySource: EntropySourceId;
-    index: number;
+    scope: KnownCaip2ChainId;
   }): Promise<StellarKeyringAccount | null> {
     // Derive the account by the given entropy source and index.
-    const account = await this.deriveAccount({ entropySource, index });
+    const account = await this.#deriveAccount({ entropySource, index });
 
     // Verify the account is activated in the Stellar network.
-    if (await this.#walletService.loadAccount(account.address)) {
-      return account;
+    const isActivated = await this.#walletService.isAccountActivated({
+      address: account.address,
+      scope,
+    });
+
+    if (!isActivated) {
+      return null;
     }
-    return null;
+
+    return account;
   }
 
   /**
-   * Resolves an account address from a given scope and address by:
-   * - Verifying the address is associated with an account in the state that matches the scope.
-   * - Verifying the address is activated in the Stellar network.
-   * - Verifying the address is the same as the derived account address.
+   * Resolves an account from a given scope and address by:
+   * - If `activated` is true, resolving an account from state and an activated account from the network.
+   * - If `activated` is false, resolving an account from state only.
    *
    * @param params - The parameters for the account resolution.
    * @param params.scope - The scope of the account to resolve.
    * @param params.address - The address of the account to resolve.
-   * @returns A Promise that resolves to the resolved account address.
-   * @throws If the account is not found or the address is not associated with an account in the keyring that matches the scope.
+   * @param params.resolveOptions - Resolution options.
+   * @param params.resolveOptions.activated - When true, also resolves the activated wallet from the network; return type then includes required `wallet`.
+   * @returns A Promise that resolves to the resolved account and optional wallet (wallet present when `activated` is true).
+   * @throws If the account is not found in the keyring state.
+   * @throws If the address is not the same as the derived account address.
+   * @throws If the account is not activated on the Stellar network when `activated` is true.
    */
-  async resolveAccount({
+  async resolveAccount<ResolveActivatedAccount extends boolean>({
     scope,
     address,
+    resolveOptions,
   }: {
-    scope: CaipChainId;
+    scope: KnownCaip2ChainId;
     address: StellarAddress;
-  }): Promise<StellarAddress> {
+    resolveOptions: {
+      activated: ResolveActivatedAccount;
+    };
+  }): Promise<
+    ResolveActivatedAccount extends true
+      ? { account: StellarKeyringAccount; wallet: Wallet }
+      : { account: StellarKeyringAccount; wallet?: Wallet }
+  > {
     this.#logger.debug('Resolving account address', { scope, address });
 
+    let wallet: Wallet | undefined;
+    let derivedAddress: StellarAddress | undefined;
+    const { activated } = resolveOptions;
+
     // Verify the address is associated with an account in the state that matches the scope.
-    const account = await this.#accountsRepository.findByAddressAndScope(
-      address,
-      scope,
-    );
-    if (!account) {
-      throw new Error(
-        `Account not found in keyring for address: ${address} and scope: ${scope}`,
-      );
+    const account = await this.#resolveKeyringAccount({ scope, address });
+    const { entropySource, index } = account;
+
+    // Verify the account is activated in the Stellar network if `activated` is true.
+    // Otherwise, derive the address from the entropy source and index.
+    if (activated) {
+      wallet = await this.#walletService.resolveActivatedAccount({
+        scope,
+        entropySource,
+        index,
+      });
+      derivedAddress = wallet.address;
+    } else {
+      derivedAddress = await this.#walletService.deriveAddress({
+        entropySource,
+        index,
+      });
     }
 
     // Verify the address is the same as the derived account address.
-    const derivedAccount = await this.deriveAccount({
-      entropySource: account.entropySource,
-      index: account.index,
-    });
-    if (derivedAccount.address.toLowerCase() !== address.toLowerCase()) {
-      throw new Error(
-        `Derived account address does not match the provided address: ${address}`,
-      );
-    }
+    this.#assertSameAddress(address, derivedAddress);
 
-    // Verify the address is activated in the Stellar network.
-    const stellarAccount = await this.#walletService.loadAccount(
-      account.address,
-    );
-    if (!stellarAccount) {
-      throw new Error(
-        `Account not found in Stellar network for address: ${address}`,
-      );
-    }
-
-    return address;
+    return {
+      account,
+      wallet,
+    } as ResolveActivatedAccount extends true
+      ? { account: StellarKeyringAccount; wallet: Wallet }
+      : { account: StellarKeyringAccount; wallet?: Wallet };
   }
 
   /**
-   * Creates a Stellar account with the given create-account options.
+   * Creates a Stellar account with the given options.
    *
-   * @param options - The options for the account creation.
-   * @param options.entropySource - The entropy source to use for account derivation.
-   * @param options.index - The index of the account to derive.
-   * @param callback - The callback to call after the account is created.
-   * @returns A Promise that resolves to the created account.
+   * @param options - The options for account creation.
+   * @param options.entropySource - The entropy source to use for derivation.
+   * @param options.index - The derivation index to use (defaults to the lowest unused index).
+   * @param callback - Optional callback invoked after the account is created; if it throws, the account is removed.
+   * @returns A Promise that resolves to the created account. If an account with the same derivation path and entropy source already exists, it is returned instead.
    */
   async create(
     options?: {
@@ -202,10 +187,10 @@ export class AccountService {
       this.#logger.warn(
         'An account already exists with the same derivation path and entropy source. Skipping account creation.',
       );
-      return this.#toStellarKeyringAccount(sameAccount);
+      return sameAccount;
     }
 
-    const derivedAccount = await this.deriveAccount({
+    const derivedAccount = await this.#deriveAccount({
       entropySource,
       index: derivationIndex,
     });
@@ -237,11 +222,10 @@ export class AccountService {
   }
 
   /**
-   * Deletes a Stellar account with the given ID.
+   * Deletes a Stellar account by ID.
    *
    * @param id - The ID of the account to delete.
-   * @returns A Promise that resolves when the account is deleted.
-   * @throws {Error} If the account is not found.
+   * @returns A Promise that resolves when the account has been deleted.
    */
   async delete(id: string): Promise<void> {
     this.#logger.debug('Deleting account', { id });
@@ -249,9 +233,9 @@ export class AccountService {
   }
 
   /**
-   * Lists all Stellar accounts.
+   * Lists all Stellar accounts in the keyring.
    *
-   * @returns A Promise that resolves to the list of accounts.
+   * @returns A Promise that resolves to the list of all accounts.
    */
   async listAccounts(): Promise<StellarKeyringAccount[]> {
     this.#logger.debug('Listing accounts');
@@ -259,28 +243,64 @@ export class AccountService {
   }
 
   /**
-   * Finds a Stellar account by its ID.
+   * Finds a Stellar account by ID.
    *
    * @param id - The ID of the account to find.
-   * @returns A Promise that resolves to the account if found, otherwise undefined.
+   * @returns A Promise that resolves to the account if found, otherwise `undefined`.
    */
   async findById(id: string): Promise<StellarKeyringAccount | undefined> {
     this.#logger.debug('Finding account by ID', { id });
     return (await this.#accountsRepository.findById(id)) ?? undefined;
   }
 
+  async #resolveKeyringAccount({
+    scope,
+    address,
+  }: {
+    scope: KnownCaip2ChainId;
+    address: StellarAddress;
+  }): Promise<StellarKeyringAccount> {
+    this.#logger.debug('Resolving keyring account', { scope, address });
+
+    const account = await this.#accountsRepository.findByAddressAndScope(
+      address,
+      scope,
+    );
+    if (!account) {
+      throw new AccountNotFoundException(address, scope);
+    }
+    return account;
+  }
+
+  async #deriveAccount({
+    entropySource,
+    index,
+  }: {
+    entropySource: EntropySourceId;
+    index: number;
+  }): Promise<StellarKeyringAccount> {
+    const derivationPath = getDerivationPath(index);
+    const address = await this.#walletService.deriveAddress({
+      entropySource,
+      index,
+    });
+    return this.#toStellarKeyringAccount({
+      entropySource,
+      derivationPath,
+      index,
+      address,
+    });
+  }
+
   /**
-   * Finds the lowest unused index for a given entropy source and accounts.
+   * Finds the lowest unused derivation index for the given entropy source.
+   * Indexes are not guaranteed to be contiguous (accounts can be deleted), so this scans
+   * existing accounts and returns the smallest index not yet in use.
    *
-   * Generating a new index for the KeyringAccount is not as straightforward as one might think.
-   * We cannot assume that this number will continuously increase because one can delete an account with
-   * an index in the middle of the list. The right way to do it is to find the lowest index that is
-   * not yet used.
-   *
-   * @param params - The parameters for the index finding.
-   * @param params.entropySource - The entropy source to use for account derivation.
-   * @param params.accounts - The accounts to check.
-   * @returns The lowest unused index.
+   * @param options - The parameters for the index search.
+   * @param options.entropySource - The entropy source to scope the search.
+   * @param options.accounts - The existing accounts to check against.
+   * @returns The lowest unused index for that entropy source.
    */
   #getLowestUnusedIndex({
     entropySource,
@@ -335,5 +355,14 @@ export class AccountService {
       },
       methods: [MultichainMethod.SignMessage, MultichainMethod.SignTransaction],
     };
+  }
+
+  #assertSameAddress(
+    address: StellarAddress,
+    derivedAddress: StellarAddress,
+  ): void {
+    if (address.toLowerCase() !== derivedAddress.toLowerCase()) {
+      throw new DerivedAccountAddressMismatchException(address);
+    }
   }
 }

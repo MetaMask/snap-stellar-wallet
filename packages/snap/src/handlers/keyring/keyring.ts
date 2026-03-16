@@ -185,11 +185,18 @@ export class KeyringHandler implements Keyring {
       DiscoverAccountsStruct,
     );
 
+    // it is a never case because the struct validation ensures that the scopes length is 1
+    if (scopes.length !== 1 || scopes[0] === undefined) {
+      throw new Error('Invalid scope');
+    }
+
     try {
       // Discover an account if it exists on the blockchain.
-      const account = await this.#accountService.discoverActivatedAccount({
+      const account = await this.#accountService.discoverOnChainAccount({
         entropySource,
         index: groupIndex,
+        // we assume only one scope supported
+        scope: scopes[0],
       });
 
       if (!account) {
@@ -230,11 +237,14 @@ export class KeyringHandler implements Keyring {
     );
 
     try {
-      const address = await this.#accountService.resolveAccount({
+      const { account } = await this.#accountService.resolveAccount({
         scope,
         address: request.params.address,
+        resolveOptions: {
+          activated: false,
+        },
       });
-      return { address: `${scope}:${address}` };
+      return { address: `${scope}:${account.address}` };
     } catch (error: unknown) {
       throw new Error(
         `Error resolving account address: ${ensureError(error).message}`,

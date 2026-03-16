@@ -1,24 +1,35 @@
-import { Account } from '@stellar/stellar-sdk';
-
-import { AccountService } from './AccountService';
-import type { StellarKeyringAccount } from './AccountsRepository';
+import type { AccountService } from './AccountService';
 import { AccountsRepository } from './AccountsRepository';
-import { mockAccountService } from '../../__mocks__/services';
+import type { StellarKeyringAccount } from './api';
+import { getDerivationPath } from './derivation';
+import {
+  AccountNotFoundException,
+  DerivedAccountAddressMismatchException,
+} from './exceptions';
 import { KnownCaip2ChainId, MultichainMethod } from '../../api';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { getBip32Entropy, getDefaultEntropySource } from '../../utils/snap';
-import { KeypairService, WalletService } from '../wallet';
-import { generateMockStellarKeyringAccounts } from './__mocks__/fixtures';
+import { Wallet, WalletService } from '../wallet';
+import {
+  generateMockStellarKeyringAccounts,
+  mockAccountService,
+} from './__mocks__/fixtures';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
 
 describe('AccountService', () => {
   let accountService: AccountService;
+  let mockAccount: StellarKeyringAccount;
 
   beforeEach(() => {
+    // Mock the entropy source to let the wallet service derive the address
     jest.mocked(getBip32Entropy).mockResolvedValue(mockBip32Node);
     accountService = mockAccountService().accountService;
+    mockAccount = generateMockStellarKeyringAccounts(
+      1,
+      'entropy-source-default',
+    )[0] as StellarKeyringAccount;
   });
 
   const getAccountsRepositorySpies = () => {
@@ -29,61 +40,35 @@ describe('AccountService', () => {
     };
   };
 
-  const getWalletServiceSpies = () => {
-    return {
-      loadAccountSpy: jest.spyOn(WalletService.prototype, 'loadAccount'),
-    };
-  };
-
-  describe('deriveAccount', () => {
-    it('derives an account', async () => {
-      const entropySource = 'entropy-source-1';
-      const index = 0;
-      const expectedDerivationPath = KeypairService.getDerivationPath(index);
-
-      const result = await accountService.deriveAccount({
-        entropySource,
-        index,
-      });
-
-      expect(result).toStrictEqual({
-        id: expect.any(String),
-        entropySource: 'entropy-source-1',
-        derivationPath: expectedDerivationPath,
-        index,
-        type: 'any:account',
-        address: expect.any(String),
-        scopes: [KnownCaip2ChainId.Mainnet],
-        methods: [
-          MultichainMethod.SignMessage,
-          MultichainMethod.SignTransaction,
-        ],
-        options: {
-          entropy: {
-            type: 'mnemonic',
-            id: entropySource,
-            derivationPath: expectedDerivationPath,
-            groupIndex: index,
-          },
-          exportable: true,
-        },
-      });
-    });
+  const getWalletServiceSpies = () => ({
+    deriveAddressSpy: jest.spyOn(WalletService.prototype, 'deriveAddress'),
+    resolveActivatedAccountSpy: jest.spyOn(
+      WalletService.prototype,
+      'resolveActivatedAccount',
+    ),
+    isAccountActivatedSpy: jest.spyOn(
+      WalletService.prototype,
+      'isAccountActivated',
+    ),
   });
 
   describe('create', () => {
     it('creates an account with default options', async () => {
-      const { createSpy, getAllSpy } = getAccountsRepositorySpies();
       const entropySource = 'entropy-source-default';
       const expectedIndex = 0;
-      const expectedDerivationPath =
-        KeypairService.getDerivationPath(expectedIndex);
+      const expectedDerivationPath = getDerivationPath(expectedIndex);
+      const { deriveAddressSpy } = getWalletServiceSpies();
+      const { createSpy, getAllSpy } = getAccountsRepositorySpies();
       getAllSpy.mockResolvedValue([]);
       jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySource);
 
       const result = await accountService.create();
 
       expect(createSpy).toHaveBeenCalledWith(result);
+      expect(deriveAddressSpy).toHaveBeenCalledWith({
+        entropySource,
+        index: expectedIndex,
+      });
       expect(result).toStrictEqual({
         id: expect.any(String),
         entropySource,
@@ -150,8 +135,7 @@ describe('AccountService', () => {
         entropySource,
       );
       const expectedIndex = 0;
-      const expectedDerivationPath =
-        KeypairService.getDerivationPath(expectedIndex);
+      const expectedDerivationPath = getDerivationPath(expectedIndex);
       getAllSpy.mockResolvedValue(restAccounts);
 
       const result = await accountService.create({
@@ -287,29 +271,66 @@ describe('AccountService', () => {
   });
 
   describe('resolveAccount', () => {
-    it('resolves an account by its address and scope', async () => {
+    it('resolves an account regardless of activation status', async () => {
       const { getAllSpy } = getAccountsRepositorySpies();
-      const { loadAccountSpy } = getWalletServiceSpies();
+      const { deriveAddressSpy } = getWalletServiceSpies();
       const mockAccounts = generateMockStellarKeyringAccounts(
         5,
         'entropy-source-1',
       );
       const account = mockAccounts[0] as StellarKeyringAccount;
-      loadAccountSpy.mockResolvedValue(new Account(account.address, '1'));
-      jest.spyOn(KeypairService.prototype, 'deriveAddress').mockResolvedValue({
-        address: account.address,
-        derivationPath: account.derivationPath,
-      });
+      deriveAddressSpy.mockResolvedValue(account.address);
       getAllSpy.mockResolvedValue(mockAccounts);
 
       const result = await accountService.resolveAccount({
         address: account.address,
         scope: KnownCaip2ChainId.Mainnet,
+        resolveOptions: {
+          activated: false,
+        },
       });
-      expect(result).toStrictEqual(account.address);
+      expect(result).toStrictEqual({
+        account,
+        wallet: undefined,
+      });
     });
 
-    it('throws an error if the account is not found in the keyring', async () => {
+    it('resolves an activated account', async () => {
+      const { getAllSpy } = getAccountsRepositorySpies();
+      const { deriveAddressSpy, resolveActivatedAccountSpy } =
+        getWalletServiceSpies();
+      const mockAccounts = generateMockStellarKeyringAccounts(
+        5,
+        'entropy-source-1',
+      );
+      const account = mockAccounts[0] as StellarKeyringAccount;
+      const loadedAccount = {
+        accountId(): string {
+          return account.address;
+        },
+        sequenceNumber(): string {
+          return '1';
+        },
+      };
+      const resolvedWallet = new Wallet(loadedAccount, null);
+      deriveAddressSpy.mockResolvedValue(account.address);
+      getAllSpy.mockResolvedValue(mockAccounts);
+      resolveActivatedAccountSpy.mockResolvedValue(resolvedWallet);
+
+      const result = await accountService.resolveAccount({
+        address: account.address,
+        scope: KnownCaip2ChainId.Mainnet,
+        resolveOptions: {
+          activated: true,
+        },
+      });
+      expect(result).toStrictEqual({
+        account,
+        wallet: resolvedWallet,
+      });
+    });
+
+    it('throws AccountNotFoundException if the account is not found in the keyring', async () => {
       const { getAllSpy } = getAccountsRepositorySpies();
       getAllSpy.mockResolvedValue([]);
 
@@ -318,90 +339,67 @@ describe('AccountService', () => {
           address:
             'GNXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
           scope: KnownCaip2ChainId.Mainnet,
+          resolveOptions: {
+            activated: false,
+          },
         }),
-      ).rejects.toThrow(
-        'Account not found in keyring for address: GNXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX and scope: stellar:pubnet',
-      );
+      ).rejects.toThrow(AccountNotFoundException);
     });
 
     it('throws an error if the address is not the same as the derived account address', async () => {
       const { getAllSpy } = getAccountsRepositorySpies();
+      const { deriveAddressSpy } = getWalletServiceSpies();
       const mockAccounts = generateMockStellarKeyringAccounts(
         5,
         'entropy-source-1',
       );
       const account = mockAccounts[0] as StellarKeyringAccount;
+      const derivedAccount = mockAccounts[1] as StellarKeyringAccount;
       getAllSpy.mockResolvedValue(mockAccounts);
+      deriveAddressSpy.mockResolvedValue(derivedAccount.address);
 
       await expect(
         accountService.resolveAccount({
           address: account.address,
           scope: KnownCaip2ChainId.Mainnet,
+          resolveOptions: {
+            activated: false,
+          },
         }),
-      ).rejects.toThrow(
-        `Derived account address does not match the provided address: ${account.address}`,
-      );
-    });
-
-    it('throws an error if the account is not found in the Stellar network', async () => {
-      const { getAllSpy } = getAccountsRepositorySpies();
-      const { loadAccountSpy } = getWalletServiceSpies();
-      const mockAccounts = generateMockStellarKeyringAccounts(
-        5,
-        'entropy-source-1',
-      );
-      const account = mockAccounts[0] as StellarKeyringAccount;
-      loadAccountSpy.mockResolvedValue(null);
-      jest.spyOn(KeypairService.prototype, 'deriveAddress').mockResolvedValue({
-        address: account.address,
-        derivationPath: account.derivationPath,
-      });
-      getAllSpy.mockResolvedValue(mockAccounts);
-
-      await expect(
-        accountService.resolveAccount({
-          address: account.address,
-          scope: KnownCaip2ChainId.Mainnet,
-        }),
-      ).rejects.toThrow(
-        `Account not found in Stellar network for address: ${account.address}`,
-      );
+      ).rejects.toThrow(DerivedAccountAddressMismatchException);
     });
   });
 
-  describe('discoverActivatedAccount', () => {
+  describe('discoverOnChainAccount', () => {
     it('discovers an activated account', async () => {
-      const { loadAccountSpy } = getWalletServiceSpies();
-      const deriveAccountSpy = jest.spyOn(
-        AccountService.prototype,
-        'deriveAccount',
-      );
-      const mockAccounts = generateMockStellarKeyringAccounts(
-        1,
-        'entropy-source-1',
-      );
-      const mockAccount = mockAccounts[0] as StellarKeyringAccount;
-      loadAccountSpy.mockResolvedValue(new Account(mockAccount.address, '1'));
-      deriveAccountSpy.mockResolvedValue(mockAccount);
+      const { isAccountActivatedSpy, deriveAddressSpy } =
+        getWalletServiceSpies();
+      isAccountActivatedSpy.mockResolvedValue(true);
+      deriveAddressSpy.mockResolvedValue(mockAccount.address);
 
-      const account = await accountService.discoverActivatedAccount({
-        entropySource: 'entropy-source-1',
-        index: 0,
+      const account = await accountService.discoverOnChainAccount({
+        entropySource: mockAccount.entropySource,
+        index: mockAccount.index,
+        scope: KnownCaip2ChainId.Mainnet,
       });
 
-      expect(account).toStrictEqual(mockAccount);
-    });
-  });
-
-  it('returns null if the account is not activated on the Stellar network', async () => {
-    const { loadAccountSpy } = getWalletServiceSpies();
-    loadAccountSpy.mockResolvedValue(null);
-
-    const account = await accountService.discoverActivatedAccount({
-      entropySource: 'entropy-source-1',
-      index: 0,
+      expect(account).toStrictEqual({
+        ...mockAccount,
+        id: expect.any(String),
+      });
     });
 
-    expect(account).toBeNull();
+    it('returns null if the account is not activated on the Stellar network', async () => {
+      const { isAccountActivatedSpy } = getWalletServiceSpies();
+      isAccountActivatedSpy.mockResolvedValue(false);
+
+      const account = await accountService.discoverOnChainAccount({
+        entropySource: mockAccount.entropySource,
+        index: mockAccount.index,
+        scope: KnownCaip2ChainId.Mainnet,
+      });
+
+      expect(account).toBeNull();
+    });
   });
 });

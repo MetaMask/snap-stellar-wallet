@@ -6,3 +6,4 @@ export * from './url';
 export * from './uuid';
 export * from './address';
 export * from './multichain';
+export * from './json';

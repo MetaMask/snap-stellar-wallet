@@ -1,8 +1,14 @@
-import { Keypair } from '@stellar/stellar-sdk';
-
-import { KnownCaip2ChainId } from '../../../api';
-import { KeypairService } from '../../wallet';
-import type { StellarKeyringAccount } from '../AccountsRepository';
+import { KnownCaip2ChainId, MultichainMethod } from '../../../api';
+import { logger } from '../../../utils/logger';
+import { State } from '../../state/State';
+import { generateStellarAddress } from '../../wallet/__mocks__/fixtures';
+import { NetworkService } from '../../wallet/NetworkService';
+import { TransactionBuilder } from '../../wallet/TransactionBuilder';
+import { WalletService } from '../../wallet/WalletService';
+import { AccountService } from '../AccountService';
+import { AccountsRepository } from '../AccountsRepository';
+import type { StellarKeyringAccount } from '../api';
+import { createAccountDeriver, getDerivationPath } from '../derivation';
 
 export const generateStellarKeyringAccount = (
   id: string,
@@ -17,15 +23,15 @@ export const generateStellarKeyringAccount = (
     entropy: {
       type: 'mnemonic',
       id: entropySource,
-      derivationPath: KeypairService.getDerivationPath(index),
+      derivationPath: getDerivationPath(index),
       groupIndex: index,
     },
     exportable: true,
   },
-  methods: ['signMessage', 'signTransaction'],
+  methods: Object.values(MultichainMethod),
   scopes: [KnownCaip2ChainId.Mainnet],
   entropySource,
-  derivationPath: KeypairService.getDerivationPath(index),
+  derivationPath: getDerivationPath(index),
   index,
 });
 
@@ -36,8 +42,35 @@ export const generateMockStellarKeyringAccounts = (
   Array.from({ length: count }, (_, index) =>
     generateStellarKeyringAccount(
       globalThis.crypto.randomUUID(),
-      Keypair.random().publicKey(),
+      generateStellarAddress(),
       entropySource,
       index,
     ),
   );
+
+export const mockAccountService = () => {
+  const networkService = new NetworkService({ logger });
+  const transactionBuilder = new TransactionBuilder({ logger });
+
+  const accountService = new AccountService({
+    logger,
+    accountsRepository: new AccountsRepository(
+      new State({
+        encrypted: false,
+        defaultState: {
+          keyringAccounts: {},
+        },
+      }),
+    ),
+    walletService: new WalletService({
+      logger,
+      deriver: createAccountDeriver(logger),
+      networkService,
+      transactionBuilder,
+    }),
+  });
+
+  return {
+    accountService,
+  };
+};

@@ -8,6 +8,7 @@ export const logger = {
   warn: jest.fn(),
   error: jest.fn(),
   debug: jest.fn(),
+  debugError: jest.fn(),
 } as unknown as ILogger;
 
 export const { createPrefixedLogger } = actual;

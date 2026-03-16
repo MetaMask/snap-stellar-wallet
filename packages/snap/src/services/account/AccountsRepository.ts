@@ -1,22 +1,14 @@
-import type {
-  CaipChainId,
-  EntropySourceId,
-  KeyringAccount,
-} from '@metamask/keyring-api';
-
+import type { StellarKeyringAccount } from './api';
+import type { KnownCaip2ChainId } from '../../api';
 import type { IStateManager } from '../state/IStateManager';
-import type { StellarDerivationPath } from '../wallet/KeypairService';
-
-export type StellarKeyringAccount = KeyringAccount & {
-  entropySource: EntropySourceId;
-  derivationPath: StellarDerivationPath;
-  index: number;
-};
 
 export type UnencryptedStateValue = {
   keyringAccounts: Record<string, StellarKeyringAccount>;
 };
 
+/**
+ * Persists and retrieves Stellar keyring accounts in snap state.
+ */
 export class AccountsRepository {
   readonly #storageKey = 'keyringAccounts';
 
@@ -27,9 +19,9 @@ export class AccountsRepository {
   }
 
   /**
-   * Returns all accounts from the state.
+   * Returns all accounts from the keyring state.
    *
-   * @returns All accounts from the state.
+   * @returns A Promise that resolves to all accounts.
    */
   async getAll(): Promise<StellarKeyringAccount[]> {
     const accounts = await this.#state.getKey<
@@ -40,10 +32,10 @@ export class AccountsRepository {
   }
 
   /**
-   * Finds an account by its ID.
+   * Finds an account by ID.
    *
    * @param id - The ID of the account to find.
-   * @returns The account if found, otherwise null.
+   * @returns A Promise that resolves to the account if found, otherwise `null`.
    */
   async findById(id: string): Promise<StellarKeyringAccount | null> {
     const accounts = await this.getAll();
@@ -55,10 +47,10 @@ export class AccountsRepository {
   }
 
   /**
-   * Finds accounts by their IDs.
+   * Finds accounts by IDs.
    *
    * @param ids - The IDs of the accounts to find.
-   * @returns The accounts if found.
+   * @returns A Promise that resolves to the accounts that match the given IDs.
    */
   async findByIds(ids: string[]): Promise<StellarKeyringAccount[]> {
     const accounts = await this.getAll();
@@ -67,10 +59,10 @@ export class AccountsRepository {
   }
 
   /**
-   * Finds an account by its address.
+   * Finds an account by address.
    *
-   * @param address - The address of the account to find.
-   * @returns The account if found, otherwise null.
+   * @param address - The Stellar address (public key) of the account to find.
+   * @returns A Promise that resolves to the account if found, otherwise `null`.
    */
   async findByAddress(address: string): Promise<StellarKeyringAccount | null> {
     const accounts = await this.getAll();
@@ -82,15 +74,15 @@ export class AccountsRepository {
   }
 
   /**
-   * Finds an account by its address and scope.
+   * Finds an account by address and network scope.
    *
-   * @param address - The address of the account to find.
-   * @param scope - The scope of the account to find.
-   * @returns The account if found, otherwise null.
+   * @param address - The Stellar address of the account to find.
+   * @param scope - The network scope (e.g. mainnet/testnet).
+   * @returns A Promise that resolves to the account if found, otherwise `null`.
    */
   async findByAddressAndScope(
     address: string,
-    scope: CaipChainId,
+    scope: KnownCaip2ChainId,
   ): Promise<StellarKeyringAccount | null> {
     const accounts = await this.getAll();
     return (
@@ -103,10 +95,10 @@ export class AccountsRepository {
   }
 
   /**
-   * Creates a new account.
+   * Persists a new account in keyring state.
    *
    * @param account - The account to create.
-   * @returns The created account.
+   * @returns A Promise that resolves to the created account.
    */
   async create(account: StellarKeyringAccount): Promise<StellarKeyringAccount> {
     await this.#state.setKey(`${this.#storageKey}.${account.id}`, account);
@@ -114,10 +106,10 @@ export class AccountsRepository {
   }
 
   /**
-   * Deletes an account by its ID.
+   * Deletes an account by ID.
    *
    * @param id - The ID of the account to delete.
-   * @returns A Promise that resolves when the account is deleted.
+   * @returns A Promise that resolves when the account has been deleted.
    */
   async delete(id: string): Promise<void> {
     await this.#state.deleteKey(`${this.#storageKey}.${id}`);

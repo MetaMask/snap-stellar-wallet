@@ -6,8 +6,8 @@ import {
   DiscoverAccountsStruct,
 } from './api';
 import { KnownCaip2ChainId, MultichainMethod } from '../../api';
+import type { StellarKeyringAccount } from '../../services/account';
 import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/fixtures';
-import type { StellarKeyringAccount } from '../../services/account/AccountsRepository';
 
 const mockAccounts = generateMockStellarKeyringAccounts(1, 'entropy-source-1');
 const account = mockAccounts[0] as StellarKeyringAccount;
