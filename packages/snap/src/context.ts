@@ -1,15 +1,11 @@
 import { KeyringHandler, ClientRequestHandler } from './handlers';
-import {
-  AccountService,
-  AccountsRepository,
-  createAccountDeriver,
-} from './services/account';
+import { AccountService } from './services/account/AccountService';
+import { AccountsRepository } from './services/account/AccountsRepository';
+import { createAccountDeriver } from './services/account/derivation';
 import { State } from './services/state/State';
-import {
-  NetworkService,
-  TransactionBuilder,
-  WalletService,
-} from './services/wallet';
+import { NetworkService } from './services/wallet/NetworkService';
+import { TransactionBuilder } from './services/wallet/TransactionBuilder';
+import { WalletService } from './services/wallet/WalletService';
 import { logger } from './utils';
 
 const state = new State({
@@ -43,6 +39,7 @@ const accountService = new AccountService({
 
 const keyringHandler = new KeyringHandler({
   logger,
+  accountService,
 });
 
 const clientRequestHandler = new ClientRequestHandler({
