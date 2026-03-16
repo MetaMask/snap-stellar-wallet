@@ -3,7 +3,7 @@ import { handleKeyringRequest } from '@metamask/keyring-snap-sdk';
 import type { JsonRpcRequest } from '@metamask/snaps-sdk';
 
 import { KeyringHandler } from './keyring';
-import { KnownCaip2ChainId, KnownCaip19Id } from '../api';
+import { KnownCaip2ChainId, KnownCaip19Slip44Id } from '../api';
 import { logger } from '../utils/logger';
 
 jest.mock('../utils/logger');
@@ -111,7 +111,9 @@ describe('KeyringHandler', () => {
   describe('getAccountBalances', () => {
     it('throws `Method not implemented.` error', async () => {
       await expect(
-        keyringHandler.getAccountBalances('1', [KnownCaip19Id.Slip44Mainnet]),
+        keyringHandler.getAccountBalances('1', [
+          KnownCaip19Slip44Id.Slip44Mainnet,
+        ]),
       ).rejects.toThrow('Method not implemented.');
     });
   });
