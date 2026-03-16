@@ -27,7 +27,7 @@ export type ILogger = {
   warn: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
   debug: (...args: unknown[]) => void;
-  debugError: (message: string, error: unknown) => void;
+  logErrorWithDetails: (message: string, error: unknown) => void;
 };
 
 /**
@@ -58,7 +58,7 @@ export const logger: ILogger = {
   warn: withLogLevel(console.warn, LogLevel.WARN),
   debug: withLogLevel(console.debug, LogLevel.DEBUG),
   error: withLogLevel(console.error, LogLevel.ERROR),
-  debugError: withLogLevel((...args: unknown[]) => {
+  logErrorWithDetails: withLogLevel((...args: unknown[]) => {
     console.debug(args[0], { error: ensureError(args[1]) });
   }, LogLevel.ERROR),
 };
@@ -72,7 +72,7 @@ export const noOpLogger: ILogger = {
   warn: () => {},
   debug: () => {},
   error: () => {},
-  debugError: () => {},
+  logErrorWithDetails: () => {},
 };
 
 /**
