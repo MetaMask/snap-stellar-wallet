@@ -80,7 +80,7 @@ export class NetworkService {
       const baseFee = await client.fetchBaseFee();
       return new BigNumber(baseFee);
     } catch (error: unknown) {
-      this.#logger.debugError('Failed to fetch base fee', error);
+      this.#logger.logErrorWithDetails('Failed to fetch base fee', error);
       throw new BaseFeeFetchException(scope);
     }
   }
@@ -106,7 +106,7 @@ export class NetworkService {
       }
       throw new TransactionPollException(transactionHash, result.status, scope);
     } catch (error: unknown) {
-      this.#logger.debugError('Failed to poll transaction', error);
+      this.#logger.logErrorWithDetails('Failed to poll transaction', error);
       if (error instanceof TransactionPollException) {
         throw error;
       }
@@ -131,7 +131,7 @@ export class NetworkService {
       const client = this.#getHorizonClient(scope);
       return await client.loadAccount(accountAddress);
     } catch (error: unknown) {
-      this.#logger.debugError('Failed to load account', error);
+      this.#logger.logErrorWithDetails('Failed to load account', error);
       if (error instanceof NotFoundError) {
         throw new AccountNotActivatedException(accountAddress, scope);
       }
@@ -172,7 +172,7 @@ export class NetworkService {
 
       return executedTransaction.hash;
     } catch (error: unknown) {
-      this.#logger.debugError('Failed to send transaction', error);
+      this.#logger.logErrorWithDetails('Failed to send transaction', error);
       if (error instanceof TransactionPollException) {
         throw error;
       }
