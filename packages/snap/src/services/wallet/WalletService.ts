@@ -174,7 +174,7 @@ export class WalletService {
     try {
       account.signTransaction(txToSign);
     } catch (error) {
-      this.#logger.debugError('Error signing transaction', error);
+      this.#logger.logErrorWithDetails('Error signing transaction', error);
       throw new WalletServiceException('Failed to sign transaction');
     }
   }
@@ -190,7 +190,7 @@ export class WalletService {
       const seed = await this.#deriver.get32ByteSeed(index, entropySource);
       return StellarKeypair.fromRawEd25519Seed(seed as Buffer);
     } catch (error: unknown) {
-      this.#logger.debugError('Error deriving keypair', error);
+      this.#logger.logErrorWithDetails('Error deriving keypair', error);
       throw new WalletServiceException('Failed to derive keypair');
     }
   }

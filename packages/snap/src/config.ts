@@ -1,5 +1,5 @@
 /* eslint-disable no-restricted-globals */
-import type { Infer } from '@metamask/superstruct';
+import type { Infer, Struct } from '@metamask/superstruct';
 import {
   create,
   enums,
@@ -8,6 +8,8 @@ import {
   coerce,
   string,
   record,
+  number,
+  min,
 } from '@metamask/superstruct';
 
 import {
@@ -17,6 +19,23 @@ import {
   UrlStruct,
   KnownCaip2ChainId,
 } from './api';
+
+/**
+ * A struct to parse an integer from a string.
+ *
+ * @param minValue - The minimum value for the integer.
+ * @param defaultValue - The default value for the integer.
+ * @returns A struct to parse an integer from a string.
+ */
+const parseIntegerStruct = (
+  minValue: number,
+  defaultValue: number,
+): Struct<number> =>
+  coerce(
+    defaulted(min(number(), minValue), defaultValue),
+    string(),
+    (value: string) => (value === '' ? undefined : parseInt(value, 10)),
+  );
 
 /**
  * A struct for validating the network config.
@@ -46,6 +65,10 @@ const ConfigStruct = object({
   logLevel: LogLevelStruct,
   networks: record(KnownCaip2ChainIdStruct, networkConfigStruct),
   selectedNetwork: selectedNetworkStruct,
+  transaction: object({
+    timeout: parseIntegerStruct(100, 180),
+    pollingAttempts: parseIntegerStruct(0, 10),
+  }),
 });
 
 /**
@@ -75,6 +98,10 @@ export const AppConfig = create(
     },
     selectedNetwork: KnownCaip2ChainId.Mainnet,
     logLevel: process.env.LOG_LEVEL,
+    transaction: {
+      timeout: process.env.TRANSACTION_TIMEOUT,
+      pollingAttempts: process.env.TRANSACTION_POLLING_ATTEMPTS,
+    },
   },
   ConfigStruct,
 );

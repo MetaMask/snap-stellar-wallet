@@ -4,6 +4,7 @@ import type { StellarKeyringAccount } from './api';
 import { getDerivationPath } from './derivation';
 import {
   AccountNotFoundException,
+  AccountRollbackException,
   DerivedAccountAddressMismatchException,
 } from './exceptions';
 import { KnownCaip2ChainId, MultichainMethod } from '../../api';
@@ -220,6 +221,24 @@ describe('AccountService', () => {
       expect(deleteSpy).toHaveBeenCalledWith(createSpy.mock.calls[0]?.[0]?.id);
       expect(createSpy).toHaveBeenCalled();
     });
+
+    it('throws AccountRollbackException if the rollback fails', async () => {
+      const { deleteSpy } = getAccountsRepositorySpies();
+      const callback = jest
+        .fn()
+        .mockRejectedValue(new Error('Callback failed'));
+      deleteSpy.mockRejectedValue(new Error('Rollback failed'));
+
+      await expect(
+        accountService.create(
+          {
+            entropySource: 'entropy-source-1',
+            index: 0,
+          },
+          callback,
+        ),
+      ).rejects.toThrow(AccountRollbackException);
+    });
   });
 
   describe('delete', () => {
@@ -271,7 +290,7 @@ describe('AccountService', () => {
   });
 
   describe('resolveAccount', () => {
-    it('resolves an account regardless of activation status', async () => {
+    it('resolves an account regardless of activation status with given address', async () => {
       const { getAllSpy } = getAccountsRepositorySpies();
       const { deriveAddressSpy } = getWalletServiceSpies();
       const mockAccounts = generateMockStellarKeyringAccounts(
@@ -283,7 +302,31 @@ describe('AccountService', () => {
       getAllSpy.mockResolvedValue(mockAccounts);
 
       const result = await accountService.resolveAccount({
-        address: account.address,
+        accountIdOrAddress: account.address,
+        scope: KnownCaip2ChainId.Mainnet,
+        resolveOptions: {
+          activated: false,
+        },
+      });
+      expect(result).toStrictEqual({
+        account,
+        wallet: undefined,
+      });
+    });
+
+    it('resolves an account regardless of activation status with given account ID', async () => {
+      const { getAllSpy } = getAccountsRepositorySpies();
+      const { deriveAddressSpy } = getWalletServiceSpies();
+      const mockAccounts = generateMockStellarKeyringAccounts(
+        5,
+        'entropy-source-1',
+      );
+      const account = mockAccounts[0] as StellarKeyringAccount;
+      deriveAddressSpy.mockResolvedValue(account.address);
+      getAllSpy.mockResolvedValue(mockAccounts);
+
+      const result = await accountService.resolveAccount({
+        accountIdOrAddress: account.id,
         scope: KnownCaip2ChainId.Mainnet,
         resolveOptions: {
           activated: false,
@@ -318,7 +361,7 @@ describe('AccountService', () => {
       resolveActivatedAccountSpy.mockResolvedValue(resolvedWallet);
 
       const result = await accountService.resolveAccount({
-        address: account.address,
+        accountIdOrAddress: account.address,
         scope: KnownCaip2ChainId.Mainnet,
         resolveOptions: {
           activated: true,
@@ -330,14 +373,29 @@ describe('AccountService', () => {
       });
     });
 
-    it('throws AccountNotFoundException if the account is not found in the keyring', async () => {
+    it('throws AccountNotFoundException if the account address is not found in the keyring', async () => {
       const { getAllSpy } = getAccountsRepositorySpies();
       getAllSpy.mockResolvedValue([]);
 
       await expect(
         accountService.resolveAccount({
-          address:
+          accountIdOrAddress:
             'GNXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+          scope: KnownCaip2ChainId.Mainnet,
+          resolveOptions: {
+            activated: false,
+          },
+        }),
+      ).rejects.toThrow(AccountNotFoundException);
+    });
+
+    it('throws AccountNotFoundException if the account id is not found in the keyring', async () => {
+      const { getAllSpy } = getAccountsRepositorySpies();
+      getAllSpy.mockResolvedValue([]);
+
+      await expect(
+        accountService.resolveAccount({
+          accountIdOrAddress: '00000000-0000-0000-0000-000000000000',
           scope: KnownCaip2ChainId.Mainnet,
           resolveOptions: {
             activated: false,
@@ -360,7 +418,7 @@ describe('AccountService', () => {
 
       await expect(
         accountService.resolveAccount({
-          address: account.address,
+          accountIdOrAddress: account.address,
           scope: KnownCaip2ChainId.Mainnet,
           resolveOptions: {
             activated: false,
