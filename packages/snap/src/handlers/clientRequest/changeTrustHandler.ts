@@ -41,12 +41,15 @@ export class ChangeTrustHandler {
   async handle(request: JsonRpcRequest): Promise<Json> {
     validateRequest(request, SignChangeTrustlineJsonRpcRequestStruct);
 
-    const { scope, address, asset } = request.params;
+    const { scope, accountId, asset } = request.params;
 
     try {
-      const { wallet } = await this.#accountService.resolveAccount({
+      const {
+        wallet,
+        account: { address },
+      } = await this.#accountService.resolveAccount({
         scope,
-        address,
+        accountIdOrAddress: accountId,
         resolveOptions: {
           activated: true,
         },
