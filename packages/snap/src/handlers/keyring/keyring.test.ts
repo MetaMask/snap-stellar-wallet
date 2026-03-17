@@ -351,7 +351,7 @@ describe('KeyringHandler', () => {
 
       expect(resolveAccountSpy).toHaveBeenCalledWith({
         scope: KnownCaip2ChainId.Mainnet,
-        address: mockAccount.address,
+        accountIdOrAddress: mockAccount.address,
         resolveOptions: { activated: false },
       });
       expect(result).toStrictEqual({
