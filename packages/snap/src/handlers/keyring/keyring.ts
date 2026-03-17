@@ -239,7 +239,7 @@ export class KeyringHandler implements Keyring {
     try {
       const { account } = await this.#accountService.resolveAccount({
         scope,
-        address: request.params.address,
+        accountIdOrAddress: request.params.address,
         resolveOptions: {
           activated: false,
         },

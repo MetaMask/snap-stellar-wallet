@@ -4,8 +4,8 @@ import { enums, object, assign } from '@metamask/superstruct';
 import {
   JsonRpcRequestStruct,
   KnownCaip2ChainIdStruct,
-  StellarAddressStruct,
   KnownCaip19AssetStruct,
+  UuidStruct,
 } from '../../api';
 
 /**
@@ -30,7 +30,7 @@ export const SignChangeTrustlineJsonRpcRequestStruct = assign(
   object({
     method: ClientRequestMethodStruct,
     params: object({
-      address: StellarAddressStruct,
+      accountId: UuidStruct,
       asset: KnownCaip19AssetStruct,
       scope: KnownCaip2ChainIdStruct,
     }),

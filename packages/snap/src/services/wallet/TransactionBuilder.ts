@@ -61,7 +61,7 @@ export class TransactionBuilder {
         fee: baseFee,
       });
     } catch (error: unknown) {
-      this.#logger.debugError(
+      this.#logger.logErrorWithDetails(
         'Failed to build change trust transaction',
         error,
       );
@@ -117,7 +117,7 @@ export class TransactionBuilder {
 
       return new Transaction(builder.build());
     } catch (error: unknown) {
-      this.#logger.debugError('Failed to rebuild transaction', error);
+      this.#logger.logErrorWithDetails('Failed to rebuild transaction', error);
       throw new TransactionBuilderException('Failed to rebuild transaction');
     }
   }

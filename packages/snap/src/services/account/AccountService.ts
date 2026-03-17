@@ -1,10 +1,15 @@
 import type { EntropySourceId } from '@metamask/keyring-api';
+import { ensureError } from '@metamask/utils';
 
 import type { AccountsRepository } from './AccountsRepository';
 import type { StellarKeyringAccount, StellarDerivationPath } from './api';
 import { getDerivationPath } from './derivation';
-import { KnownCaip2ChainId, MultichainMethod } from '../../api';
-import type { StellarAddress } from '../../api';
+import {
+  KnownCaip2ChainId,
+  MultichainMethod,
+  StellarAddressStruct,
+} from '../../api';
+import type { StellarAddress, UUID } from '../../api';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
@@ -15,6 +20,7 @@ import type { Wallet, WalletService } from '../wallet';
 import {
   DerivedAccountAddressMismatchException,
   AccountNotFoundException,
+  AccountRollbackException,
 } from './exceptions';
 
 /**
@@ -77,13 +83,13 @@ export class AccountService {
   }
 
   /**
-   * Resolves an account from a given scope and address by:
+   * Resolves an account from a given scope and account ID or address by:
    * - If `activated` is true, resolving an account from state and an activated account from the network.
    * - If `activated` is false, resolving an account from state only.
    *
    * @param params - The parameters for the account resolution.
    * @param params.scope - The scope of the account to resolve.
-   * @param params.address - The address of the account to resolve.
+   * @param params.accountIdOrAddress - The ID or address of the account to resolve.
    * @param params.resolveOptions - Resolution options.
    * @param params.resolveOptions.activated - When true, also resolves the activated wallet from the network; return type then includes required `wallet`.
    * @returns A Promise that resolves to the resolved account and optional wallet (wallet present when `activated` is true).
@@ -93,11 +99,11 @@ export class AccountService {
    */
   async resolveAccount<ResolveActivatedAccount extends boolean>({
     scope,
-    address,
+    accountIdOrAddress,
     resolveOptions,
   }: {
     scope: KnownCaip2ChainId;
-    address: StellarAddress;
+    accountIdOrAddress: UUID | StellarAddress;
     resolveOptions: {
       activated: ResolveActivatedAccount;
     };
@@ -106,16 +112,25 @@ export class AccountService {
       ? { account: StellarKeyringAccount; wallet: Wallet }
       : { account: StellarKeyringAccount; wallet?: Wallet }
   > {
-    this.#logger.debug('Resolving account address', { scope, address });
-
     let wallet: Wallet | undefined;
+    let account: StellarKeyringAccount;
     let derivedAddress: StellarAddress | undefined;
     const { activated } = resolveOptions;
 
-    // Verify the address is associated with an account in the state that matches the scope.
-    const account = await this.#resolveKeyringAccount({ scope, address });
-    const { entropySource, index } = account;
+    // Verify the address or id is associated with an account in the state that matches the scope.
+    const [addressValidateErr] =
+      StellarAddressStruct.validate(accountIdOrAddress);
 
+    if (addressValidateErr === undefined) {
+      account = await this.#resolveKeyringAccountByAddress({
+        scope,
+        address: accountIdOrAddress,
+      });
+    } else {
+      account = await this.#resolveKeyringAccountById(accountIdOrAddress);
+    }
+
+    const { entropySource, index, address } = account;
     // Verify the account is activated in the Stellar network if `activated` is true.
     // Otherwise, derive the address from the entropy source and index.
     if (activated) {
@@ -159,8 +174,6 @@ export class AccountService {
     },
     callback?: (account: StellarKeyringAccount) => Promise<void>,
   ): Promise<StellarKeyringAccount> {
-    this.#logger.debug('Creating account', { options });
-
     const accounts = await this.#accountsRepository.getAll();
 
     const entropySource =
@@ -212,7 +225,15 @@ export class AccountService {
         await callback(account);
       } catch (error) {
         // Rollback: if callback fails, delete the account
-        await this.#accountsRepository.delete(account.id);
+        try {
+          await this.#accountsRepository.delete(account.id);
+        } catch (deleteError: unknown) {
+          this.#logger.logErrorWithDetails(
+            'Failed to rollback account creation',
+            ensureError(deleteError),
+          );
+          throw new AccountRollbackException(account.id, account.address);
+        }
         // Re-throw the error to be handled by the caller
         throw error;
       }
@@ -228,7 +249,6 @@ export class AccountService {
    * @returns A Promise that resolves when the account has been deleted.
    */
   async delete(id: string): Promise<void> {
-    this.#logger.debug('Deleting account', { id });
     await this.#accountsRepository.delete(id);
   }
 
@@ -238,7 +258,6 @@ export class AccountService {
    * @returns A Promise that resolves to the list of all accounts.
    */
   async listAccounts(): Promise<StellarKeyringAccount[]> {
-    this.#logger.debug('Listing accounts');
     return await this.#accountsRepository.getAll();
   }
 
@@ -249,25 +268,32 @@ export class AccountService {
    * @returns A Promise that resolves to the account if found, otherwise `undefined`.
    */
   async findById(id: string): Promise<StellarKeyringAccount | undefined> {
-    this.#logger.debug('Finding account by ID', { id });
     return (await this.#accountsRepository.findById(id)) ?? undefined;
   }
 
-  async #resolveKeyringAccount({
+  async #resolveKeyringAccountByAddress({
     scope,
     address,
   }: {
     scope: KnownCaip2ChainId;
     address: StellarAddress;
   }): Promise<StellarKeyringAccount> {
-    this.#logger.debug('Resolving keyring account', { scope, address });
-
     const account = await this.#accountsRepository.findByAddressAndScope(
       address,
       scope,
     );
     if (!account) {
       throw new AccountNotFoundException(address, scope);
+    }
+    return account;
+  }
+
+  async #resolveKeyringAccountById(
+    accountId: UUID,
+  ): Promise<StellarKeyringAccount> {
+    const account = await this.#accountsRepository.findById(accountId);
+    if (!account) {
+      throw new AccountNotFoundException(accountId);
     }
     return account;
   }
