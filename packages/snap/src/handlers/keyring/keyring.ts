@@ -24,7 +24,7 @@ import {
   type ILogger,
   validateOrigin,
   withCatchAndThrowSnapError,
-} from '../utils';
+} from '../../utils';
 
 export class KeyringHandler implements Keyring {
   readonly #logger: ILogger;
