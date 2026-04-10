@@ -108,6 +108,10 @@ Dapps call these methods using `wallet_invokeSnap` or `wallet_snap`.
 
 The manifest (`snap.manifest.json`) should always be in production state in commits. Local development uses `yarn start` which applies local settings.
 
+## TypeScript: `BigNumber` types
+
+In **`packages/snap`**, `BigNumber` from `bignumber.js` is available as a **global type** for annotations (e.g. method parameters and return types). **Do not add** `import type { BigNumber } from 'bignumber.js'` when it is only used as a type. **Keep** a normal `import { BigNumber } from 'bignumber.js'` when the file constructs values (`new BigNumber(...)`, static methods, etc.).
+
 ## Linting + Formatting
 
 **After each code generation**, run the linter to fix formatting and style issues:

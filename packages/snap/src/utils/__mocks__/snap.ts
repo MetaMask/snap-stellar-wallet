@@ -17,3 +17,7 @@ export const getDefaultEntropySource = jest.fn();
 export const { getState } = actual;
 export const { setState } = actual;
 export const { updateState } = actual;
+export const { createInterface } = actual;
+export const { showDialog } = actual;
+export const { getPreferences } = actual;
+export const { resolveInterface } = actual;

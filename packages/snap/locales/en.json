@@ -1,4 +1,341 @@
 {
   "locale": "en",
-  "messages": {}
+  "messages": {
+    "confirmation.transaction.title": {
+      "message": "Transaction request"
+    },
+    "confirmation.estimatedChanges.title": {
+      "message": "Estimated changes"
+    },
+    "confirmation.estimatedChanges.tooltip": {
+      "message": "Estimated changes are what might happen if you go through with this transaction. This is just a prediction, not a guarantee."
+    },
+    "confirmation.estimatedChanges.send": {
+      "message": "You send"
+    },
+    "confirmation.bandwidthConsumed": {
+      "message": "Bandwidth consumed"
+    },
+    "confirmation.estimatedChanges.receive": {
+      "message": "You receive"
+    },
+    "confirmation.origin": {
+      "message": "Request from"
+    },
+    "confirmation.origin.tooltip": {
+      "message": "This is the site asking for your confirmation."
+    },
+    "confirmation.from": {
+      "message": "From"
+    },
+    "confirmation.to": {
+      "message": "To"
+    },
+    "confirmation.network": {
+      "message": "Network"
+    },
+    "confirmation.transactionFee": {
+      "message": "Network fee"
+    },
+    "confirmation.confirmButton": {
+      "message": "Confirm"
+    },
+    "confirmation.cancelButton": {
+      "message": "Cancel"
+    },
+    "confirmation.signMessage.title": {
+      "message": "Sign message"
+    },
+    "confirmation.signMessage.message": {
+      "message": "Message"
+    },
+    "confirmation.account": {
+      "message": "Account"
+    },
+    "confirmation.signTransaction.title": {
+      "message": "Sign transaction"
+    },
+    "confirmation.estimatedChanges.notAvailable": {
+      "message": "Estimated changes are not available"
+    },
+    "confirmation.estimatedChanges.noChanges": {
+      "message": "No estimated changes"
+    },
+    "confirmation.estimatedChanges.unsupportedContract": {
+      "message": "Unsupported contract for simulation"
+    },
+    "confirmation.simulationTitleAPIError": {
+      "message": "Because of an error, we couldn't check for security alerts."
+    },
+    "confirmation.simulationMessageAPIError": {
+      "message": "Only continue if you trust every address involved."
+    },
+    "confirmation.simulationErrorTitle": {
+      "message": "This transaction was reverted during simulation."
+    },
+    "confirmation.simulationErrorSubtitle": {
+      "message": "{reason}"
+    },
+    "confirmation.validationErrorTitle": {
+      "message": "This is a deceptive request"
+    },
+    "confirmation.validationErrorSubtitle": {
+      "message": "If you approve this request, a third party known for scams will take all your assets."
+    },
+    "confirmation.validationErrorLearnMore": {
+      "message": "Learn more"
+    },
+    "confirmation.validationErrorSecurityAdviced": {
+      "message": "Security advice by"
+    },
+    "confirmation.transaction.accountmerge": {
+      "message": "Merge account"
+    },
+    "confirmation.transaction.allowtrust": {
+      "message": "Allow trust"
+    },
+    "confirmation.transaction.beginsponsoringfuturereserves": {
+      "message": "Begin sponsoring future reserves"
+    },
+    "confirmation.transaction.bumpsequence": {
+      "message": "Bump sequence"
+    },
+    "confirmation.transaction.changetrust": {
+      "message": "Change trust line"
+    },
+    "confirmation.transaction.claimclaimablebalance": {
+      "message": "Claim claimable balance"
+    },
+    "confirmation.transaction.clawback": {
+      "message": "Clawback"
+    },
+    "confirmation.transaction.clawbackclaimablebalance": {
+      "message": "Clawback claimable balance"
+    },
+    "confirmation.transaction.createaccount": {
+      "message": "Create account"
+    },
+    "confirmation.transaction.createclaimablebalance": {
+      "message": "Create claimable balance"
+    },
+    "confirmation.transaction.createpassiveselloffer": {
+      "message": "Create passive sell offer"
+    },
+    "confirmation.transaction.endsponsoringfuturereserves": {
+      "message": "End sponsoring future reserves"
+    },
+    "confirmation.transaction.extendfootprintttl": {
+      "message": "Extend footprint TTL"
+    },
+    "confirmation.transaction.inflation": {
+      "message": "Inflation"
+    },
+    "confirmation.transaction.invokehostfunction": {
+      "message": "Invoke host function"
+    },
+    "confirmation.transaction.liquiditypooldeposit": {
+      "message": "Liquidity pool deposit"
+    },
+    "confirmation.transaction.liquiditypoolwithdraw": {
+      "message": "Liquidity pool withdraw"
+    },
+    "confirmation.transaction.managedata": {
+      "message": "Manage data"
+    },
+    "confirmation.transaction.managebuyoffer": {
+      "message": "Manage buy offer"
+    },
+    "confirmation.transaction.manageselloffer": {
+      "message": "Manage sell offer"
+    },
+    "confirmation.transaction.pathpaymentstrictreceive": {
+      "message": "Path payment (strict receive)"
+    },
+    "confirmation.transaction.pathpaymentstrictsend": {
+      "message": "Path payment (strict send)"
+    },
+    "confirmation.transaction.payment": {
+      "message": "Payment"
+    },
+    "confirmation.transaction.restorefootprint": {
+      "message": "Restore footprint"
+    },
+    "confirmation.transaction.revokesponsorship": {
+      "message": "Revoke sponsorship"
+    },
+    "confirmation.transaction.setoptions": {
+      "message": "Set options"
+    },
+    "confirmation.transaction.settrustlineflags": {
+      "message": "Set trust line flags"
+    },
+    "confirmation.transaction.param.account": {
+      "message": "Account"
+    },
+    "confirmation.transaction.param.amount": {
+      "message": "Amount"
+    },
+    "confirmation.transaction.param.asset": {
+      "message": "Asset"
+    },
+    "confirmation.transaction.param.assetCode": {
+      "message": "Asset code"
+    },
+    "confirmation.transaction.param.authorize": {
+      "message": "Authorize"
+    },
+    "confirmation.transaction.param.balanceId": {
+      "message": "Balance ID"
+    },
+    "confirmation.transaction.param.buyAmount": {
+      "message": "Buy amount"
+    },
+    "confirmation.transaction.param.bumpTo": {
+      "message": "Bump to"
+    },
+    "confirmation.transaction.param.buying": {
+      "message": "Buying"
+    },
+    "confirmation.transaction.param.claimants": {
+      "message": "Claimants"
+    },
+    "confirmation.transaction.param.clearFlags": {
+      "message": "Clear flags"
+    },
+    "confirmation.transaction.param.destAmount": {
+      "message": "Destination amount"
+    },
+    "confirmation.transaction.param.destAsset": {
+      "message": "Destination asset"
+    },
+    "confirmation.transaction.param.destMin": {
+      "message": "Destination minimum"
+    },
+    "confirmation.transaction.param.destination": {
+      "message": "Destination"
+    },
+    "confirmation.transaction.param.extendTo": {
+      "message": "Extend to"
+    },
+    "confirmation.transaction.param.flags": {
+      "message": "Flags"
+    },
+    "confirmation.transaction.param.from": {
+      "message": "From"
+    },
+    "confirmation.transaction.param.highThreshold": {
+      "message": "High threshold"
+    },
+    "confirmation.transaction.param.homeDomain": {
+      "message": "Home domain"
+    },
+    "confirmation.transaction.param.hostFunctionXdrBase64": {
+      "message": "Host function (XDR, base64)"
+    },
+    "confirmation.transaction.param.inflationDest": {
+      "message": "Inflation destination"
+    },
+    "confirmation.transaction.param.limit": {
+      "message": "Limit"
+    },
+    "confirmation.transaction.param.line": {
+      "message": "Trust line"
+    },
+    "confirmation.transaction.param.liquidityPoolId": {
+      "message": "Liquidity pool ID"
+    },
+    "confirmation.transaction.param.lowThreshold": {
+      "message": "Low threshold"
+    },
+    "confirmation.transaction.param.masterWeight": {
+      "message": "Master weight"
+    },
+    "confirmation.transaction.param.maxAmountA": {
+      "message": "Max amount A"
+    },
+    "confirmation.transaction.param.maxAmountB": {
+      "message": "Max amount B"
+    },
+    "confirmation.transaction.param.maxPrice": {
+      "message": "Max price"
+    },
+    "confirmation.transaction.param.medThreshold": {
+      "message": "Medium threshold"
+    },
+    "confirmation.transaction.param.minAmountA": {
+      "message": "Min amount A"
+    },
+    "confirmation.transaction.param.minAmountB": {
+      "message": "Min amount B"
+    },
+    "confirmation.transaction.param.minPrice": {
+      "message": "Min price"
+    },
+    "confirmation.transaction.param.name": {
+      "message": "Name"
+    },
+    "confirmation.transaction.param.note": {
+      "message": "Note"
+    },
+    "confirmation.transaction.param.offerId": {
+      "message": "Offer ID"
+    },
+    "confirmation.transaction.param.path": {
+      "message": "Path"
+    },
+    "confirmation.transaction.param.price": {
+      "message": "Price"
+    },
+    "confirmation.transaction.param.seller": {
+      "message": "Seller"
+    },
+    "confirmation.transaction.param.sendAmount": {
+      "message": "Send amount"
+    },
+    "confirmation.transaction.param.sendAsset": {
+      "message": "Send asset"
+    },
+    "confirmation.transaction.param.sendMax": {
+      "message": "Send max"
+    },
+    "confirmation.transaction.param.selling": {
+      "message": "Selling"
+    },
+    "confirmation.transaction.param.setFlags": {
+      "message": "Set flags"
+    },
+    "confirmation.transaction.param.signer": {
+      "message": "Signer"
+    },
+    "confirmation.transaction.param.sponsoredId": {
+      "message": "Sponsored account"
+    },
+    "confirmation.transaction.param.startingBalance": {
+      "message": "Starting balance"
+    },
+    "confirmation.transaction.param.trustor": {
+      "message": "Trustor"
+    },
+    "confirmation.transaction.param.valueBase64": {
+      "message": "Value (base64)"
+    },
+    "transactionScan.errors.unknownError": {
+      "message": "An unknown error occurred"
+    },
+    "transactionScan.errors.insufficientBalance": {
+      "message": "Insufficient balance"
+    },
+    "transactionScan.errors.invalidTransaction": {
+      "message": "Invalid transaction"
+    },
+    "transactionScan.errors.insufficientFunds": {
+      "message": "Insufficient funds"
+    },
+    "transactionScan.errors.invalidAddress": {
+      "message": "Invalid address"
+    },
+    "transactionScan.errors.unsupportedEIP712Message": {
+      "message": "Unsupported method"
+    }
+  }
 }

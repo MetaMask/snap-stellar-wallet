@@ -1,6 +1,16 @@
 import type { JsonSLIP10Node } from '@metamask/key-tree';
 import type { EntropySourceId } from '@metamask/keyring-api';
-import type { EntropySource, Json, SnapsProvider } from '@metamask/snaps-sdk';
+import type {
+  ComponentOrElement,
+  DialogResult,
+  EntropySource,
+  GetClientStatusResult,
+  GetPreferencesResult,
+  Json,
+  ResolveInterfaceResult,
+  SnapsProvider,
+  UpdateInterfaceResult,
+} from '@metamask/snaps-sdk';
 
 import { type Serializable, serialize, deserialize } from './serialization';
 
@@ -155,4 +165,220 @@ export async function getState({
   }
 
   return deserialize(state);
+}
+
+/**
+ * Retrieves the client status (locked/unlocked) in this case from MM.
+ *
+ * @returns An object containing the status.
+ */
+export async function getClientStatus(): Promise<GetClientStatusResult> {
+  return getSnapProvider().request({
+    method: 'snap_getClientStatus',
+  });
+}
+
+/**
+ * Schedules a background event.
+ *
+ * @param options - The options for the background event.
+ * @param options.method - The method to call.
+ * @param options.params - The params to pass to the method.
+ * @param options.duration - The duration to wait before the event is scheduled.
+ * @returns A promise that resolves to a string.
+ */
+export async function scheduleBackgroundEvent({
+  method,
+  params = {},
+  duration,
+}: {
+  method: string;
+  params?: Record<string, Json>;
+  duration: string;
+}): Promise<string> {
+  return getSnapProvider().request({
+    method: 'snap_scheduleBackgroundEvent',
+    params: {
+      duration,
+      request: {
+        method,
+        params,
+      },
+    },
+  });
+}
+
+/**
+ * Checks if an error is an "interface not found" error.
+ * Detects JSON-RPC errors thrown when an interface has been dismissed by the user.
+ *
+ * @param error - The error to check.
+ * @returns True if the error indicates the interface was not found.
+ */
+function isInterfaceNotFoundError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return message.includes('interface') && message.includes('not found');
+  }
+
+  return false;
+}
+
+/**
+ * Create a UI interface with the provided UI component and context.
+ *
+ * @param ui - The UI component to render.
+ * @param context - The initial context object to associate with the interface.
+ * @returns The created interface id.
+ */
+export async function createInterface<TContext>(
+  // TODO: Replace `any` with type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ui: any,
+  context: TContext & Record<string, Json>,
+): Promise<string> {
+  return getSnapProvider().request({
+    method: 'snap_createInterface',
+    params: {
+      ui,
+      context,
+    },
+  });
+}
+
+/**
+ * Update an existing UI interface with a new UI component and context.
+ * Returns null if the interface has been dismissed by the user.
+ *
+ * @param id - The interface id returned from createInterface.
+ * @param ui - The new UI component to render.
+ * @param context - The updated context object to associate with the interface.
+ * @returns True if the interface was updated, or null if it was not found.
+ */
+export async function updateInterfaceIfExists<TContext>(
+  id: string,
+  // TODO: Replace `any` with type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ui: any,
+  context: TContext & Record<string, Json>,
+): Promise<true | null> {
+  try {
+    await getSnapProvider().request({
+      method: 'snap_updateInterface',
+      params: {
+        id,
+        ui,
+        context,
+      },
+    });
+    return true;
+  } catch (error) {
+    if (isInterfaceNotFoundError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Gets the context of an interface by its ID.
+ * Returns null if the interface has been dismissed by the user.
+ *
+ * @param id - The ID for the interface.
+ * @returns The context object associated with the interface, or null if not found.
+ */
+export async function getInterfaceContextIfExists<TContext extends Json>(
+  id: string,
+): Promise<TContext | null> {
+  try {
+    const rawContext = await getSnapProvider().request({
+      method: 'snap_getInterfaceContext',
+      params: {
+        id,
+      },
+    });
+
+    if (!rawContext) {
+      return null;
+    }
+
+    return rawContext as TContext;
+  } catch (error) {
+    if (isInterfaceNotFoundError(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Updates the context of an interface by its ID without changing the UI.
+ * Note: This is a helper that re-uses the existing UI.
+ *
+ * @param id - The ID for the interface.
+ * @param ui - The UI component.
+ * @param context - The updated context object.
+ * @returns The update interface result.
+ */
+export async function updateInterfaceWithContext<
+  TContext extends Record<string, Json>,
+>(
+  id: string,
+  ui: ComponentOrElement,
+  context: TContext,
+): Promise<UpdateInterfaceResult> {
+  return getSnapProvider().request({
+    method: 'snap_updateInterface',
+    params: {
+      id,
+      ui,
+      context,
+    },
+  });
+}
+
+/**
+ * Shows a dialog using the provided ID.
+ *
+ * @param id - The ID for the dialog.
+ * @returns A promise that resolves to a string.
+ */
+export async function showDialog(id: string): Promise<DialogResult> {
+  return getSnapProvider().request({
+    method: 'snap_dialog',
+    params: {
+      id,
+    },
+  });
+}
+
+/**
+ * Resolve a dialog using the provided ID.
+ *
+ * @param id - The ID for the interface to update.
+ * @param value - The result to resolve the interface with.
+ * @returns An object containing the state of the interface.
+ */
+export async function resolveInterface(
+  id: string,
+  value: Json,
+): Promise<ResolveInterfaceResult> {
+  return getSnapProvider().request({
+    method: 'snap_resolveInterface',
+    params: {
+      id,
+      value,
+    },
+  });
+}
+
+/**
+ * Get preferences from snap.
+ *
+ * @returns A promise that resolves to snap preferences.
+ */
+export async function getPreferences(): Promise<GetPreferencesResult> {
+  return getSnapProvider().request({
+    method: 'snap_getPreferences',
+  });
 }
