@@ -13,7 +13,7 @@ import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
 import { KeyringHandler } from './keyring';
 import {
   KnownCaip2ChainId,
-  KnownCaip19Slip44Id,
+  KnownCaip19Slip44IdMap,
   MultichainMethod,
 } from '../../api';
 import {
@@ -323,7 +323,7 @@ describe('KeyringHandler', () => {
     it('throws `Method not implemented.` error', async () => {
       await expect(
         keyringHandler.getAccountBalances('1', [
-          KnownCaip19Slip44Id.Slip44Mainnet,
+          KnownCaip19Slip44IdMap[KnownCaip2ChainId.Mainnet],
         ]),
       ).rejects.toThrow('Method not implemented.');
     });

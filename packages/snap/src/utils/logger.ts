@@ -1,6 +1,4 @@
 /* eslint-disable no-empty-function */
-import { ensureError } from '@metamask/utils';
-
 import { LogLevel } from '../api/loglevel';
 import { AppConfig } from '../config';
 
@@ -27,7 +25,7 @@ export type ILogger = {
   warn: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
   debug: (...args: unknown[]) => void;
-  logErrorWithDetails: (message: string, error: unknown) => void;
+  logErrorWithDetails: (...args: unknown[]) => void;
 };
 
 /**
@@ -59,8 +57,8 @@ export const logger: ILogger = {
   debug: withLogLevel(console.debug, LogLevel.DEBUG),
   error: withLogLevel(console.error, LogLevel.ERROR),
   logErrorWithDetails: withLogLevel((...args: unknown[]) => {
-    console.debug(args[0], { error: ensureError(args[1]) });
-  }, LogLevel.ERROR),
+    console.error(...args);
+  }, LogLevel.DEBUG),
 };
 
 /**

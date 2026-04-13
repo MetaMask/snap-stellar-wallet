@@ -2,8 +2,9 @@ import type { CaipAssetId } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
 import { Asset, Networks } from '@stellar/stellar-sdk';
 
-import type { KnownCaip19AssetId } from '../../api';
-import { KnownCaip2ChainId, KnownCaip19Slip44Id } from '../../api';
+import type { KnownCaip19AssetId, KnownCaip19Slip44Id } from '../../api';
+import { KnownCaip2ChainId } from '../../api';
+import { isSlip44Id } from '../../utils';
 
 const StellarNetwork: Record<KnownCaip2ChainId, Networks> = {
   [KnownCaip2ChainId.Mainnet]: Networks.PUBLIC,
@@ -53,10 +54,7 @@ export function getCaip2ChainId(network: string | Networks): KnownCaip2ChainId {
 export function getStellarAsset(
   caip19AssetId: KnownCaip19AssetId | KnownCaip19Slip44Id,
 ): Asset {
-  if (
-    caip19AssetId === KnownCaip19Slip44Id.Slip44Mainnet ||
-    caip19AssetId === KnownCaip19Slip44Id.Slip44Testnet
-  ) {
+  if (isSlip44Id(caip19AssetId)) {
     return new Asset('native');
   }
 

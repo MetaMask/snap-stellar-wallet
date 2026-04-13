@@ -1,0 +1,110 @@
+{
+  "locale": "en",
+  "messages": {
+    "confirmation.transaction.title": {
+      "message": "Transaction request"
+    },
+    "confirmation.estimatedChanges.title": {
+      "message": "Estimated changes"
+    },
+    "confirmation.estimatedChanges.tooltip": {
+      "message": "Estimated changes are what might happen if you go through with this transaction. This is just a prediction, not a guarantee."
+    },
+    "confirmation.estimatedChanges.send": {
+      "message": "You send"
+    },
+    "confirmation.bandwidthConsumed": {
+      "message": "Bandwidth consumed"
+    },
+    "confirmation.estimatedChanges.receive": {
+      "message": "You receive"
+    },
+    "confirmation.origin": {
+      "message": "Request from"
+    },
+    "confirmation.origin.tooltip": {
+      "message": "This is the site asking for your confirmation."
+    },
+    "confirmation.from": {
+      "message": "From"
+    },
+    "confirmation.to": {
+      "message": "To"
+    },
+    "confirmation.network": {
+      "message": "Network"
+    },
+    "confirmation.transactionFee": {
+      "message": "Network fee"
+    },
+    "confirmation.confirmButton": {
+      "message": "Confirm"
+    },
+    "confirmation.cancelButton": {
+      "message": "Cancel"
+    },
+    "confirmation.signMessage.title": {
+      "message": "Sign message"
+    },
+    "confirmation.signMessage.message": {
+      "message": "Message"
+    },
+    "confirmation.account": {
+      "message": "Account"
+    },
+    "confirmation.signTransaction.title": {
+      "message": "Sign transaction"
+    },
+    "confirmation.estimatedChanges.notAvailable": {
+      "message": "Estimated changes are not available"
+    },
+    "confirmation.estimatedChanges.noChanges": {
+      "message": "No estimated changes"
+    },
+    "confirmation.estimatedChanges.unsupportedContract": {
+      "message": "Unsupported contract for simulation"
+    },
+    "confirmation.simulationTitleAPIError": {
+      "message": "Because of an error, we couldn't check for security alerts."
+    },
+    "confirmation.simulationMessageAPIError": {
+      "message": "Only continue if you trust every address involved."
+    },
+    "confirmation.simulationErrorTitle": {
+      "message": "This transaction was reverted during simulation."
+    },
+    "confirmation.simulationErrorSubtitle": {
+      "message": "{reason}"
+    },
+    "confirmation.validationErrorTitle": {
+      "message": "This is a deceptive request"
+    },
+    "confirmation.validationErrorSubtitle": {
+      "message": "If you approve this request, a third party known for scams will take all your assets."
+    },
+    "confirmation.validationErrorLearnMore": {
+      "message": "Learn more"
+    },
+    "confirmation.validationErrorSecurityAdviced": {
+      "message": "Security advice by"
+    },
+    "transactionScan.errors.unknownError": {
+      "message": "An unknown error occurred"
+    },
+    "transactionScan.errors.insufficientBalance": {
+      "message": "Insufficient balance"
+    },
+    "transactionScan.errors.invalidTransaction": {
+      "message": "Invalid transaction"
+    },
+    "transactionScan.errors.insufficientFunds": {
+      "message": "Insufficient funds"
+    },
+    "transactionScan.errors.invalidAddress": {
+      "message": "Invalid address"
+    },
+    "transactionScan.errors.unsupportedEIP712Message": {
+      "message": "Unsupported method"
+    }
+  }
+}

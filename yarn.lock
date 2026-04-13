@@ -4289,10 +4289,9 @@ __metadata:
     "@metamask/snaps-jest": "npm:^10.1.0"
     "@metamask/snaps-sdk": "npm:^10.4.0"
     "@metamask/superstruct": "npm:^3.2.1"
-    "@metamask/utils": "npm:^11.10.0"
-    "@stellar/stellar-sdk": "npm:^14.5.0"
+    "@metamask/utils": "npm:^11.11.0"
+    "@stellar/stellar-sdk": "npm:^15.0.1"
     "@types/jest": "npm:^30.0.0"
-    "@types/lodash": "npm:^4.17.20"
     async-mutex: "npm:^0.5.0"
     bignumber.js: "npm:^9.3.1"
     concurrently: "npm:^9.2.0"
@@ -4300,7 +4299,7 @@ __metadata:
     jest: "npm:^30.0.3"
     jest-it-up: "npm:^2.0.2"
     jest-transform-stub: "npm:2.0.0"
-    lodash: "npm:^4.17.21"
+    lodash: "npm:^4.18.1"
     prettier: "npm:^3.5.3"
     ts-jest: "npm:^29.4.0"
   languageName: unknown
@@ -4348,9 +4347,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@metamask/utils@npm:^11.0.1, @metamask/utils@npm:^11.1.0, @metamask/utils@npm:^11.10.0, @metamask/utils@npm:^11.4.0, @metamask/utils@npm:^11.4.2, @metamask/utils@npm:^11.8.1, @metamask/utils@npm:^11.9.0":
-  version: 11.10.0
-  resolution: "@metamask/utils@npm:11.10.0"
+"@metamask/utils@npm:^11.0.1, @metamask/utils@npm:^11.1.0, @metamask/utils@npm:^11.10.0, @metamask/utils@npm:^11.11.0, @metamask/utils@npm:^11.4.0, @metamask/utils@npm:^11.4.2, @metamask/utils@npm:^11.8.1, @metamask/utils@npm:^11.9.0":
+  version: 11.11.0
+  resolution: "@metamask/utils@npm:11.11.0"
   dependencies:
     "@ethereumjs/tx": "npm:^4.2.0"
     "@metamask/superstruct": "npm:^3.1.0"
@@ -4363,7 +4362,7 @@ __metadata:
     pony-cause: "npm:^2.1.10"
     semver: "npm:^7.5.4"
     uuid: "npm:^9.0.1"
-  checksum: 10/691a268af66593b60e9807a069127993cea3cdc941f99d5d7ca4664868754f08945821f1787b2f3e99e4497df63ceb0af37a2419ad494da29a1fddffe94f5797
+  checksum: 10/c4381b9e451a9616bde84ac659bc0d1848ef06b6e605f877bfa065b78c8ed5015706683ea88a3387de5eaeb3a50d1af9af0994f04f9e06258d992598fe2be3bf
   languageName: node
   linkType: hard
 
@@ -4458,7 +4457,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@noble/curves@npm:^1.2.0, @noble/curves@npm:^1.8.1, @noble/curves@npm:^1.9.6":
+"@noble/curves@npm:^1.2.0, @noble/curves@npm:^1.8.1, @noble/curves@npm:^1.9.7":
   version: 1.9.7
   resolution: "@noble/curves@npm:1.9.7"
   dependencies:
@@ -5453,43 +5452,43 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@stellar/js-xdr@npm:^3.1.2":
-  version: 3.1.2
-  resolution: "@stellar/js-xdr@npm:3.1.2"
-  checksum: 10/96b5c52088bb2f2cc11a04ee1766ceb9431bdb0195058b9bc8d60cd1459772c2be6a9aa1bf69ba8b7589cfaf71beef96890e60d7fd7de0332c11ae1917f95440
+"@stellar/js-xdr@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "@stellar/js-xdr@npm:4.0.0"
+  checksum: 10/d300c723e18f9d99c666499f8744a31981390ef8d780b2a321e019cbd23436a2de5b3d999e7af5e9ed334b14801497c0a19ad86ab052aff420415f2d89785a7b
   languageName: node
   linkType: hard
 
-"@stellar/stellar-base@npm:^14.0.4":
-  version: 14.1.0
-  resolution: "@stellar/stellar-base@npm:14.1.0"
+"@stellar/stellar-base@npm:^15.0.0":
+  version: 15.0.0
+  resolution: "@stellar/stellar-base@npm:15.0.0"
   dependencies:
-    "@noble/curves": "npm:^1.9.6"
-    "@stellar/js-xdr": "npm:^3.1.2"
+    "@noble/curves": "npm:^1.9.7"
+    "@stellar/js-xdr": "npm:^4.0.0"
     base32.js: "npm:^0.1.0"
     bignumber.js: "npm:^9.3.1"
     buffer: "npm:^6.0.3"
     sha.js: "npm:^2.4.12"
-  checksum: 10/075c39a4a02a42e28770173be937638e6c93bbe566412eb72d7e088d55a691aa63714c432a330965b1a8d24086a4cbf7c4781530a8f97db1393db5ee9c613c1d
+  checksum: 10/7a0a485395a27082adba4ab601311a25933eced065c81abbbec6d1bdf184ef9f5d42c3393fdf55f00f061da672e2511820436261c4dcc4b4eed4f3766a0b9c6c
   languageName: node
   linkType: hard
 
-"@stellar/stellar-sdk@npm:^14.5.0":
-  version: 14.5.0
-  resolution: "@stellar/stellar-sdk@npm:14.5.0"
+"@stellar/stellar-sdk@npm:^15.0.1":
+  version: 15.0.1
+  resolution: "@stellar/stellar-sdk@npm:15.0.1"
   dependencies:
-    "@stellar/stellar-base": "npm:^14.0.4"
-    axios: "npm:^1.13.3"
+    "@stellar/stellar-base": "npm:^15.0.0"
+    axios: "npm:1.14.0"
     bignumber.js: "npm:^9.3.1"
-    commander: "npm:^14.0.2"
+    commander: "npm:^14.0.3"
     eventsource: "npm:^2.0.2"
     feaxios: "npm:^0.0.23"
     randombytes: "npm:^2.1.0"
     toml: "npm:^3.0.0"
-    urijs: "npm:^1.19.1"
+    urijs: "npm:^1.19.11"
   bin:
     stellar-js: bin/stellar-js
-  checksum: 10/2e6b5e762df1963e7165fd07a84bdb9ff17452c757d23e6ed9c85f46f5bb38ab8373132fae9f8f88b8c051dc5e6b8b05017caa7f72361d2693912b87308f86c2
+  checksum: 10/cda3e99dd06a1978b00ccf6c8fc29d3c4b331663b70e0f7f1ac3b7c2bd239b78570b4ff5089a957ee5ee4f8fd3655ec89d155e5c9c1d86228159eef34b361772
   languageName: node
   linkType: hard
 
@@ -8434,14 +8433,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"axios@npm:^1.13.3, axios@npm:^1.6.4":
-  version: 1.13.6
-  resolution: "axios@npm:1.13.6"
+"axios@npm:1.14.0, axios@npm:^1.6.4":
+  version: 1.14.0
+  resolution: "axios@npm:1.14.0"
   dependencies:
     follow-redirects: "npm:^1.15.11"
     form-data: "npm:^4.0.5"
-    proxy-from-env: "npm:^1.1.0"
-  checksum: 10/a7ed83c2af3ef21d64609df0f85e76893a915a864c5934df69241001d0578082d6521a0c730bf37518ee458821b5695957cb10db9fc705f2a8996c8686ea7a89
+    proxy-from-env: "npm:^2.1.0"
+  checksum: 10/c3444e9e3da1714916e4ddd7cda05bb41a5d5d80e3e27b099a116439684c63f2280c88503d1acd65841698b63af0b542b4d5780454e28fd0aed2d783ef90943e
   languageName: node
   linkType: hard
 
@@ -9847,7 +9846,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"commander@npm:^14.0.2":
+"commander@npm:^14.0.3":
   version: 14.0.3
   resolution: "commander@npm:14.0.3"
   checksum: 10/dfa9ebe2a433d277de5cb0252d23b10a543d245d892db858d23b516336a835c50fd4f52bee4cd13c705cc8acb6f03dc632c73dd806f7d06d3353eb09953dd17a
@@ -16696,7 +16695,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lodash@npm:^4.17.10, lodash@npm:^4.17.15, lodash@npm:^4.17.19, lodash@npm:^4.17.20, lodash@npm:^4.17.21, lodash@npm:~4.17.0":
+"lodash@npm:^4.17.10, lodash@npm:^4.17.15, lodash@npm:^4.17.19, lodash@npm:^4.17.20, lodash@npm:^4.17.21, lodash@npm:^4.18.1":
+  version: 4.18.1
+  resolution: "lodash@npm:4.18.1"
+  checksum: 10/306fea53dfd39dad1f03d45ba654a2405aebd35797b673077f401edb7df2543623dc44b9effbb98f69b32152295fff725a4cec99c684098947430600c6af0c3f
+  languageName: node
+  linkType: hard
+
+"lodash@npm:~4.17.0":
   version: 4.17.23
   resolution: "lodash@npm:4.17.23"
   checksum: 10/82504c88250f58da7a5a4289f57a4f759c44946c005dd232821c7688b5fcfbf4a6268f6a6cdde4b792c91edd2f3b5398c1d2a0998274432cff76def48735e233
@@ -19203,10 +19209,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"proxy-from-env@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "proxy-from-env@npm:1.1.0"
-  checksum: 10/f0bb4a87cfd18f77bc2fba23ae49c3b378fb35143af16cc478171c623eebe181678f09439707ad80081d340d1593cd54a33a0113f3ccb3f4bc9451488780ee23
+"proxy-from-env@npm:^2.1.0":
+  version: 2.1.0
+  resolution: "proxy-from-env@npm:2.1.0"
+  checksum: 10/fbbaf4dab2a6231dc9e394903a5f66f20475e36b734335790b46feb9da07c37d6b32e2c02e3e2ea4d4b23774c53d8562e5b7cc73282cb43f4a597b7eacaee2ee
   languageName: node
   linkType: hard
 
@@ -22342,7 +22348,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"urijs@npm:^1.19.1":
+"urijs@npm:^1.19.11":
   version: 1.19.11
   resolution: "urijs@npm:1.19.11"
   checksum: 10/2aa5547b53c37ebee03a8ad70feae1638a37cc4c7e543abbffb14fc86b17f84f303d08e45c501441410c025bab22aa84673c97604b7b2619967f1dd49f69931f

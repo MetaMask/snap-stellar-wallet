@@ -5,5 +5,7 @@ export * from './loglevel';
 export * from './url';
 export * from './uuid';
 export * from './address';
-export * from './multichain';
 export * from './json';
+export * from './integer';
+export * from './xdr';
+export * from './multichain';

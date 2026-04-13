@@ -5,7 +5,7 @@ import {
   UnauthorizedError,
 } from '@metamask/snaps-sdk';
 import type { Struct } from '@metamask/superstruct';
-import { assert } from '@metamask/superstruct';
+import { assert, create } from '@metamask/superstruct';
 
 import { originPermissions } from '../permissions';
 
@@ -28,17 +28,19 @@ export const validateOrigin = (origin: string, method: string): void => {
 
 /**
  * Validates that the request parameters conform to the expected structure defined by the provided struct.
+ * Returns the validated (and coerced) value so handlers receive the correct types.
  *
  * @param requestParams - The request parameters to validate (typically unknown at call site).
  * @param struct - The expected structure of the request parameters.
+ * @returns The validated and coerced request parameters.
  * @throws {InvalidParamsError} If the request parameters do not conform to the expected structure.
  */
 export function validateRequest<Type, Schema>(
   requestParams: unknown,
   struct: Struct<Type, Schema>,
-): asserts requestParams is Type {
+): Type {
   try {
-    assert(requestParams, struct);
+    return create(requestParams, struct);
   } catch (validationError: unknown) {
     if (validationError instanceof Error) {
       throw new InvalidParamsError(validationError.message);
