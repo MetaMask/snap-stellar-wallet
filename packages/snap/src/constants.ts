@@ -20,7 +20,7 @@ export const BASE_RESERVE_STROOPS = XLM_PER_BASE_RESERVE * STROOPS_PER_XLM;
  */
 export const STELLAR_COIN_TYPE = 148;
 
-/** 
+/**
  * Stellar curve type.
  *
  * @see https://developers.stellar.org/docs/learn/fundamentals/transactions/signatures-multisig

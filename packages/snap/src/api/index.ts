@@ -8,3 +8,4 @@ export * from './address';
 export * from './json';
 export * from './integer';
 export * from './xdr';
+export * from './multichain';
