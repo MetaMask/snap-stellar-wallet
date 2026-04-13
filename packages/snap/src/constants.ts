@@ -20,6 +20,16 @@ export const BASE_RESERVE_STROOPS = XLM_PER_BASE_RESERVE * STROOPS_PER_XLM;
  */
 export const STELLAR_COIN_TYPE = 148;
 
+/** 
+ * Stellar curve type.
+ *
+ * @see https://developers.stellar.org/docs/learn/fundamentals/transactions/signatures-multisig
+ */
+export const STELLAR_CURVE = 'ed25519';
+
+/** Stellar BIP32 derivation path prefix. */
+export const STELLAR_DERIVATION_PATH_PREFIX = `m/44'/${STELLAR_COIN_TYPE}'`;
+
 /**
  * The number of decimal places for the native asset of Stellar.
  * All assets (except custom assets) on the Stellar network use exactly 7 decimal places of precision - this is a hard-coded limit at the protocol level
