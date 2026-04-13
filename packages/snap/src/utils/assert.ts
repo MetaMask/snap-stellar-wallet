@@ -5,6 +5,6 @@
  * @param string2 - The second string to compare.
  * @returns True if the strings are the same ignoring case, false otherwise.
  */
-export function assertIsSameStr(string1: string, string2: string): boolean {
+export function isSameStr(string1: string, string2: string): boolean {
   return string1.toLowerCase() === string2.toLowerCase();
 }

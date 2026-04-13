@@ -1,17 +1,17 @@
-import { assertIsSameStr } from './assert';
+import { isSameStr } from './assert';
 
-describe('assertIsSameStr', () => {
+describe('isSameStr', () => {
   it('returns true when strings differ only by case', () => {
-    expect(assertIsSameStr('Hello', 'hello')).toBe(true);
-    expect(assertIsSameStr('ABC', 'abc')).toBe(true);
+    expect(isSameStr('Hello', 'hello')).toBe(true);
+    expect(isSameStr('ABC', 'abc')).toBe(true);
   });
 
   it('returns true when strings are identical', () => {
-    expect(assertIsSameStr('same', 'same')).toBe(true);
+    expect(isSameStr('same', 'same')).toBe(true);
   });
 
   it('returns false when strings differ beyond case', () => {
-    expect(assertIsSameStr('hello', 'world')).toBe(false);
-    expect(assertIsSameStr('a', 'b')).toBe(false);
+    expect(isSameStr('hello', 'world')).toBe(false);
+    expect(isSameStr('a', 'b')).toBe(false);
   });
 });

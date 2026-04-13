@@ -1,4 +1,4 @@
-import { KeyringHandler, ClientRequestHandler } from './handlers';
+import { KeyringHandler } from './handlers';
 import { AccountService } from './services/account/AccountService';
 import { AccountsRepository } from './services/account/AccountsRepository';
 import { createAccountDeriver } from './services/account/derivation';
@@ -42,10 +42,4 @@ const keyringHandler = new KeyringHandler({
   accountService,
 });
 
-const clientRequestHandler = new ClientRequestHandler({
-  logger,
-  accountService,
-  walletService,
-});
-
-export { keyringHandler, clientRequestHandler };
+export { keyringHandler };
