@@ -1,3 +1,5 @@
+import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
+import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
 import {
   Account,
   Asset,
@@ -10,7 +12,131 @@ import {
   type AuthFlag,
 } from '@stellar/stellar-sdk';
 
+import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';
+import { KnownCaip2ChainId } from '../../../api';
+import { getSlip44AssetId, logger } from '../../../utils';
+import { NetworkService } from '../../network';
+import { State } from '../../state/State';
+import { generateStellarAddress } from '../../wallet/__mocks__/wallet.fixtures';
 import { Transaction } from '../Transaction';
+import { TransactionBuilder } from '../TransactionBuilder';
+import { TransactionRepository } from '../TransactionRepository';
+import { TransactionService } from '../TransactionService';
+
+export const createMockTransactionService = () => {
+  const networkService = new NetworkService({ logger });
+  const transactionBuilder = new TransactionBuilder({ logger });
+  const transactionService = new TransactionService({
+    logger,
+    transactionRepository: new TransactionRepository(
+      new State({
+        encrypted: false,
+        defaultState: {
+          transactions: {},
+        },
+      }),
+    ),
+    networkService,
+  });
+
+  const transactionRepositorySaveSpy = jest.spyOn(
+    TransactionRepository.prototype,
+    'save',
+  );
+  const transactionRepositorySaveManySpy = jest.spyOn(
+    TransactionRepository.prototype,
+    'saveMany',
+  );
+  const transactionServiceFindByAccountsSpy = jest.spyOn(
+    TransactionService.prototype,
+    'findByAccounts',
+  );
+  return {
+    transactionService,
+    networkService,
+    transactionBuilder,
+    transactionRepositorySaveSpy,
+    transactionRepositorySaveManySpy,
+    transactionServiceFindByAccountsSpy,
+  };
+};
+
+export type GenerateMockTransactionOverrides = Partial<{
+  id: string;
+  account: string;
+  fromAddress: string;
+  toAddress: string;
+  amount: string;
+  asset: {
+    type: KnownCaip19AssetIdOrSlip44Id;
+    symbol: string;
+  };
+  scope: KnownCaip2ChainId;
+  timestamp: number;
+  status: TransactionStatus;
+  type: TransactionType;
+  fees: KeyringTransaction['fees'];
+  events: KeyringTransaction['events'];
+}>;
+
+/**
+ * Generate mock transactions.
+ *
+ * @param count - The number of transactions to generate.
+ * @param overrides - The overrides for the transactions.
+ * @returns The generated transactions.
+ */
+export function generateMockTransactions(
+  count: number = 1,
+  overrides: GenerateMockTransactionOverrides = {},
+): KeyringTransaction[] {
+  return Array.from({ length: count }, () => {
+    const timestamp = overrides.timestamp ?? Math.floor(Date.now() / 1000);
+    const scope = overrides.scope ?? KnownCaip2ChainId.Mainnet;
+    const assetType =
+      overrides.asset?.type ?? getSlip44AssetId(KnownCaip2ChainId.Mainnet);
+    const assetSymbol = overrides.asset?.symbol ?? 'XLM';
+    const amount = overrides.amount ?? '10000000';
+
+    return {
+      type: overrides.type ?? TransactionType.Send,
+      id: overrides.id ?? globalThis.crypto.randomUUID(),
+      from: [
+        {
+          address: overrides.fromAddress ?? generateStellarAddress(),
+          asset: {
+            unit: assetSymbol,
+            type: assetType,
+            amount,
+            fungible: true,
+          },
+        },
+      ],
+      to: [
+        {
+          address: overrides.toAddress ?? generateStellarAddress(),
+          asset: {
+            unit: assetSymbol,
+            type: assetType,
+            amount,
+            fungible: true,
+          },
+        },
+      ],
+      events: overrides.events ?? [
+        {
+          status: TransactionStatus.Unconfirmed,
+          timestamp,
+        },
+      ],
+      chain: scope,
+      status: overrides.status ?? TransactionStatus.Unconfirmed,
+      account: overrides.account ?? globalThis.crypto.randomUUID(),
+      timestamp,
+      fees: overrides.fees ?? [],
+    };
+  });
+}
 
 // --- Declarative classic (Stellar) transaction builder for tests ---
 
