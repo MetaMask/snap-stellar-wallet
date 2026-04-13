@@ -282,13 +282,13 @@ const Index = () => {
     }
 
     if (response.pending) {
-      setSignMessageOutput('Request is pending in MetaMask.');
+      setSignTxnOutput('Request is pending in MetaMask.');
       return;
     }
 
     console.log('response', response);
 
-    setSignMessageOutput(response.signature);
+    setSignTxnOutput(response.signature);
   };
 
   return (
@@ -425,6 +425,7 @@ const Index = () => {
           disabled={!installedSnap}
           fullWidth
         />
+
         <Notice>
           <p>
             Please note that the <b>snap.manifest.json</b> and{' '}
