@@ -1,5 +1,5 @@
-import { STELLAR_DERIVATION_PATH_PREFIX } from "../../constants";
-import { StellarDerivationPath } from "./api";
+import type { StellarDerivationPath } from './api';
+import { STELLAR_DERIVATION_PATH_PREFIX } from '../../constants';
 
 /**
  * Returns the Stellar BIP32 derivation path for the given index (e.g. `m/44'/148'/0'`).
@@ -8,6 +8,5 @@ import { StellarDerivationPath } from "./api";
  * @returns The derivation path string.
  */
 export function getDerivationPath(index: number): StellarDerivationPath {
-    return `${STELLAR_DERIVATION_PATH_PREFIX}/${index}'`;
-  }
-  
+  return `${STELLAR_DERIVATION_PATH_PREFIX}/${index}'`;
+}

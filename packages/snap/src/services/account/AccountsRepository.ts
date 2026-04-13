@@ -1,10 +1,7 @@
-import type { StellarKeyringAccount } from './api';
+import type { KeyringAccountState, StellarKeyringAccount } from './api';
 import type { KnownCaip2ChainId } from '../../api';
+import { assertIsSameStr } from '../../utils/assert';
 import type { IStateManager } from '../state/IStateManager';
-
-export type UnencryptedStateValue = {
-  keyringAccounts: Record<string, StellarKeyringAccount>;
-};
 
 /**
  * Persists and retrieves Stellar keyring accounts in snap state.
@@ -12,9 +9,9 @@ export type UnencryptedStateValue = {
 export class AccountsRepository {
   readonly #storageKey = 'keyringAccounts';
 
-  readonly #state: IStateManager<UnencryptedStateValue>;
+  readonly #state: IStateManager<KeyringAccountState>;
 
-  constructor(state: IStateManager<UnencryptedStateValue>) {
+  constructor(state: IStateManager<KeyringAccountState>) {
     this.#state = state;
   }
 
@@ -25,7 +22,7 @@ export class AccountsRepository {
    */
   async getAll(): Promise<StellarKeyringAccount[]> {
     const accounts = await this.#state.getKey<
-      UnencryptedStateValue['keyringAccounts']
+      KeyringAccountState['keyringAccounts']
     >(this.#storageKey);
 
     return Object.values(accounts ?? {});
@@ -39,11 +36,7 @@ export class AccountsRepository {
    */
   async findById(id: string): Promise<StellarKeyringAccount | null> {
     const accounts = await this.getAll();
-    return (
-      accounts.find(
-        (account) => account.id.toLowerCase() === id.toLowerCase(),
-      ) ?? null
-    );
+    return accounts.find((account) => assertIsSameStr(account.id, id)) ?? null;
   }
 
   /**
@@ -67,9 +60,8 @@ export class AccountsRepository {
   async findByAddress(address: string): Promise<StellarKeyringAccount | null> {
     const accounts = await this.getAll();
     return (
-      accounts.find(
-        (account) => account.address.toLowerCase() === address.toLowerCase(),
-      ) ?? null
+      accounts.find((account) => assertIsSameStr(account.address, address)) ??
+      null
     );
   }
 
@@ -88,7 +80,7 @@ export class AccountsRepository {
     return (
       accounts.find(
         (account) =>
-          account.address.toLowerCase() === address.toLowerCase() &&
+          assertIsSameStr(account.address, address) &&
           account.scopes.includes(scope),
       ) ?? null
     );
@@ -98,11 +90,10 @@ export class AccountsRepository {
    * Persists a new account in keyring state.
    *
    * @param account - The account to create.
-   * @returns A Promise that resolves to the created account.
+   * @returns A Promise that resolves when the account has been written.
    */
-  async create(account: StellarKeyringAccount): Promise<StellarKeyringAccount> {
+  async save(account: StellarKeyringAccount): Promise<void> {
     await this.#state.setKey(`${this.#storageKey}.${account.id}`, account);
-    return account;
   }
 
   /**
