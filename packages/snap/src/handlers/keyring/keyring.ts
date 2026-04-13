@@ -17,7 +17,7 @@ import {
   emitSnapKeyringEvent,
   handleKeyringRequest,
 } from '@metamask/keyring-snap-sdk';
-import type { Json, JsonRpcRequest } from '@metamask/snaps-sdk';
+import { type Json, type JsonRpcRequest } from '@metamask/snaps-sdk';
 import {
   ensureError,
   type CaipAssetType,
@@ -26,15 +26,17 @@ import {
 
 import type {
   CreateAccountOptions,
-  ResolveAccountAddressJsonRpcRequest,
   GetAccountRequest,
+  ResolveAccountAddressJsonRpcRequest,
+  MultichainMethod,
 } from './api';
 import {
   CreateAccountOptionsStruct,
-  ResolveAccountAddressRequestStruct,
-  GetAccountRequestStruct,
-  DiscoverAccountsStruct,
   DeleteAccountRequestStruct,
+  DiscoverAccountsStruct,
+  GetAccountRequestStruct,
+  MultichainMethodStruct,
+  ResolveAccountAddressRequestStruct,
   SetSelectedAccountsRequestStruct,
 } from './api';
 import type { KnownCaip2ChainId } from '../../api';
@@ -42,10 +44,11 @@ import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
+import type { OnChainAccountService } from '../../services/on-chain-account';
+import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
   getSnapProvider,
-  type ILogger,
   validateOrigin,
   validateRequest,
   withCatchAndThrowSnapError,
@@ -56,15 +59,20 @@ export class KeyringHandler implements Keyring {
 
   readonly #accountService: AccountService;
 
+  readonly #onChainAccountService: OnChainAccountService;
+
   constructor({
     logger,
     accountService,
+    onChainAccountService,
   }: {
     logger: ILogger;
     accountService: AccountService;
+    onChainAccountService: OnChainAccountService;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 KeyringHandler]');
     this.#accountService = accountService;
+    this.#onChainAccountService = onChainAccountService;
   }
 
   async handle(origin: string, request: JsonRpcRequest): Promise<Json> {
@@ -192,7 +200,7 @@ export class KeyringHandler implements Keyring {
 
     try {
       // Discover an account if it exists on the blockchain.
-      const account = await this.#accountService.discoverOnChainAccount({
+      const account = await this.#onChainAccountService.discoverOnChainAccount({
         entropySource,
         index: groupIndex,
         // we assume only one scope supported
@@ -239,10 +247,7 @@ export class KeyringHandler implements Keyring {
     try {
       const { account } = await this.#accountService.resolveAccount({
         scope,
-        accountIdOrAddress: request.params.address,
-        resolveOptions: {
-          activated: false,
-        },
+        accountAddress: request.params.address,
       });
       return { address: `${scope}:${account.address}` };
     } catch (error: unknown) {
@@ -264,7 +269,9 @@ export class KeyringHandler implements Keyring {
     validateRequest(accountId, DeleteAccountRequestStruct);
 
     try {
-      const account = await this.#getAccountOrThrow(accountId);
+      const { account } = await this.#accountService.resolveAccount({
+        accountId,
+      });
 
       await emitSnapKeyringEvent(
         getSnapProvider(),
@@ -290,15 +297,7 @@ export class KeyringHandler implements Keyring {
   }
 
   async #handleSubmitRequest(request: KeyringRequest): Promise<Json> {
-    throw new Error('Method not implemented.');
-  }
-
-  async #getAccountOrThrow(accountId: string): Promise<StellarKeyringAccount> {
-    const account = await this.#accountService.findById(accountId);
-    if (!account) {
-      throw new Error(`Account not found: ${accountId}`);
-    }
-    return account;
+    throw new Error('Method not implemented. - handleSubmitRequest');
   }
 }
 /* eslint-enable @typescript-eslint/no-unused-vars */

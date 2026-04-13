@@ -1,20 +1,21 @@
 import type { AccountService } from './AccountService';
 import { AccountsRepository } from './AccountsRepository';
 import type { StellarKeyringAccount } from './api';
-import { getDerivationPath } from './derivation';
 import {
   AccountNotFoundException,
   AccountRollbackException,
   DerivedAccountAddressMismatchException,
 } from './exceptions';
-import { KnownCaip2ChainId, MultichainMethod } from '../../api';
+import { KnownCaip2ChainId } from '../../api';
+import { KEYRING_ACCOUNT_TYPE } from '../../constants';
+import { MultichainMethod } from '../../handlers/keyring';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { getBip32Entropy, getDefaultEntropySource } from '../../utils/snap';
-import { Wallet, WalletService } from '../wallet';
+import { WalletService, getDerivationPath } from '../wallet';
 import {
   generateMockStellarKeyringAccounts,
   mockAccountService,
-} from './__mocks__/fixtures';
+} from './__mocks__/account.fixtures';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
@@ -35,7 +36,7 @@ describe('AccountService', () => {
 
   const getAccountsRepositorySpies = () => {
     return {
-      createSpy: jest.spyOn(AccountsRepository.prototype, 'create'),
+      saveSpy: jest.spyOn(AccountsRepository.prototype, 'save'),
       deleteSpy: jest.spyOn(AccountsRepository.prototype, 'delete'),
       getAllSpy: jest.spyOn(AccountsRepository.prototype, 'getAll'),
     };
@@ -43,14 +44,6 @@ describe('AccountService', () => {
 
   const getWalletServiceSpies = () => ({
     deriveAddressSpy: jest.spyOn(WalletService.prototype, 'deriveAddress'),
-    resolveActivatedAccountSpy: jest.spyOn(
-      WalletService.prototype,
-      'resolveActivatedAccount',
-    ),
-    isAccountActivatedSpy: jest.spyOn(
-      WalletService.prototype,
-      'isAccountActivated',
-    ),
   });
 
   describe('create', () => {
@@ -59,13 +52,13 @@ describe('AccountService', () => {
       const expectedIndex = 0;
       const expectedDerivationPath = getDerivationPath(expectedIndex);
       const { deriveAddressSpy } = getWalletServiceSpies();
-      const { createSpy, getAllSpy } = getAccountsRepositorySpies();
+      const { saveSpy, getAllSpy } = getAccountsRepositorySpies();
       getAllSpy.mockResolvedValue([]);
       jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySource);
 
       const result = await accountService.create();
 
-      expect(createSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result);
       expect(deriveAddressSpy).toHaveBeenCalledWith({
         entropySource,
         index: expectedIndex,
@@ -75,7 +68,7 @@ describe('AccountService', () => {
         entropySource,
         derivationPath: expectedDerivationPath,
         index: expectedIndex,
-        type: 'any:account',
+        type: KEYRING_ACCOUNT_TYPE,
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
         methods: ['signMessage', 'signTransaction'],
@@ -93,7 +86,7 @@ describe('AccountService', () => {
     });
 
     it('creates an account with options', async () => {
-      const { createSpy, getAllSpy } = getAccountsRepositorySpies();
+      const { saveSpy, getAllSpy } = getAccountsRepositorySpies();
       getAllSpy.mockResolvedValue([]);
 
       const result = await accountService.create({
@@ -101,13 +94,13 @@ describe('AccountService', () => {
         index: 1,
       });
 
-      expect(createSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result);
       expect(result).toStrictEqual({
         id: expect.any(String),
         entropySource: 'entropy-source-2',
         derivationPath: "m/44'/148'/1'",
         index: 1,
-        type: 'any:account',
+        type: KEYRING_ACCOUNT_TYPE,
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
         methods: [
@@ -128,7 +121,7 @@ describe('AccountService', () => {
     });
 
     it('creates an account with lowest unused index', async () => {
-      const { createSpy, getAllSpy } = getAccountsRepositorySpies();
+      const { saveSpy, getAllSpy } = getAccountsRepositorySpies();
       const entropySource = 'entropy-source-2';
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const [_, ...restAccounts] = generateMockStellarKeyringAccounts(
@@ -143,13 +136,13 @@ describe('AccountService', () => {
         entropySource,
       });
 
-      expect(createSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result);
       expect(result).toStrictEqual({
         id: expect.any(String),
         entropySource,
         derivationPath: expectedDerivationPath,
         index: expectedIndex,
-        type: 'any:account',
+        type: KEYRING_ACCOUNT_TYPE,
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
         methods: [
@@ -184,7 +177,7 @@ describe('AccountService', () => {
     });
 
     it('creates an account with a callback', async () => {
-      const { createSpy } = getAccountsRepositorySpies();
+      const { saveSpy } = getAccountsRepositorySpies();
       const callback = jest.fn();
 
       const result = await accountService.create(
@@ -196,11 +189,11 @@ describe('AccountService', () => {
       );
 
       expect(callback).toHaveBeenCalledWith(result);
-      expect(createSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result);
     });
 
     it('deletes the account and throws an error if the callback fails', async () => {
-      const { createSpy, deleteSpy } = getAccountsRepositorySpies();
+      const { saveSpy, deleteSpy } = getAccountsRepositorySpies();
       const callback = jest
         .fn()
         .mockRejectedValue(new Error('Callback failed'));
@@ -215,11 +208,9 @@ describe('AccountService', () => {
         ),
       ).rejects.toThrow('Callback failed');
 
-      expect(createSpy.mock.calls[0]?.[0]?.id).toStrictEqual(
-        expect.any(String),
-      );
-      expect(deleteSpy).toHaveBeenCalledWith(createSpy.mock.calls[0]?.[0]?.id);
-      expect(createSpy).toHaveBeenCalled();
+      expect(saveSpy.mock.calls[0]?.[0]?.id).toStrictEqual(expect.any(String));
+      expect(deleteSpy).toHaveBeenCalledWith(saveSpy.mock.calls[0]?.[0]?.id);
+      expect(saveSpy).toHaveBeenCalled();
     });
 
     it('throws AccountRollbackException if the rollback fails', async () => {
@@ -302,15 +293,11 @@ describe('AccountService', () => {
       getAllSpy.mockResolvedValue(mockAccounts);
 
       const result = await accountService.resolveAccount({
-        accountIdOrAddress: account.address,
+        accountAddress: account.address,
         scope: KnownCaip2ChainId.Mainnet,
-        resolveOptions: {
-          activated: false,
-        },
       });
       expect(result).toStrictEqual({
         account,
-        wallet: undefined,
       });
     });
 
@@ -326,50 +313,11 @@ describe('AccountService', () => {
       getAllSpy.mockResolvedValue(mockAccounts);
 
       const result = await accountService.resolveAccount({
-        accountIdOrAddress: account.id,
+        accountId: account.id,
         scope: KnownCaip2ChainId.Mainnet,
-        resolveOptions: {
-          activated: false,
-        },
       });
       expect(result).toStrictEqual({
         account,
-        wallet: undefined,
-      });
-    });
-
-    it('resolves an activated account', async () => {
-      const { getAllSpy } = getAccountsRepositorySpies();
-      const { deriveAddressSpy, resolveActivatedAccountSpy } =
-        getWalletServiceSpies();
-      const mockAccounts = generateMockStellarKeyringAccounts(
-        5,
-        'entropy-source-1',
-      );
-      const account = mockAccounts[0] as StellarKeyringAccount;
-      const loadedAccount = {
-        accountId(): string {
-          return account.address;
-        },
-        sequenceNumber(): string {
-          return '1';
-        },
-      };
-      const resolvedWallet = new Wallet(loadedAccount, null);
-      deriveAddressSpy.mockResolvedValue(account.address);
-      getAllSpy.mockResolvedValue(mockAccounts);
-      resolveActivatedAccountSpy.mockResolvedValue(resolvedWallet);
-
-      const result = await accountService.resolveAccount({
-        accountIdOrAddress: account.address,
-        scope: KnownCaip2ChainId.Mainnet,
-        resolveOptions: {
-          activated: true,
-        },
-      });
-      expect(result).toStrictEqual({
-        account,
-        wallet: resolvedWallet,
       });
     });
 
@@ -379,12 +327,9 @@ describe('AccountService', () => {
 
       await expect(
         accountService.resolveAccount({
-          accountIdOrAddress:
+          accountAddress:
             'GNXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
           scope: KnownCaip2ChainId.Mainnet,
-          resolveOptions: {
-            activated: false,
-          },
         }),
       ).rejects.toThrow(AccountNotFoundException);
     });
@@ -395,11 +340,8 @@ describe('AccountService', () => {
 
       await expect(
         accountService.resolveAccount({
-          accountIdOrAddress: '00000000-0000-0000-0000-000000000000',
+          accountId: '00000000-0000-0000-0000-000000000000',
           scope: KnownCaip2ChainId.Mainnet,
-          resolveOptions: {
-            activated: false,
-          },
         }),
       ).rejects.toThrow(AccountNotFoundException);
     });
@@ -418,46 +360,27 @@ describe('AccountService', () => {
 
       await expect(
         accountService.resolveAccount({
-          accountIdOrAddress: account.address,
+          accountAddress: account.address,
           scope: KnownCaip2ChainId.Mainnet,
-          resolveOptions: {
-            activated: false,
-          },
         }),
       ).rejects.toThrow(DerivedAccountAddressMismatchException);
     });
   });
 
-  describe('discoverOnChainAccount', () => {
-    it('discovers an activated account', async () => {
-      const { isAccountActivatedSpy, deriveAddressSpy } =
-        getWalletServiceSpies();
-      isAccountActivatedSpy.mockResolvedValue(true);
+  describe('deriveKeyringAccount', () => {
+    it('returns a keyring-shaped derived account', async () => {
+      const { deriveAddressSpy } = getWalletServiceSpies();
       deriveAddressSpy.mockResolvedValue(mockAccount.address);
 
-      const account = await accountService.discoverOnChainAccount({
+      const account = await accountService.deriveKeyringAccount({
         entropySource: mockAccount.entropySource,
         index: mockAccount.index,
-        scope: KnownCaip2ChainId.Mainnet,
       });
 
       expect(account).toStrictEqual({
         ...mockAccount,
         id: expect.any(String),
       });
-    });
-
-    it('returns null if the account is not activated on the Stellar network', async () => {
-      const { isAccountActivatedSpy } = getWalletServiceSpies();
-      isAccountActivatedSpy.mockResolvedValue(false);
-
-      const account = await accountService.discoverOnChainAccount({
-        entropySource: mockAccount.entropySource,
-        index: mockAccount.index,
-        scope: KnownCaip2ChainId.Mainnet,
-      });
-
-      expect(account).toBeNull();
     });
   });
 });

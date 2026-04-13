@@ -4,13 +4,37 @@ import {
   CreateAccountOptionsStruct,
   ResolveAccountAddressRequestStruct,
   DiscoverAccountsStruct,
+  ListAccountTransactionsRequestStruct,
+  MultichainMethod,
+  MultichainMethodStruct,
+  SignMessageRequestStruct,
+  SignMessageResponseStruct,
+  SignTransactionRequestStruct,
+  SignTransactionResponseStruct,
 } from './api';
-import { KnownCaip2ChainId, MultichainMethod } from '../../api';
+import { KnownCaip2ChainId } from '../../api';
 import type { StellarKeyringAccount } from '../../services/account';
-import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/fixtures';
+import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
 
 const mockAccounts = generateMockStellarKeyringAccounts(1, 'entropy-source-1');
 const account = mockAccounts[0] as StellarKeyringAccount;
+const keyringRequestId = '11111111-1111-4111-8111-111111111111';
+const xdr = `AAAAAgAAAADjngeX0YTNoQ15A0xC83aMm/sDnXrmLF+apmXvdmkUugAAAGQAC3gAAAAAQQAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAOZfkjSFZ31vI/Nx28cC6iAFWLWcPIvJhM2NVoxmfgVTAAAAAAAAAAAAmJaAAAAAAAAAAAA=`;
+
+describe('MultichainMethodStruct', () => {
+  it.each([MultichainMethod.SignMessage, MultichainMethod.SignTransaction])(
+    'accepts a supported multichain method',
+    (method) => {
+      expect(() => assert(method, MultichainMethodStruct)).not.toThrow();
+    },
+  );
+
+  it('rejects an unsupported method string', () => {
+    expect(() => assert('eth_sendTransaction', MultichainMethodStruct)).toThrow(
+      StructError,
+    );
+  });
+});
 
 describe('CreateAccountOptionsStruct', () => {
   it.each([
@@ -150,5 +174,166 @@ describe('DiscoverAccountsStruct', () => {
     },
   ])('rejects an invalid discoverAccounts request', (request) => {
     expect(() => assert(request, DiscoverAccountsStruct)).toThrow(StructError);
+  });
+});
+
+describe('SignMessageRequestStruct', () => {
+  const validSignMessageRequest = {
+    id: keyringRequestId,
+    origin: 'https://example.com',
+    scope: KnownCaip2ChainId.Mainnet,
+    account: account.id,
+    request: {
+      method: MultichainMethod.SignMessage,
+      params: { message: 'Hello, world!' },
+    },
+  };
+
+  it('accepts a valid signMessage keyring request', () => {
+    expect(() =>
+      assert(validSignMessageRequest, SignMessageRequestStruct),
+    ).not.toThrow();
+  });
+
+  it.each([
+    {
+      ...validSignMessageRequest,
+      request: {
+        method: MultichainMethod.SignTransaction,
+        params: { message: 'Hello' },
+      },
+    },
+    {
+      ...validSignMessageRequest,
+      request: {
+        method: MultichainMethod.SignMessage,
+        params: { message: '' },
+      },
+    },
+    {
+      ...validSignMessageRequest,
+      account: 'not-a-uuid',
+    },
+    {
+      ...validSignMessageRequest,
+      scope: 'invalid:scope' as KnownCaip2ChainId,
+    },
+    {
+      ...validSignMessageRequest,
+      id: 'not-a-uuid',
+    },
+  ])('rejects an invalid signMessage request', (request) => {
+    expect(() => assert(request, SignMessageRequestStruct)).toThrow(
+      StructError,
+    );
+  });
+});
+
+describe('SignMessageResponseStruct', () => {
+  it('accepts a nonempty base64 signature', () => {
+    expect(() =>
+      assert({ signature: btoa('signed') }, SignMessageResponseStruct),
+    ).not.toThrow();
+  });
+
+  it.each([{ signature: '' }, { signature: 'not!!!valid-base64' }])(
+    'rejects an invalid signMessage response',
+    (response) => {
+      expect(() => assert(response, SignMessageResponseStruct)).toThrow(
+        StructError,
+      );
+    },
+  );
+});
+
+describe('SignTransactionRequestStruct', () => {
+  const validSignTransactionRequest = {
+    id: keyringRequestId,
+    origin: 'https://example.com',
+    scope: KnownCaip2ChainId.Mainnet,
+    account: account.id,
+    request: {
+      method: MultichainMethod.SignTransaction,
+      params: { transaction: xdr },
+    },
+  };
+
+  it('accepts a valid signTransaction keyring request', () => {
+    expect(() =>
+      assert(validSignTransactionRequest, SignTransactionRequestStruct),
+    ).not.toThrow();
+  });
+
+  it.each([
+    {
+      ...validSignTransactionRequest,
+      request: {
+        method: MultichainMethod.SignMessage,
+        params: { transaction: xdr },
+      },
+    },
+    {
+      ...validSignTransactionRequest,
+      request: {
+        method: MultichainMethod.SignTransaction,
+        params: { transaction: 'not-valid-xdr' },
+      },
+    },
+    {
+      ...validSignTransactionRequest,
+      account: 'not-a-uuid',
+    },
+  ])('rejects an invalid signTransaction request', (request) => {
+    expect(() => assert(request, SignTransactionRequestStruct)).toThrow(
+      StructError,
+    );
+  });
+});
+
+describe('SignTransactionResponseStruct', () => {
+  it('accepts a signature that is valid transaction envelope XDR', () => {
+    expect(() =>
+      assert({ signature: xdr }, SignTransactionResponseStruct),
+    ).not.toThrow();
+  });
+
+  it.each([{ signature: '' }, { signature: 'AAA=' }])(
+    'rejects an invalid signTransaction response',
+    (response) => {
+      expect(() => assert(response, SignTransactionResponseStruct)).toThrow(
+        StructError,
+      );
+    },
+  );
+});
+
+describe('ListAccountTransactionsRequestStruct', () => {
+  it('accepts a valid listAccountTransactions request', () => {
+    const request = {
+      accountId: account.id,
+      pagination: { limit: 10, next: null },
+    };
+    expect(() =>
+      assert(request, ListAccountTransactionsRequestStruct),
+    ).not.toThrow();
+  });
+
+  it.each([
+    {
+      accountId: 'invalid-account-id',
+      pagination: { limit: 10, next: null },
+    },
+    {
+      accountId: account.id,
+      pagination: { limit: 0, next: null },
+    },
+    {
+      accountId: account.id,
+      pagination: { limit: 10, next: 'invalid-transaction-id' },
+    },
+  ])('rejects an invalid listAccountTransactions request', (request) => {
+    expect(() => assert(request, ListAccountTransactionsRequestStruct)).toThrow(
+      StructError,
+    );
   });
 });

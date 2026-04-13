@@ -1,14 +1,13 @@
-import { KnownCaip2ChainId, MultichainMethod } from '../../../api';
+import { KnownCaip2ChainId } from '../../../api';
+import { KEYRING_ACCOUNT_TYPE } from '../../../constants';
+import { MultichainMethod } from '../../../handlers/keyring/api';
 import { logger } from '../../../utils/logger';
 import { State } from '../../state/State';
-import { generateStellarAddress } from '../../wallet/__mocks__/fixtures';
-import { NetworkService } from '../../wallet/NetworkService';
-import { TransactionBuilder } from '../../wallet/TransactionBuilder';
-import { WalletService } from '../../wallet/WalletService';
+import { WalletService, getDerivationPath } from '../../wallet';
+import { generateStellarAddress } from '../../wallet/__mocks__/wallet.fixtures';
 import { AccountService } from '../AccountService';
 import { AccountsRepository } from '../AccountsRepository';
 import type { StellarKeyringAccount } from '../api';
-import { createAccountDeriver, getDerivationPath } from '../derivation';
 
 export const generateStellarKeyringAccount = (
   id: string,
@@ -18,7 +17,7 @@ export const generateStellarKeyringAccount = (
 ): StellarKeyringAccount => ({
   id,
   address,
-  type: 'any:account',
+  type: KEYRING_ACCOUNT_TYPE,
   options: {
     entropy: {
       type: 'mnemonic',
@@ -48,29 +47,28 @@ export const generateMockStellarKeyringAccounts = (
     ),
   );
 
+/**
+ * Account-layer stack only.
+ *
+ * @returns Account service and wallet service wired to the same state.
+ */
 export const mockAccountService = () => {
-  const networkService = new NetworkService({ logger });
-  const transactionBuilder = new TransactionBuilder({ logger });
-
+  const walletService = new WalletService({ logger });
+  const state = new State({
+    encrypted: false,
+    defaultState: {
+      keyringAccounts: {},
+      accountMetadata: {},
+    },
+  });
   const accountService = new AccountService({
     logger,
-    accountsRepository: new AccountsRepository(
-      new State({
-        encrypted: false,
-        defaultState: {
-          keyringAccounts: {},
-        },
-      }),
-    ),
-    walletService: new WalletService({
-      logger,
-      deriver: createAccountDeriver(logger),
-      networkService,
-      transactionBuilder,
-    }),
+    accountsRepository: new AccountsRepository(state),
+    walletService,
   });
 
   return {
     accountService,
+    walletService,
   };
 };

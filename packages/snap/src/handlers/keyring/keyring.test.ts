@@ -10,21 +10,23 @@ import {
 } from '@metamask/keyring-snap-sdk';
 import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
 
+import { MultichainMethod } from './api';
 import { KeyringHandler } from './keyring';
-import {
-  KnownCaip2ChainId,
-  KnownCaip19Slip44IdMap,
-  MultichainMethod,
-} from '../../api';
+import { KnownCaip2ChainId } from '../../api';
+import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import {
   AccountService,
   type StellarKeyringAccount,
 } from '../../services/account';
+import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
+import { AccountNotFoundException } from '../../services/account/exceptions';
+import { OnChainAccountService } from '../../services/on-chain-account';
+import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import {
-  generateMockStellarKeyringAccounts,
-  mockAccountService,
-} from '../../services/account/__mocks__/fixtures';
-import { getDefaultEntropySource, getSnapProvider } from '../../utils';
+  getSlip44AssetId,
+  getDefaultEntropySource,
+  getSnapProvider,
+} from '../../utils';
 import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
@@ -61,7 +63,7 @@ describe('KeyringHandler', () => {
     findByIdSpy: jest.spyOn(AccountService.prototype, 'findById'),
     deleteSpy: jest.spyOn(AccountService.prototype, 'delete'),
     discoverOnChainAccountSpy: jest.spyOn(
-      AccountService.prototype,
+      OnChainAccountService.prototype,
       'discoverOnChainAccount',
     ),
     resolveAccountSpy: jest.spyOn(AccountService.prototype, 'resolveAccount'),
@@ -72,10 +74,12 @@ describe('KeyringHandler', () => {
     jest.clearAllMocks();
     jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySourceId);
 
-    const { accountService } = mockAccountService();
+    const { accountService, onChainAccountService } =
+      mockOnChainAccountService();
     keyringHandler = new KeyringHandler({
       logger,
       accountService,
+      onChainAccountService,
     });
 
     mockAccount = generateMockStellarKeyringAccounts(
@@ -251,18 +255,10 @@ describe('KeyringHandler', () => {
     });
   });
 
-  describe('listAccountTransactions', () => {
-    it('throws `Method not implemented.` error', async () => {
-      await expect(
-        keyringHandler.listAccountTransactions('1', { limit: 10 }),
-      ).rejects.toThrow('Method not implemented.');
-    });
-  });
-
   describe('discoverAccounts', () => {
     it('discovers an account', async () => {
       jest
-        .spyOn(AccountService.prototype, 'discoverOnChainAccount')
+        .spyOn(OnChainAccountService.prototype, 'discoverOnChainAccount')
         .mockResolvedValue(mockAccount);
 
       const result = await keyringHandler.discoverAccounts(
@@ -282,7 +278,7 @@ describe('KeyringHandler', () => {
 
     it('returns empty array if the account is not activated on the Stellar network', async () => {
       jest
-        .spyOn(AccountService.prototype, 'discoverOnChainAccount')
+        .spyOn(OnChainAccountService.prototype, 'discoverOnChainAccount')
         .mockResolvedValue(null);
 
       const result = await keyringHandler.discoverAccounts(
@@ -296,7 +292,7 @@ describe('KeyringHandler', () => {
 
     it('throws an error if the account discovery fails', async () => {
       jest
-        .spyOn(AccountService.prototype, 'discoverOnChainAccount')
+        .spyOn(OnChainAccountService.prototype, 'discoverOnChainAccount')
         .mockRejectedValue(new Error('Account discovery failed'));
 
       await expect(
@@ -323,7 +319,7 @@ describe('KeyringHandler', () => {
     it('throws `Method not implemented.` error', async () => {
       await expect(
         keyringHandler.getAccountBalances('1', [
-          KnownCaip19Slip44IdMap[KnownCaip2ChainId.Mainnet],
+          getSlip44AssetId(KnownCaip2ChainId.Mainnet),
         ]),
       ).rejects.toThrow('Method not implemented.');
     });
@@ -334,7 +330,6 @@ describe('KeyringHandler', () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({
         account: mockAccount,
-        wallet: undefined,
       });
 
       const result = await keyringHandler.resolveAccountAddress(
@@ -351,8 +346,7 @@ describe('KeyringHandler', () => {
 
       expect(resolveAccountSpy).toHaveBeenCalledWith({
         scope: KnownCaip2ChainId.Mainnet,
-        accountIdOrAddress: mockAccount.address,
-        resolveOptions: { activated: false },
+        accountAddress: mockAccount.address,
       });
       expect(result).toStrictEqual({
         address: `${KnownCaip2ChainId.Mainnet}:${mockAccount.address}`,
@@ -403,7 +397,7 @@ describe('KeyringHandler', () => {
     it('throws `Method not implemented.` error', async () => {
       await expect(
         keyringHandler.updateAccount({
-          type: 'any:account',
+          type: KEYRING_ACCOUNT_TYPE,
           id: '1',
           address: '1',
           scopes: [KnownCaip2ChainId.Mainnet],
@@ -416,15 +410,17 @@ describe('KeyringHandler', () => {
 
   describe('deleteAccount', () => {
     it('deletes an account', async () => {
-      const { deleteSpy, findByIdSpy } = getAccountServiceSpies();
-      findByIdSpy.mockResolvedValue(mockAccount);
+      const { deleteSpy, resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
       emitSnapKeyringEventSpy.mockResolvedValue();
 
       await keyringHandler.deleteAccount(mockAccountId);
 
       expect(deleteSpy).toHaveBeenCalledWith(mockAccountId);
-      expect(findByIdSpy).toHaveBeenCalledWith(mockAccountId);
+      expect(resolveAccountSpy).toHaveBeenCalledWith({
+        accountId: mockAccountId,
+      });
       expect(emitSnapKeyringEventSpy).toHaveBeenCalledWith(
         getSnapProvider(),
         KeyringEvent.AccountDeleted,
@@ -435,8 +431,8 @@ describe('KeyringHandler', () => {
     });
 
     it('throws an error if the account deletion fails', async () => {
-      const { deleteSpy, findByIdSpy } = getAccountServiceSpies();
-      findByIdSpy.mockResolvedValue(mockAccount);
+      const { deleteSpy, resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       deleteSpy.mockRejectedValue(new Error('Account deletion failed'));
       const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
       emitSnapKeyringEventSpy.mockResolvedValue();
@@ -447,13 +443,15 @@ describe('KeyringHandler', () => {
     });
 
     it('throws an error if the account to delete is not found', async () => {
-      const { findByIdSpy } = getAccountServiceSpies();
-      findByIdSpy.mockResolvedValue(undefined);
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockRejectedValue(
+        new AccountNotFoundException(mockAccountId),
+      );
       const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
       emitSnapKeyringEventSpy.mockResolvedValue();
 
       await expect(keyringHandler.deleteAccount(mockAccountId)).rejects.toThrow(
-        `Error deleting account: Account not found: ${mockAccountId}`,
+        `Error deleting account: Account not found for address or id: ${mockAccountId}`,
       );
     });
 
@@ -461,20 +459,6 @@ describe('KeyringHandler', () => {
       await expect(keyringHandler.deleteAccount('not-uuid')).rejects.toThrow(
         InvalidParamsError,
       );
-    });
-  });
-
-  describe('submitRequest', () => {
-    it('throws `Method not implemented.` error', async () => {
-      await expect(
-        keyringHandler.submitRequest({
-          id: '1',
-          origin: 'metamask',
-          request: { method: 'submitRequest', params: ['1'] },
-          scope: KnownCaip2ChainId.Mainnet,
-          account: '1',
-        }),
-      ).rejects.toThrow('Method not implemented.');
     });
   });
 });
