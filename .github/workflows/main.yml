@@ -16,6 +16,8 @@ jobs:
       RPC_URL_TESTNET: ${{ secrets.RPC_URL_TESTNET }}
       HORIZON_URL_TESTNET: ${{ secrets.HORIZON_URL_TESTNET }}
       EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}
+      TOKEN_API_BASE_URL: ${{ secrets.TOKEN_API_BASE_URL }}
+      STATIC_API_BASE_URL: ${{ secrets.STATIC_API_BASE_URL }}
 
   all-jobs-completed:
     name: All jobs completed
@@ -73,3 +75,5 @@ jobs:
       RPC_URL_TESTNET: ${{ secrets.RPC_URL_TESTNET }}
       HORIZON_URL_TESTNET: ${{ secrets.HORIZON_URL_TESTNET }}
       EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}
+      TOKEN_API_BASE_URL: ${{ secrets.TOKEN_API_BASE_URL }}
+      STATIC_API_BASE_URL: ${{ secrets.STATIC_API_BASE_URL }}
