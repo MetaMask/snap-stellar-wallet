@@ -1,20 +1,27 @@
+import { KeyringRpcMethod, type KeyringAccount } from '@metamask/keyring-api';
+import { useState } from 'react';
 import { styled } from 'styled-components';
 
 import {
   ConnectButton,
   InstallFlaskButton,
   ReconnectButton,
-  SendHelloButton,
   Card,
+  AddStellarAccountButton,
 } from '../components';
 import { defaultSnapOrigin } from '../config';
 import {
   useMetaMask,
+  useInvokeKeyring,
   useInvokeSnap,
   useMetaMaskContext,
   useRequestSnap,
 } from '../hooks';
-import { isLocalSnap, shouldDisplayReconnectButton } from '../utils';
+import {
+  isLocalSnap,
+  shouldDisplayReconnectButton,
+  utf8StringToBase64,
+} from '../utils';
 
 const Container = styled.div`
   display: flex;
@@ -100,18 +107,188 @@ const ErrorMessage = styled.div`
   }
 `;
 
+const MessageField = styled.textarea`
+  width: 100%;
+  min-height: 8rem;
+  margin-top: 1.2rem;
+  margin-bottom: 1.2rem;
+  padding: 1.2rem;
+  border-radius: ${({ theme }) => theme.radii.default};
+  border: 1px solid ${({ theme }) => theme.colors.border?.default};
+  background-color: ${({ theme }) => theme.colors.background?.default};
+  color: ${({ theme }) => theme.colors.text?.default};
+  font-family: inherit;
+  font-size: ${({ theme }) => theme.fontSizes.text};
+  box-sizing: border-box;
+  resize: vertical;
+`;
+
+const SignatureOutput = styled.pre`
+  margin: 1.2rem 0 0;
+  padding: 1.2rem;
+  max-height: 12rem;
+  overflow: auto;
+  font-size: ${({ theme }) => theme.fontSizes.small};
+  word-break: break-all;
+  white-space: pre-wrap;
+  border-radius: ${({ theme }) => theme.radii.default};
+  border: 1px solid ${({ theme }) => theme.colors.border?.default};
+  background-color: ${({ theme }) => theme.colors.background?.alternative};
+`;
+
+const SignOpsButton = styled.button`
+  display: flex;
+  align-self: flex-start;
+  align-items: center;
+  justify-content: center;
+  margin-top: auto;
+  ${({ theme }) => theme.mediaQueries.small} {
+    width: 100%;
+  }
+`;
+
 const Index = () => {
   const { error } = useMetaMaskContext();
   const { isFlask, snapsDetected, installedSnap } = useMetaMask();
   const requestSnap = useRequestSnap();
   const invokeSnap = useInvokeSnap();
+  const invokeKeyring = useInvokeKeyring();
+  const [signMessageText, setSignMessageText] = useState(
+    'Hello from the Stellar wallet test dapp',
+  );
+
+  const [signTxnText, setSignTxnText] = useState('');
+  const [signMessageOutput, setSignMessageOutput] = useState<string | null>(
+    null,
+  );
+  const [signTxnOutput, setSignTxnOutput] = useState<string | null>(null);
 
   const isMetaMaskReady = isLocalSnap(defaultSnapOrigin)
     ? isFlask
     : snapsDetected;
 
-  const handleSendHelloClick = async () => {
-    await invokeSnap({ method: 'hello' });
+  const handleAddStellarAccount = async () => {
+    await invokeKeyring({
+      method: KeyringRpcMethod.CreateAccount,
+      params: {
+        options: {},
+      },
+    });
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+
+    const account = accounts?.[0];
+    console.log('account', account);
+  };
+
+  const handleSignMessageClick = async () => {
+    setSignMessageOutput(null);
+    const trimmed = signMessageText.trim();
+    if (!trimmed) {
+      setSignMessageOutput('Enter a non-empty message to sign.');
+      return;
+    }
+
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+
+    const account = accounts?.[0];
+    if (!account) {
+      setSignMessageOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    const scope = account.scopes[0];
+    if (!scope) {
+      setSignMessageOutput('Selected account has no chain scope.');
+      return;
+    }
+    const response = (await invokeSnap({
+      method: 'stellar_signMessage',
+      params: {
+        id: crypto.randomUUID(),
+        origin: 'http://localhost:3000',
+        scope,
+        account: account.id,
+        request: {
+          method: 'signMessage',
+          params: {
+            message: utf8StringToBase64(trimmed),
+          },
+        },
+      },
+    })) as { pending: false; signature: string } | { pending: true } | null;
+
+    if (!response) {
+      return;
+    }
+
+    if (response.pending) {
+      setSignMessageOutput('Request is pending in MetaMask.');
+      return;
+    }
+
+    console.log('response', response);
+
+    setSignMessageOutput(response.signature);
+  };
+
+  const handleSignTxnClick = async () => {
+    setSignTxnOutput(null);
+    const trimmed = signTxnText.trim();
+    if (!trimmed) {
+      setSignTxnOutput('Enter a base64 encoded transaction to sign.');
+      return;
+    }
+
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+    const account = accounts?.[accounts.length - 1];
+    if (!account) {
+      setSignTxnOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    const scope = account.scopes[0];
+    if (!scope) {
+      setSignTxnOutput('Selected account has no chain scope.');
+      return;
+    }
+    const response = (await invokeSnap({
+      method: 'stellar_signTransaction',
+      params: {
+        id: crypto.randomUUID(),
+        origin: 'http://localhost:3000',
+        scope,
+        account: account.id,
+        request: {
+          method: 'signTransaction',
+          params: {
+            transaction: trimmed,
+          },
+        },
+      },
+    })) as { pending: false; signature: string } | { pending: true } | null;
+
+    if (!response) {
+      return;
+    }
+
+    if (response.pending) {
+      setSignMessageOutput('Request is pending in MetaMask.');
+      return;
+    }
+
+    console.log('response', response);
+
+    setSignMessageOutput(response.signature);
   };
 
   return (
@@ -173,12 +350,11 @@ const Index = () => {
         )}
         <Card
           content={{
-            title: 'Send Hello message',
-            description:
-              'Display a custom message within a confirmation screen in MetaMask.',
+            title: 'Add new Stellar account',
+            description: 'Add a new Stellar account to the wallet.',
             button: (
-              <SendHelloButton
-                onClick={handleSendHelloClick}
+              <AddStellarAccountButton
+                onClick={handleAddStellarAccount}
                 disabled={!installedSnap}
               />
             ),
@@ -189,6 +365,65 @@ const Index = () => {
             Boolean(installedSnap) &&
             !shouldDisplayReconnectButton(installedSnap)
           }
+        />
+        <Card
+          content={{
+            title: 'Sign message (Keyring API)',
+            description:
+              'Calls keyring_submitRequest with signMessage using the first Stellar keyring account.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="Message to sign"
+                  value={signMessageText}
+                  onChange={({ target }) => setSignMessageText(target.value)}
+                  disabled={!installedSnap}
+                />
+                {signMessageOutput !== null && (
+                  <SignatureOutput>{signMessageOutput}</SignatureOutput>
+                )}
+                <SignOpsButton
+                  type="button"
+                  onClick={handleSignMessageClick}
+                  disabled={!installedSnap}
+                >
+                  Sign message
+                </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+
+        <Card
+          content={{
+            title: 'Sign transaction (Keyring API)',
+            description:
+              'Calls keyring_submitRequest with signTransaction using the first Stellar keyring account.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="Transaction to sign"
+                  value={signTxnText}
+                  onChange={({ target }) => setSignTxnText(target.value)}
+                  disabled={!installedSnap}
+                />
+                {signTxnOutput !== null && (
+                  <SignatureOutput>{signTxnOutput}</SignatureOutput>
+                )}
+                <SignOpsButton
+                  type="button"
+                  onClick={handleSignTxnClick}
+                  disabled={!installedSnap}
+                >
+                  Sign transaction
+                </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
         />
         <Notice>
           <p>

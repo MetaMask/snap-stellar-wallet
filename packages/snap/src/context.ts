@@ -2,12 +2,24 @@ import { assert, object } from '@metamask/superstruct';
 
 import { AppConfig } from './config';
 import { KeyringHandler } from './handlers';
+import type { IKeyringRequestHandler } from './handlers/keyring';
+import {
+  MultichainMethod,
+  SignMessageHandler,
+  SignTransactionHandler,
+} from './handlers/keyring';
+import { UserInputHandler } from './handlers/user-input/userInput';
 import { AccountService, AccountsRepository } from './services/account';
 import type { AccountBalanceState } from './services/account-balance';
 import { NetworkService } from './services/network';
 import type { OnChainAccountSnapshotState } from './services/on-chain-account';
 import { OnChainAccountService } from './services/on-chain-account';
 import { State } from './services/state';
+import {
+  TransactionBuilder,
+  TransactionRepository,
+  TransactionService,
+} from './services/transaction';
 import { WalletService } from './services/wallet';
 import { logger } from './utils';
 
@@ -25,10 +37,13 @@ const state = new State({
 });
 
 const accountsRepository = new AccountsRepository(state);
+const transactionRepository = new TransactionRepository(state);
 
 /** ------------------------------ Services  ------------------------------ */
 const networkService = new NetworkService({ logger });
-
+const transactionBuilder = new TransactionBuilder({
+  logger,
+});
 const walletService = new WalletService({ logger });
 
 const accountService = new AccountService({
@@ -42,11 +57,51 @@ const onChainAccountService = new OnChainAccountService({
   accountService,
 });
 
+const transactionService = new TransactionService({
+  logger,
+  transactionRepository,
+  networkService,
+});
+
 /** ------------------------------ Keyring Handler ------------------------------ */
+
+const signTransactionHandler = new SignTransactionHandler({
+  logger,
+  accountService,
+  onChainAccountService,
+  walletService,
+  transactionBuilder,
+  transactionService,
+});
+
+const signMessageHandler = new SignMessageHandler({
+  logger,
+  accountService,
+  onChainAccountService,
+  walletService,
+});
+
+const keyringMethodHandlers: Record<MultichainMethod, IKeyringRequestHandler> =
+  {
+    [MultichainMethod.SignTransaction]: signTransactionHandler,
+    [MultichainMethod.SignMessage]: signMessageHandler,
+  };
+
 const keyringHandler = new KeyringHandler({
   logger,
   accountService,
   onChainAccountService,
+  transactionService,
+  handlers: keyringMethodHandlers,
 });
 
-export { keyringHandler };
+const userInputHandler = new UserInputHandler({
+  logger,
+});
+
+export {
+  keyringHandler,
+  userInputHandler,
+  signTransactionHandler,
+  signMessageHandler,
+};

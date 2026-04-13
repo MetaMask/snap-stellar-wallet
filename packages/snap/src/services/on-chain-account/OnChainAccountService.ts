@@ -7,8 +7,7 @@ import { assertSameAddress } from '../account/utils';
 import type { NetworkService } from '../network';
 
 /**
- * Stellar on-chain account operations: activation checks, loading {@link OnChainAccount},
- * and persisting {@link OnChainAccountSnapshot} records for sync.
+ * Stellar on-chain account operations: activation checks, loading {@link OnChainAccount}.
  *
  * Signing keypairs are derived by {@link WalletService}; this service does not depend on it.
  */

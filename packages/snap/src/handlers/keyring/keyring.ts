@@ -35,16 +35,19 @@ import {
   DeleteAccountRequestStruct,
   DiscoverAccountsStruct,
   GetAccountRequestStruct,
+  ListAccountTransactionsRequestStruct,
   MultichainMethodStruct,
   ResolveAccountAddressRequestStruct,
   SetSelectedAccountsRequestStruct,
 } from './api';
+import type { IKeyringRequestHandler } from './base';
 import type { KnownCaip2ChainId } from '../../api';
 import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
 import type { OnChainAccountService } from '../../services/on-chain-account';
+import type { TransactionService } from '../../services/transaction/TransactionService';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
@@ -61,18 +64,28 @@ export class KeyringHandler implements Keyring {
 
   readonly #onChainAccountService: OnChainAccountService;
 
+  readonly #transactionService: TransactionService;
+
+  readonly #handlers: Record<MultichainMethod, IKeyringRequestHandler>;
+
   constructor({
     logger,
     accountService,
     onChainAccountService,
+    transactionService,
+    handlers,
   }: {
     logger: ILogger;
     accountService: AccountService;
     onChainAccountService: OnChainAccountService;
+    transactionService: TransactionService;
+    handlers: Record<MultichainMethod, IKeyringRequestHandler>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 KeyringHandler]');
     this.#accountService = accountService;
     this.#onChainAccountService = onChainAccountService;
+    this.#transactionService = transactionService;
+    this.#handlers = handlers;
   }
 
   async handle(origin: string, request: JsonRpcRequest): Promise<Json> {
@@ -180,7 +193,52 @@ export class KeyringHandler implements Keyring {
     data: Transaction[];
     next: string | null;
   }> {
-    throw new Error('Method not implemented. - listAccountTransactions');
+    try {
+      validateRequest(
+        { accountId, pagination },
+        ListAccountTransactionsRequestStruct,
+      );
+
+      const { limit, next } = pagination;
+
+      // we dont necessary to check if the account is activated
+      // because we are not fetching the transactions from the network.
+      const { account: keyringAccount } =
+        await this.#accountService.resolveAccount({
+          accountId,
+        });
+
+      const transactions = await this.#transactionService.findByAccounts([
+        keyringAccount,
+      ]);
+
+      // Find the starting index based on the 'next' signature
+      const startIndex = next
+        ? transactions.findIndex((tx) => tx.id === next)
+        : 0;
+
+      // Get transactions from startIndex to startIndex + limit
+      const accountTransactions = transactions.slice(
+        startIndex,
+        startIndex + limit,
+      );
+
+      // Determine the next signature for pagination
+      const hasMore = startIndex + pagination.limit < transactions.length;
+      const nextSignature = hasMore
+        ? (transactions[startIndex + pagination.limit]?.id ?? null)
+        : null;
+
+      return {
+        data: accountTransactions,
+        next: nextSignature,
+      };
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails('Error listing account transactions', error);
+      throw new Error(
+        `Error listing account transactions: ${ensureError(error).message}`,
+      );
+    }
   }
 
   async discoverAccounts(
@@ -297,7 +355,15 @@ export class KeyringHandler implements Keyring {
   }
 
   async #handleSubmitRequest(request: KeyringRequest): Promise<Json> {
-    throw new Error('Method not implemented. - handleSubmitRequest');
+    const { method } = request.request;
+
+    this.#assertMethodIsValid(method);
+
+    return this.#handlers[method].handle(request);
+  }
+
+  #assertMethodIsValid(method: string): asserts method is MultichainMethod {
+    validateRequest(method, MultichainMethodStruct);
   }
 }
 /* eslint-enable @typescript-eslint/no-unused-vars */

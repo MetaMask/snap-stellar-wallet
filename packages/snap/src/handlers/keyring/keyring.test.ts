@@ -11,6 +11,7 @@ import {
 import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
 
 import { MultichainMethod } from './api';
+import type { IKeyringRequestHandler } from './base';
 import { KeyringHandler } from './keyring';
 import { KnownCaip2ChainId } from '../../api';
 import { KEYRING_ACCOUNT_TYPE } from '../../constants';
@@ -23,10 +24,15 @@ import { AccountNotFoundException } from '../../services/account/exceptions';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import {
+  createMockTransactionService,
+  generateMockTransactions,
+} from '../../services/transaction/__mocks__/transaction.fixtures';
+import {
   getSlip44AssetId,
   getDefaultEntropySource,
   getSnapProvider,
 } from '../../utils';
+import { bufferToUint8Array } from '../../utils/buffer';
 import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
@@ -45,6 +51,8 @@ describe('KeyringHandler', () => {
   let keyringHandler: KeyringHandler;
   let mockAccount: StellarKeyringAccount;
   let mockAccountId: string;
+  let mockSignMessageHandler: IKeyringRequestHandler;
+  let mockSignTransactionHandler: IKeyringRequestHandler;
 
   const toKeyringAccount = (account: StellarKeyringAccount): KeyringAccount => {
     const { id, address, type, options, methods, scopes } = account;
@@ -74,12 +82,21 @@ describe('KeyringHandler', () => {
     jest.clearAllMocks();
     jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySourceId);
 
+    mockSignMessageHandler = { handle: jest.fn() };
+    mockSignTransactionHandler = { handle: jest.fn() };
+
     const { accountService, onChainAccountService } =
       mockOnChainAccountService();
+    const { transactionService } = createMockTransactionService();
     keyringHandler = new KeyringHandler({
       logger,
       accountService,
       onChainAccountService,
+      transactionService,
+      handlers: {
+        [MultichainMethod.SignMessage]: mockSignMessageHandler,
+        [MultichainMethod.SignTransaction]: mockSignTransactionHandler,
+      },
     });
 
     mockAccount = generateMockStellarKeyringAccounts(
@@ -252,6 +269,63 @@ describe('KeyringHandler', () => {
       await expect(keyringHandler.listAccountAssets('1')).rejects.toThrow(
         'Method not implemented.',
       );
+    });
+  });
+
+  describe('listAccountTransactions', () => {
+    it('lists the account transactions', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({
+        account: mockAccount,
+      });
+      const { transactionServiceFindByAccountsSpy } =
+        createMockTransactionService();
+      const mockTransactions = generateMockTransactions(10, {
+        account: mockAccountId,
+        scope: KnownCaip2ChainId.Mainnet,
+        fromAddress: mockAccount.address,
+      });
+      transactionServiceFindByAccountsSpy.mockResolvedValue(mockTransactions);
+
+      const result = await keyringHandler.listAccountTransactions(
+        mockAccountId,
+        {
+          limit: 10,
+        },
+      );
+
+      expect(result).toStrictEqual({
+        data: mockTransactions,
+        next: null,
+      });
+    });
+
+    it('lists the account transactions with pagination', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({
+        account: mockAccount,
+      });
+      const { transactionServiceFindByAccountsSpy } =
+        createMockTransactionService();
+      const mockTransactions = generateMockTransactions(30, {
+        account: mockAccountId,
+        scope: KnownCaip2ChainId.Mainnet,
+        fromAddress: mockAccount.address,
+      });
+      transactionServiceFindByAccountsSpy.mockResolvedValue(mockTransactions);
+
+      const result = await keyringHandler.listAccountTransactions(
+        mockAccountId,
+        {
+          limit: 5,
+          next: mockTransactions[5]?.id,
+        },
+      );
+
+      expect(result).toStrictEqual({
+        data: mockTransactions.slice(5, 10),
+        next: mockTransactions[10]?.id,
+      });
     });
   });
 
@@ -459,6 +533,102 @@ describe('KeyringHandler', () => {
       await expect(keyringHandler.deleteAccount('not-uuid')).rejects.toThrow(
         InvalidParamsError,
       );
+    });
+  });
+
+  describe('submitRequest', () => {
+    const keyringRequestId = '22222222-2222-4222-8222-222222222222';
+
+    it('submits a sign message request', async () => {
+      const expectedResult = {
+        signature: bufferToUint8Array(
+          'Stellar Signed Message: Hello, world!',
+          'utf8',
+        ).toString('base64'),
+      };
+
+      jest
+        .mocked(mockSignMessageHandler.handle)
+        .mockResolvedValue(expectedResult);
+
+      const signMessagePayload = {
+        id: keyringRequestId,
+        origin: 'metamask',
+        request: {
+          method: MultichainMethod.SignMessage,
+          params: { message: 'Hello, world!' },
+        },
+        scope: KnownCaip2ChainId.Mainnet,
+        account: mockAccountId,
+      };
+
+      const result = await keyringHandler.submitRequest(signMessagePayload);
+
+      expect(mockSignMessageHandler.handle).toHaveBeenCalledTimes(1);
+      expect(mockSignMessageHandler.handle).toHaveBeenCalledWith(
+        signMessagePayload,
+      );
+      expect(mockSignTransactionHandler.handle).not.toHaveBeenCalled();
+      expect(result).toStrictEqual({
+        pending: false,
+        result: expectedResult,
+      });
+    });
+
+    it('submits a sign transaction request', async () => {
+      const xdr = `AAAAAgAAAADjngeX0YTNoQ15A0xC83aMm/sDnXrmLF+apmXvdmkUugAAAGQAC3gAAAAAQQAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAOZfkjSFZ31vI/Nx28cC6iAFWLWcPIvJhM2NVoxmfgVTAAAAAAAAAAAAmJaAAAAAAAAAAAA=`;
+
+      const expectedResult = {
+        signature: bufferToUint8Array(
+          `Stellar Signed transaction: ${xdr}`,
+          'utf8',
+        ).toString('base64'),
+      };
+
+      jest
+        .mocked(mockSignTransactionHandler.handle)
+        .mockResolvedValue(expectedResult);
+
+      const signTransactionPayload = {
+        id: keyringRequestId,
+        origin: 'metamask',
+        request: {
+          method: MultichainMethod.SignTransaction,
+          params: { transaction: xdr },
+        },
+        scope: KnownCaip2ChainId.Mainnet,
+        account: mockAccountId,
+      };
+
+      const result = await keyringHandler.submitRequest(signTransactionPayload);
+
+      expect(mockSignTransactionHandler.handle).toHaveBeenCalledTimes(1);
+      expect(mockSignTransactionHandler.handle).toHaveBeenCalledWith(
+        signTransactionPayload,
+      );
+      expect(mockSignMessageHandler.handle).not.toHaveBeenCalled();
+      expect(result).toStrictEqual({
+        pending: false,
+        result: expectedResult,
+      });
+    });
+
+    it('throws an error if the request is invalid', async () => {
+      await expect(
+        keyringHandler.submitRequest({
+          id: keyringRequestId,
+          origin: 'metamask',
+          request: {
+            method: 'invalid:method' as MultichainMethod,
+            params: { message: 'Hello, world!' },
+          },
+          scope: KnownCaip2ChainId.Mainnet,
+          account: mockAccountId,
+        }),
+      ).rejects.toThrow(InvalidParamsError);
+
+      expect(mockSignMessageHandler.handle).not.toHaveBeenCalled();
+      expect(mockSignTransactionHandler.handle).not.toHaveBeenCalled();
     });
   });
 });
