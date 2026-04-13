@@ -48,7 +48,7 @@ export class SignMessageHandler extends WithKeyringRequestActiveAccountResolve<
   ): Promise<SignMessageResponse> {
     const { wallet, account } = resolved;
 
-    if (!(await this.#confrimation(request, account))) {
+    if (!(await this.#confirmation(request, account))) {
       throw new UserRejectedRequestError() as unknown as Error;
     }
 
@@ -59,7 +59,7 @@ export class SignMessageHandler extends WithKeyringRequestActiveAccountResolve<
     return { signature };
   }
 
-  async #confrimation(
+  async #confirmation(
     request: SignMessageRequest,
     account: StellarKeyringAccount,
   ): Promise<boolean> {

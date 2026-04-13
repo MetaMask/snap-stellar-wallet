@@ -117,7 +117,7 @@ const RenderReadableParamValue = (params: {
   }
 };
 
-export const ConfirmSignTransction = ({
+export const ConfirmSignTransaction = ({
   transaction,
   account,
   scope,

@@ -234,7 +234,10 @@ export class KeyringHandler implements Keyring {
         next: nextSignature,
       };
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Error listing account transactions', error);
+      this.#logger.logErrorWithDetails(
+        'Error listing account transactions',
+        error,
+      );
       throw new Error(
         `Error listing account transactions: ${ensureError(error).message}`,
       );

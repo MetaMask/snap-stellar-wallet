@@ -1,6 +1,6 @@
 import type { DialogResult } from '@metamask/snaps-sdk';
 
-import { ConfirmSignTransction } from './ConfirmSignTransaction';
+import { ConfirmSignTransaction } from './ConfirmSignTransaction';
 import type { SignTransactionRequest } from '../../../../handlers/keyring';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Transaction } from '../../../../services/transaction';
@@ -26,7 +26,7 @@ export async function render(
   const locale = await getLocale();
 
   const id = await createInterface(
-    <ConfirmSignTransction
+    <ConfirmSignTransaction
       transaction={transaction}
       account={account}
       scope={scope}
