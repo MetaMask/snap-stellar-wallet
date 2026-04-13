@@ -1,35 +1,35 @@
+import { assert, object } from '@metamask/superstruct';
+
+import { AppConfig } from './config';
 import { KeyringHandler } from './handlers';
-import { AccountService } from './services/account/AccountService';
-import { AccountsRepository } from './services/account/AccountsRepository';
-import { createAccountDeriver } from './services/account/derivation';
-import { State } from './services/state/State';
-import { NetworkService } from './services/wallet/NetworkService';
-import { TransactionBuilder } from './services/wallet/TransactionBuilder';
-import { WalletService } from './services/wallet/WalletService';
+import { AccountService, AccountsRepository } from './services/account';
+import type { AccountBalanceState } from './services/account-balance';
+import { NetworkService } from './services/network';
+import type { OnChainAccountSnapshotState } from './services/on-chain-account';
+import { OnChainAccountService } from './services/on-chain-account';
+import { State } from './services/state';
+import { WalletService } from './services/wallet';
 import { logger } from './utils';
+
+assert(AppConfig, object());
 
 const state = new State({
   encrypted: false,
   defaultState: {
     keyringAccounts: {},
+    assets: {},
+    transactions: {},
+    accountBalances: {} as AccountBalanceState['accountBalances'],
+    accountMetadata: {} as OnChainAccountSnapshotState['accountMetadata'],
   },
 });
 
 const accountsRepository = new AccountsRepository(state);
 
-const accountDeriver = createAccountDeriver(logger);
-
+/** ------------------------------ Services  ------------------------------ */
 const networkService = new NetworkService({ logger });
-const transactionBuilder = new TransactionBuilder({
-  logger,
-});
 
-const walletService = new WalletService({
-  logger,
-  deriver: accountDeriver,
-  networkService,
-  transactionBuilder,
-});
+const walletService = new WalletService({ logger });
 
 const accountService = new AccountService({
   logger,
@@ -37,9 +37,16 @@ const accountService = new AccountService({
   walletService,
 });
 
+const onChainAccountService = new OnChainAccountService({
+  networkService,
+  accountService,
+});
+
+/** ------------------------------ Keyring Handler ------------------------------ */
 const keyringHandler = new KeyringHandler({
   logger,
   accountService,
+  onChainAccountService,
 });
 
 export { keyringHandler };

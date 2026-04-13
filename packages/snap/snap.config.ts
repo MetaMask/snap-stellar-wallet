@@ -21,6 +21,9 @@ const config: SnapConfig = {
     TRANSACTION_TIMEOUT: process.env.TRANSACTION_TIMEOUT ?? '',
     TRANSACTION_POLLING_ATTEMPTS:
       process.env.TRANSACTION_POLLING_ATTEMPTS ?? '',
+    TOKEN_API_BASE_URL: process.env.TOKEN_API_BASE_URL ?? '',
+    TOKEN_API_CHUNK_SIZE: process.env.TOKEN_API_CHUNK_SIZE ?? '',
+    STATIC_API_BASE_URL: process.env.STATIC_API_BASE_URL ?? '',
   },
   polyfills: true,
 };

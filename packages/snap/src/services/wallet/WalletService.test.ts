@@ -1,100 +1,51 @@
 import { hexToBytes } from '@metamask/utils';
-import { Account, Keypair } from '@stellar/stellar-sdk';
-import { BigNumber } from 'bignumber.js';
+import { Keypair } from '@stellar/stellar-sdk';
 
-import {
-  AccountNotActivatedException,
-  NetworkServiceException,
-  WalletServiceException,
-} from './exceptions';
-import { NetworkService } from './NetworkService';
-import { TransactionBuilder } from './TransactionBuilder';
-import { Wallet } from './Wallet';
+import { getTestWallet } from './__mocks__/wallet.fixtures';
+import { WalletServiceException } from './exceptions';
 import { WalletService } from './WalletService';
-import type { KnownCaip19AssetId } from '../../api';
-import { KnownCaip2ChainId } from '../../api';
+import { mockBip32Node } from '../../utils/__mocks__/fixtures';
+import { bufferToUint8Array } from '../../utils/buffer';
 import { logger } from '../../utils/logger';
+import { getBip32Entropy } from '../../utils/snap';
+import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
+import { DerivedAccountAddressMismatchException } from '../account/exceptions';
 
 jest.mock('../../utils/logger');
+jest.mock('../../utils/snap');
 
 describe('WalletService', () => {
-  let walletService: WalletService;
-  let networkService: NetworkService;
-  let transactionBuilder: TransactionBuilder;
-  let testKeypair: Keypair;
-  let testAddress: string;
-  let testAccount: Account;
-  let testWalletWithSigner: Wallet;
-  let testAsset: KnownCaip19AssetId;
-  let scope: KnownCaip2ChainId;
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
-  const get32ByteSeedSpy: jest.Mock = jest.fn();
+  let walletService: WalletService;
+
   const seed = hexToBytes(
     '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
   );
 
   beforeEach(() => {
     jest.clearAllMocks();
-    transactionBuilder = new TransactionBuilder({ logger });
-    networkService = new NetworkService({ logger });
-
-    walletService = new WalletService({
-      logger,
-      deriver: { get32ByteSeed: get32ByteSeedSpy.mockResolvedValue(seed) },
-      networkService,
-      transactionBuilder,
-    });
-
-    scope = KnownCaip2ChainId.Mainnet;
-    testKeypair = Keypair.fromRawEd25519Seed(seed as Buffer);
-    testAddress = testKeypair.publicKey();
-    testAccount = new Account(testAddress, '1');
-    testWalletWithSigner = new Wallet(testAccount, testKeypair);
-    testAsset = `stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`;
-  });
-
-  const getNetworkServiceSpies = () => ({
-    getBaseFeeSpy: jest.spyOn(NetworkService.prototype, 'getBaseFee'),
-    pollTransactionSpy: jest.spyOn(NetworkService.prototype, 'pollTransaction'),
-    loadAccountSpy: jest.spyOn(NetworkService.prototype, 'loadAccount'),
-    sendTransactionSpy: jest.spyOn(NetworkService.prototype, 'send'),
-  });
-
-  const getTransactionBuilderSpies = () => ({
-    rebuildTransactionSpy: jest.spyOn(
-      TransactionBuilder.prototype,
-      'rebuildTransaction',
-    ),
-  });
-
-  const getWalletSpies = () => ({
-    signTransactionSpy: jest.spyOn(Wallet.prototype, 'signTransaction'),
-  });
-
-  describe('builder', () => {
-    it('returns the transaction builder', () => {
-      expect(walletService.builder).toStrictEqual(transactionBuilder);
-    });
-  });
-
-  describe('network', () => {
-    it('returns the network service', () => {
-      expect(walletService.network).toStrictEqual(networkService);
-    });
+    jest.mocked(getBip32Entropy).mockResolvedValue(mockBip32Node);
+    walletService = new WalletService({ logger });
   });
 
   describe('deriveAddress', () => {
     it('derives an address', async () => {
+      const wallet = getTestWallet({ seed });
       const address = await walletService.deriveAddress({
         index: 0,
         entropySource: 'entropy-source-1',
       });
 
-      expect(address).toStrictEqual(testAddress);
+      expect(address).toStrictEqual(wallet.address);
     });
 
     it('throws a WalletServiceException if the keypair derivation fails', async () => {
-      get32ByteSeedSpy.mockRejectedValue(new Error('something went wrong'));
+      jest
+        .mocked(getBip32Entropy)
+        .mockRejectedValue(new Error('something went wrong'));
 
       await expect(
         walletService.deriveAddress({
@@ -105,148 +56,49 @@ describe('WalletService', () => {
     });
   });
 
-  describe('resolveActivatedAccount', () => {
-    it('returns a wallet with loaded account', async () => {
-      const { loadAccountSpy } = getNetworkServiceSpies();
-      loadAccountSpy.mockResolvedValue(new Account(testAddress, '1'));
-
-      const wallet = await walletService.resolveActivatedAccount({
-        scope,
-        entropySource: 'entropy-source-1',
-        index: 0,
-      });
-
-      expect(wallet.address).toStrictEqual(testAddress);
-      expect(wallet.account.accountId()).toStrictEqual(testAddress);
-    });
-  });
-
-  describe('isAccountActivated', () => {
-    it('returns true if the account is activated', async () => {
-      const { loadAccountSpy } = getNetworkServiceSpies();
-      loadAccountSpy.mockResolvedValue(new Account(testAddress, '1'));
-
-      const result = await walletService.isAccountActivated({
-        address: testAddress,
-        scope,
-      });
-      expect(result).toBe(true);
-    });
-
-    it('returns false if the account is not activated', async () => {
-      const { loadAccountSpy } = getNetworkServiceSpies();
-      loadAccountSpy.mockRejectedValue(
-        new AccountNotActivatedException(testAddress, scope),
+  describe('resolveWallet', () => {
+    it('returns a wallet whose address matches the keyring row', async () => {
+      const kp = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
+      const account = generateStellarKeyringAccount(
+        globalThis.crypto.randomUUID(),
+        kp.publicKey(),
+        'entropy-source-1',
+        0,
       );
 
-      const result = await walletService.isAccountActivated({
-        address: testAddress,
-        scope,
-      });
-      expect(result).toBe(false);
+      const wallet = await walletService.resolveWallet(account);
+
+      expect(wallet.address).toStrictEqual(kp.publicKey());
     });
 
-    it('throws a NetworkServiceException if loading the account fails', async () => {
-      const { loadAccountSpy } = getNetworkServiceSpies();
-      loadAccountSpy.mockRejectedValue(
-        new NetworkServiceException(
-          'Failed to load account from Stellar Network',
-        ),
+    it('throws DerivedAccountAddressMismatchException when derivation does not match stored address', async () => {
+      const account = generateStellarKeyringAccount(
+        globalThis.crypto.randomUUID(),
+        Keypair.random().publicKey(),
+        'entropy-source-1',
+        0,
       );
 
-      await expect(
-        walletService.isAccountActivated({ address: testAddress, scope }),
-      ).rejects.toThrow(NetworkServiceException);
-    });
-  });
-
-  describe('signTransaction', () => {
-    it('signs a transaction', async () => {
-      const { loadAccountSpy } = getNetworkServiceSpies();
-      const { signTransactionSpy } = getWalletSpies();
-      loadAccountSpy.mockResolvedValue(testAccount);
-
-      const testTransaction = transactionBuilder.changeTrust({
-        baseFee: '100',
-        scope,
-        asset: testAsset,
-        account: testWalletWithSigner,
-      });
-
-      const { rebuildTransactionSpy } = getTransactionBuilderSpies();
-      rebuildTransactionSpy.mockReturnValue(testTransaction);
-
-      await walletService.signTransaction({
-        account: testWalletWithSigner,
-        scope,
-        transaction: testTransaction,
-        baseFee: new BigNumber(100),
-      });
-
-      expect(rebuildTransactionSpy).toHaveBeenCalledWith({
-        transaction: testTransaction,
-        account: testAccount,
-        baseFee: '100',
-      });
-      expect(loadAccountSpy).toHaveBeenCalledWith(testAddress, scope);
-      expect(signTransactionSpy).toHaveBeenCalledWith(testTransaction);
+      await expect(walletService.resolveWallet(account)).rejects.toThrow(
+        DerivedAccountAddressMismatchException,
+      );
     });
 
-    it('fetches the base fee from the network if not provided', async () => {
-      const { loadAccountSpy, getBaseFeeSpy } = getNetworkServiceSpies();
-      loadAccountSpy.mockResolvedValue(testAccount);
-      getBaseFeeSpy.mockResolvedValue(new BigNumber(100));
+    it('throws a WalletServiceException if the keypair derivation fails', async () => {
+      jest
+        .mocked(getBip32Entropy)
+        .mockRejectedValue(new Error('something went wrong'));
+      const kp = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
+      const account = generateStellarKeyringAccount(
+        globalThis.crypto.randomUUID(),
+        kp.publicKey(),
+        'entropy-source-1',
+        0,
+      );
 
-      const testTransaction = transactionBuilder.changeTrust({
-        baseFee: '100',
-        scope,
-        asset: testAsset,
-        account: testWalletWithSigner,
-      });
-
-      const { rebuildTransactionSpy } = getTransactionBuilderSpies();
-      rebuildTransactionSpy.mockReturnValue(testTransaction);
-
-      await walletService.signTransaction({
-        account: testWalletWithSigner,
-        scope,
-        transaction: testTransaction,
-      });
-
-      expect(rebuildTransactionSpy).toHaveBeenCalledWith({
-        transaction: testTransaction,
-        account: testAccount,
-        baseFee: '100',
-      });
-      expect(getBaseFeeSpy).toHaveBeenCalledWith(scope);
-    });
-
-    it('throws a WalletServiceException if signing the transaction fails', async () => {
-      const { loadAccountSpy } = getNetworkServiceSpies();
-      const { signTransactionSpy } = getWalletSpies();
-      loadAccountSpy.mockResolvedValue(testAccount);
-      signTransactionSpy.mockImplementation(() => {
-        throw new Error('Failed to sign transaction');
-      });
-
-      const testTransaction = transactionBuilder.changeTrust({
-        baseFee: '100',
-        scope,
-        asset: testAsset,
-        account: testWalletWithSigner,
-      });
-
-      const { rebuildTransactionSpy } = getTransactionBuilderSpies();
-      rebuildTransactionSpy.mockReturnValue(testTransaction);
-
-      await expect(
-        walletService.signTransaction({
-          account: testWalletWithSigner,
-          scope,
-          transaction: testTransaction,
-          baseFee: new BigNumber(100),
-        }),
-      ).rejects.toThrow(WalletServiceException);
+      await expect(walletService.resolveWallet(account)).rejects.toThrow(
+        WalletServiceException,
+      );
     });
   });
 });

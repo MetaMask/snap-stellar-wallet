@@ -58,16 +58,33 @@ const selectedNetworkStruct = coerce(
 );
 
 /**
+ * A struct for validating the network config map.
+ */
+const networkConfigMapStruct = record(
+  KnownCaip2ChainIdStruct,
+  networkConfigStruct,
+);
+
+/**
  * A struct for validating the config.
  */
 const ConfigStruct = object({
   environment: enums(Object.values(Environment)),
   logLevel: LogLevelStruct,
-  networks: record(KnownCaip2ChainIdStruct, networkConfigStruct),
+  networks: networkConfigMapStruct,
   selectedNetwork: selectedNetworkStruct,
   transaction: object({
     timeout: parseIntegerStruct(100, 180),
     pollingAttempts: parseIntegerStruct(0, 10),
+  }),
+  api: object({
+    tokenApi: object({
+      baseUrl: UrlStruct,
+      chunkSize: parseIntegerStruct(1, 100),
+    }),
+    staticApi: object({
+      baseUrl: UrlStruct,
+    }),
   }),
 });
 
@@ -75,6 +92,11 @@ const ConfigStruct = object({
  * The config type.
  */
 export type Config = Infer<typeof ConfigStruct>;
+
+/**
+ * The network config type.
+ */
+export type NetworkConfig = Infer<typeof networkConfigStruct>;
 
 /**
  * The app config.
@@ -101,6 +123,15 @@ export const AppConfig = create(
     transaction: {
       timeout: process.env.TRANSACTION_TIMEOUT,
       pollingAttempts: process.env.TRANSACTION_POLLING_ATTEMPTS,
+    },
+    api: {
+      tokenApi: {
+        baseUrl: process.env.TOKEN_API_BASE_URL,
+        chunkSize: process.env.TOKEN_API_CHUNK_SIZE,
+      },
+      staticApi: {
+        baseUrl: process.env.STATIC_API_BASE_URL,
+      },
     },
   },
   ConfigStruct,

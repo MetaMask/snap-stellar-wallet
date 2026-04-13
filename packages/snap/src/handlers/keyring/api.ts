@@ -1,3 +1,4 @@
+import { KeyringRequestStruct } from '@metamask/keyring-api';
 import {
   object,
   min,
@@ -11,15 +12,30 @@ import {
   union,
   size,
   nonempty,
+  assign,
+  nullable,
+  enums,
 } from '@metamask/superstruct';
 import type { Infer } from '@metamask/superstruct';
+import { base64 } from '@metamask/utils';
 
-import {
-  StellarAddressStruct,
-  UuidStruct,
-  MultichainMethodStruct,
-  KnownCaip2ChainIdStruct,
-} from '../../api';
+import { StellarAddressStruct } from '../../api/address';
+import { KnownCaip2ChainIdStruct } from '../../api/network';
+import { Utf8StringStruct } from '../../api/string';
+import { UuidStruct } from '../../api/uuid';
+import { XdrStruct } from '../../api/xdr';
+
+/** JSON-RPC methods supported by this snap's multichain keyring. */
+export enum MultichainMethod {
+  SignMessage = 'signMessage',
+  SignTransaction = 'signTransaction',
+}
+
+/** Superstruct validator for {@link MultichainMethod} string values. */
+export const MultichainMethodStruct = enums(Object.values(MultichainMethod));
+
+/** Inferred union of supported multichain method names. */
+export type MultichainMethodType = Infer<typeof MultichainMethodStruct>;
 
 /**
  * Struct for validating createAccount options.
@@ -55,7 +71,7 @@ export const ResolveAccountAddressJsonRpcRequestStruct = object({
  */
 export const ResolveAccountAddressRequestStruct = object({
   request: ResolveAccountAddressJsonRpcRequestStruct,
-  scope: nonempty(KnownCaip2ChainIdStruct),
+  scope: KnownCaip2ChainIdStruct,
 });
 
 /**
@@ -65,6 +81,65 @@ export const DiscoverAccountsStruct = object({
   scopes: size(array(KnownCaip2ChainIdStruct), 1, 1),
   entropySource: nonempty(string()),
   groupIndex: min(integer(), 0),
+});
+
+/**
+ * Validation struct for the signMessage request.
+ */
+export const SignMessageRequestStruct = assign(
+  KeyringRequestStruct,
+  object({
+    request: object({
+      method: literal(MultichainMethod.SignMessage),
+      params: object({
+        message: nonempty(union([base64(string()), Utf8StringStruct])),
+      }),
+    }),
+    scope: KnownCaip2ChainIdStruct,
+    account: UuidStruct,
+  }),
+);
+
+/**
+ * Validation struct for the signMessage response.
+ */
+export const SignMessageResponseStruct = object({
+  signature: nonempty(base64(string())),
+});
+
+/**
+ * Validation struct for the signTransaction request.
+ */
+export const SignTransactionRequestStruct = assign(
+  KeyringRequestStruct,
+  object({
+    request: object({
+      method: literal(MultichainMethod.SignTransaction),
+      params: object({
+        transaction: XdrStruct,
+      }),
+    }),
+    scope: KnownCaip2ChainIdStruct,
+    account: UuidStruct,
+  }),
+);
+
+/**
+ * Validation struct for the listAccountTransactions request.
+ */
+export const ListAccountTransactionsRequestStruct = object({
+  accountId: UuidStruct,
+  pagination: object({
+    limit: min(integer(), 1),
+    next: optional(nullable(UuidStruct)),
+  }),
+});
+
+/**
+ * Validation struct for the signTransaction response.
+ */
+export const SignTransactionResponseStruct = object({
+  signature: XdrStruct,
 });
 
 /**
@@ -103,3 +178,32 @@ export type GetAccountRequest = Infer<typeof GetAccountRequestStruct>;
  * Type for the deleteAccount request.
  */
 export type DeleteAccountRequest = Infer<typeof DeleteAccountRequestStruct>;
+
+/**
+ * Type for the setSelectedAccounts request.
+ */
+export type SetSelectedAccountsRequest = Infer<
+  typeof SetSelectedAccountsRequestStruct
+>;
+
+/**
+ * Type for the signMessage request.
+ */
+export type SignMessageRequest = Infer<typeof SignMessageRequestStruct>;
+
+/**
+ * Type for the signMessage response.
+ */
+export type SignMessageResponse = Infer<typeof SignMessageResponseStruct>;
+
+/**
+ * Type for the signTransaction request.
+ */
+export type SignTransactionRequest = Infer<typeof SignTransactionRequestStruct>;
+
+/**
+ * Type for the signTransaction response.
+ */
+export type SignTransactionResponse = Infer<
+  typeof SignTransactionResponseStruct
+>;
