@@ -80,10 +80,21 @@ const ConfigStruct = object({
   api: object({
     tokenApi: object({
       baseUrl: UrlStruct,
-      chunkSize: parseIntegerStruct(1, 100),
+      chunkSize: parseIntegerStruct(1, 20),
     }),
     staticApi: object({
       baseUrl: UrlStruct,
+    }),
+    priceApi: object({
+      baseUrl: UrlStruct,
+      chunkSize: parseIntegerStruct(1, 20),
+    }),
+  }),
+  cache: object({
+    ttlMilliseconds: object({
+      spotPrices: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
+      fiatExchangeRates: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
+      historicalPrices: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
     }),
   }),
 });
@@ -131,6 +142,17 @@ export const AppConfig = create(
       },
       staticApi: {
         baseUrl: process.env.STATIC_API_BASE_URL,
+      },
+      priceApi: {
+        baseUrl: process.env.PRICE_API_BASE_URL,
+        chunkSize: process.env.PRICE_API_CHUNK_SIZE,
+      },
+    },
+    cache: {
+      ttlMilliseconds: {
+        spotPrices: process.env.SPOT_PRICES_TTL_MILLISECONDS,
+        fiatExchangeRates: process.env.FIAT_EXCHANGE_RATES_TTL_MILLISECONDS,
+        historicalPrices: process.env.HISTORICAL_PRICES_TTL_MILLISECONDS,
       },
     },
   },

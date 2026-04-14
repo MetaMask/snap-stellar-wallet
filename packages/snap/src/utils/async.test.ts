@@ -1,4 +1,4 @@
-import { batchesAllSettled } from './async';
+import { batchesAllSettled, chunks } from './async';
 
 describe('batchesAllSettled', () => {
   it('throws when batchSize is less than 1', async () => {
@@ -65,5 +65,30 @@ describe('batchesAllSettled', () => {
     });
 
     expect(maxConcurrent).toBe(2);
+  });
+});
+
+describe('chunks', () => {
+  it('returns empty array for empty items', () => {
+    const result = chunks([], 3);
+    expect(result).toStrictEqual([]);
+  });
+
+  it('returns single chunk for items less than chunk size', () => {
+    const result = chunks(['a', 'b', 'c'], 4);
+    expect(result).toStrictEqual([['a', 'b', 'c']]);
+  });
+
+  it('returns multiple chunks for items greater than chunk size', () => {
+    const result = chunks(
+      ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+      3,
+    );
+    expect(result).toStrictEqual([
+      ['a', 'b', 'c'],
+      ['d', 'e', 'f'],
+      ['g', 'h', 'i'],
+      ['j'],
+    ]);
   });
 });

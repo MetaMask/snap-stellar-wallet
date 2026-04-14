@@ -24,6 +24,14 @@ const config: SnapConfig = {
     TOKEN_API_BASE_URL: process.env.TOKEN_API_BASE_URL ?? '',
     TOKEN_API_CHUNK_SIZE: process.env.TOKEN_API_CHUNK_SIZE ?? '',
     STATIC_API_BASE_URL: process.env.STATIC_API_BASE_URL ?? '',
+    PRICE_API_BASE_URL: process.env.PRICE_API_BASE_URL ?? '',
+    PRICE_API_CHUNK_SIZE: process.env.PRICE_API_CHUNK_SIZE ?? '',
+    FIAT_EXCHANGE_RATES_TTL_MILLISECONDS:
+      process.env.FIAT_EXCHANGE_RATES_TTL_MILLISECONDS ?? '',
+    HISTORICAL_PRICES_TTL_MILLISECONDS:
+      process.env.HISTORICAL_PRICES_TTL_MILLISECONDS ?? '',
+    SPOT_PRICES_TTL_MILLISECONDS:
+      process.env.SPOT_PRICES_TTL_MILLISECONDS ?? '',
   },
   polyfills: true,
 };
