@@ -23,6 +23,8 @@ on:
         required: true
       STATIC_API_BASE_URL:
         required: true
+      PRICE_API_BASE_URL:
+        required: true
 
 jobs:
   publish-release:
@@ -53,6 +55,7 @@ jobs:
           EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}
           TOKEN_API_BASE_URL: ${{ secrets.TOKEN_API_BASE_URL }}
           STATIC_API_BASE_URL: ${{ secrets.STATIC_API_BASE_URL }}
+          PRICE_API_BASE_URL: ${{ secrets.PRICE_API_BASE_URL }}
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
