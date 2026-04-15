@@ -19,6 +19,8 @@ on:
         required: true
       STATIC_API_BASE_URL:
         required: true
+      PRICE_API_BASE_URL:
+        required: true
 
 jobs:
   prepare:
@@ -48,6 +50,7 @@ jobs:
       EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}
       TOKEN_API_BASE_URL: ${{ secrets.TOKEN_API_BASE_URL }}
       STATIC_API_BASE_URL: ${{ secrets.STATIC_API_BASE_URL }}
+      PRICE_API_BASE_URL: ${{ secrets.PRICE_API_BASE_URL }}
     steps:
       - name: Checkout and setup environment
         uses: MetaMask/action-checkout-and-setup@v1
@@ -94,6 +97,7 @@ jobs:
       EXPLORER_TESTNET_BASE_URL: ${{ secrets.EXPLORER_TESTNET_BASE_URL }}
       TOKEN_API_BASE_URL: ${{ secrets.TOKEN_API_BASE_URL }}
       STATIC_API_BASE_URL: ${{ secrets.STATIC_API_BASE_URL }}
+      PRICE_API_BASE_URL: ${{ secrets.PRICE_API_BASE_URL }}
     steps:
       - name: Checkout and setup environment
         uses: MetaMask/action-checkout-and-setup@v1

@@ -28,3 +28,25 @@ export async function batchesAllSettled<TItem, TResult>(
 
   return results;
 }
+
+/**
+ * Splits items into chunks of a given size.
+ *
+ * @param items - Input items; order is preserved in the returned chunks.
+ * @param chunkSize - Size of each chunk (must be ≥ 1).
+ * @returns An array of chunks, each containing `chunkSize` items.
+ */
+export function chunks<TItem>(
+  items: readonly TItem[],
+  chunkSize: number,
+): TItem[][] {
+  if (chunkSize < 1) {
+    throw new RangeError('chunkSize must be at least 1');
+  }
+
+  const itemsChunks: TItem[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    itemsChunks.push(items.slice(index, index + chunkSize));
+  }
+  return itemsChunks;
+}
