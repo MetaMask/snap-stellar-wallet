@@ -17,9 +17,62 @@ import {
   UnsupportedMethodError,
   UserRejectedRequestError,
 } from '@metamask/snaps-sdk';
+import { getErrorMessage, isObject } from '@metamask/utils';
 
 import type { ILogger } from './logger';
 import { logger as defaultLogger } from './logger';
+
+/**
+ * Builds a single diagnostic string for errors from `snap.request` / keyring handlers.
+ * JSON-RPC failures often use the generic message `"Unknown error"` while `code` and
+ * `data` contain the real detail returned by MetaMask.
+ *
+ * @param error - The thrown value.
+ * @returns A string safe to embed in a thrown `Error` message.
+ */
+export function formatKeyringHandlerError(error: unknown): string {
+  const segments: string[] = [];
+
+  const message = getErrorMessage(error);
+  if (message) {
+    segments.push(message);
+  }
+
+  if (isObject(error)) {
+    const record = error as Record<string, unknown>;
+    if (typeof record.code === 'number') {
+      segments.push(`code=${String(record.code)}`);
+    }
+    if (record.data !== undefined && record.data !== null) {
+      try {
+        segments.push(`data=${JSON.stringify(record.data)}`);
+      } catch {
+        segments.push('data=<unserializable>');
+      }
+    }
+  }
+
+  const joined = segments.join(' | ');
+
+  if (joined.length > 0 && joined !== 'Unknown error') {
+    return joined;
+  }
+
+  if (segments.length > 1) {
+    return joined;
+  }
+
+  try {
+    const asJson = JSON.stringify(error);
+    if (asJson !== undefined && asJson !== '{}') {
+      return asJson;
+    }
+  } catch {
+    // Ignore JSON failures for exotic values.
+  }
+
+  return joined.length > 0 ? joined : String(error);
+}
 
 /**
  * Sanitizes error messages that may contain sensitive cryptographic information.

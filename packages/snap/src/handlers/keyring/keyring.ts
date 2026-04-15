@@ -18,11 +18,7 @@ import {
   handleKeyringRequest,
 } from '@metamask/keyring-snap-sdk';
 import { type Json, type JsonRpcRequest } from '@metamask/snaps-sdk';
-import {
-  ensureError,
-  type CaipAssetType,
-  type CaipAssetTypeOrId,
-} from '@metamask/utils';
+import type { CaipAssetType, CaipAssetTypeOrId } from '@metamask/utils';
 
 import type {
   CreateAccountOptions,
@@ -51,6 +47,7 @@ import type { TransactionService } from '../../services/transaction/TransactionS
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
+  formatKeyringHandlerError,
   getSnapProvider,
   validateOrigin,
   validateRequest,
@@ -103,7 +100,9 @@ export class KeyringHandler implements Keyring {
       const accounts = await this.#accountService.listAccounts();
       return accounts.map((account) => this.#toKeyringAccount(account));
     } catch (error: unknown) {
-      throw new Error(`Error listing accounts: ${ensureError(error).message}`);
+      throw new Error(
+        `Error listing accounts: ${formatKeyringHandlerError(error)}`,
+      );
     }
   }
 
@@ -116,7 +115,9 @@ export class KeyringHandler implements Keyring {
       const account = await this.#accountService.findById(accountId);
       return account ? this.#toKeyringAccount(account) : undefined;
     } catch (error: unknown) {
-      throw new Error(`Error getting account: ${ensureError(error).message}`);
+      throw new Error(
+        `Error getting account: ${formatKeyringHandlerError(error)}`,
+      );
     }
   }
 
@@ -132,7 +133,10 @@ export class KeyringHandler implements Keyring {
 
       return this.#toKeyringAccount(account);
     } catch (error: unknown) {
-      throw new Error(`Error creating account: ${ensureError(error).message}`);
+      this.#logger.logErrorWithDetails('createAccount failed', error);
+      throw new Error(
+        `Error creating account: ${formatKeyringHandlerError(error)}`,
+      );
     }
   }
 
@@ -165,8 +169,13 @@ export class KeyringHandler implements Keyring {
       /**
        * Internal options to MetaMask that include a correlation ID. We need
        * to also emit this ID to the Snap keyring.
+       * Must be nested under `metamask` (keyring API). Do not spread
+       * `options.metamask` onto params or `correlationId` ends up at
+       * `params.correlationId` and fails validation (`never`).
        */
-      ...(options?.metamask ?? {}),
+      ...(options?.metamask?.correlationId !== undefined
+        ? { metamask: { correlationId: options.metamask.correlationId } }
+        : {}),
     });
   }
 
@@ -239,7 +248,7 @@ export class KeyringHandler implements Keyring {
         error,
       );
       throw new Error(
-        `Error listing account transactions: ${ensureError(error).message}`,
+        `Error listing account transactions: ${formatKeyringHandlerError(error)}`,
       );
     }
   }
@@ -281,7 +290,7 @@ export class KeyringHandler implements Keyring {
       ];
     } catch (error: unknown) {
       throw new Error(
-        `Error discovering accounts: ${ensureError(error).message}`,
+        `Error discovering accounts: ${formatKeyringHandlerError(error)}`,
       );
     }
   }
@@ -313,7 +322,7 @@ export class KeyringHandler implements Keyring {
       return { address: `${scope}:${account.address}` };
     } catch (error: unknown) {
       throw new Error(
-        `Error resolving account address: ${ensureError(error).message}`,
+        `Error resolving account address: ${formatKeyringHandlerError(error)}`,
       );
     }
   }
@@ -344,7 +353,9 @@ export class KeyringHandler implements Keyring {
 
       await this.#accountService.delete(accountId);
     } catch (error: unknown) {
-      throw new Error(`Error deleting account: ${ensureError(error).message}`);
+      throw new Error(
+        `Error deleting account: ${formatKeyringHandlerError(error)}`,
+      );
     }
   }
 

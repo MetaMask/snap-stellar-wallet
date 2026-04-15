@@ -19,6 +19,7 @@ import {
 } from '@metamask/snaps-sdk';
 
 import {
+  formatKeyringHandlerError,
   withCatchAndThrowSnapError,
   isSnapRpcError,
   sanitizeSensitiveError,
@@ -32,6 +33,26 @@ describe('errors', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('formatKeyringHandlerError', () => {
+    it('includes JSON-RPC code and data when message is generic', () => {
+      const err = {
+        message: 'Unknown error',
+        code: -32603,
+        data: { reason: 'assertAccountCanBeUsed failed' },
+      };
+
+      expect(formatKeyringHandlerError(err)).toBe(
+        'Unknown error | code=-32603 | data={"reason":"assertAccountCanBeUsed failed"}',
+      );
+    });
+
+    it('returns the message for a normal Error', () => {
+      expect(formatKeyringHandlerError(new Error('Something broke'))).toBe(
+        'Something broke',
+      );
+    });
   });
 
   describe('withCatchAndThrowSnapError', () => {
