@@ -174,39 +174,53 @@ export const ConfirmSignTransaction = ({
               <SnapText>{getNetworkName(scope)}</SnapText>
             </Box>
           </Box>
+          <Box alignment="space-between" direction="horizontal">
+            <SnapText fontWeight="medium" color="alternative">
+              {t('confirmation.transactionFee')}
+            </SnapText>
+            <SnapText>{readableTransaction.feeStroops} stroops</SnapText>
+          </Box>
         </Section>
 
         <Section>
-          {[...readableTransaction.operations]
-            .slice(0, 2)
-            .map((operationJson, index) => (
-              <Box alignment="space-between" direction="vertical">
-                <Heading>
-                  {t(
-                    `confirmation.transaction.${operationJson.type.toLowerCase()}` as LocalizedMessage,
-                  )}
-                </Heading>
-                {operationJson.params.map((param) =>
-                  isNullOrUndefined(param.value) ? null : (
-                    <Box alignment="space-between" direction="horizontal">
-                      <SnapText fontWeight="medium" color="alternative">
-                        {t(
-                          `confirmation.transaction.param.${param.key}` as LocalizedMessage,
-                        )}
-                      </SnapText>
-                      <RenderReadableParamValue
-                        type={param.type}
-                        value={param.value}
-                        scope={scope}
-                      />
-                    </Box>
-                  ),
+          {readableTransaction.operations.map((operationJson, index) => (
+            <Box alignment="space-between" direction="vertical">
+              <Heading>
+                {t(
+                  `confirmation.transaction.${operationJson.type.toLowerCase()}` as LocalizedMessage,
                 )}
+              </Heading>
+              {[
+                ...(operationJson.explicitSource
+                  ? [
+                      {
+                        key: 'source',
+                        value: operationJson.explicitSource as Json,
+                        type: 'address' as const,
+                      },
+                    ]
+                  : []),
+                ...operationJson.params,
+              ]
+                .filter((param) => !isNullOrUndefined(param.value))
+                .map((param) => (
+                  <Box alignment="space-between" direction="horizontal">
+                    <SnapText fontWeight="medium" color="alternative">
+                      {t(
+                        `confirmation.transaction.param.${param.key}` as LocalizedMessage,
+                      )}
+                    </SnapText>
+                    <RenderReadableParamValue
+                      type={param.type}
+                      value={param.value}
+                      scope={scope}
+                    />
+                  </Box>
+                ))}
 
-                {index < operationJson.params.length - 1 && <Divider />}
-              </Box>
-            ))}
-          <Button name="view-more">View More</Button>
+              {index < readableTransaction.operations.length - 1 && <Divider />}
+            </Box>
+          ))}
         </Section>
       </Box>
       <Footer>

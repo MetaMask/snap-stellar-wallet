@@ -313,6 +313,9 @@
     "confirmation.transaction.param.startingBalance": {
       "message": "Starting balance"
     },
+    "confirmation.transaction.param.source": {
+      "message": "Source"
+    },
     "confirmation.transaction.param.trustor": {
       "message": "Trustor"
     },
