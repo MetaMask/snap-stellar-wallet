@@ -50,7 +50,7 @@ export class PriceService {
       vsCurrency = 'usd',
     }: {
       assetIds: KnownCaip19AssetIdOrSlip44Id[];
-      vsCurrency: VsCurrencyParam | string;
+      vsCurrency?: VsCurrencyParam | string;
     },
     refreshCache: boolean = false,
   ): Promise<Partial<SpotPrices>> {

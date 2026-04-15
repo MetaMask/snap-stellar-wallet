@@ -40,6 +40,10 @@ export function chunks<TItem>(
   items: readonly TItem[],
   chunkSize: number,
 ): TItem[][] {
+  if (chunkSize < 1) {
+    throw new RangeError('chunkSize must be at least 1');
+  }
+
   const itemsChunks: TItem[][] = [];
   for (let index = 0; index < items.length; index += chunkSize) {
     itemsChunks.push(items.slice(index, index + chunkSize));

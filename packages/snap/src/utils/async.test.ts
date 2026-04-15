@@ -91,4 +91,9 @@ describe('chunks', () => {
       ['j'],
     ]);
   });
+
+  it('throws when chunkSize is less than 1', () => {
+    const run = () => chunks(['a', 'b', 'c'], 0);
+    expect(run).toThrow(RangeError);
+  });
 });

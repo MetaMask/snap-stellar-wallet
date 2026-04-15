@@ -13,10 +13,10 @@ import type { Serializable } from '../../utils/serialization';
 export class InMemoryCache implements ICache<Serializable> {
   readonly #cache: Map<string, CacheEntry> = new Map();
 
-  public readonly logger: ILogger;
+  readonly #logger: ILogger;
 
   constructor(logger: ILogger) {
-    this.logger = logger;
+    this.#logger = logger;
   }
 
   #validateTtlOrThrow(ttlMilliseconds?: number): void {
@@ -129,12 +129,12 @@ export class InMemoryCache implements ICache<Serializable> {
     for (const key of keys) {
       const cacheEntry = this.#cache.get(key);
       if (!cacheEntry) {
-        this.logger.info(`[InMemoryCache] ❌ Cache miss for key "${key}"`);
+        this.#logger.info(`[InMemoryCache] ❌ Cache miss for key "${key}"`);
         result[key] = undefined;
         continue;
       }
 
-      this.logger.info(`[InMemoryCache] 🎉 Cache hit for key "${key}"`);
+      this.#logger.info(`[InMemoryCache] 🎉 Cache hit for key "${key}"`);
       result[key] = cacheEntry.value;
     }
 

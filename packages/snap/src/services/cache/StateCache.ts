@@ -50,7 +50,8 @@ export type StateValue = {
  * @example
  * ```ts
  * const state = new State({}); // Here we use the real snap's state
- * const cache = new StateCache(state, '__cache__my-prefix');
+ * const logger = createPrefixedLogger(console, '[💾 StateCache]');
+ * const cache = new StateCache(state, logger, '__cache__my-prefix');
  *
  * // state looks like this:
  * // {
@@ -74,7 +75,7 @@ export class StateCache implements ICache<Serializable | undefined> {
 
   public readonly prefix: CachePrefix;
 
-  public readonly logger: ILogger;
+  readonly #logger: ILogger;
 
   constructor(
     state: IStateManager<StateValue>,
@@ -82,7 +83,7 @@ export class StateCache implements ICache<Serializable | undefined> {
     prefix: CachePrefix = '__cache__default',
   ) {
     this.#state = state;
-    this.logger = createPrefixedLogger(logger, '[💾 StateCache]');
+    this.#logger = createPrefixedLogger(logger, '[💾 StateCache]');
     this.prefix = prefix;
   }
 
@@ -184,16 +185,16 @@ export class StateCache implements ICache<Serializable | undefined> {
     // First, handle keys that exist in the cache
     keysAndValues.forEach(([key, cacheEntry]) => {
       if (cacheEntry === undefined) {
-        this.logger.info(`[StateCache] ❌ Cache miss for key "${key}"`);
+        this.#logger.info(`[StateCache] ❌ Cache miss for key "${key}"`);
         result[key] = undefined;
         return;
       }
 
       if (cacheEntry.expiresAt < Date.now()) {
-        this.logger.info(`[StateCache] ⌛ Cache expired for key "${key}"`);
+        this.#logger.info(`[StateCache] ⌛ Cache expired for key "${key}"`);
         result[key] = undefined;
       } else {
-        this.logger.info(`[StateCache] 🎉 Cache hit for key "${key}"`);
+        this.#logger.info(`[StateCache] 🎉 Cache hit for key "${key}"`);
         result[key] = cacheEntry.value;
       }
     });
@@ -201,7 +202,7 @@ export class StateCache implements ICache<Serializable | undefined> {
     // Then, handle keys that don't exist in the cache
     keys.forEach((key) => {
       if (!(key in result)) {
-        this.logger.info(`[StateCache] ❌ Cache miss for key "${key}"`);
+        this.#logger.info(`[StateCache] ❌ Cache miss for key "${key}"`);
         result[key] = undefined;
       }
     });

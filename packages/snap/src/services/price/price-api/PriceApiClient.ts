@@ -86,7 +86,8 @@ export class PriceApiClient {
    * @param assetIds - The asset IDs to get the spot prices for.
    * @param vsCurrency - The currency to convert the prices to.
    * @returns A promise that resolves to the spot prices for the asset IDs.
-   * @throws {PriceApiException} If the spot prices cannot be fetched.
+   * @throws {PriceApiException} When spot price aggregation fails unexpectedly.
+   * Failed batches are omitted from the result (logged) rather than thrown.
    */
   async getSpotPrices(
     assetIds: CaipAssetType[],
