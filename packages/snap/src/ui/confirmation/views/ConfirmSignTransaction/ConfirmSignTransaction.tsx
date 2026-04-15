@@ -180,6 +180,14 @@ export const ConfirmSignTransaction = ({
             </SnapText>
             <SnapText>{readableTransaction.feeStroops} stroops</SnapText>
           </Box>
+          {[readableTransaction.memo].filter(Boolean).map((memo) => (
+            <Box alignment="space-between" direction="horizontal">
+              <SnapText fontWeight="medium" color="alternative">
+                {t('confirmation.memo' as LocalizedMessage)}
+              </SnapText>
+              <SnapText>{memo}</SnapText>
+            </Box>
+          ))}
         </Section>
 
         <Section>

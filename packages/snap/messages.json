@@ -50,6 +50,9 @@
   "confirmation.account": {
     "message": "Account"
   },
+  "confirmation.memo": {
+    "message": "Memo"
+  },
   "confirmation.signTransaction.title": {
     "message": "Sign transaction"
   },
@@ -200,6 +203,9 @@
   "confirmation.transaction.param.clearFlags": {
     "message": "Clear flags"
   },
+  "confirmation.transaction.param.contractId": {
+    "message": "Contract ID"
+  },
   "confirmation.transaction.param.destAmount": {
     "message": "Destination amount"
   },
@@ -217,6 +223,12 @@
   },
   "confirmation.transaction.param.flags": {
     "message": "Flags"
+  },
+  "confirmation.transaction.param.functionName": {
+    "message": "Function"
+  },
+  "confirmation.transaction.param.arguments": {
+    "message": "Arguments"
   },
   "confirmation.transaction.param.from": {
     "message": "From"
