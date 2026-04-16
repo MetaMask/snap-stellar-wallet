@@ -1,3 +1,5 @@
+import { XlmAccountType } from '@metamask/keyring-api';
+
 /**
  * The base reserve for the Stellar network.
  *
@@ -66,6 +68,5 @@ export const MAX_INT64_BALANCE = '9223372036854775807';
 
 /**
  * The type for the keyring account.
- * TODO: Replace with the actual account type.
  */
-export const KEYRING_ACCOUNT_TYPE = 'any:account';
+export const KEYRING_ACCOUNT_TYPE = XlmAccountType.Account;

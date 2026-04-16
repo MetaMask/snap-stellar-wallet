@@ -165,8 +165,13 @@ export class KeyringHandler implements Keyring {
       /**
        * Internal options to MetaMask that include a correlation ID. We need
        * to also emit this ID to the Snap keyring.
+       * Must be nested under `metamask` (keyring API). Do not spread
+       * `options.metamask` onto params or `correlationId` ends up at
+       * `params.correlationId` and fails validation (`never`).
        */
-      ...(options?.metamask ?? {}),
+      ...(options?.metamask?.correlationId !== undefined
+        ? { metamask: { correlationId: options.metamask.correlationId } }
+        : {}),
     });
   }
 
