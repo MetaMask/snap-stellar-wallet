@@ -212,25 +212,29 @@ export const ConfirmSignTransaction = ({
                 ...operationJson.params,
               ]
                 .filter((param) => !isNullOrUndefined(param.value))
-                .map((param) => (
-                  <Box
-                    alignment="space-between"
-                    direction={
-                      param.type === 'json' ? 'vertical' : 'horizontal'
-                    }
-                  >
-                    <SnapText fontWeight="medium" color="alternative">
-                      {t(
-                        `confirmation.transaction.param.${param.key}` as LocalizedMessage,
-                      )}
-                    </SnapText>
-                    <RenderReadableParamValue
-                      type={param.type}
-                      value={param.value}
-                      scope={scope}
-                    />
-                  </Box>
-                ))}
+                .map((param) => {
+                  const useVertical =
+                    param.type === 'json' ||
+                    (typeof param.value === 'string' &&
+                      param.value.length > 40);
+                  return (
+                    <Box
+                      alignment="space-between"
+                      direction={useVertical ? 'vertical' : 'horizontal'}
+                    >
+                      <SnapText fontWeight="medium" color="alternative">
+                        {t(
+                          `confirmation.transaction.param.${param.key}` as LocalizedMessage,
+                        )}
+                      </SnapText>
+                      <RenderReadableParamValue
+                        type={param.type}
+                        value={param.value}
+                        scope={scope}
+                      />
+                    </Box>
+                  );
+                })}
 
               {index < readableTransaction.operations.length - 1 && <Divider />}
             </Box>
