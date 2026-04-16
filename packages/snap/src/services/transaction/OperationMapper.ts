@@ -207,20 +207,6 @@ export class OperationMapper {
           ),
         );
       }
-      try {
-        if (typeof hostOp.func?.toXDR === 'function') {
-          const raw = hostOp.func.toXDR();
-          rows.push(
-            this.#field(
-              'hostFunctionXdrBase64',
-              raw.toString('base64'),
-              'text',
-            ),
-          );
-        }
-      } catch {
-        // XDR serialization failed; skip
-      }
       return rows;
     }
     if (operation.type === 'extendFootprintTtl') {
@@ -410,9 +396,49 @@ export class OperationMapper {
           rows.push(this.#field('homeDomain', setOptions.homeDomain, 'text'));
         }
         if ('signer' in setOptions && setOptions.signer !== undefined) {
-          rows.push(
-            this.#field('signer', JSON.stringify(setOptions.signer), 'text'),
-          );
+          // SDK Signer is a union of disjoint interfaces; cast to Record for key-based branching.
+          const signer = setOptions.signer as unknown as Record<
+            string,
+            unknown
+          >;
+          if ('ed25519PublicKey' in signer) {
+            rows.push(
+              this.#field(
+                'signerEd25519',
+                signer.ed25519PublicKey as string,
+                'address',
+              ),
+            );
+          } else if ('sha256Hash' in signer) {
+            rows.push(
+              this.#field(
+                'signerSha256Hash',
+                bufferToUint8Array(signer.sha256Hash as Buffer).toString('hex'),
+                'text',
+              ),
+            );
+          } else if ('preAuthTx' in signer) {
+            rows.push(
+              this.#field(
+                'signerPreAuthTx',
+                bufferToUint8Array(signer.preAuthTx as Buffer).toString('hex'),
+                'text',
+              ),
+            );
+          } else if ('ed25519SignedPayload' in signer) {
+            rows.push(
+              this.#field(
+                'signerSignedPayload',
+                signer.ed25519SignedPayload as string,
+                'text',
+              ),
+            );
+          }
+          if (signer.weight !== undefined) {
+            rows.push(
+              this.#field('signerWeight', Number(signer.weight), 'number'),
+            );
+          }
         }
         return rows;
       }

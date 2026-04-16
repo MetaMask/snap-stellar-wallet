@@ -105,13 +105,14 @@ const RenderReadableParamValue = (params: {
       return <AmountRow amount={value as string} />;
     case 'asset':
       return <AssetRow asset={value as string} />;
+    case 'json':
+      return <SnapText>{JSON.stringify(value, null, 2)}</SnapText>;
     default:
       if (Array.isArray(value)) {
-        // We only have string arrays in the params, so we can safely join them.
         // eslint-disable-next-line @typescript-eslint/no-base-to-string
         return <SnapText>{value.join(', ')}</SnapText>;
       } else if (typeof value === 'object') {
-        return <SnapText>{JSON.stringify(value)}</SnapText>;
+        return <SnapText>{JSON.stringify(value, null, 2)}</SnapText>;
       }
       return <SnapText>{String(value)}</SnapText>;
   }
@@ -212,7 +213,12 @@ export const ConfirmSignTransaction = ({
               ]
                 .filter((param) => !isNullOrUndefined(param.value))
                 .map((param) => (
-                  <Box alignment="space-between" direction="horizontal">
+                  <Box
+                    alignment="space-between"
+                    direction={
+                      param.type === 'json' ? 'vertical' : 'horizontal'
+                    }
+                  >
                     <SnapText fontWeight="medium" color="alternative">
                       {t(
                         `confirmation.transaction.param.${param.key}` as LocalizedMessage,

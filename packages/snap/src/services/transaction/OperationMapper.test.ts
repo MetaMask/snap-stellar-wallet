@@ -189,6 +189,37 @@ describe('OperationMapper', () => {
     ]);
   });
 
+  it('maps setOptions with ed25519PublicKey signer to address row', () => {
+    const signerKey = Keypair.random().publicKey();
+    const wrapped = buildRawOpTransaction(
+      Operation.setOptions({
+        signer: { ed25519PublicKey: signerKey, weight: 1 },
+      }),
+    );
+    const [op] = mapper.mapTransaction(wrapped).operations;
+
+    expect(op?.params).toStrictEqual([
+      { key: 'signerEd25519', value: signerKey, type: 'address' },
+      { key: 'signerWeight', value: 1, type: 'number' },
+    ]);
+  });
+
+  it('maps setOptions with sha256Hash signer to hex text row', () => {
+    // eslint-disable-next-line no-restricted-globals -- SDK requires Buffer for sha256Hash
+    const hashBuf = Buffer.alloc(32, 0xab);
+    const wrapped = buildRawOpTransaction(
+      Operation.setOptions({
+        signer: { sha256Hash: hashBuf, weight: 2 },
+      }),
+    );
+    const [op] = mapper.mapTransaction(wrapped).operations;
+
+    expect(op?.params).toStrictEqual([
+      { key: 'signerSha256Hash', value: hashBuf.toString('hex'), type: 'text' },
+      { key: 'signerWeight', value: 2, type: 'number' },
+    ]);
+  });
+
   it('maps accountMerge operation', () => {
     const dest = Keypair.random().publicKey();
     const wrapped = buildRawOpTransaction(
@@ -579,7 +610,7 @@ describe('OperationMapper', () => {
     expect(keys).toContain('contractId');
     expect(keys).toContain('functionName');
     expect(keys).toContain('arguments');
-    expect(keys).toContain('hostFunctionXdrBase64');
+    expect(keys).not.toContain('hostFunctionXdrBase64');
 
     const fnRow = op?.params.find((param) => param.key === 'functionName');
     expect(fnRow?.value).toBe('transfer');
