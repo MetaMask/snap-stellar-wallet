@@ -42,6 +42,7 @@ import {
   KeyringCreateAccountException,
   KeyringDeleteAccountException,
   KeyringDiscoverAccountsException,
+  KeyringEmitAccountCreatedEventException,
   KeyringGetAccountBalancesException,
   KeyringGetAccountException,
   KeyringListAccountAssetsException,
@@ -65,12 +66,15 @@ import type { TransactionService } from '../../services/transaction/TransactionS
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
+  getSlip44AssetId,
   getSnapProvider,
+  isSnapRpcError,
   rethrowIfInstanceElseThrow,
   validateOrigin,
   validateRequest,
   withCatchAndThrowSnapError,
 } from '../../utils';
+import { NATIVE_ASSET_SYMBOL } from '../../constants';
 
 export class KeyringHandler implements Keyring {
   readonly #logger: ILogger;
@@ -183,28 +187,36 @@ export class KeyringHandler implements Keyring {
   ): Promise<void> {
     const keyringAccount = this.#toKeyringAccount(account);
 
-    await emitSnapKeyringEvent(getSnapProvider(), KeyringEvent.AccountCreated, {
-      /**
-       * We can't pass the `keyringAccount` object because it contains the index
-       * and the Snaps SDK does not allow extra properties.
-       */
-      account: keyringAccount,
-      /**
-       * Skip account creation confirmation dialogs to make it look like a native
-       * account creation flow.
-       */
-      displayConfirmation: false,
-      /**
-       * Internal options to MetaMask that include a correlation ID. We need
-       * to also emit this ID to the Snap keyring.
-       * Must be nested under `metamask` (keyring API). Do not spread
-       * `options.metamask` onto params or `correlationId` ends up at
-       * `params.correlationId` and fails validation (`never`).
-       */
-      ...(options?.metamask?.correlationId === undefined
-        ? {}
-        : { metamask: { correlationId: options.metamask.correlationId } }),
-    });
+    try {
+      await emitSnapKeyringEvent(getSnapProvider(), KeyringEvent.AccountCreated, {
+        /**
+         * We can't pass the `keyringAccount` object because it contains the index
+         * and the Snaps SDK does not allow extra properties.
+         */
+        account: keyringAccount,
+        /**
+         * Skip account creation confirmation dialogs to make it look like a native
+         * account creation flow.
+         */
+        displayConfirmation: false,
+        /**
+         * Internal options to MetaMask that include a correlation ID. We need
+         * to also emit this ID to the Snap keyring.
+         * Must be nested under `metamask` (keyring API). Do not spread
+         * `options.metamask` onto params or `correlationId` ends up at
+         * `params.correlationId` and fails validation (`never`).
+         */
+        ...(options?.metamask?.correlationId === undefined
+          ? {}
+          : { metamask: { correlationId: options.metamask.correlationId } }),
+      });
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails(
+        'Failed to emit account created event',
+        error,
+      );
+      throw new KeyringEmitAccountCreatedEventException();
+    }
   }
 
   #toKeyringAccount(account: StellarKeyringAccount): KeyringAccount {
@@ -221,7 +233,6 @@ export class KeyringHandler implements Keyring {
 
   async listAccountAssets(accountId: string): Promise<CaipAssetTypeOrId[]> {
     validateRequest(accountId, ListAccountAssetsRequestStruct);
-
     try {
       const { account } = await this.#accountService.resolveAccount({
         accountId,
@@ -236,9 +247,12 @@ export class KeyringHandler implements Keyring {
 
       return onChainAccount.assetIds;
     } catch (error: unknown) {
-      // fallback to empty array if the account is not activated
+      // fallback to single native asset if the account is not activated`
       if (error instanceof AccountNotActivatedException) {
-        return [];
+        const slip44AssetId = getSlip44AssetId(AppConfig.selectedNetwork);
+        return [
+          slip44AssetId,
+        ];
       }
       this.#logger.logErrorWithDetails(
         'Failed to list account assets',
@@ -364,6 +378,8 @@ export class KeyringHandler implements Keyring {
     assets: KnownCaip19AssetIdOrSlip44Id[],
   ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, Balance>> {
     validateRequest({ accountId, assets }, GetAccountBalancesRequestStruct);
+    const slip44AssetId = getSlip44AssetId(AppConfig.selectedNetwork);
+
     try {
       const { account } = await this.#accountService.resolveAccount({
         accountId,
@@ -381,12 +397,12 @@ export class KeyringHandler implements Keyring {
           AppConfig.selectedNetwork,
         );
 
+      const nativeAsset = onChainAccount.getAsset(slip44AssetId);
       return onChainAccount.assetIds.reduce(
         (acc, assetId) => {
           const assetMetadata = assetsMetadata[assetId];
-          // TODO: Stellar may also need to return balance for assets with zero balance,
-          // it may depends on if it is SEP-41 asset or Classic asset.
-          if (assetMetadata && onChainAccount.getAsset(assetId).balance.gt(0)) {
+          // We dont filter by balance here because a asset is bind with trustline in Stellar Account.
+          if (assetMetadata) {
             acc[assetId] = {
               unit: assetMetadata.symbol ?? '',
               amount: onChainAccount.getAsset(assetId).balance.toString(),
@@ -394,12 +410,22 @@ export class KeyringHandler implements Keyring {
           }
           return acc;
         },
-        {} as Record<KnownCaip19AssetIdOrSlip44Id, Balance>,
+        {
+          [slip44AssetId]: {
+            unit: nativeAsset.symbol,
+            amount: nativeAsset.balance.toString(),
+          },
+        } as Record<KnownCaip19AssetIdOrSlip44Id, Balance>,
       );
     } catch (error: unknown) {
       if (error instanceof AccountNotActivatedException) {
         // fallback to empty object if the account is not activated
-        return {} as Record<KnownCaip19AssetIdOrSlip44Id, Balance>;
+        return {
+          [slip44AssetId]: {
+            unit: NATIVE_ASSET_SYMBOL,
+            amount: '0',
+          },
+        } as Record<KnownCaip19AssetIdOrSlip44Id, Balance>;
       }
       this.#logger.logErrorWithDetails(
         'Failed to get account balances',

@@ -66,3 +66,9 @@ export class KeyringDeleteAccountException extends KeyringException {
     super(`Failed to delete account for account ${accountId}`);
   }
 }
+
+export class KeyringEmitAccountCreatedEventException extends KeyringException {
+  constructor() {
+    super('Failed to emit account created event');
+  }
+}
