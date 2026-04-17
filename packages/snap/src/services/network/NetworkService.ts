@@ -46,6 +46,7 @@ import {
   parseClassicAssetCodeIssuer,
   toCaip19ClassicAssetId,
   toCaip19Sep41AssetId,
+  rethrowIfInstanceElseThrow,
 } from '../../utils';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
@@ -143,10 +144,11 @@ export class NetworkService {
       throw new TransactionPollException(transactionHash, result.status, scope);
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to poll transaction', error);
-      if (error instanceof TransactionPollException) {
-        throw error;
-      }
-      throw new TransactionPollException(transactionHash, 'unknown', scope);
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TransactionPollException],
+        new TransactionPollException(transactionHash, 'unknown', scope),
+      );
     }
   }
 
@@ -326,13 +328,15 @@ export class NetworkService {
         decimals: STELLAR_DECIMAL_PLACES,
         name: assetCode,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       this.#logger.logErrorWithDetails(
         'Failed to get assets data from Horizon',
         error,
       );
-      throw new NetworkServiceException(
-        'Failed to get assets data from Horizon',
+      return rethrowIfInstanceElseThrow(
+        error,
+        [AssetDataFetchException],
+        new NetworkServiceException('Failed to get assets data from Horizon'),
       );
     }
   }
@@ -399,13 +403,11 @@ export class NetworkService {
         'Failed to load SEP-41 token balance',
         error,
       );
-      if (
-        error instanceof SimulationException ||
-        error instanceof NetworkServiceException
-      ) {
-        throw error;
-      }
-      throw new NetworkServiceException('Failed to load SEP-41 token balance');
+      return rethrowIfInstanceElseThrow(
+        error,
+        [NetworkServiceException],
+        new NetworkServiceException('Failed to load SEP-41 token balance'),
+      );
     }
   }
 
@@ -496,10 +498,11 @@ export class NetworkService {
       return executedTransaction.hash;
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to send transaction', error);
-      if (error instanceof NetworkServiceException) {
-        throw error;
-      }
-      throw new TransactionSendException(scope, 'unknown');
+      return rethrowIfInstanceElseThrow(
+        error,
+        [NetworkServiceException],
+        new TransactionSendException(scope, 'unknown'),
+      );
     }
   }
 
@@ -545,15 +548,12 @@ export class NetworkService {
       return new Transaction(simulatedTransaction.build());
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to simulate transaction', error);
-      if (
-        error instanceof NetworkServiceException ||
-        error instanceof SimulationException
-      ) {
-        throw error;
-      }
-
-      throw new SimulationException(
-        error instanceof Error ? error.message : 'Unknown error',
+      return rethrowIfInstanceElseThrow(
+        error,
+        [NetworkServiceException],
+        new SimulationException(
+          error instanceof Error ? error.message : 'Unknown error',
+        ),
       );
     }
   }
