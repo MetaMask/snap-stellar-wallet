@@ -442,17 +442,12 @@ describe('OperationMapper', () => {
     expect(op?.type).toBe('createClaimableBalance');
     expect(op?.params[0]).toStrictEqual({
       key: 'asset',
-      value: 'native',
-      type: 'asset',
+      value: ['native', '50.0000000'],
+      type: 'assetWithAmount',
     });
-    expect(op?.params[1]).toStrictEqual({
-      key: 'amount',
-      value: '50.0000000',
-      type: 'amount',
-    });
-    expect(op?.params[2]?.key).toBe('claimants');
-    expect(op?.params[2]?.type).toBe('json');
-    const claimants = op?.params[2]?.value as {
+    expect(op?.params[1]?.key).toBe('claimants');
+    expect(op?.params[1]?.type).toBe('json');
+    const claimants = op?.params[1]?.value as {
       destination: string;
       predicate: string;
     }[];
@@ -512,8 +507,11 @@ describe('OperationMapper', () => {
 
     expect(op?.type).toBe('clawback');
     expect(op?.params).toStrictEqual([
-      { key: 'asset', value: `USD:${issuer}`, type: 'asset' },
-      { key: 'amount', value: '100.0000000', type: 'amount' },
+      {
+        key: 'asset',
+        value: [`USD:${issuer}`, '100.0000000'],
+        type: 'assetWithAmount',
+      },
       { key: 'from', value: from, type: 'address' },
     ]);
   });

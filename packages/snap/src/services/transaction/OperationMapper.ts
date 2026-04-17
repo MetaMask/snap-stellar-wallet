@@ -480,8 +480,11 @@ export class OperationMapper {
       case 'createClaimableBalance': {
         const createCb = operation;
         return [
-          this.#field('asset', createCb.asset.toString(), 'asset'),
-          this.#field('amount', createCb.amount, 'amount'),
+          this.#field(
+            'asset',
+            [createCb.asset.toString(), createCb.amount],
+            'assetWithAmount',
+          ),
           this.#field(
             'claimants',
             createCb.claimants.map((claimant) => ({
@@ -509,8 +512,11 @@ export class OperationMapper {
       case 'clawback': {
         const clawback = operation;
         return [
-          this.#field('asset', clawback.asset.toString(), 'asset'),
-          this.#field('amount', clawback.amount, 'amount'),
+          this.#field(
+            'asset',
+            [clawback.asset.toString(), clawback.amount],
+            'assetWithAmount',
+          ),
           this.#field('from', clawback.from, 'address'),
         ];
       }
