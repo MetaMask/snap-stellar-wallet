@@ -233,14 +233,10 @@ export class AssetMetadataService {
       // there is no other asset type that is not SEP-41 or classic
     }
 
-    const sepTokenAssets = await this.#fetchSepTokenAssets(
-      missingSep41AssetIds,
-      scope,
-    );
-    const classicTokenAssets = await this.#fetchClassicTokenAssets(
-      missingClassicAssetIds,
-      scope,
-    );
+    const [sepTokenAssets, classicTokenAssets] = await Promise.all([
+      this.#fetchSepTokenAssets(missingSep41AssetIds, scope),
+      this.#fetchClassicTokenAssets(missingClassicAssetIds, scope),
+    ]);
     return [...apiTokenAssets, ...sepTokenAssets, ...classicTokenAssets];
   }
 
