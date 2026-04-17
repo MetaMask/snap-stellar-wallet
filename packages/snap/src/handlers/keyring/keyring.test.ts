@@ -302,7 +302,8 @@ describe('KeyringHandler', () => {
       expect(result).toStrictEqual([slipId]);
     });
 
-    it('returns empty array when the account is not activated on-chain', async () => {
+    it('returns native asset id when the account is not activated on-chain', async () => {
+      const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       jest
@@ -316,7 +317,7 @@ describe('KeyringHandler', () => {
 
       const result = await keyringHandler.listAccountAssets(mockAccountId);
 
-      expect(result).toStrictEqual([]);
+      expect(result).toStrictEqual([slipId]);
     });
 
     it('throws when listing assets fails for another reason', async () => {
@@ -501,7 +502,7 @@ describe('KeyringHandler', () => {
       });
     });
 
-    it('returns empty record when the account is not activated on-chain', async () => {
+    it('returns zero native balance when the account is not activated on-chain', async () => {
       const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
@@ -518,7 +519,9 @@ describe('KeyringHandler', () => {
         slipId,
       ]);
 
-      expect(result).toStrictEqual({});
+      expect(result).toStrictEqual({
+        [slipId]: { unit: 'XLM', amount: '0' },
+      });
     });
 
     it('throws when balance resolution fails for another reason', async () => {
