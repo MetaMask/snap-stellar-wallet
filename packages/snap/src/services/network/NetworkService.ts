@@ -31,9 +31,14 @@ import {
   isAccountNotFoundError,
   parseScValToNative,
 } from './utils';
-import type { KnownCaip19Sep41AssetId, KnownCaip2ChainId } from '../../api';
+import type {
+  KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
+  KnownCaip2ChainId,
+} from '../../api';
 import type { NetworkConfig } from '../../config';
 import { AppConfig } from '../../config';
+import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { ILogger } from '../../utils';
 import {
   isSameStr,
@@ -191,7 +196,8 @@ export class NetworkService {
   ): Promise<OnChainAccount> {
     try {
       const client = this.#getRpcClient(scope);
-      return new OnChainAccount(await client.getAccount(accountAddress), scope);
+      const loaded = await client.getAccount(accountAddress);
+      return new OnChainAccount(loaded, scope);
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to get an account', error);
       if (isAccountNotFoundError(error, accountAddress)) {
@@ -280,6 +286,54 @@ export class NetworkService {
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to get assets data', error);
       throw new NetworkServiceException('Failed to get assets data');
+    }
+  }
+
+  /**
+   * Fetches classic asset data from Horizon via `assets` for a CAIP-19 classic asset id.
+   *
+   * @param assetId - CAIP-19 classic asset id (`…/asset:CODE-ISSUER`).
+   * @param scope - The CAIP-2 chain ID.
+   * @returns for the classic asset.
+   * @throws {AssetDataFetchException} When Horizon returns no entry for this asset.
+   */
+  async getClassicAssetData(
+    assetId: KnownCaip19ClassicAssetId,
+    scope: KnownCaip2ChainId,
+  ): Promise<AssetDataResponse> {
+    try {
+      const client = this.#getHorizonClient(scope);
+      const { assetCode, assetIssuer } = parseClassicAssetCodeIssuer(assetId);
+      const assetData = await client
+        .assets()
+        .forCode(assetCode)
+        .forIssuer(assetIssuer)
+        .call();
+
+      if (
+        !assetData ||
+        assetData.records.length === 0 ||
+        assetData.records[0] === undefined ||
+        assetData.records[0].asset_code !== assetCode ||
+        assetData.records[0].asset_issuer !== assetIssuer
+      ) {
+        throw new AssetDataFetchException(scope, assetId);
+      }
+
+      return {
+        assetId,
+        symbol: assetCode,
+        decimals: STELLAR_DECIMAL_PLACES,
+        name: assetCode,
+      };
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Failed to get assets data from Horizon',
+        error,
+      );
+      throw new NetworkServiceException(
+        'Failed to get assets data from Horizon',
+      );
     }
   }
 

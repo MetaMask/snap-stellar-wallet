@@ -3,7 +3,6 @@ import { parseCaipAssetType } from '@metamask/utils';
 import type { StellarAssetMetadata } from './api';
 import type {
   AssetType,
-  KnownCaip19Slip44Id,
   KnownCaip2ChainId,
   KnownCaip19AssetIdOrSlip44Id,
 } from '../../api';
@@ -13,7 +12,7 @@ import {
   NATIVE_ASSET_SYMBOL,
   STELLAR_DECIMAL_PLACES,
 } from '../../constants';
-import { buildUrl } from '../../utils';
+import { buildUrl, getSlip44AssetId } from '../../utils';
 
 /**
  * Returns the icon URL for a given asset ID.
@@ -72,14 +71,14 @@ export function toStellarAssetMetadata(assetData: {
 /**
  * Builds {@link StellarAssetMetadata} for the native XLM slip44 id on the given network.
  *
- * @param assetId - Slip44 CAIP-19 id for native lumens on a Stellar scope.
+ * @param scope - The CAIP-2 chain id.
  * @returns Metadata with standard name, symbol, and 7 decimals.
  */
 export function getNativeAssetMetadata(
-  assetId: KnownCaip19Slip44Id,
+  scope: KnownCaip2ChainId,
 ): StellarAssetMetadata {
   return toStellarAssetMetadata({
-    assetId,
+    assetId: getSlip44AssetId(scope),
     decimals: STELLAR_DECIMAL_PLACES,
     symbol: NATIVE_ASSET_SYMBOL,
     name: NATIVE_ASSET_NAME,

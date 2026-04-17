@@ -14,9 +14,9 @@ import type {
   KnownCaip2ChainId,
 } from '../../../api';
 import {
+  batchesAllSettledWithChunks,
   buildUrl,
-  batchesAllSettled,
-  chunks as chunkItems,
+  rethrowIfInstanceElseThrow,
 } from '../../../utils';
 import type { ILogger } from '../../../utils/logger';
 import type { StellarAssetMetadata, AssetUnit } from '../api';
@@ -53,88 +53,115 @@ export class TokenApiClient {
   async #fetchTokenMetadataBatch(
     assetIds: KnownCaip19AssetIdOrSlip44Id[],
   ): Promise<TokenMetadataResponse> {
-    const url = buildUrl({
-      baseUrl: this.#baseUrl,
-      path: '/v3/assets',
-      queryParams: {
-        assetIds: assetIds.join(','),
-      },
-    });
+    try {
+      const url = buildUrl({
+        baseUrl: this.#baseUrl,
+        path: '/v3/assets',
+        queryParams: {
+          assetIds: assetIds.join(','),
+        },
+      });
 
-    const response = await this.#fetch(url);
+      const response = await this.#fetch(url);
 
-    if (!response.ok) {
-      throw new TokenApiException(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new TokenApiException(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      assert(TokenMetadataResponseStruct, data);
+
+      return data;
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Error fetching token metadata',
+        ensureError(error).message,
+      );
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TokenApiException],
+        new TokenApiException(`Failed to fetch token metadata`),
+      );
     }
-
-    const data = await response.json();
-
-    assert(TokenMetadataResponseStruct, data);
-
-    return data;
   }
 
+  /**
+   * Fetches all tokens metadata for the given chain ID.
+   *
+   * @see https://tokens.api.cx.metamask.io/v3/chains/eip155:1329/assets?first=10&includeIconUrl=true&includeDuplicateSymbolAssets=true&useAggregatorIcons=true
+   *
+   * @param scope - The chain ID to fetch all tokens metadata for.
+   * @returns A Promise that resolves to the token metadata responses.
+   */
   async #fetchAllTokensMetadata(
     scope: KnownCaip2ChainId,
   ): Promise<TokenMetadataResponse> {
-    // example: https://tokens.api.cx.metamask.io/v3/chains/eip155:1329/assets?first=10&includeIconUrl=true&includeDuplicateSymbolAssets=true&useAggregatorIcons=true
-    const url = buildUrl({
-      baseUrl: this.#baseUrl,
-      path: `/v3/chains/${scope}/assets`,
-      queryParams: {
-        first: '1000',
-        includeIconUrl: 'true',
-        includeDuplicateSymbolAssets: 'true',
-        useAggregatorIcons: 'true',
-      },
-    });
+    try {
+      const url = buildUrl({
+        baseUrl: this.#baseUrl,
+        path: `/v3/chains/${scope}/assets`,
+        queryParams: {
+          first: '1000',
+          includeIconUrl: 'true',
+          includeDuplicateSymbolAssets: 'true',
+          useAggregatorIcons: 'true',
+        },
+      });
 
-    const response = await this.#fetch(url);
+      const response = await this.#fetch(url);
 
-    if (!response.ok) {
-      throw new TokenApiException(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new TokenApiException(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      assert(TokenMetadataResponseStruct, data);
+
+      return data;
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Error fetching token metadata',
+        ensureError(error).message,
+      );
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TokenApiException],
+        new TokenApiException(`Failed to fetch token metadata`),
+      );
     }
-
-    const data = await response.json();
-
-    assert(TokenMetadataResponseStruct, data);
-
-    return data;
   }
 
+  /**
+   * Fetches all tokens metadata for the given asset IDs.
+   *
+   * @param assetIds - The asset IDs to fetch all tokens metadata for.
+   * @returns A Promise that resolves to the token metadata responses.
+   */
   async getTokensMetadata(
     assetIds: KnownCaip19AssetIdOrSlip44Id[],
   ): Promise<StellarAssetMetadata[]> {
     try {
       // Split addresses into chunks
-      const chunks = chunkItems(assetIds, this.#chunkSize);
-
-      const settled = await batchesAllSettled(
-        chunks,
+      const settled = await batchesAllSettledWithChunks(
+        assetIds,
+        this.#chunkSize,
         TokenApiClient.#parallelBatchFetchLimit,
         async (chunk) => this.#fetchTokenMetadataBatch(chunk),
       );
 
-      const tokenMetadataResponses: TokenMetadataResponse[] = [];
+      const metadatas: StellarAssetMetadata[] = [];
       for (const entry of settled) {
         if (entry.status === 'rejected') {
-          this.#logger.logErrorWithDetails(
-            'Error fetching token metadata',
-            ensureError(entry.reason).message,
-          );
           continue;
         }
-        tokenMetadataResponses.push(entry.value);
-      }
-
-      const metadatas: StellarAssetMetadata[] = [];
-
-      // Note: it is possible that the token metadata does not contain all the asset ids.
-      for (const tokenMetadataResponse of tokenMetadataResponses) {
-        for (const tokenMetadata of tokenMetadataResponse) {
+        // Note: it is possible that the token metadata response does not contain all the asset ids.
+        for (const tokenMetadata of entry.value) {
           metadatas.push(this.#toAssetMetadata(tokenMetadata));
         }
       }
+
       return metadatas;
     } catch (error) {
       this.#logger.logErrorWithDetails(
@@ -145,19 +172,20 @@ export class TokenApiClient {
     }
   }
 
+  /**
+   * Fetches all tokens metadata for the given chain ID.
+   *
+   * @param scope - The chain ID to fetch all tokens metadata for.
+   * @returns A Promise that resolves to the token metadata responses.
+   */
   async getAllTokensMetadata(
     scope: KnownCaip2ChainId,
   ): Promise<StellarAssetMetadata[]> {
-    try {
-      const tokenMetadataResponses = await this.#fetchAllTokensMetadata(scope);
-      // Note: it is possible that the token metadata does not contain all the asset ids.
-      return tokenMetadataResponses.map((tokenMetadata) =>
-        this.#toAssetMetadata(tokenMetadata),
-      );
-    } catch (error) {
-      this.#logger.logErrorWithDetails('Error fetching token metadata', error);
-      throw new TokenApiException(`Failed to fetch token metadata`);
-    }
+    const tokenMetadataResponses = await this.#fetchAllTokensMetadata(scope);
+    // Note: it is possible that the token metadata does not contain all the asset ids.
+    return tokenMetadataResponses.map((tokenMetadata) =>
+      this.#toAssetMetadata(tokenMetadata),
+    );
   }
 
   #toAssetMetadata(tokenMetadata: TokenMetadata): StellarAssetMetadata {

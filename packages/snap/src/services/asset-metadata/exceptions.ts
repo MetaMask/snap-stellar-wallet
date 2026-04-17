@@ -4,9 +4,3 @@ export class AssetMetadataServiceException extends Error {
     this.name = 'AssetMetadataServiceException';
   }
 }
-
-export class InvalidAssetReferenceException extends AssetMetadataServiceException {
-  constructor(assetReference: string) {
-    super(`Invalid asset reference: ${assetReference}`);
-  }
-}

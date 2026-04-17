@@ -37,11 +37,14 @@ export class AccountLoadException extends NetworkServiceException {
 
 /** Thrown when the account does not exist or is not funded on the network. */
 export class AccountNotActivatedException extends NetworkServiceException {
-  readonly reference: string;
+  readonly address: string;
+
+  readonly scope: KnownCaip2ChainId;
 
   constructor(address: string, scope: KnownCaip2ChainId) {
     super(`Account not activated for address: ${address} for scope: ${scope}`);
-    this.reference = address;
+    this.address = address;
+    this.scope = scope;
   }
 }
 

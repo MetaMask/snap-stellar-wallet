@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/require-jsdoc -- test helpers */
 import { cloneDeep } from 'lodash';
 
 import type { AssetMetadataState, StellarAssetMetadata } from './api';
@@ -33,6 +32,10 @@ function generateAssetData(
   };
 }
 
+/**
+ *
+ * @param initial
+ */
 function createMockStateManager(
   initial: AssetMetadataState,
 ): IStateManager<AssetMetadataState> {
@@ -132,4 +135,3 @@ describe('AssetMetadataRepository', () => {
     expect(await repo.getByAssetId(sep41Id)).toBeNull();
   });
 });
-/* eslint-enable jsdoc/require-jsdoc */

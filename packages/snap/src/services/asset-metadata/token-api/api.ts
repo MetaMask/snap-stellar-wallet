@@ -5,7 +5,6 @@ import {
   object,
   optional,
   string,
-  min,
   union,
   nonempty,
 } from '@metamask/superstruct';
@@ -17,7 +16,7 @@ import {
 } from '../../../api';
 
 export const TokenMetadataStruct = object({
-  decimals: min(integer(), 1),
+  decimals: integer(),
   // there should be no slip44 assets in the token metadata response
   assetId: union([KnownCaip19ClassicAssetStruct, KnownCaip19Sep41AssetStruct]),
   name: optional(nonempty(string())),
