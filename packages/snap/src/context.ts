@@ -11,6 +11,10 @@ import {
 import { UserInputHandler } from './handlers/user-input/userInput';
 import { AccountService, AccountsRepository } from './services/account';
 import type { AccountBalanceState } from './services/account-balance';
+import {
+  AssetMetadataRepository,
+  AssetMetadataService,
+} from './services/asset-metadata';
 import { NetworkService } from './services/network';
 import type { OnChainAccountSnapshotState } from './services/on-chain-account';
 import { OnChainAccountService } from './services/on-chain-account';
@@ -38,6 +42,7 @@ const state = new State({
 
 const accountsRepository = new AccountsRepository(state);
 const transactionRepository = new TransactionRepository(state);
+const assetMetadataRepository = new AssetMetadataRepository(state);
 
 /** ------------------------------ Services  ------------------------------ */
 const networkService = new NetworkService({ logger });
@@ -61,6 +66,12 @@ const transactionService = new TransactionService({
   logger,
   transactionRepository,
   networkService,
+});
+
+const assetMetadataService = new AssetMetadataService({
+  networkService,
+  assetMetadataRepository,
+  logger,
 });
 
 /** ------------------------------ Keyring Handler ------------------------------ */
@@ -92,6 +103,7 @@ const keyringHandler = new KeyringHandler({
   accountService,
   onChainAccountService,
   transactionService,
+  assetMetadataService,
   handlers: keyringMethodHandlers,
 });
 
