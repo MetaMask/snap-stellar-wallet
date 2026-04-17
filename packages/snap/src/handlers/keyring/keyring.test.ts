@@ -249,7 +249,7 @@ describe('KeyringHandler', () => {
         expect.objectContaining({
           account: toKeyringAccount(mockAccount),
           displayConfirmation: false,
-          correlationId: '123',
+          metamask: { correlationId: '123' },
         }),
       );
     });

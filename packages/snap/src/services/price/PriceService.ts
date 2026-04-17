@@ -1,3 +1,5 @@
+import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
+import { AppConfig } from '../../config';
 import type { ILogger, Serializable } from '../../utils';
 import type { ICache } from '../cache';
 import { useCache } from '../cache';
@@ -9,8 +11,6 @@ import type {
   VsCurrencyParam,
 } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
-import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
-import { AppConfig } from '../../config';
 
 export class PriceService {
   readonly #priceApiClient: PriceApiClient;
