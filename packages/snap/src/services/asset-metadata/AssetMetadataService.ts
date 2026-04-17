@@ -248,6 +248,10 @@ export class AssetMetadataService {
     assets: StellarAssetMetadata[];
     missingAssetIds: KnownCaip19AssetId[];
   }> {
+    if (assetIds.length === 0) {
+      return { assets: [], missingAssetIds: [] };
+    }
+
     this.#logger.debug('Fetching token assets from API', { assetIds });
     const tokensMetadata =
       await this.#tokenApiClient.getTokensMetadata(assetIds);
@@ -261,6 +265,10 @@ export class AssetMetadataService {
     assetIds: KnownCaip19Sep41AssetId[],
     scope: KnownCaip2ChainId,
   ): Promise<StellarAssetMetadata[]> {
+    if (assetIds.length === 0) {
+      return [];
+    }
+
     this.#logger.debug('Fetching SEP-41 token assets from RPC', { assetIds });
     const assets: StellarAssetMetadata[] = [];
     const missingTokenAssetIds = new Set<string>(assetIds);
@@ -299,6 +307,10 @@ export class AssetMetadataService {
     assetIds: KnownCaip19ClassicAssetId[],
     scope: KnownCaip2ChainId,
   ): Promise<StellarAssetMetadata[]> {
+    if (assetIds.length === 0) {
+      return [];
+    }
+
     this.#logger.debug('Fetching Classic token assets from Horizon', {
       assetIds,
     });
