@@ -169,9 +169,9 @@ export class KeyringHandler implements Keyring {
        * `options.metamask` onto params or `correlationId` ends up at
        * `params.correlationId` and fails validation (`never`).
        */
-      ...(options?.metamask?.correlationId !== undefined
-        ? { metamask: { correlationId: options.metamask.correlationId } }
-        : {}),
+      ...(options?.metamask?.correlationId === undefined
+        ? {}
+        : { metamask: { correlationId: options.metamask.correlationId } }),
     });
   }
 
