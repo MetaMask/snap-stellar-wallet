@@ -305,7 +305,9 @@ export class NetworkService {
   ): Promise<AssetDataResponse> {
     try {
       const client = this.#getHorizonClient(scope);
-      const { assetCode, assetIssuer } = parseClassicAssetCodeIssuer(assetId);
+      const { assetCode, assetIssuer } = parseClassicAssetCodeIssuer(
+        parseCaipAssetType(assetId).assetReference,
+      );
       const assetData = await client
         .assets()
         .forCode(assetCode)
