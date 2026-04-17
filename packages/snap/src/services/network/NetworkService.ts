@@ -31,9 +31,14 @@ import {
   isAccountNotFoundError,
   parseScValToNative,
 } from './utils';
-import type { KnownCaip19Sep41AssetId, KnownCaip2ChainId } from '../../api';
+import type {
+  KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
+  KnownCaip2ChainId,
+} from '../../api';
 import type { NetworkConfig } from '../../config';
 import { AppConfig } from '../../config';
+import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { ILogger } from '../../utils';
 import {
   isSameStr,
@@ -41,6 +46,7 @@ import {
   parseClassicAssetCodeIssuer,
   toCaip19ClassicAssetId,
   toCaip19Sep41AssetId,
+  rethrowIfInstanceElseThrow,
 } from '../../utils';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
@@ -138,10 +144,11 @@ export class NetworkService {
       throw new TransactionPollException(transactionHash, result.status, scope);
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to poll transaction', error);
-      if (error instanceof TransactionPollException) {
-        throw error;
-      }
-      throw new TransactionPollException(transactionHash, 'unknown', scope);
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TransactionPollException],
+        new TransactionPollException(transactionHash, 'unknown', scope),
+      );
     }
   }
 
@@ -191,7 +198,8 @@ export class NetworkService {
   ): Promise<OnChainAccount> {
     try {
       const client = this.#getRpcClient(scope);
-      return new OnChainAccount(await client.getAccount(accountAddress), scope);
+      const loaded = await client.getAccount(accountAddress);
+      return new OnChainAccount(loaded, scope);
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to get an account', error);
       if (isAccountNotFoundError(error, accountAddress)) {
@@ -284,6 +292,58 @@ export class NetworkService {
   }
 
   /**
+   * Fetches classic asset data from Horizon via `assets` for a CAIP-19 classic asset id.
+   *
+   * @param assetId - CAIP-19 classic asset id (`…/asset:CODE-ISSUER`).
+   * @param scope - The CAIP-2 chain ID.
+   * @returns for the classic asset.
+   * @throws {AssetDataFetchException} When Horizon returns no entry for this asset.
+   */
+  async getClassicAssetData(
+    assetId: KnownCaip19ClassicAssetId,
+    scope: KnownCaip2ChainId,
+  ): Promise<AssetDataResponse> {
+    try {
+      const client = this.#getHorizonClient(scope);
+      const { assetCode, assetIssuer } = parseClassicAssetCodeIssuer(
+        parseCaipAssetType(assetId).assetReference,
+      );
+      const assetData = await client
+        .assets()
+        .forCode(assetCode)
+        .forIssuer(assetIssuer)
+        .call();
+
+      if (
+        !assetData ||
+        assetData.records.length === 0 ||
+        assetData.records[0] === undefined ||
+        assetData.records[0].asset_code !== assetCode ||
+        assetData.records[0].asset_issuer !== assetIssuer
+      ) {
+        throw new AssetDataFetchException(scope, assetId);
+      }
+
+      return {
+        assetId,
+        symbol: assetCode,
+        decimals: STELLAR_DECIMAL_PLACES,
+        name: assetCode,
+      };
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails(
+        'Failed to get assets data from Horizon',
+        error,
+      );
+      return rethrowIfInstanceElseThrow(
+        error,
+        [AssetDataFetchException],
+        new NetworkServiceException('Failed to get assets data from Horizon'),
+      );
+    }
+  }
+
+  /**
    * Reads a SEP-41-style token balance via Soroban simulation of `balance(Address)`.
    *
    * @param params - Balance query input.
@@ -345,13 +405,11 @@ export class NetworkService {
         'Failed to load SEP-41 token balance',
         error,
       );
-      if (
-        error instanceof SimulationException ||
-        error instanceof NetworkServiceException
-      ) {
-        throw error;
-      }
-      throw new NetworkServiceException('Failed to load SEP-41 token balance');
+      return rethrowIfInstanceElseThrow(
+        error,
+        [NetworkServiceException],
+        new NetworkServiceException('Failed to load SEP-41 token balance'),
+      );
     }
   }
 
@@ -442,10 +500,11 @@ export class NetworkService {
       return executedTransaction.hash;
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to send transaction', error);
-      if (error instanceof NetworkServiceException) {
-        throw error;
-      }
-      throw new TransactionSendException(scope, 'unknown');
+      return rethrowIfInstanceElseThrow(
+        error,
+        [NetworkServiceException],
+        new TransactionSendException(scope, 'unknown'),
+      );
     }
   }
 
@@ -491,15 +550,12 @@ export class NetworkService {
       return new Transaction(simulatedTransaction.build());
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to simulate transaction', error);
-      if (
-        error instanceof NetworkServiceException ||
-        error instanceof SimulationException
-      ) {
-        throw error;
-      }
-
-      throw new SimulationException(
-        error instanceof Error ? error.message : 'Unknown error',
+      return rethrowIfInstanceElseThrow(
+        error,
+        [NetworkServiceException],
+        new SimulationException(
+          error instanceof Error ? error.message : 'Unknown error',
+        ),
       );
     }
   }

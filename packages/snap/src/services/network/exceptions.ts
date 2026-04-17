@@ -1,4 +1,7 @@
-import type { KnownCaip2ChainId } from '../../api';
+import type {
+  KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip2ChainId,
+} from '../../api';
 
 /** Base for all network-related errors (fees, account load, send, poll). */
 export class NetworkServiceException extends Error {
@@ -37,11 +40,14 @@ export class AccountLoadException extends NetworkServiceException {
 
 /** Thrown when the account does not exist or is not funded on the network. */
 export class AccountNotActivatedException extends NetworkServiceException {
-  readonly reference: string;
+  readonly address: string;
+
+  readonly scope: KnownCaip2ChainId;
 
   constructor(address: string, scope: KnownCaip2ChainId) {
     super(`Account not activated for address: ${address} for scope: ${scope}`);
-    this.reference = address;
+    this.address = address;
+    this.scope = scope;
   }
 }
 
@@ -69,9 +75,9 @@ export class SimulationException extends NetworkServiceException {
 
 /** Thrown when asset data cannot be fetched from the network. */
 export class AssetDataFetchException extends NetworkServiceException {
-  constructor(scope: KnownCaip2ChainId, address: string) {
+  constructor(scope: KnownCaip2ChainId, assetId: KnownCaip19AssetIdOrSlip44Id) {
     super(
-      `Failed to fetch asset data for contract ${address} for scope: ${scope}`,
+      `Failed to fetch asset data for asset id: ${assetId} for scope: ${scope}`,
     );
   }
 }
