@@ -1,6 +1,6 @@
 {
   "name": "@metamask/stellar-wallet-snap",
-  "version": "0.0.1-dev.2",
+  "version": "0.0.1",
   "description": "A Stellar wallet Snap.",
   "repository": {
     "type": "git",

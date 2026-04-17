@@ -1,5 +1,5 @@
 {
-  "version": "0.0.1-dev.2",
+  "version": "0.0.1",
   "description": "Manage Stellar using MetaMask",
   "proposedName": "Stellar",
   "repository": {
@@ -7,7 +7,7 @@
     "url": "https://github.com/MetaMask/snap-stellar-wallet.git"
   },
   "source": {
-    "shasum": "xPCDY/4WF/uyjb/+0lIsi3FSnJqsH9sPMJGC0hFiQ1Q=",
+    "shasum": "G8+uh4JxXeehCEop7UK0rguSRvEDq76Y9hhHYWzYatU=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",
@@ -16,26 +16,18 @@
         "registry": "https://registry.npmjs.org/"
       }
     },
-    "locales": [
-      "locales/en.json"
-    ]
+    "locales": ["locales/en.json"]
   },
   "initialConnections": {
     "https://portfolio.metamask.io": {}
   },
   "initialPermissions": {
     "endowment:keyring": {
-      "allowedOrigins": [
-        "https://portfolio.metamask.io"
-      ]
+      "allowedOrigins": ["https://portfolio.metamask.io"]
     },
     "snap_getBip32Entropy": [
       {
-        "path": [
-          "m",
-          "44'",
-          "148'"
-        ],
+        "path": ["m", "44'", "148'"],
         "curve": "ed25519"
       }
     ],
