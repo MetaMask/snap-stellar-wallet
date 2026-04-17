@@ -1,3 +1,4 @@
+import { PriceService } from './PriceService';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { AppConfig } from '../../config';
 import { logger, serialize } from '../../utils';
@@ -6,7 +7,6 @@ import {
   type FiatExchangeRatesResponse,
 } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
-import { PriceService } from './PriceService';
 import { createMemoryCache } from '../cache/__mocks__/cache.fixtures';
 
 jest.mock('../../utils/logger');
