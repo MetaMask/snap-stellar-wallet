@@ -8,7 +8,7 @@ import {
 } from './exceptions';
 import { KnownCaip2ChainId } from '../../api';
 import { KEYRING_ACCOUNT_TYPE } from '../../constants';
-import { MultichainMethod } from '../../handlers/keyring';
+import { MultichainMethod } from '../../handlers/keyring/api';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { getBip32Entropy, getDefaultEntropySource } from '../../utils/snap';
 import { WalletService, getDerivationPath } from '../wallet';

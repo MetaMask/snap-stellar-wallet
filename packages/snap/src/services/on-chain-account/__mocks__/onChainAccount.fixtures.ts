@@ -1,13 +1,54 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+import type { Horizon } from '@stellar/stellar-sdk';
 import { Account } from '@stellar/stellar-sdk';
 
+import type { KnownCaip2ChainId } from '../../../api';
 import { logger } from '../../../utils/logger';
 import { AccountService } from '../../account/AccountService';
 import { AccountsRepository } from '../../account/AccountsRepository';
 import { NetworkService } from '../../network';
 import { State } from '../../state/State';
 import { WalletService } from '../../wallet';
+import { OnChainAccount } from '../OnChainAccount';
+import type { OnChainAccountSerializable } from '../OnChainAccountSerializable';
 import { OnChainAccountService } from '../OnChainAccountService';
+
+/**
+ * Wraps a Horizon-shaped SDK account as {@link OnChainAccountSerializable} for tests.
+ *
+ * @param account - Mock or SDK account that includes Horizon `balances` / meta fields.
+ * @param scope - CAIP-2 network (must match the `OnChainAccount` constructor scope).
+ * @returns Serializable binding for {@link OnChainAccount} constructor.
+ */
+export function horizonSource(
+  account: Account,
+  scope: KnownCaip2ChainId,
+): OnChainAccountSerializable {
+  return OnChainAccount.fromHorizon(
+    account as unknown as Horizon.AccountResponse,
+    scope,
+  ).toSerializable();
+}
+
+/**
+ * Serializable binding with no balance lines (sequence exists, no asset rows yet).
+ *
+ * @param account - Bare SDK `Account` instance (mutated to add empty `balances`).
+ * @param scope - CAIP-2 network.
+ * @returns Binding for {@link OnChainAccount} constructor.
+ */
+export function unfundedHorizonBinding(
+  account: Account,
+  scope: KnownCaip2ChainId,
+): OnChainAccountSerializable {
+  const response = Object.assign(account, {
+    balances: [],
+    subentry_count: 0,
+    num_sponsoring: 0,
+    num_sponsored: 0,
+  }) as unknown as Horizon.AccountResponse;
+  return OnChainAccount.fromHorizon(response, scope).toSerializable();
+}
 
 export type MockAssetLine = {
   assetType: string;

@@ -5,6 +5,7 @@ import { KnownCaip2ChainId } from '../../api';
 import {
   createMockAccountWithBalances,
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  horizonSource,
   mockOnChainAccountService,
 } from './__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from './OnChainAccount';
@@ -47,14 +48,16 @@ describe('OnChainAccountService', () => {
         .mockResolvedValue(mockAccount);
       const { getAccountOrNullSpy } = getNetworkServiceSpies();
       const wallet = getTestWallet({ seed });
+      const activatedAcc = createMockAccountWithBalances(
+        wallet.address,
+        '1',
+        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      );
       getAccountOrNullSpy.mockResolvedValue(
         new OnChainAccount(
-          createMockAccountWithBalances(
-            wallet.address,
-            '1',
-            DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-          ),
+          activatedAcc,
           KnownCaip2ChainId.Mainnet,
+          horizonSource(activatedAcc, KnownCaip2ChainId.Mainnet),
         ),
       );
 
@@ -100,13 +103,15 @@ describe('OnChainAccountService', () => {
     it('returns true when getAccountOrNull returns an account', async () => {
       const { getAccountOrNullSpy } = getNetworkServiceSpies();
       const wallet = getTestWallet({ seed });
+      const onChainAcc = createMockAccountWithBalances(
+        wallet.address,
+        '1',
+        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      );
       const onChain = new OnChainAccount(
-        createMockAccountWithBalances(
-          wallet.address,
-          '1',
-          DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-        ),
+        onChainAcc,
         KnownCaip2ChainId.Mainnet,
+        horizonSource(onChainAcc, KnownCaip2ChainId.Mainnet),
       );
       getAccountOrNullSpy.mockResolvedValue(onChain);
 
@@ -142,13 +147,15 @@ describe('OnChainAccountService', () => {
         'entropy-source-1',
         0,
       );
+      const loadedAcc = createMockAccountWithBalances(
+        signer.publicKey(),
+        '1',
+        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      );
       const loaded = new OnChainAccount(
-        createMockAccountWithBalances(
-          signer.publicKey(),
-          '1',
-          DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-        ),
+        loadedAcc,
         KnownCaip2ChainId.Mainnet,
+        horizonSource(loadedAcc, KnownCaip2ChainId.Mainnet),
       );
       const { loadOnChainAccountSpy } = getNetworkServiceSpies();
       loadOnChainAccountSpy.mockResolvedValue(loaded);

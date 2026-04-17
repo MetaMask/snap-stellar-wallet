@@ -1,9 +1,10 @@
 import { Account } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import type { OnChainAccountSnapshot } from './api';
-import { OnChainAccountBalanceNotAvailableException } from './exceptions';
-import type { SpendableBalance } from './OnChainAccount';
+import {
+  OnChainAccountBalanceNotAvailableException,
+  OnChainAccountException,
+} from './exceptions';
 import { OnChainAccount } from './OnChainAccount';
 import { KnownCaip2ChainId } from '../../api';
 import {
@@ -11,55 +12,32 @@ import {
   toCaip19ClassicAssetId,
   toSmallestUnit,
 } from '../../utils';
-import type {
-  AccountBalance,
-  TrustLineAssetBalance,
-} from '../account-balance/api';
 import {
   createMockAccountWithBalances,
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  horizonSource,
+  unfundedHorizonBinding,
 } from './__mocks__/onChainAccount.fixtures';
 import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
 
-/**
- * Maps an on-chain trustline view to persisted {@link TrustLineAssetBalance} shape.
- *
- * @param row - Classic trustline row from {@link OnChainAccount.getAsset}.
- * @returns Balance row as stored by account balance sync.
- */
-function trustLineToPersistedBalance(
-  row: SpendableBalance,
-): TrustLineAssetBalance {
-  const base: TrustLineAssetBalance = {
-    unit: row.symbol,
-    amount: row.balance.toString(),
-    limit: row.limit?.toString() ?? '0',
-  };
-  return {
-    ...base,
-    ...(typeof row.authorized === 'boolean'
-      ? { authorized: row.authorized }
-      : {}),
-    ...(row.sponsored ? { sponsored: true } : {}),
-  };
-}
-
 describe('OnChainAccount', () => {
   const testWalletSigner = getTestWallet();
+  const testMockAccount = createMockAccountWithBalances(
+    testWalletSigner.address,
+    '1',
+    DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  );
   const testOnChain = new OnChainAccount(
-    createMockAccountWithBalances(
-      testWalletSigner.address,
-      '1',
-      DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-    ),
+    testMockAccount,
     KnownCaip2ChainId.Mainnet,
+    horizonSource(testMockAccount, KnownCaip2ChainId.Mainnet),
   );
   const createTestWallet = () => {
     const wallet = getTestWallet();
     return {
       wallet,
-      onChainAccount: new OnChainAccount(
-        createMockAccountWithBalances(wallet.address, '1', {
+      onChainAccount: (() => {
+        const acc = createMockAccountWithBalances(wallet.address, '1', {
           nativeBalance: 10,
           subentryCount: 0,
           sponsoringCount: 0,
@@ -73,9 +51,13 @@ describe('OnChainAccount', () => {
               balance: 10,
             },
           ],
-        }),
-        KnownCaip2ChainId.Mainnet,
-      ),
+        });
+        return new OnChainAccount(
+          acc,
+          KnownCaip2ChainId.Mainnet,
+          horizonSource(acc, KnownCaip2ChainId.Mainnet),
+        );
+      })(),
     };
   };
 
@@ -122,9 +104,14 @@ describe('OnChainAccount', () => {
     });
 
     it('returns false when account has no Horizon balance metadata', () => {
+      const acc = new Account(
+        testOnChain.accountId,
+        testOnChain.sequenceNumber,
+      );
       const onChainAccount = new OnChainAccount(
-        new Account(testOnChain.accountId, testOnChain.sequenceNumber),
+        acc,
         KnownCaip2ChainId.Mainnet,
+        unfundedHorizonBinding(acc, KnownCaip2ChainId.Mainnet),
       );
       expect(
         onChainAccount.hasAsset(
@@ -164,7 +151,6 @@ describe('OnChainAccount', () => {
       {
         assetId: getSlip44AssetId(KnownCaip2ChainId.Mainnet),
         expected: {
-          address: undefined,
           balance: new BigNumber('90000000'),
           symbol: 'XLM',
         },
@@ -178,9 +164,14 @@ describe('OnChainAccount', () => {
     );
 
     it('throws OnChainAccountBalanceNotAvailableException when account has no loaded balances', () => {
+      const acc = new Account(
+        testOnChain.accountId,
+        testOnChain.sequenceNumber,
+      );
       const onChainAccount = new OnChainAccount(
-        new Account(testOnChain.accountId, testOnChain.sequenceNumber),
+        acc,
         KnownCaip2ChainId.Mainnet,
+        unfundedHorizonBinding(acc, KnownCaip2ChainId.Mainnet),
       );
       expect(() =>
         onChainAccount.getAsset(
@@ -254,79 +245,116 @@ describe('OnChainAccount', () => {
         expected,
       }) => {
         const wallet = getTestWallet();
+        const acc = createMockAccountWithBalances(wallet.address, '1', {
+          nativeBalance,
+          subentryCount,
+          sponsoringCount,
+          sponsoredCount,
+          assets: [],
+        });
         const onChainAccount = new OnChainAccount(
-          createMockAccountWithBalances(wallet.address, '1', {
-            nativeBalance,
-            subentryCount,
-            sponsoringCount,
-            sponsoredCount,
-            assets: [],
-          }),
+          acc,
           KnownCaip2ChainId.Mainnet,
+          horizonSource(acc, KnownCaip2ChainId.Mainnet),
         );
 
         expect(onChainAccount.nativeSpendableBalance).toStrictEqual(expected);
       },
     );
 
-    it('throws an error if the balance metadata is not available', () => {
-      const onChainAccount = new OnChainAccount(
-        new Account(testOnChain.accountId, testOnChain.sequenceNumber),
-        KnownCaip2ChainId.Mainnet,
+    it('throws when native balance is not bound', () => {
+      const acc = new Account(
+        testOnChain.accountId,
+        testOnChain.sequenceNumber,
       );
-      expect(() => onChainAccount.nativeSpendableBalance).toThrow(Error);
+      const onChainAccount = new OnChainAccount(
+        acc,
+        KnownCaip2ChainId.Mainnet,
+        unfundedHorizonBinding(acc, KnownCaip2ChainId.Mainnet),
+      );
+      expect(() => onChainAccount.nativeSpendableBalance).toThrow(
+        OnChainAccountBalanceNotAvailableException,
+      );
     });
   });
 
   describe('getRaw', () => {
     it('returns the raw account', () => {
-      const account = new Account(
+      const account = createMockAccountWithBalances(
         'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG',
         '1',
+        { nativeBalance: 1, subentryCount: 0, assets: [] },
       );
       const onChainAccount = new OnChainAccount(
         account,
         KnownCaip2ChainId.Mainnet,
+        horizonSource(account, KnownCaip2ChainId.Mainnet),
       );
       expect(onChainAccount.getRaw()).toBe(account);
     });
   });
 
-  describe('fromSnapshot', () => {
-    it('matches Horizon-bound balances for native and classic trustline', () => {
-      const { onChainAccount: ref } = createTestWallet();
+  describe('toSerializable', () => {
+    it('returns meta, scope, header fields, and per-asset balances', () => {
+      const { onChainAccount } = createTestWallet();
+      const ser = onChainAccount.toSerializable();
+      expect(ser.accountId).toBe(onChainAccount.accountId);
+      expect(ser.sequenceNumber).toBe(onChainAccount.sequenceNumber);
+      expect(ser.scope).toBe(KnownCaip2ChainId.Mainnet);
+      expect(ser.meta).toStrictEqual({
+        subentryCount: onChainAccount.subentryCount,
+        numSponsoring: onChainAccount.numSponsoring,
+        numSponsored: onChainAccount.numSponsored,
+      });
+      const nativeId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
       const usdcId = toCaip19ClassicAssetId(
         KnownCaip2ChainId.Mainnet,
         'USDC',
         'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
       );
-      const nativeId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
-      const classicRow = ref.getAsset(usdcId);
-      const balances: AccountBalance = {
-        [nativeId]: {
-          unit: 'XLM',
-          amount: ref.nativeRawBalance.toString(),
-        },
-        [usdcId]: trustLineToPersistedBalance(classicRow),
-      };
-      const snapshot: OnChainAccountSnapshot = {
-        accountId: ref.accountId,
-        sequenceNumber: ref.sequenceNumber,
-        subentryCount: ref.subentryCount,
-        numSponsoring: ref.numSponsoring,
-        numSponsored: ref.numSponsored,
-      };
-      const restored = OnChainAccount.fromSnapshot({
-        snapshot,
-        balances,
-        scope: KnownCaip2ChainId.Mainnet,
-      });
+      expect(ser.balances[nativeId]).toStrictEqual(
+        onChainAccount.getAsset(nativeId),
+      );
+      expect(ser.balances[usdcId]).toStrictEqual(
+        onChainAccount.getAsset(usdcId),
+      );
+    });
+  });
+
+  describe('fromSerializable', () => {
+    it('round-trips with toSerializable for Horizon-bound wallet', () => {
+      const { onChainAccount: ref } = createTestWallet();
+      const restored = OnChainAccount.fromSerializable(ref.toSerializable());
+      expect(restored.accountId).toBe(ref.accountId);
+      expect(restored.sequenceNumber).toBe(ref.sequenceNumber);
+      expect(restored.scope).toBe(ref.scope);
+      expect(restored.subentryCount).toBe(ref.subentryCount);
+      expect(restored.nativeRawBalance).toStrictEqual(ref.nativeRawBalance);
       expect(restored.nativeSpendableBalance).toStrictEqual(
         ref.nativeSpendableBalance,
       );
-      expect(restored.nativeRawBalance).toStrictEqual(ref.nativeRawBalance);
-      expect(restored.getAsset(usdcId)).toStrictEqual(classicRow);
-      expect(restored.getAsset(nativeId)).toStrictEqual(ref.getAsset(nativeId));
+      const usdcId = toCaip19ClassicAssetId(
+        KnownCaip2ChainId.Mainnet,
+        'USDC',
+        'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+      );
+      expect(restored.getAsset(usdcId)).toStrictEqual(ref.getAsset(usdcId));
+      expect(
+        restored.getAsset(getSlip44AssetId(KnownCaip2ChainId.Mainnet)),
+      ).toStrictEqual(
+        ref.getAsset(getSlip44AssetId(KnownCaip2ChainId.Mainnet)),
+      );
+    });
+
+    it('throws when native slip44 balance is missing', () => {
+      const { onChainAccount } = createTestWallet();
+      const ser = onChainAccount.toSerializable();
+      const nativeId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
+      const balances = { ...ser.balances };
+      delete balances[nativeId];
+      expect(() =>
+        OnChainAccount.fromSerializable({ ...ser, balances }),
+      ).toThrow(OnChainAccountException);
     });
   });
 });
