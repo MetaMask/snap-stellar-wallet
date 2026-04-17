@@ -18,7 +18,7 @@ import {
   isSlip44Id,
 } from '../../utils';
 import type { ILogger } from '../../utils';
-import type { NetworkService } from '../network';
+import type { AssetDataResponse, NetworkService } from '../network';
 import type { StellarAssetMetadata } from './api';
 import type { AssetMetadataRepository } from './AssetMetadataRepository';
 import { AssetMetadataServiceException } from './exceptions';
@@ -130,7 +130,7 @@ export class AssetMetadataService {
    * @param scope - The chain ID to look up.
    * @returns A Promise that resolves to all persisted SEP-41 assets for the given chain ID.
    */
-  async getAllSep41AssetsMetadata(
+  async getPersistedSep41AssetsMetadata(
     scope: KnownCaip2ChainId,
   ): Promise<StellarAssetMetadata[]> {
     const persistedAssets = await this.#assetMetadataRepository.getByAssetType(
@@ -241,7 +241,7 @@ export class AssetMetadataService {
       missingClassicAssetIds,
       scope,
     );
-    return apiTokenAssets.concat(sepTokenAssets).concat(classicTokenAssets);
+    return [...apiTokenAssets, ...sepTokenAssets, ...classicTokenAssets];
   }
 
   async #fetchTokenAssetsFromApi(assetIds: KnownCaip19AssetId[]): Promise<{
@@ -270,8 +270,6 @@ export class AssetMetadataService {
     }
 
     this.#logger.debug('Fetching SEP-41 token assets from RPC', { assetIds });
-    const assets: StellarAssetMetadata[] = [];
-    const missingTokenAssetIds = new Set<string>(assetIds);
 
     const settled = await batchesAllSettledWithChunks(
       assetIds,
@@ -280,23 +278,12 @@ export class AssetMetadataService {
       async (chunk) => this.#networkService.getAssetsData(chunk, scope),
     );
 
-    for (const entry of settled) {
-      if (entry.status === 'rejected') {
-        this.#logger.logErrorWithDetails(
-          'Error fetching SEP-41 token assets from RPC',
-          ensureError(entry.reason).message,
-        );
-        continue;
-      }
-      for (const asset of entry.value) {
-        assets.push(toStellarAssetMetadata(asset));
-        missingTokenAssetIds.delete(asset.assetId);
-      }
-    }
+    const { assets, missingAssetIds } =
+      this.#extractSuccessAndMissingFromSettled(settled, assetIds);
 
-    if (missingTokenAssetIds.size > 0) {
+    if (missingAssetIds.length > 0) {
       this.#logger.warn(
-        `Failed to fetch token metadata for assets: ${Array.from(missingTokenAssetIds).join(', ')}`,
+        `Failed to fetch token metadata for assets: ${Array.from(missingAssetIds).join(', ')}`,
       );
     }
 
@@ -314,8 +301,6 @@ export class AssetMetadataService {
     this.#logger.debug('Fetching Classic token assets from Horizon', {
       assetIds,
     });
-    const assets: StellarAssetMetadata[] = [];
-    const missingTokenAssetIds = new Set<string>(assetIds);
 
     const settled = await batchesAllSettled(
       assetIds,
@@ -324,25 +309,46 @@ export class AssetMetadataService {
         this.#networkService.getClassicAssetData(assetId, scope),
     );
 
-    for (const entry of settled) {
-      if (entry.status === 'rejected') {
-        this.#logger.logErrorWithDetails(
-          'Error fetching Classic token assets from Horizon',
-          ensureError(entry.reason).message,
-        );
-        continue;
-      }
-      assets.push(toStellarAssetMetadata(entry.value));
-      missingTokenAssetIds.delete(entry.value.assetId);
-    }
+    const { assets, missingAssetIds } =
+      this.#extractSuccessAndMissingFromSettled(settled, assetIds);
 
-    if (missingTokenAssetIds.size > 0) {
+    if (missingAssetIds.length > 0) {
       this.#logger.warn(
-        `Failed to fetch token metadata for assets: ${Array.from(missingTokenAssetIds).join(', ')}`,
+        `Failed to fetch token metadata for assets: ${Array.from(missingAssetIds).join(', ')}`,
       );
     }
 
     return assets;
+  }
+
+  #extractSuccessAndMissingFromSettled(
+    settled: PromiseSettledResult<AssetDataResponse | AssetDataResponse[]>[],
+    assetIds: KnownCaip19AssetId[],
+  ): { assets: StellarAssetMetadata[]; missingAssetIds: string[] } {
+    const assets: StellarAssetMetadata[] = [];
+    const missingTokenAssetIds = new Set<string>(assetIds);
+
+    for (const entry of settled) {
+      if (entry.status === 'rejected') {
+        this.#logger.logErrorWithDetails(
+          'Error fetching assets',
+          ensureError(entry.reason).message,
+        );
+        continue;
+      }
+
+      if (Array.isArray(entry.value)) {
+        for (const asset of entry.value) {
+          assets.push(toStellarAssetMetadata(asset));
+          missingTokenAssetIds.delete(asset.assetId);
+        }
+      } else {
+        assets.push(toStellarAssetMetadata(entry.value));
+        missingTokenAssetIds.delete(entry.value.assetId);
+      }
+    }
+
+    return { assets, missingAssetIds: Array.from(missingTokenAssetIds) };
   }
 
   #toAssetMetadata(assetData: StellarAssetMetadata): AssetMetadata {

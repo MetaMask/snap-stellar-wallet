@@ -202,14 +202,14 @@ describe('AssetMetadataService', () => {
     } satisfies AssetMetadata);
   });
 
-  it('delegates getAllSep41AssetsMetadata to repository', async () => {
+  it('delegates getPersistedSep41AssetsMetadata to repository', async () => {
     const sepRows: StellarAssetMetadata[] = [];
     const getByAssetType = jest.fn().mockResolvedValue(sepRows);
     const { service } = createService({
       repo: { getByAssetType },
     });
 
-    const result = await service.getAllSep41AssetsMetadata(
+    const result = await service.getPersistedSep41AssetsMetadata(
       KnownCaip2ChainId.Mainnet,
     );
 
