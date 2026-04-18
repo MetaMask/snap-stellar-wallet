@@ -126,19 +126,16 @@ export class OnChainAccount {
    * Gets the balance for a given asset id.
    *
    * @param assetId - The asset id to get the balance for.
-   * @returns The balance for the given asset id.
+   * @returns A shallow copy of the row, or `undefined` when this account has no balance for the id.
    */
-  getAsset(assetId: KnownCaip19AssetIdOrSlip44Id): SpendableBalance {
+  getAsset(
+    assetId: KnownCaip19AssetIdOrSlip44Id,
+  ): SpendableBalance | undefined {
     const entry = this.#balances.get(assetId);
-    if (entry !== undefined) {
-      return {
-        ...entry,
-      };
+    if (entry === undefined) {
+      return undefined;
     }
-    throw new OnChainAccountBalanceNotAvailableException(
-      assetId,
-      this.accountId,
-    );
+    return { ...entry };
   }
 
   /**
@@ -165,6 +162,15 @@ export class OnChainAccount {
     return Array.from(this.#balances.keys());
   }
 
+  /**
+   * Native (XLM) balance available to spend after minimum reserve and trustline reserves, in stroops.
+   *
+   * Requires a hydrated native slip44 row (Horizon or snapshot). Missing data is **not** reported as
+   * `0` or `undefined`—the account may be unfunded or balances may not be loaded yet.
+   *
+   * @returns Spendable native balance in stroops.
+   * @throws {OnChainAccountBalanceNotAvailableException} When native balance rows are not bound.
+   */
   get nativeSpendableBalance(): BigNumber {
     const nativeId = getSlip44AssetId(this.#scope);
     const entry = this.#balances.get(nativeId);
@@ -177,6 +183,15 @@ export class OnChainAccount {
     return entry.balance;
   }
 
+  /**
+   * Total native (XLM) balance on the ledger in stroops (spendable + minimum balance / reserves).
+   *
+   * Derived from the bound spendable native row and ledger meta. Same rule as {@link nativeSpendableBalance}:
+   * unknown hydration is an error, not zero.
+   *
+   * @returns Total native balance in stroops.
+   * @throws {OnChainAccountBalanceNotAvailableException} When native raw total could not be derived.
+   */
   get nativeRawBalance(): BigNumber {
     const nativeId = getSlip44AssetId(this.#scope);
     if (this.#rawNativeBalance === undefined) {
@@ -207,8 +222,8 @@ export class OnChainAccount {
       KnownCaip19AssetIdOrSlip44Id,
       SpendableBalance
     >;
-    for (const assetId of this.#balances.keys()) {
-      balances[assetId] = this.getAsset(assetId);
+    for (const [assetId, entry] of this.#balances) {
+      balances[assetId] = { ...entry };
     }
 
     return {

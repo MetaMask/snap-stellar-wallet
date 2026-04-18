@@ -59,16 +59,20 @@ import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
-import type { AssetMetadataService } from '../../services/asset-metadata';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import { AccountNotActivatedException } from '../../services/network';
-import type { OnChainAccountService } from '../../services/on-chain-account';
+import type {
+  OnChainAccount,
+  OnChainAccountService,
+} from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction/TransactionService';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
   getSlip44AssetId,
   getSnapProvider,
+  isSep41Id,
+  isSlip44Id,
   rethrowIfInstanceElseThrow,
   validateOrigin,
   validateRequest,
@@ -84,22 +88,18 @@ export class KeyringHandler implements Keyring {
 
   readonly #transactionService: TransactionService;
 
-  readonly #assetMetadataService: AssetMetadataService;
-
   readonly #handlers: Record<MultichainMethod, IKeyringRequestHandler>;
 
   constructor({
     logger,
     accountService,
     onChainAccountService,
-    assetMetadataService,
     transactionService,
     handlers,
   }: {
     logger: ILogger;
     accountService: AccountService;
     onChainAccountService: OnChainAccountService;
-    assetMetadataService: AssetMetadataService;
     transactionService: TransactionService;
     handlers: Record<MultichainMethod, IKeyringRequestHandler>;
   }) {
@@ -107,7 +107,6 @@ export class KeyringHandler implements Keyring {
     this.#accountService = accountService;
     this.#onChainAccountService = onChainAccountService;
     this.#transactionService = transactionService;
-    this.#assetMetadataService = assetMetadataService;
     this.#handlers = handlers;
   }
 
@@ -158,7 +157,7 @@ export class KeyringHandler implements Keyring {
       const account = await this.#accountService.create(
         options,
         async (stellarKeyringAccount: StellarKeyringAccount) =>
-          await this.#emitCreatedAccountEvent(stellarKeyringAccount, options),
+          this.#emitCreatedAccountEvent(stellarKeyringAccount, options),
       );
 
       return this.#toKeyringAccount(account);
@@ -236,24 +235,25 @@ export class KeyringHandler implements Keyring {
 
   async listAccountAssets(accountId: string): Promise<CaipAssetTypeOrId[]> {
     validateRequest(accountId, ListAccountAssetsRequestStruct);
+
+    const scope = AppConfig.selectedNetwork;
+
     try {
-      const { account } = await this.#accountService.resolveAccount({
+      const { onChainAccount } = await this.#resolveAccountByAccountId(
         accountId,
-      });
+        scope,
+      );
 
-      // We only support one scope in metamask today
-      const onChainAccount =
-        await this.#onChainAccountService.resolveOnChainAccount(
-          account,
-          AppConfig.selectedNetwork,
+      // Non-SEP-41 (native + classic): always list. SEP-41: only if row exists and balance > 0.
+      return onChainAccount.assetIds.filter((assetId) => {
+        return (
+          !isSep41Id(assetId) || onChainAccount.getAsset(assetId)?.balance.gt(0)
         );
-
-      return onChainAccount.assetIds;
+      });
     } catch (error: unknown) {
-      // fallback to single native asset if the account is not activated`
+      // Always include native asset in the response when the account is not activated
       if (error instanceof AccountNotActivatedException) {
-        const slip44AssetId = getSlip44AssetId(AppConfig.selectedNetwork);
-        return [slip44AssetId];
+        return [getSlip44AssetId(scope)];
       }
       this.#logger.logErrorWithDetails(
         'Failed to list account assets',
@@ -270,15 +270,15 @@ export class KeyringHandler implements Keyring {
     data: Transaction[];
     next: string | null;
   }> {
-    try {
-      validateRequest(
-        { accountId, pagination },
-        ListAccountTransactionsRequestStruct,
-      );
+    validateRequest(
+      { accountId, pagination },
+      ListAccountTransactionsRequestStruct,
+    );
 
+    try {
       const { limit, next } = pagination;
 
-      // we dont necessary to check if the account is activated
+      // It is not necessary to check if the account is activated
       // because we are not fetching the transactions from the network.
       const { account: keyringAccount } =
         await this.#accountService.resolveAccount({
@@ -294,7 +294,8 @@ export class KeyringHandler implements Keyring {
         ? transactions.findIndex((tx) => tx.id === next)
         : 0;
 
-      // Safeguard: If the next cursor is invalid, throw a RangeError.
+      // Safeguard: If the next cursor is invalid, throw the account-based exception
+      // with the correct account identifier.
       if (next !== undefined && next !== null && startIndex === -1) {
         throw new KeyringListAccountTransactionsException(
           `Invalid transaction pagination cursor: ${next}`,
@@ -340,21 +341,24 @@ export class KeyringHandler implements Keyring {
       DiscoverAccountsStruct,
     );
 
-    // it is a never case because the struct validation ensures that the scopes length is 1
-    if (scopes.length !== 1 || scopes[0] === undefined) {
-      throw new Error('Invalid scope');
+    // DiscoverAccountsStruct enforces exactly one scope; this guards TypeScript.
+    const scope = scopes[0];
+    if (scope === undefined) {
+      throw new Error('Invariant: discoverAccounts requires one scope');
     }
 
     try {
-      // Discover an account if it exists on the blockchain.
-      const account = await this.#onChainAccountService.discoverOnChainAccount({
+      const account = await this.#accountService.deriveKeyringAccount({
         entropySource,
         index: groupIndex,
-        // we assume only one scope supported
-        scope: scopes[0],
+      });
+      // Discover an account if it exists on the blockchain.
+      const isActivated = await this.#onChainAccountService.isAccountActivated({
+        accountAddress: account.address,
+        scope,
       });
 
-      if (!account) {
+      if (!isActivated) {
         return [];
       }
 
@@ -380,51 +384,42 @@ export class KeyringHandler implements Keyring {
   ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, Balance>> {
     validateRequest({ accountId, assets }, GetAccountBalancesRequestStruct);
 
-    const nativeAssetMetadata = getNativeAssetMetadata(
-      AppConfig.selectedNetwork,
-    );
-
-    const defaultAsset = {
-      [nativeAssetMetadata.assetId]: {
-        unit: nativeAssetMetadata.symbol,
-        amount: '0',
-      },
-    } as Record<KnownCaip19AssetIdOrSlip44Id, Balance>;
+    const scope = AppConfig.selectedNetwork;
+    const assetBalances = {} as Record<KnownCaip19AssetIdOrSlip44Id, Balance>;
 
     try {
-      const { account } = await this.#accountService.resolveAccount({
+      const { onChainAccount } = await this.#resolveAccountByAccountId(
         accountId,
-      });
+        scope,
+      );
 
-      const assetsMetadata =
-        await this.#assetMetadataService.getAssetsMetadataByAssetIds(
-          assets,
-          AppConfig.selectedNetwork,
-        );
-      // We only support one scope in metamask today
-      const onChainAccount =
-        await this.#onChainAccountService.resolveOnChainAccount(
-          account,
-          AppConfig.selectedNetwork,
-        );
-
-      // onChainAccount.assetIds will always include the native asset
-      return onChainAccount.assetIds.reduce((acc, assetId) => {
-        const assetMetadata = assetsMetadata[assetId];
-        // We dont filter by balance here because a asset is bind with trustline in Stellar Account.
-        if (assetMetadata) {
-          acc[assetId] = {
-            unit: assetMetadata.symbol ?? '',
-            amount: onChainAccount.getAsset(assetId).balance.toString(),
-          };
+      for (const assetId of assets) {
+        const asset = onChainAccount.getAsset(assetId);
+        if (asset === undefined) {
+          continue;
         }
-        return acc;
-      }, defaultAsset);
+        // Native / classic trustlines: always include. SEP-41: only non-zero.
+        if (isSep41Id(assetId) && !asset.balance.gt(0)) {
+          continue;
+        }
+        assetBalances[assetId] = {
+          unit: asset.symbol ?? '',
+          amount: asset.balance.toString(),
+        };
+      }
+      return assetBalances;
     } catch (error: unknown) {
       if (error instanceof AccountNotActivatedException) {
-        // fallback to default asset if the account is not activated
-        return defaultAsset;
+        const nativeAssetId = assets.find(isSlip44Id);
+        if (nativeAssetId !== undefined) {
+          assetBalances[nativeAssetId] = {
+            unit: getNativeAssetMetadata(scope).symbol ?? '',
+            amount: '0',
+          };
+        }
+        return assetBalances;
       }
+
       this.#logger.logErrorWithDetails(
         'Failed to get account balances',
         ensureError(error).message,
@@ -515,5 +510,25 @@ export class KeyringHandler implements Keyring {
 
   #assertMethodIsValid(method: string): asserts method is MultichainMethod {
     validateRequest(method, MultichainMethodStruct);
+  }
+
+  async #resolveAccountByAccountId(
+    accountId: string,
+    scope: KnownCaip2ChainId,
+  ): Promise<{
+    account: StellarKeyringAccount;
+    onChainAccount: OnChainAccount;
+  }> {
+    const { account } = await this.#accountService.resolveAccount({
+      accountId,
+    });
+
+    const onChainAccount =
+      await this.#onChainAccountService.resolveOnChainAccount(
+        account.address,
+        scope,
+      );
+
+    return { account, onChainAccount };
   }
 }

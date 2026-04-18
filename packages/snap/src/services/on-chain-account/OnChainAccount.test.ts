@@ -163,7 +163,7 @@ describe('OnChainAccount', () => {
       },
     );
 
-    it('throws OnChainAccountBalanceNotAvailableException when account has no loaded balances', () => {
+    it('returns undefined when the account has no balance row for the asset id', () => {
       const acc = new Account(
         testOnChain.accountId,
         testOnChain.sequenceNumber,
@@ -173,7 +173,7 @@ describe('OnChainAccount', () => {
         KnownCaip2ChainId.Mainnet,
         unfundedHorizonBinding(acc, KnownCaip2ChainId.Mainnet),
       );
-      expect(() =>
+      expect(
         onChainAccount.getAsset(
           toCaip19ClassicAssetId(
             KnownCaip2ChainId.Mainnet,
@@ -181,7 +181,7 @@ describe('OnChainAccount', () => {
             'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
           ),
         ),
-      ).toThrow(OnChainAccountBalanceNotAvailableException);
+      ).toBeUndefined();
     });
   });
 

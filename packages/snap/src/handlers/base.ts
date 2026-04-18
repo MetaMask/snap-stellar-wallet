@@ -156,7 +156,7 @@ export abstract class WithActiveAccountResolve<
     if (loadOnChain) {
       promises.push(
         this.onChainAccountService.resolveOnChainAccount(
-          account,
+          account.address,
           AppConfig.selectedNetwork,
         ),
       );

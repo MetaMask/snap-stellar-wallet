@@ -33,7 +33,6 @@ import {
 } from '../../services/account';
 import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
 import { AccountNotFoundException } from '../../services/account/exceptions';
-import type { AssetMetadataService } from '../../services/asset-metadata/AssetMetadataService';
 import { AccountNotActivatedException } from '../../services/network';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
@@ -68,8 +67,6 @@ describe('KeyringHandler', () => {
   let mockAccountId: string;
   let mockSignMessageHandler: IKeyringRequestHandler;
   let mockSignTransactionHandler: IKeyringRequestHandler;
-  let mockAssetMetadataService: AssetMetadataService;
-  let getAssetsMetadataByAssetIdsMock: jest.Mock;
 
   const toKeyringAccount = (account: StellarKeyringAccount): KeyringAccount => {
     const { id, address, type, options, methods, scopes } = account;
@@ -87,10 +84,6 @@ describe('KeyringHandler', () => {
     listAccountsSpy: jest.spyOn(AccountService.prototype, 'listAccounts'),
     findByIdSpy: jest.spyOn(AccountService.prototype, 'findById'),
     deleteSpy: jest.spyOn(AccountService.prototype, 'delete'),
-    discoverOnChainAccountSpy: jest.spyOn(
-      OnChainAccountService.prototype,
-      'discoverOnChainAccount',
-    ),
     resolveAccountSpy: jest.spyOn(AccountService.prototype, 'resolveAccount'),
     createAccountSpy: jest.spyOn(AccountService.prototype, 'create'),
   });
@@ -101,10 +94,6 @@ describe('KeyringHandler', () => {
 
     mockSignMessageHandler = { handle: jest.fn() };
     mockSignTransactionHandler = { handle: jest.fn() };
-    getAssetsMetadataByAssetIdsMock = jest.fn().mockResolvedValue({});
-    mockAssetMetadataService = {
-      getAssetsMetadataByAssetIds: getAssetsMetadataByAssetIdsMock,
-    } as unknown as AssetMetadataService;
 
     const { accountService, onChainAccountService } =
       mockOnChainAccountService();
@@ -113,7 +102,6 @@ describe('KeyringHandler', () => {
       logger,
       accountService,
       onChainAccountService,
-      assetMetadataService: mockAssetMetadataService,
       transactionService,
       handlers: {
         [MultichainMethod.SignMessage]: mockSignMessageHandler,
@@ -420,9 +408,12 @@ describe('KeyringHandler', () => {
 
   describe('discoverAccounts', () => {
     it('discovers an account', async () => {
-      jest
-        .spyOn(OnChainAccountService.prototype, 'discoverOnChainAccount')
+      const deriveKeyringAccountSpy = jest
+        .spyOn(AccountService.prototype, 'deriveKeyringAccount')
         .mockResolvedValue(mockAccount);
+      const isAccountActivatedSpy = jest
+        .spyOn(OnChainAccountService.prototype, 'isAccountActivated')
+        .mockResolvedValue(true);
 
       const result = await keyringHandler.discoverAccounts(
         [KnownCaip2ChainId.Mainnet],
@@ -430,6 +421,14 @@ describe('KeyringHandler', () => {
         0,
       );
 
+      expect(deriveKeyringAccountSpy).toHaveBeenCalledWith({
+        entropySource: 'entropy-source-1',
+        index: 0,
+      });
+      expect(isAccountActivatedSpy).toHaveBeenCalledWith({
+        accountAddress: mockAccount.address,
+        scope: KnownCaip2ChainId.Mainnet,
+      });
       expect(result).toStrictEqual([
         {
           type: DiscoveredAccountType.Bip44,
@@ -441,8 +440,11 @@ describe('KeyringHandler', () => {
 
     it('returns empty array if the account is not activated on the Stellar network', async () => {
       jest
-        .spyOn(OnChainAccountService.prototype, 'discoverOnChainAccount')
-        .mockResolvedValue(null);
+        .spyOn(AccountService.prototype, 'deriveKeyringAccount')
+        .mockResolvedValue(mockAccount);
+      jest
+        .spyOn(OnChainAccountService.prototype, 'isAccountActivated')
+        .mockResolvedValue(false);
 
       const result = await keyringHandler.discoverAccounts(
         [KnownCaip2ChainId.Mainnet],
@@ -455,7 +457,7 @@ describe('KeyringHandler', () => {
 
     it('throws an error if the account discovery fails', async () => {
       jest
-        .spyOn(OnChainAccountService.prototype, 'discoverOnChainAccount')
+        .spyOn(AccountService.prototype, 'deriveKeyringAccount')
         .mockRejectedValue(new Error('Account discovery failed'));
 
       await expect(
@@ -483,14 +485,14 @@ describe('KeyringHandler', () => {
       const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
-      getAssetsMetadataByAssetIdsMock.mockResolvedValue({
-        [slipId]: { symbol: 'XLM' },
-      });
       jest
         .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
         .mockResolvedValue({
           assetIds: [slipId],
-          getAsset: () => ({ balance: new BigNumber('10') }),
+          getAsset: () => ({
+            balance: new BigNumber('10'),
+            symbol: 'XLM',
+          }),
         } as unknown as OnChainAccount);
 
       const result = await keyringHandler.getAccountBalances(mockAccountId, [

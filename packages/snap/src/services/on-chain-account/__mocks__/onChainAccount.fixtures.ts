@@ -141,8 +141,8 @@ export const createMockAccountWithBalances = (
 };
 
 /**
- * Builds {@link OnChainAccountService} with real {@link AccountService}, shared {@link State},
- * and {@link NetworkService}, for integration-style tests.
+ * Builds {@link OnChainAccountService} with {@link NetworkService}, plus {@link AccountService}
+ * on shared {@link State} for tests that need derivation or persistence.
  *
  * @returns On-chain service plus the account and wallet services wired to the same state.
  */
@@ -161,10 +161,7 @@ export function mockOnChainAccountService() {
     walletService,
   });
   const networkService = new NetworkService({ logger });
-  const onChainAccountService = new OnChainAccountService({
-    networkService,
-    accountService,
-  });
+  const onChainAccountService = new OnChainAccountService({ networkService });
 
   return {
     onChainAccountService,
