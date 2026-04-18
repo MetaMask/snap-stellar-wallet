@@ -10,7 +10,10 @@ import { NetworkService } from '../../network';
 import { State } from '../../state/State';
 import { WalletService } from '../../wallet';
 import { OnChainAccount } from '../OnChainAccount';
-import type { OnChainAccountSerializable } from '../OnChainAccountSerializable';
+import type {
+  OnChainAccountMinimalSerializable,
+  OnChainAccountSerializable,
+} from '../OnChainAccountSerializable';
 import { OnChainAccountService } from '../OnChainAccountService';
 
 /**
@@ -18,7 +21,7 @@ import { OnChainAccountService } from '../OnChainAccountService';
  *
  * @param account - Mock or SDK account that includes Horizon `balances` / meta fields.
  * @param scope - CAIP-2 network (must match the `OnChainAccount` constructor scope).
- * @returns Serializable binding for {@link OnChainAccount} constructor.
+ * @returns Full serializable binding for {@link OnChainAccount} constructor.
  */
 export function horizonSource(
   account: Account,
@@ -31,23 +34,21 @@ export function horizonSource(
 }
 
 /**
- * Serializable binding with no balance lines (sequence exists, no asset rows yet).
+ * Minimal header binding (no native line on Horizon): id, sequence, scope only.
  *
- * @param account - Bare SDK `Account` instance (mutated to add empty `balances`).
+ * @param account - Bare SDK `Account` instance.
  * @param scope - CAIP-2 network.
  * @returns Binding for {@link OnChainAccount} constructor.
  */
 export function unfundedHorizonBinding(
   account: Account,
   scope: KnownCaip2ChainId,
-): OnChainAccountSerializable {
-  const response = Object.assign(account, {
-    balances: [],
-    subentry_count: 0,
-    num_sponsoring: 0,
-    num_sponsored: 0,
-  }) as unknown as Horizon.AccountResponse;
-  return OnChainAccount.fromHorizon(response, scope).toSerializable();
+): OnChainAccountMinimalSerializable {
+  return {
+    accountId: account.accountId(),
+    sequenceNumber: account.sequenceNumber(),
+    scope,
+  };
 }
 
 export type MockAssetLine = {

@@ -8,8 +8,17 @@ import {
   OnChainAccountException,
   OnChainAccountMetadataNotAvailableException,
 } from './exceptions';
-import type { OnChainAccountSerializable } from './OnChainAccountSerializable';
-import { calculateSpendableBalance, minimumBalanceStroops } from './utils';
+import type {
+  OnChainAccountMinimalSerializable,
+  OnChainAccountSerializable,
+  OnChainAccountSerializableFull,
+  SerializableSpendableBalance,
+} from './OnChainAccountSerializable';
+import {
+  OnChainAccountMinimalSerializableStruct,
+  OnChainAccountSerializableFullStruct,
+} from './OnChainAccountSerializable';
+import { calculateSpendableBalance } from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19ClassicAssetId,
@@ -26,9 +35,10 @@ import {
 } from '../../utils';
 
 /**
- * SDK {@link StellarAccount} plus optional {@link OnChainAccountSerializable} hydration (balances, meta).
- * Build via {@link OnChainAccount.fromHorizon}, {@link OnChainAccount.fromSerializable}, or `new OnChainAccount(account, scope)` (RPC: no binding, sequence only; use Horizon for balances).
- * Without `binding`, only id, sequence, `scope`, and {@link OnChainAccount.getRaw} are defined; balances and meta need hydration.
+ * SDK {@link StellarAccount} plus optional {@link OnChainAccountSerializable} hydration.
+ * Binding is **either** minimal (`accountId`, `sequenceNumber`, `scope` only) **or** full
+ * (meta + balances + `rawNativeBalance`). Build via {@link OnChainAccount.fromHorizon},
+ * {@link OnChainAccount.fromSerializable}, or `new OnChainAccount(account, scope)` (no binding).
  */
 export class OnChainAccount {
   readonly #account: StellarAccount;
@@ -49,7 +59,7 @@ export class OnChainAccount {
   /**
    * @param account - Stellar SDK account (id + sequence). When `binding` is set, header fields must match.
    * @param scope - CAIP-2 network; must match `binding.scope`.
-   * @param binding - Hydrate from snapshot; omit for RPC-style accounts (see class overview).
+   * @param binding - Minimal or full snapshot; omit for RPC-style accounts (see class overview).
    */
   constructor(
     account: StellarAccount,
@@ -164,12 +174,10 @@ export class OnChainAccount {
 
   /**
    * Native (XLM) balance available to spend after minimum reserve and trustline reserves, in stroops.
-   *
-   * Requires a hydrated native slip44 row (Horizon or snapshot). Missing data is **not** reported as
-   * `0` or `undefined`—the account may be unfunded or balances may not be loaded yet.
+   * Sourced from the bound native slip44 row (set on full bind from `rawNativeBalance` + meta).
    *
    * @returns Spendable native balance in stroops.
-   * @throws {OnChainAccountBalanceNotAvailableException} When native balance rows are not bound.
+   * @throws {OnChainAccountBalanceNotAvailableException} When native balance is not bound.
    */
   get nativeSpendableBalance(): BigNumber {
     const nativeId = getSlip44AssetId(this.#scope);
@@ -184,13 +192,12 @@ export class OnChainAccount {
   }
 
   /**
-   * Total native (XLM) balance on the ledger in stroops (spendable + minimum balance / reserves).
+   * Total native (XLM) balance on the ledger in stroops (Horizon `balance`, not clamped spendable).
    *
-   * Derived from the bound spendable native row and ledger meta. Same rule as {@link nativeSpendableBalance}:
-   * unknown hydration is an error, not zero.
+   * Sourced from {@link OnChainAccountSerializableFull.rawNativeBalance} on full bind, or from Horizon.
    *
    * @returns Total native balance in stroops.
-   * @throws {OnChainAccountBalanceNotAvailableException} When native raw total could not be derived.
+   * @throws {OnChainAccountBalanceNotAvailableException} When native raw total is not bound.
    */
   get nativeRawBalance(): BigNumber {
     const nativeId = getSlip44AssetId(this.#scope);
@@ -213,17 +220,40 @@ export class OnChainAccount {
   }
 
   /**
-   * Copies id, sequence, network, ledger meta, and all bound balances into a plain object.
+   * Snapshot for persistence: returns a **full** payload when meta and on-ledger native total are
+   * bound; otherwise returns a **minimal** payload (`accountId`, `sequenceNumber`, `scope` only).
+   * Full `balances` use string numerics for JSON; native slip44 row matches in-memory `BigNumber`s.
    *
-   * @returns suitable for persistence or messaging.
+   * @returns {@link OnChainAccountSerializableFull} when bound, otherwise {@link OnChainAccountMinimalSerializable}.
    */
   toSerializable(): OnChainAccountSerializable {
-    const balances = {} as Record<
-      KnownCaip19AssetIdOrSlip44Id,
-      SpendableBalance
-    >;
+    const subentryCount = this.#subentryCount;
+    const numSponsoring = this.#numSponsoring;
+    const numSponsored = this.#numSponsored;
+
+    if (
+      subentryCount === undefined ||
+      numSponsoring === undefined ||
+      numSponsored === undefined ||
+      this.#rawNativeBalance === undefined
+    ) {
+      return {
+        accountId: this.accountId,
+        sequenceNumber: this.sequenceNumber,
+        scope: this.#scope,
+      };
+    }
+
+    const balances = {} as SerializableSpendableBalance;
     for (const [assetId, entry] of this.#balances) {
-      balances[assetId] = { ...entry };
+      balances[assetId] = {
+        balance: entry.balance.toString(),
+        symbol: entry.symbol,
+        limit: entry.limit === undefined ? undefined : entry.limit.toString(),
+        address: entry.address,
+        authorized: entry.authorized,
+        sponsored: entry.sponsored,
+      };
     }
 
     return {
@@ -231,22 +261,35 @@ export class OnChainAccount {
       sequenceNumber: this.sequenceNumber,
       scope: this.#scope,
       meta: {
-        subentryCount: this.subentryCount,
-        numSponsoring: this.numSponsoring,
-        numSponsored: this.numSponsored,
+        subentryCount,
+        numSponsoring,
+        numSponsored,
       },
       balances,
+      rawNativeBalance: this.#rawNativeBalance.toFixed(0),
     };
   }
 
   /**
-   * Builds from a Horizon `loadAccount` response: maps balances and ledger meta into
-   * {@link OnChainAccountSerializable} (same shape as {@link OnChainAccount#toSerializable}), then hydrates.
-   * When the response has no native balance line, the binding omits native so behavior matches a partial load.
+   * Header-only snapshot for minimally bound accounts.
+   *
+   * @returns `accountId`, `sequenceNumber`, and `scope`.
+   */
+  toMinimalSerializable(): OnChainAccountMinimalSerializable {
+    return {
+      accountId: this.accountId,
+      sequenceNumber: this.sequenceNumber,
+      scope: this.#scope,
+    };
+  }
+
+  /**
+   * Builds from a Horizon `loadAccount` response.
+   * With a native balance line → full binding; otherwise → minimal binding (sequence-only style).
    *
    * @param response - Horizon `loadAccount` payload.
    * @param scope - CAIP-2 network.
-   * @returns Hydrated {@link OnChainAccount} backed by a minimal SDK `Account` plus derived maps.
+   * @returns Hydrated {@link OnChainAccount}.
    */
   static fromHorizon(
     response: Horizon.AccountResponse,
@@ -261,23 +304,23 @@ export class OnChainAccount {
     const numSponsored = response.num_sponsored ?? 0;
     const meta = { subentryCount, numSponsoring, numSponsored };
     const nativeAssetId = getSlip44AssetId(scope);
-    const balances = {} as Record<
-      KnownCaip19AssetIdOrSlip44Id,
-      SpendableBalance
-    >;
+    const balances = {} as SerializableSpendableBalance;
 
     const horizonBalances = response.balances ?? [];
+
+    let rawNativeBalance: string | undefined;
 
     for (const balance of horizonBalances) {
       const balanceStroops = toSmallestUnit(new BigNumber(balance.balance));
       if (balance.asset_type === 'native') {
+        rawNativeBalance = balanceStroops.toFixed(0);
         balances[nativeAssetId] = {
           balance: calculateSpendableBalance({
             nativeBalance: balanceStroops,
             subentryCount,
             numSponsoring,
             numSponsored,
-          }),
+          }).toString(),
           symbol: NATIVE_ASSET_SYMBOL,
         };
       } else if (
@@ -298,44 +341,44 @@ export class OnChainAccount {
             : undefined;
         const sponsored = sponsorId !== undefined && sponsorId.length > 0;
         balances[assetId] = {
-          balance: balanceStroops,
+          balance: balanceStroops.toString(),
           symbol: balance.asset_code,
           address: balance.asset_issuer,
-          limit,
+          limit: limit.toString(),
           authorized,
           ...(sponsored ? { sponsored: true } : {}),
         };
       }
     }
 
-    const data: OnChainAccountSerializable = {
+    if (rawNativeBalance === undefined) {
+      return new OnChainAccount(stellarAccount, scope, {
+        accountId: response.accountId(),
+        sequenceNumber: response.sequenceNumber(),
+        scope,
+      });
+    }
+
+    const data: OnChainAccountSerializableFull = {
       accountId: response.accountId(),
       sequenceNumber: response.sequenceNumber(),
       scope,
       meta,
       balances,
+      rawNativeBalance,
     };
 
     return new OnChainAccount(stellarAccount, scope, data);
   }
 
   /**
-   * Rehydrates from {@link OnChainAccountSerializable} (inverse of {@link OnChainAccount#toSerializable}).
+   * Rehydrates from {@link OnChainAccountSerializable} (minimal or full).
    *
-   * Native slip44 `balance` in the payload is **spendable** stroops; raw total is recovered as spendable + minimum balance from `meta`.
-   *
-   * @param data - Plain snapshot from {@link OnChainAccount#toSerializable}.
-   * @returns Bound {@link OnChainAccount} for the same network and balances.
-   * @throws {@link OnChainAccountException} When the native slip44 row for `data.scope` is missing.
+   * @param data - Minimal header or full snapshot.
+   * @returns Bound {@link OnChainAccount}.
+   * @throws {@link OnChainAccountException} When the payload is neither minimal nor full.
    */
   static fromSerializable(data: OnChainAccountSerializable): OnChainAccount {
-    // Safe guard to ensure the native balance is present.
-    const nativeId = getSlip44AssetId(data.scope);
-    if (data.balances[nativeId] === undefined) {
-      throw new OnChainAccountException(
-        `Serializable data for ${data.accountId} is missing native balance (${nativeId})`,
-      );
-    }
     const stellarAccount = new StellarAccount(
       data.accountId,
       data.sequenceNumber,
@@ -344,44 +387,55 @@ export class OnChainAccount {
   }
 
   #bindFromSerializable(data: OnChainAccountSerializable): void {
-    const { meta, balances: rows, scope } = data;
-    this.#subentryCount = meta.subentryCount;
-    this.#numSponsoring = meta.numSponsoring;
-    this.#numSponsored = meta.numSponsored;
+    if (OnChainAccountSerializableFullStruct.is(data)) {
+      const { meta, balances: rows, scope } = data;
+      this.#subentryCount = meta.subentryCount;
+      this.#numSponsoring = meta.numSponsoring;
+      this.#numSponsored = meta.numSponsored;
+      this.#rawNativeBalance = new BigNumber(data.rawNativeBalance);
 
-    const nativeId = getSlip44AssetId(scope);
+      const nativeId = getSlip44AssetId(scope);
 
-    for (const [assetId, row] of entries(rows)) {
-      if (assetId === nativeId) {
-        this.#balances.set(nativeId, {
-          balance: row.balance,
-          symbol: row.symbol,
-        });
-      } else if (isClassicAssetId(assetId) && row.limit !== undefined) {
-        this.#balances.set(assetId, {
-          balance: row.balance,
-          symbol: row.symbol,
-          limit: row.limit,
-          ...(row.address === undefined ? {} : { address: row.address }),
-          ...(row.authorized === undefined
-            ? {}
-            : { authorized: row.authorized }),
-          ...(row.sponsored === undefined ? {} : { sponsored: row.sponsored }),
-        });
-      } else if (isSep41Id(assetId)) {
-        this.#balances.set(assetId, {
-          balance: row.balance,
-          symbol: row.symbol,
-        });
+      for (const [assetId, row] of entries(rows)) {
+        if (assetId === nativeId) {
+          continue;
+        }
+        if (isClassicAssetId(assetId) && row.limit !== undefined) {
+          this.#balances.set(assetId, {
+            balance: new BigNumber(row.balance),
+            symbol: row.symbol,
+            limit: new BigNumber(row.limit),
+            ...(row.address === undefined ? {} : { address: row.address }),
+            ...(row.authorized === undefined
+              ? {}
+              : { authorized: row.authorized }),
+            ...(row.sponsored === undefined
+              ? {}
+              : { sponsored: row.sponsored }),
+          });
+        } else if (isSep41Id(assetId)) {
+          this.#balances.set(assetId, {
+            balance: new BigNumber(row.balance),
+            symbol: row.symbol,
+          });
+        }
       }
+
+      this.#balances.set(nativeId, {
+        balance: calculateSpendableBalance({
+          nativeBalance: this.#rawNativeBalance,
+          subentryCount: meta.subentryCount,
+          numSponsoring: meta.numSponsoring,
+          numSponsored: meta.numSponsored,
+        }),
+        symbol: NATIVE_ASSET_SYMBOL,
+      });
+      return;
     }
 
-    // we only store spendable balance in the balances map,
-    // so we need to add the reserved balance to get the raw balance
-    const nativeSpendable = this.#balances.get(nativeId)?.balance;
-    if (nativeSpendable !== undefined) {
-      this.#rawNativeBalance = nativeSpendable.plus(
-        minimumBalanceStroops(meta),
+    if (!OnChainAccountMinimalSerializableStruct.is(data)) {
+      throw new OnChainAccountException(
+        'Binding must be minimal (accountId, sequenceNumber, scope only) or full (meta, balances, rawNativeBalance)',
       );
     }
   }
