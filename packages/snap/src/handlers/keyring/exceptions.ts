@@ -33,8 +33,10 @@ export class KeyringListAccountAssetsException extends KeyringException {
 }
 
 export class KeyringListAccountTransactionsException extends KeyringException {
-  constructor(accountId: string) {
-    super(`Failed to list account transactions for account ${accountId}`);
+  constructor(accountId: string, message?: string) {
+    super(
+      `Failed to list account transactions for account ${accountId}${message ? `: ${message}` : ''}`,
+    );
   }
 }
 

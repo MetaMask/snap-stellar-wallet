@@ -298,6 +298,7 @@ export class KeyringHandler implements Keyring {
       // with the correct account identifier.
       if (next !== undefined && next !== null && startIndex === -1) {
         throw new KeyringListAccountTransactionsException(
+          accountId,
           `Invalid transaction pagination cursor: ${next}`,
         );
       }
