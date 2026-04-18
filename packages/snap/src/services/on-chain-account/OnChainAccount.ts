@@ -224,7 +224,7 @@ export class OnChainAccount {
    * bound; otherwise returns a **minimal** payload (`accountId`, `sequenceNumber`, `scope` only).
    * Full `balances` use string numerics for JSON; native slip44 row matches in-memory `BigNumber`s.
    *
-   * @returns {@link OnChainAccountSerializableFull} when bound, otherwise {@link OnChainAccountMinimalSerializable}.
+   * @returns when bound, otherwise {@link OnChainAccountMinimalSerializable}.
    */
   toSerializable(): OnChainAccountSerializable {
     const subentryCount = this.#subentryCount;
