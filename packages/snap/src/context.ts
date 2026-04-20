@@ -54,7 +54,6 @@ const accountService = new AccountService({
 
 const onChainAccountService = new OnChainAccountService({
   networkService,
-  accountService,
 });
 
 const transactionService = new TransactionService({

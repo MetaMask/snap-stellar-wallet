@@ -4,7 +4,7 @@
  */
 const config = {
   // Indicates whether the coverage information should be collected while executing the test
-  collectCoverage: true,
+  collectCoverage: false,
 
   // An array of glob patterns indicating a set of files for which coverage information should be collected
   collectCoverageFrom: ['./src/**/*.ts', './src/**/*.tsx'],
@@ -33,10 +33,10 @@ const config = {
   // An object that configures minimum threshold enforcement for coverage results
   coverageThreshold: {
     global: {
-      branches: 60.02,
-      functions: 73,
-      lines: 73.45,
-      statements: 73.56,
+      branches: 60.96,
+      functions: 75.86,
+      lines: 77.51,
+      statements: 77.69,
     },
   },
 
