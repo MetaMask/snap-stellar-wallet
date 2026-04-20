@@ -1,11 +1,11 @@
 import type { Infer } from '@metamask/superstruct';
 import {
+  array,
   assign,
   boolean,
   number,
   object,
   optional,
-  record,
   string,
   union,
 } from '@metamask/superstruct';
@@ -28,27 +28,50 @@ export type OnChainAccountMinimalSerializable = Infer<
   typeof OnChainAccountMinimalSerializableStruct
 >;
 
+export const SerializableClassicSpendableBalanceStruct = object({
+  assetId: KnownCaip19ClassicAssetStruct,
+  balance: string(),
+  symbol: string(),
+  limit: string(),
+  address: string(),
+  authorized: boolean(),
+  sponsored: optional(boolean()),
+});
+
+export type SerializableClassicSpendableBalance = Infer<
+  typeof SerializableClassicSpendableBalanceStruct
+>;
+
+export const SerializableSep41SpendableBalanceStruct = object({
+  assetId: KnownCaip19Sep41AssetStruct,
+  balance: string(),
+  symbol: string(),
+});
+
+export type SerializableSep41SpendableBalance = Infer<
+  typeof SerializableSep41SpendableBalanceStruct
+>;
+
+export const SerializableSlip44SpendableBalanceStruct = object({
+  assetId: KnownCaip19Slip44IdStruct,
+  balance: string(),
+  symbol: string(),
+});
+
+export type SerializableSlip44SpendableBalance = Infer<
+  typeof SerializableSlip44SpendableBalanceStruct
+>;
+
 /**
  * JSON-safe balance rows: numeric fields are decimal strings (stroops). Callers that produce this
  * shape (Horizon sync, persisted snap) are expected to supply valid numeric strings; stricter
  * superstruct refinements can be added later if needed.
  */
-export const SerializableSpendableBalanceStruct = record(
-  union([
-    KnownCaip19ClassicAssetStruct,
-    KnownCaip19Sep41AssetStruct,
-    KnownCaip19Slip44IdStruct,
-  ]),
-  object({
-    balance: string(),
-    symbol: string(),
-    limit: optional(string()),
-    address: optional(string()),
-    authorized: optional(boolean()),
-    sponsored: optional(boolean()),
-  }),
-);
-
+export const SerializableSpendableBalanceStruct = union([
+  SerializableClassicSpendableBalanceStruct,
+  SerializableSep41SpendableBalanceStruct,
+  SerializableSlip44SpendableBalanceStruct,
+]);
 export type SerializableSpendableBalance = Infer<
   typeof SerializableSpendableBalanceStruct
 >;
@@ -66,7 +89,7 @@ export const OnChainAccountSerializableFullStruct = assign(
       numSponsoring: number(),
       numSponsored: number(),
     }),
-    balances: SerializableSpendableBalanceStruct,
+    balances: array(SerializableSpendableBalanceStruct),
     rawNativeBalance: string(),
   }),
 );

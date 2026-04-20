@@ -17,6 +17,8 @@ import type {
 import {
   OnChainAccountMinimalSerializableStruct,
   OnChainAccountSerializableFullStruct,
+  SerializableClassicSpendableBalanceStruct,
+  SerializableSep41SpendableBalanceStruct,
 } from './OnChainAccountSerializable';
 import { calculateSpendableBalance } from './utils';
 import type {
@@ -26,7 +28,6 @@ import type {
 } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import {
-  entries,
   getSlip44AssetId,
   isClassicAssetId,
   isSep41Id,
@@ -222,9 +223,9 @@ export class OnChainAccount {
   /**
    * Snapshot for persistence: returns a **full** payload when meta and on-ledger native total are
    * bound; otherwise returns a **minimal** payload (`accountId`, `sequenceNumber`, `scope` only).
-   * Full `balances` use string numerics for JSON; native slip44 row matches in-memory `BigNumber`s.
+   * Full snapshots put native total in `rawNativeBalance` (stroops string); `balances` is only store non-native rows (classic + SEP-41), each with string numerics for JSON.
    *
-   * @returns when bound, otherwise {@link OnChainAccountMinimalSerializable}.
+   * @returns Full or minimal serializable shape for this binding.
    */
   toSerializable(): OnChainAccountSerializable {
     const subentryCount = this.#subentryCount;
@@ -244,16 +245,48 @@ export class OnChainAccount {
       };
     }
 
-    const balances = {} as SerializableSpendableBalance;
+    const nativeId = getSlip44AssetId(this.#scope);
+    const balances: SerializableSpendableBalance[] = [];
     for (const [assetId, entry] of this.#balances) {
-      balances[assetId] = {
-        balance: entry.balance.toString(),
-        symbol: entry.symbol,
-        limit: entry.limit === undefined ? undefined : entry.limit.toString(),
-        address: entry.address,
-        authorized: entry.authorized,
-        sponsored: entry.sponsored,
-      };
+      if (assetId === nativeId) {
+        continue;
+      }
+      if (isClassicAssetId(assetId)) {
+        if (entry.limit === undefined) {
+          throw new OnChainAccountException(
+            `Classic balance row missing limit for asset ${assetId}`,
+          );
+        }
+        if (entry.address === undefined) {
+          throw new OnChainAccountException(
+            `Classic balance row missing address for asset ${assetId}`,
+          );
+        }
+        if (entry.authorized === undefined) {
+          throw new OnChainAccountException(
+            `Classic balance row missing authorized for asset ${assetId}`,
+          );
+        }
+        balances.push(
+          SerializableClassicSpendableBalanceStruct.create({
+            assetId,
+            balance: entry.balance.toString(),
+            symbol: entry.symbol,
+            limit: entry.limit.toString(),
+            address: entry.address,
+            authorized: entry.authorized,
+            sponsored: entry.sponsored,
+          }),
+        );
+      } else if (isSep41Id(assetId)) {
+        balances.push({
+          assetId,
+          balance: entry.balance.toString(),
+          symbol: entry.symbol,
+        });
+      } else {
+        throw new OnChainAccountException(`Asset id not supported: ${assetId}`);
+      }
     }
 
     return {
@@ -303,8 +336,7 @@ export class OnChainAccount {
     const numSponsoring = response.num_sponsoring ?? 0;
     const numSponsored = response.num_sponsored ?? 0;
     const meta = { subentryCount, numSponsoring, numSponsored };
-    const nativeAssetId = getSlip44AssetId(scope);
-    const balances = {} as SerializableSpendableBalance;
+    const balances: SerializableSpendableBalance[] = [];
 
     const horizonBalances = response.balances ?? [];
 
@@ -314,15 +346,8 @@ export class OnChainAccount {
       const balanceStroops = toSmallestUnit(new BigNumber(balance.balance));
       if (balance.asset_type === 'native') {
         rawNativeBalance = balanceStroops.toFixed(0);
-        balances[nativeAssetId] = {
-          balance: calculateSpendableBalance({
-            nativeBalance: balanceStroops,
-            subentryCount,
-            numSponsoring,
-            numSponsored,
-          }).toString(),
-          symbol: NATIVE_ASSET_SYMBOL,
-        };
+        // native asset is handled with rawNativeBalance field
+        continue;
       } else if (
         balance.asset_type === 'credit_alphanum12' ||
         balance.asset_type === 'credit_alphanum4'
@@ -340,14 +365,15 @@ export class OnChainAccount {
             ? (balance as { sponsor?: string }).sponsor
             : undefined;
         const sponsored = sponsorId !== undefined && sponsorId.length > 0;
-        balances[assetId] = {
+        balances.push({
+          assetId,
           balance: balanceStroops.toString(),
           symbol: balance.asset_code,
           address: balance.asset_issuer,
           limit: limit.toString(),
           authorized,
           ...(sponsored ? { sponsored: true } : {}),
-        };
+        });
       }
     }
 
@@ -396,31 +422,6 @@ export class OnChainAccount {
 
       const nativeId = getSlip44AssetId(scope);
 
-      for (const [assetId, row] of entries(rows)) {
-        if (assetId === nativeId) {
-          continue;
-        }
-        if (isClassicAssetId(assetId) && row.limit !== undefined) {
-          this.#balances.set(assetId, {
-            balance: new BigNumber(row.balance),
-            symbol: row.symbol,
-            limit: new BigNumber(row.limit),
-            ...(row.address === undefined ? {} : { address: row.address }),
-            ...(row.authorized === undefined
-              ? {}
-              : { authorized: row.authorized }),
-            ...(row.sponsored === undefined
-              ? {}
-              : { sponsored: row.sponsored }),
-          });
-        } else if (isSep41Id(assetId)) {
-          this.#balances.set(assetId, {
-            balance: new BigNumber(row.balance),
-            symbol: row.symbol,
-          });
-        }
-      }
-
       this.#balances.set(nativeId, {
         balance: calculateSpendableBalance({
           nativeBalance: this.#rawNativeBalance,
@@ -429,6 +430,43 @@ export class OnChainAccount {
           numSponsored: meta.numSponsored,
         }),
         symbol: NATIVE_ASSET_SYMBOL,
+      });
+
+      rows.forEach((row) => {
+        // native asset is handled separately above
+        if (row.assetId === nativeId) {
+          return;
+        }
+        // check if asset id already exists in the balances map
+        if (this.#balances.has(row.assetId)) {
+          throw new OnChainAccountException(
+            'Asset id already exists in the balances map',
+          );
+        }
+
+        if (SerializableClassicSpendableBalanceStruct.is(row)) {
+          const { balance, symbol, limit, address, authorized, sponsored } =
+            row;
+
+          this.#balances.set(row.assetId, {
+            balance: new BigNumber(balance),
+            symbol,
+            limit: new BigNumber(limit),
+            address,
+            authorized,
+            ...(sponsored === undefined ? {} : { sponsored }),
+          });
+        } else if (SerializableSep41SpendableBalanceStruct.is(row)) {
+          const { balance, symbol } = row;
+          this.#balances.set(row.assetId, {
+            balance: new BigNumber(balance),
+            symbol,
+          });
+        } else {
+          throw new OnChainAccountException(
+            `Unsupported balance row for asset: ${String(row.assetId)}`,
+          );
+        }
       });
       return;
     }

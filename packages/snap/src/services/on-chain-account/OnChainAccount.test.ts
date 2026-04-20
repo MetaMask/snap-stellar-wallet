@@ -346,17 +346,14 @@ describe('OnChainAccount', () => {
         'USDC',
         'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
       );
-      const nativeRow = expectDefined(onChainAccount.getAsset(nativeId));
       const usdcRow = expectDefined(onChainAccount.getAsset(usdcId));
-      expect(fullSer.balances[nativeId]).toStrictEqual({
-        balance: nativeRow.balance.toString(),
-        symbol: nativeRow.symbol,
-        limit: optionalBigNumberString(nativeRow.limit),
-        address: nativeRow.address,
-        authorized: nativeRow.authorized,
-        sponsored: nativeRow.sponsored,
-      });
-      expect(fullSer.balances[usdcId]).toStrictEqual({
+      expect(fullSer.balances.some((row) => row.assetId === nativeId)).toBe(
+        false,
+      );
+      expect(
+        fullSer.balances.find((row) => row.assetId === usdcId),
+      ).toStrictEqual({
+        assetId: usdcId,
         balance: usdcRow.balance.toString(),
         symbol: usdcRow.symbol,
         address: usdcRow.address,
@@ -371,7 +368,6 @@ describe('OnChainAccount', () => {
 
     it('serializes zero classic trustline limit as string zero in snapshot', () => {
       const scope = KnownCaip2ChainId.Mainnet;
-      const nativeId = getSlip44AssetId(scope);
       const usdcId = toCaip19ClassicAssetId(
         scope,
         'USDC',
@@ -384,24 +380,21 @@ describe('OnChainAccount', () => {
         scope,
         meta: { subentryCount: 0, numSponsoring: 0, numSponsored: 0 },
         rawNativeBalance: '200000000',
-        balances: {
-          [nativeId]: { balance: '0', symbol: 'XLM' },
-          [usdcId]: {
+        balances: [
+          {
+            assetId: usdcId,
             balance: '1000000',
             symbol: 'USDC',
             address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
             limit: '0',
             authorized: true,
           },
-        } as OnChainAccountSerializableFull['balances'],
+        ],
       };
       const acc = new Account(accountId, '1');
       const onChainAccount = new OnChainAccount(acc, scope, data);
       const ser = onChainAccount.toSerializable();
       expect(OnChainAccountSerializableFullStruct.is(ser)).toBe(true);
-      expect(
-        (ser as OnChainAccountSerializableFull).balances[usdcId]?.limit,
-      ).toBe('0');
     });
   });
 
@@ -453,7 +446,6 @@ describe('OnChainAccount', () => {
 
     it('uses rawNativeBalance for raw native when spendable is clamped to zero', () => {
       const scope = KnownCaip2ChainId.Mainnet;
-      const nativeId = getSlip44AssetId(scope);
       const accountId = Keypair.random().publicKey();
       const meta = {
         subentryCount: 100,
@@ -474,9 +466,7 @@ describe('OnChainAccount', () => {
         sequenceNumber: '1',
         scope,
         meta,
-        balances: {
-          [nativeId]: { balance: spendable.toString(), symbol: 'XLM' },
-        } as OnChainAccountSerializableFull['balances'],
+        balances: [],
         rawNativeBalance: totalNative.toFixed(0),
       };
       const acc = new Account(accountId, '1');
