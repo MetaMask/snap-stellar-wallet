@@ -319,7 +319,7 @@ export class PriceService {
       // so we can just use the minimum of the two fixed TTLs as placeholder.
       const expirationTime = Math.min(
         AppConfig.cache.ttlMilliseconds.spotPrices,
-        AppConfig.cache.ttlMilliseconds.historicalPrices,
+        AppConfig.cache.ttlMilliseconds.fiatExchangeRates,
       );
 
       result[from][to] = {
@@ -447,7 +447,9 @@ export class PriceService {
       fungible: true,
       marketCap: this.#toCurrencySafe(marketDataInUsd.marketCap, rate),
       totalVolume: this.#toCurrencySafe(marketDataInUsd.totalVolume, rate),
-      circulatingSupply: (marketDataInUsd.circulatingSupply ?? 0).toString(), // Circulating supply counts the number of tokens in circulation, so we don't convert
+      // Circulating supply counts the number of tokens in circulation, so we don't convert.
+      // Use empty string for nullish to match the docstring contract and stay consistent with other fields.
+      circulatingSupply: marketDataInUsd.circulatingSupply?.toString() ?? '',
       allTimeHigh: this.#toCurrencySafe(marketDataInUsd.allTimeHigh, rate),
       allTimeLow: this.#toCurrencySafe(marketDataInUsd.allTimeLow, rate),
       //   Add pricePercentChange field only if it has values
