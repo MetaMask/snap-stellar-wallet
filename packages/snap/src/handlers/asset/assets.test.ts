@@ -5,7 +5,6 @@ import type {
 
 import { AssetsHandler } from './assets';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
-import { KnownCaip2ChainId } from '../../api';
 import {
   createMockAssetMetadataService,
   generateMockKeyringAssetMetadata,
