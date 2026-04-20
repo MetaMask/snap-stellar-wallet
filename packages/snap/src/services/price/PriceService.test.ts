@@ -1,11 +1,9 @@
+import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from './api';
 import { PriceService } from './PriceService';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { AppConfig } from '../../config';
 import { logger, serialize } from '../../utils';
-import {
-  GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT,
-  type FiatExchangeRatesResponse,
-} from './price-api/api';
+import type { FiatExchangeRatesResponse } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
 import { createMemoryCache } from '../cache/__mocks__/cache.fixtures';
 
