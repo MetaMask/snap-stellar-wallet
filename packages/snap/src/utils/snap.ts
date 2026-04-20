@@ -216,12 +216,19 @@ export async function scheduleBackgroundEvent({
  * @returns True if the error indicates the interface was not found.
  */
 function isInterfaceNotFoundError(error: unknown): boolean {
+  let message = '';
   if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-    return message.includes('interface') && message.includes('not found');
+    message = error.message.toLowerCase();
+  } else if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error
+  ) {
+    message = (error.message as string).toLowerCase();
+  } else {
+    message = String(error).toLowerCase();
   }
-
-  return false;
+  return message.includes('interface') && message.includes('not found');
 }
 
 /**
@@ -232,9 +239,7 @@ function isInterfaceNotFoundError(error: unknown): boolean {
  * @returns The created interface id.
  */
 export async function createInterface<TContext>(
-  // TODO: Replace `any` with type
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ui: any,
+  ui: ComponentOrElement,
   context: TContext & Record<string, Json>,
 ): Promise<string> {
   return getSnapProvider().request({
@@ -257,9 +262,7 @@ export async function createInterface<TContext>(
  */
 export async function updateInterfaceIfExists<TContext>(
   id: string,
-  // TODO: Replace `any` with type
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ui: any,
+  ui: ComponentOrElement,
   context: TContext & Record<string, Json>,
 ): Promise<true | null> {
   try {

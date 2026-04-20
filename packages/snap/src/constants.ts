@@ -59,12 +59,15 @@ export const NATIVE_ASSET_NAME = 'Lumen';
  */
 export const BASE_FEE = 100;
 
+/** TTL for caching Stellar network base fee lookups (milliseconds). */
+export const BASE_FEE_CACHE_TTL_MILLISECONDS = 60_000;
+
 /**
  * The maximum int64 balance for the Stellar network.
  *
  * @see https://stellar.org/learn/lumens
  */
-export const MAX_INT64_BALANCE = '9223372036854775807';
+export const MAX_INT64 = '9223372036854775807';
 
 /**
  * The type for the keyring account.

@@ -1,19 +1,24 @@
 import { assert, object } from '@metamask/superstruct';
 
 import { AppConfig } from './config';
-import { KeyringHandler } from './handlers';
+import { KeyringHandler, CronjobHandler, UserInputHandler } from './handlers';
+import type { ICronjobRequestHandler } from './handlers/cronjob/api';
+import { BackgroundEventMethod } from './handlers/cronjob/api';
+import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
+import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
   MultichainMethod,
   SignMessageHandler,
   SignTransactionHandler,
 } from './handlers/keyring';
-import { UserInputHandler } from './handlers/user-input/userInput';
 import { AccountService, AccountsRepository } from './services/account';
 import type { AccountBalanceState } from './services/account-balance';
+import { StateCache } from './services/cache';
 import { NetworkService } from './services/network';
 import type { OnChainAccountSnapshotState } from './services/on-chain-account';
 import { OnChainAccountService } from './services/on-chain-account';
+import { PriceService } from './services/price/PriceService';
 import { State } from './services/state';
 import {
   TransactionBuilder,
@@ -61,6 +66,12 @@ const transactionService = new TransactionService({
   logger,
   transactionRepository,
   networkService,
+  cache: new StateCache(state, logger, '__cache__transaction'),
+});
+
+const priceService = new PriceService({
+  cache: new StateCache(state, logger, '__cache__price'),
+  logger,
 });
 
 /** ------------------------------ Keyring Handler ------------------------------ */
@@ -95,11 +106,37 @@ const keyringHandler = new KeyringHandler({
   handlers: keyringMethodHandlers,
 });
 
+/** ------------------------------ Input Handler ------------------------------ */
 const userInputHandler = new UserInputHandler({
   logger,
 });
 
+/** ------------------------------ Cronjob Handler ------------------------------ */
+
+const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
+  logger,
+  priceService,
+});
+
+const trackTransactionHandler = new TrackTransactionHandler({
+  logger,
+});
+
+const cronjobMethodHandlers: Record<
+  BackgroundEventMethod,
+  ICronjobRequestHandler
+> = {
+  [BackgroundEventMethod.RefreshConfirmationPrices]:
+    refreshConfirmationPricesHandler,
+  [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
+};
+
+const cronjobHandler = new CronjobHandler({
+  handlers: cronjobMethodHandlers,
+});
+
 export {
+  cronjobHandler,
   keyringHandler,
   userInputHandler,
   signTransactionHandler,

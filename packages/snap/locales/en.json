@@ -43,6 +43,9 @@
     "confirmation.cancelButton": {
       "message": "Cancel"
     },
+    "confirmation.closeButton": {
+      "message": "Close"
+    },
     "confirmation.signMessage.title": {
       "message": "Sign message"
     },
@@ -51,6 +54,9 @@
     },
     "confirmation.account": {
       "message": "Account"
+    },
+    "confirmation.asset": {
+      "message": "Asset"
     },
     "confirmation.signTransaction.title": {
       "message": "Sign transaction"
@@ -319,6 +325,15 @@
     "confirmation.transaction.param.valueBase64": {
       "message": "Value (base64)"
     },
+    "confirmation.signChangeTrustOptIn.title": {
+      "message": "Add {asset} trustline"
+    },
+    "confirmation.signChangeTrustOptIn.updateTitle": {
+      "message": "Update {asset} trustline limit"
+    },
+    "confirmation.signChangeTrustOptOut.title": {
+      "message": "Remove {asset} trustline"
+    },
     "transactionScan.errors.unknownError": {
       "message": "An unknown error occurred"
     },
@@ -336,6 +351,30 @@
     },
     "transactionScan.errors.unsupportedEIP712Message": {
       "message": "Unsupported method"
+    },
+    "confirmation.accountActivation.title": {
+      "message": "Activate Stellar Wallet"
+    },
+    "confirmation.accountActivation.description": {
+      "message": "Your Stellar wallet needs XLM."
+    },
+    "confirmation.accountActivation.address": {
+      "message": "Your wallet address."
+    },
+    "confirmation.accountActivation.copyAddress": {
+      "message": "Copy Address"
+    },
+    "confirmation.accountActivation.method1.title": {
+      "message": "Ask someone to send XLM"
+    },
+    "confirmation.accountActivation.method1.description": {
+      "message": "Share your address · come back when received"
+    },
+    "confirmation.accountActivation.method2.title": {
+      "message": "Fund from exchange"
+    },
+    "confirmation.accountActivation.method2.description": {
+      "message": "Coinbase, Binance, etc → send to address below"
     }
   }
 }

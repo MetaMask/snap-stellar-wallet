@@ -2,6 +2,7 @@ import type {
   OnUserInputHandler,
   OnKeyringRequestHandler,
   OnRpcRequestHandler,
+  OnCronjobHandler,
 } from '@metamask/snaps-sdk';
 import { MethodNotFoundError } from '@metamask/snaps-sdk';
 import type { JsonRpcRequest } from '@metamask/utils';
@@ -11,6 +12,7 @@ import {
   signMessageHandler,
   userInputHandler,
   signTransactionHandler,
+  cronjobHandler,
 } from './context';
 
 export const onKeyringRequest: OnKeyringRequestHandler = async ({
@@ -20,6 +22,9 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
 
 export const onUserInput: OnUserInputHandler = async (params) =>
   userInputHandler.handle(params);
+
+export const onCronjob: OnCronjobHandler = async ({ request }) =>
+  cronjobHandler.handle(request);
 
 export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
   const { method } = request;

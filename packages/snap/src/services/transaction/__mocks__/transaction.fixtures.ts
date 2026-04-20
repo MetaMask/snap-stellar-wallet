@@ -15,6 +15,7 @@ import {
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';
 import { KnownCaip2ChainId } from '../../../api';
 import { getSlip44AssetId, logger } from '../../../utils';
+import { createMemoryCache } from '../../cache/__mocks__/cache.fixtures';
 import { NetworkService } from '../../network';
 import { State } from '../../state/State';
 import { generateStellarAddress } from '../../wallet/__mocks__/wallet.fixtures';
@@ -36,6 +37,7 @@ export const createMockTransactionService = () => {
         },
       }),
     ),
+    cache: createMemoryCache().cache,
     networkService,
   });
 
