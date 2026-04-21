@@ -33,6 +33,7 @@ import {
 } from '../../services/account';
 import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
 import { AccountNotFoundException } from '../../services/account/exceptions';
+import { createMockAssetMetadataService } from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { AccountNotActivatedException } from '../../services/network';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
@@ -98,11 +99,13 @@ describe('KeyringHandler', () => {
     const { accountService, onChainAccountService } =
       mockOnChainAccountService();
     const { transactionService } = createMockTransactionService();
+    const { service: assetMetadataService } = createMockAssetMetadataService();
     keyringHandler = new KeyringHandler({
       logger,
       accountService,
       onChainAccountService,
       transactionService,
+      assetMetadataService,
       handlers: {
         [MultichainMethod.SignMessage]: mockSignMessageHandler,
         [MultichainMethod.SignTransaction]: mockSignTransactionHandler,
@@ -500,7 +503,7 @@ describe('KeyringHandler', () => {
       ]);
 
       expect(result).toStrictEqual({
-        [slipId]: { unit: 'XLM', amount: '10' },
+        [slipId]: { unit: 'XLM', amount: '0.000001' },
       });
     });
 

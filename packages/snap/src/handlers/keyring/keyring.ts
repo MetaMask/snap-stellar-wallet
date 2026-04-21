@@ -17,6 +17,7 @@ import {
   handleKeyringRequest,
 } from '@metamask/keyring-snap-sdk';
 import { type Json, type JsonRpcRequest } from '@metamask/snaps-sdk';
+import { FungibleAssetMetadataStruct } from '@metamask/snaps-sdk';
 import { ensureError, type CaipAssetTypeOrId } from '@metamask/utils';
 
 import type {
@@ -59,6 +60,7 @@ import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
+import type { AssetMetadataService } from '../../services/asset-metadata';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import { AccountNotActivatedException } from '../../services/network';
 import type {
@@ -73,6 +75,7 @@ import {
   getSnapProvider,
   isSep41Id,
   isSlip44Id,
+  normalizeAmount,
   rethrowIfInstanceElseThrow,
   validateOrigin,
   validateRequest,
@@ -88,6 +91,8 @@ export class KeyringHandler implements Keyring {
 
   readonly #transactionService: TransactionService;
 
+  readonly #assetMetadataService: AssetMetadataService;
+
   readonly #handlers: Record<MultichainMethod, IKeyringRequestHandler>;
 
   constructor({
@@ -95,18 +100,21 @@ export class KeyringHandler implements Keyring {
     accountService,
     onChainAccountService,
     transactionService,
+    assetMetadataService,
     handlers,
   }: {
     logger: ILogger;
     accountService: AccountService;
     onChainAccountService: OnChainAccountService;
     transactionService: TransactionService;
+    assetMetadataService: AssetMetadataService;
     handlers: Record<MultichainMethod, IKeyringRequestHandler>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 KeyringHandler]');
     this.#accountService = accountService;
     this.#onChainAccountService = onChainAccountService;
     this.#transactionService = transactionService;
+    this.#assetMetadataService = assetMetadataService;
     this.#handlers = handlers;
   }
 
@@ -394,18 +402,37 @@ export class KeyringHandler implements Keyring {
         scope,
       );
 
+      const assetsMetadata =
+        await this.#assetMetadataService.getAssetsMetadataByAssetIds(assets);
+
       for (const assetId of assets) {
         const asset = onChainAccount.getAsset(assetId);
-        if (asset === undefined) {
+        const assetMetadata = assetsMetadata[assetId];
+        // We support get balacne for a asset when:
+        // - Asset is found from the on-chain account
+        // - Asset metadata is found
+        // - Asset metadata is a fungible asset
+        // - Asset is Native / classic trustlines: always include.
+        // - Asset is SEP-41: only include if balance is greater than zero.
+        if (
+          asset === undefined ||
+          assetMetadata === undefined ||
+          assetMetadata === null ||
+          !FungibleAssetMetadataStruct.is(assetMetadata) ||
+          assetMetadata.units[0]?.decimals === undefined ||
+          (isSep41Id(assetId) && !asset.balance.gt(0))
+        ) {
           continue;
         }
-        // Native / classic trustlines: always include. SEP-41: only non-zero.
-        if (isSep41Id(assetId) && !asset.balance.gt(0)) {
-          continue;
-        }
+
+        const decimal = assetMetadata.units[0].decimals;
         assetBalances[assetId] = {
           unit: asset.symbol ?? '',
-          amount: asset.balance.toString(),
+          amount: normalizeAmount(
+            asset.balance,
+            decimal,
+            // TODO: Handle decimal places overflow
+          ).toString(),
         };
       }
       return assetBalances;
