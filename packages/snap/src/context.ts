@@ -2,6 +2,7 @@ import { assert, object } from '@metamask/superstruct';
 
 import { AppConfig } from './config';
 import { KeyringHandler } from './handlers';
+import { AssetsHandler } from './handlers/asset/assets';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
   MultichainMethod,
@@ -11,9 +12,15 @@ import {
 import { UserInputHandler } from './handlers/user-input/userInput';
 import { AccountService, AccountsRepository } from './services/account';
 import type { AccountBalanceState } from './services/account-balance';
+import {
+  AssetMetadataRepository,
+  AssetMetadataService,
+} from './services/asset-metadata';
+import { StateCache } from './services/cache';
 import { NetworkService } from './services/network';
 import type { OnChainAccountSnapshotState } from './services/on-chain-account';
 import { OnChainAccountService } from './services/on-chain-account';
+import { PriceService } from './services/price';
 import { State } from './services/state';
 import {
   TransactionBuilder,
@@ -38,6 +45,7 @@ const state = new State({
 
 const accountsRepository = new AccountsRepository(state);
 const transactionRepository = new TransactionRepository(state);
+const assetMetadataRepository = new AssetMetadataRepository(state);
 
 /** ------------------------------ Services  ------------------------------ */
 const networkService = new NetworkService({ logger });
@@ -62,8 +70,18 @@ const transactionService = new TransactionService({
   networkService,
 });
 
-/** ------------------------------ Keyring Handler ------------------------------ */
+const assetMetadataService = new AssetMetadataService({
+  networkService,
+  assetMetadataRepository,
+  logger,
+});
 
+const priceService = new PriceService({
+  cache: new StateCache(state, logger, '__cache__price'),
+  logger,
+});
+
+/** ------------------------------ Keyring Handler ------------------------------ */
 const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountService,
@@ -91,14 +109,24 @@ const keyringHandler = new KeyringHandler({
   accountService,
   onChainAccountService,
   transactionService,
+  assetMetadataService,
   handlers: keyringMethodHandlers,
 });
 
+/** ------------------------------ User Handler ------------------------------ */
 const userInputHandler = new UserInputHandler({
   logger,
 });
 
+/** ------------------------------ Asset Handler ------------------------------ */
+const assetsHandler = new AssetsHandler({
+  logger,
+  assetMetadataService,
+  priceService,
+});
+
 export {
+  assetsHandler,
   keyringHandler,
   userInputHandler,
   signTransactionHandler,

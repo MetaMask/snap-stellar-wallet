@@ -1,5 +1,4 @@
-import type { AssetMetadata } from '@metamask/snaps-sdk';
-import { ensureError, parseCaipAssetType } from '@metamask/utils';
+import { ensureError } from '@metamask/utils';
 
 import type {
   KnownCaip19AssetId,
@@ -15,15 +14,22 @@ import {
   createPrefixedLogger,
   isClassicAssetId,
   isSep41Id,
-  isSlip44Id,
 } from '../../utils';
 import type { ILogger } from '../../utils';
 import type { AssetDataResponse, NetworkService } from '../network';
-import type { StellarAssetMetadata } from './api';
+import type {
+  KeyringAssetMetadataByAssetId,
+  StellarAssetMetadata,
+} from './api';
 import type { AssetMetadataRepository } from './AssetMetadataRepository';
 import { AssetMetadataServiceException } from './exceptions';
 import { TokenApiClient } from './token-api/TokenApiClient';
-import { getNativeAssetMetadata, toStellarAssetMetadata } from './utils';
+import {
+  getNativeAssetMetadata,
+  groupAssetsByChainId,
+  toKeyringAssetMetadata,
+  toStellarAssetMetadata,
+} from './utils';
 
 /**
  * Resolves CAIP-19 asset identifiers and caches fungible asset metadata for lookups.
@@ -70,20 +76,13 @@ export class AssetMetadataService {
   /**
    * Loads decimals for the asset; for SEP-41, fetches symbol and contract metadata from the token contract.
    *
-   * @param params - Resolution input.
-   * @param params.assetId - Native, classic, or SEP-41 CAIP-19 asset id.
-   * @param params.scope - CAIP-2 chain id.
+   * @param assetId - Native, classic, or SEP-41 CAIP-19 asset id.
    * @returns Resolved asset data for wallet / transaction use.
    */
-  async resolve(params: {
-    assetId: KnownCaip19AssetIdOrSlip44Id;
-    scope: KnownCaip2ChainId;
-  }): Promise<StellarAssetMetadata> {
-    const { assetId, scope } = params;
-    const assets = await this.#fetchAndPersistAssetsByAssetIds(
-      [assetId],
-      scope,
-    );
+  async resolve(
+    assetId: KnownCaip19AssetIdOrSlip44Id,
+  ): Promise<StellarAssetMetadata> {
+    const assets = await this.#fetchAndPersistAssetsByAssetIds([assetId]);
     const found = assets.find((asset) => asset.assetId === assetId);
     if (!found) {
       throw new AssetMetadataServiceException(
@@ -94,31 +93,26 @@ export class AssetMetadataService {
   }
 
   /**
-   * Returns all assets for the given asset IDs.
+   * Returns all assets in keyring format for the given asset IDs.
    *
    * @param assetIds - The asset IDs to look up.
-   * @param scope - The chain ID to look up.
    * @returns A Promise that resolves to all assets metadata for the given asset IDs.
    */
   async getAssetsMetadataByAssetIds(
     assetIds: KnownCaip19AssetIdOrSlip44Id[],
-    scope: KnownCaip2ChainId,
-  ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, AssetMetadata | null>> {
+  ): Promise<KeyringAssetMetadataByAssetId> {
     this.#logger.debug('Fetching assets metadata by asset ids', { assetIds });
 
-    const list = await this.#fetchAndPersistAssetsByAssetIds(assetIds, scope);
+    const metadataByAssetId = {} as KeyringAssetMetadataByAssetId;
 
-    const metadataByAssetId = {} as Record<
-      KnownCaip19AssetIdOrSlip44Id,
-      AssetMetadata | null
-    >;
+    const list = await this.#fetchAndPersistAssetsByAssetIds(assetIds);
 
     for (const assetId of assetIds) {
       metadataByAssetId[assetId] = null;
     }
 
     for (const asset of list) {
-      metadataByAssetId[asset.assetId] = this.#toAssetMetadata(asset);
+      metadataByAssetId[asset.assetId] = toKeyringAssetMetadata(asset);
     }
 
     return metadataByAssetId;
@@ -154,43 +148,43 @@ export class AssetMetadataService {
 
   async #fetchAndPersistAssetsByAssetIds(
     assetIds: KnownCaip19AssetIdOrSlip44Id[],
-    scope: KnownCaip2ChainId,
   ): Promise<StellarAssetMetadata[]> {
-    const uniqueAssetIds = new Set<KnownCaip19AssetIdOrSlip44Id>(assetIds);
+    const { nativeAssets: nativeAssetsByChainId, assets: assetsByChainId } =
+      groupAssetsByChainId(assetIds);
     const result: StellarAssetMetadata[] = [];
-    const stellarAssetIds: KnownCaip19AssetId[] = [];
-
-    for (const assetId of Array.from(uniqueAssetIds)) {
-      // make sure we only fetch assets for the given scope
-      const { chainId } = parseCaipAssetType(assetId);
-      if ((chainId as KnownCaip2ChainId) !== scope) {
-        continue;
-      }
-
-      if (isSlip44Id(assetId)) {
-        result.push(getNativeAssetMetadata(scope));
-      } else {
-        stellarAssetIds.push(assetId);
-      }
+    // fetch native assets
+    for (const [chainId] of nativeAssetsByChainId) {
+      result.push(getNativeAssetMetadata(chainId));
     }
 
+    // fetch assets from state
+    const allNonNativeAssetIds = [...assetsByChainId.values()].flat();
     const { assets, missingAssetIds } =
-      await this.#getPersistedAssetMetadata(stellarAssetIds);
+      await this.#getPersistedAssetMetadata(allNonNativeAssetIds);
 
     if (missingAssetIds.length === 0) {
       return result.concat(assets);
     }
 
-    const fetchedAssets = await this.#fetchMissingAssetsMetadata(
-      missingAssetIds,
-      scope,
-    );
+    // fetch missing assets by chain id
+    const missingAssets: StellarAssetMetadata[] = [];
+    const { assets: missingAssetIdsByChainId } =
+      groupAssetsByChainId(missingAssetIds);
 
-    if (fetchedAssets.length > 0) {
-      await this.#assetMetadataRepository.saveMany(fetchedAssets);
+    for (const [chainId, chainAssetIds] of missingAssetIdsByChainId) {
+      const fetchedAssets = await this.#fetchMissingAssetsMetadata(
+        chainAssetIds,
+        chainId,
+      );
+      missingAssets.push(...fetchedAssets);
     }
 
-    return result.concat(assets, fetchedAssets);
+    // Backfill in state
+    if (missingAssets.length > 0) {
+      await this.#assetMetadataRepository.saveMany(missingAssets);
+    }
+
+    return result.concat(assets, missingAssets);
   }
 
   async #getPersistedAssetMetadata(assetIds: KnownCaip19AssetId[]): Promise<{
@@ -345,16 +339,6 @@ export class AssetMetadataService {
     }
 
     return { assets, missingAssetIds: Array.from(missingTokenAssetIds) };
-  }
-
-  #toAssetMetadata(assetData: StellarAssetMetadata): AssetMetadata {
-    return {
-      fungible: assetData.fungible,
-      iconUrl: assetData.iconUrl,
-      units: assetData.units,
-      symbol: assetData.symbol,
-      name: assetData.name,
-    };
   }
 
   /**

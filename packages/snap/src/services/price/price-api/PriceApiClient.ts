@@ -18,10 +18,10 @@ import { PriceApiException } from './exceptions';
 import { UrlStruct } from '../../../api';
 import type { ILogger } from '../../../utils';
 import {
-  batchesAllSettled,
+  batchesAllSettledWithChunks,
   buildUrl,
-  chunks as chunkItems,
   logger,
+  rethrowIfInstanceElseThrow,
 } from '../../../utils';
 
 export class PriceApiClient {
@@ -64,7 +64,7 @@ export class PriceApiClient {
       const response = await this.#fetch(url);
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new PriceApiException(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
@@ -76,7 +76,11 @@ export class PriceApiClient {
         'Error fetching fiat exchange rates',
         error,
       );
-      throw new PriceApiException('Error fetching fiat exchange rates');
+      return rethrowIfInstanceElseThrow(
+        error,
+        [PriceApiException],
+        new PriceApiException('Error fetching fiat exchange rates'),
+      );
     }
   }
 
@@ -100,11 +104,9 @@ export class PriceApiClient {
 
       const deduplicatedAssetIds = [...new Set(assetIds)];
 
-      // Split into chunks
-      const chunks = chunkItems(deduplicatedAssetIds, this.#chunkSize);
-
-      const settled = await batchesAllSettled(
-        chunks,
+      const settled = await batchesAllSettledWithChunks(
+        deduplicatedAssetIds,
+        this.#chunkSize,
         PriceApiClient.#parallelBatchFetchLimit,
         async (chunk) => this.#fetchSpotPricesBatch(chunk, vsCurrency),
       );
@@ -112,10 +114,6 @@ export class PriceApiClient {
       const response: Partial<SpotPrices> = {};
       for (const entry of settled) {
         if (entry.status === 'rejected') {
-          this.#logger.logErrorWithDetails(
-            'Error fetching spot prices',
-            entry.reason,
-          );
           continue;
         }
         for (const [assetId, spotPrice] of Object.entries(entry.value)) {
@@ -135,26 +133,35 @@ export class PriceApiClient {
     assetIds: CaipAssetType[],
     vsCurrency: VsCurrencyParam | string = 'usd',
   ): Promise<SpotPrices> {
-    const url = buildUrl({
-      baseUrl: this.#baseUrl,
-      path: '/v3/spot-prices',
-      queryParams: {
-        vsCurrency,
-        assetIds: assetIds.join(','),
-        includeMarketData: 'true',
-      },
-    });
+    try {
+      const url = buildUrl({
+        baseUrl: this.#baseUrl,
+        path: '/v3/spot-prices',
+        queryParams: {
+          vsCurrency,
+          assetIds: assetIds.join(','),
+          includeMarketData: 'true',
+        },
+      });
 
-    const response = await this.#fetch(url);
+      const response = await this.#fetch(url);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new PriceApiException(`HTTP error! status: ${response.status}`);
+      }
+
+      const spotPrices = await response.json();
+      assert(spotPrices, SpotPricesStruct);
+
+      return spotPrices;
+    } catch (error) {
+      this.#logger.logErrorWithDetails('Error fetching spot prices', error);
+      return rethrowIfInstanceElseThrow(
+        error,
+        [PriceApiException],
+        new PriceApiException('Error fetching spot prices'),
+      );
     }
-
-    const spotPrices = await response.json();
-    assert(spotPrices, SpotPricesStruct);
-
-    return spotPrices;
   }
 
   /**
@@ -195,7 +202,7 @@ export class PriceApiClient {
       const response = await this.#fetch(url);
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new PriceApiException(`HTTP error! status: ${response.status}`);
       }
 
       const historicalPrices = await response.json();
@@ -207,7 +214,11 @@ export class PriceApiClient {
         'Error fetching historical prices',
         error,
       );
-      throw new PriceApiException('Error fetching historical prices');
+      return rethrowIfInstanceElseThrow(
+        error,
+        [PriceApiException],
+        new PriceApiException('Error fetching historical prices'),
+      );
     }
   }
 }
