@@ -1,5 +1,3 @@
-import type { Json } from '@metamask/utils';
-
 import {
   BackgroundEventMethod,
   RefreshConfirmationPricesJsonRpcRequestStruct,

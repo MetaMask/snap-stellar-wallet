@@ -55,6 +55,18 @@ export class ConfirmationUXController {
     );
   }
 
+  /**
+   * Renders the confirmation dialog.
+   *
+   * @param params - The parameters for the render.
+   * @param params.scope - The scope of the confirmation.
+   * @param params.renderContext - The context for the render.
+   * @param params.fee - The fee for the render.
+   * @param params.interfaceKey - The key of the interface to render.
+   * @param params.origin - The origin of the confirmation.
+   * @param params.renderOptions - The options for the render.
+   * @returns A promise that resolves to the dialog result.
+   */
   async renderConfirmationDialog<Props extends ConfirmationViewProps>(params: {
     scope: KnownCaip2ChainId;
     renderContext: Props;
@@ -154,6 +166,14 @@ export class ConfirmationUXController {
     }
   }
 
+  /**
+   * Updates the confirmation dialog with the new context.
+   *
+   * @param params - The parameters for the update.
+   * @param params.interfaceId - The ID of the interface to update.
+   * @param params.updatedContext - The new context to update the interface with.
+   * @param params.interfaceKey - The key of the interface to update.
+   */
   async updateConfirmation(params: {
     interfaceId: string;
     updatedContext: ConfirmationViewProps;
@@ -167,13 +187,6 @@ export class ConfirmationUXController {
     );
   }
 
-  /**
-   * Maps each {@link ConfirmationInterfaceKey} to its view. Casts stay inside this
-   * switch so callers keep a single `ConfirmationViewProps` shape for storage/refresh.
-   *
-   * @param interfaceKey
-   * @param context
-   */
   #renderConfirmationView(
     interfaceKey: ConfirmationInterfaceKey,
     context: ConfirmationViewProps,

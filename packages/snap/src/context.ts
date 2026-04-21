@@ -2,11 +2,11 @@ import { assert, object } from '@metamask/superstruct';
 
 import { AppConfig } from './config';
 import { KeyringHandler, CronjobHandler, UserInputHandler } from './handlers';
+import { AssetsHandler } from './handlers/asset/assets';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
-import { AssetsHandler } from './handlers/asset/assets';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
   MultichainMethod,
