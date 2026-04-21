@@ -28,15 +28,17 @@ import {
 import type { Locale, LocalizedMessage } from '../../../../utils';
 import { i18n, parseClassicAssetCodeIssuer } from '../../../../utils';
 import { STELLAR_IMAGE } from '../../../images/icon';
+import type { ContextWithPrices, FeeData } from '../../api';
 import { getClassicAssetExplorerUrl, getNetworkName } from '../../utils';
 
-export type ConfirmSignTransactionProps = {
+export type ConfirmSignTransactionProps = ContextWithPrices & {
   transaction: Transaction;
   account: StellarKeyringAccount;
   scope: KnownCaip2ChainId;
   locale: Locale;
   networkImage: string | null;
   origin: string;
+  feeData: FeeData;
 };
 
 const AmountRow = ({ amount }: { amount: string }): ComponentOrElement => {

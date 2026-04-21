@@ -1,5 +1,4 @@
 import type { CaipAssetType } from '@metamask/utils';
-import * as metamaskUtils from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import {
@@ -102,12 +101,6 @@ describe('getFiatTicker', () => {
   });
 
   it('returns lowercase asset reference from parser', () => {
-    jest.spyOn(metamaskUtils, 'parseCaipAssetType').mockReturnValue({
-      assetReference: 'EUR',
-    } as ReturnType<typeof metamaskUtils.parseCaipAssetType>);
-
-    expect(getFiatTicker('ignored/swift:0/iso4217:EUR' as CaipAssetType)).toBe(
-      'eur',
-    );
+    expect(getFiatTicker('swift:0/iso4217:EUR' as CaipAssetType)).toBe('eur');
   });
 });

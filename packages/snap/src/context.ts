@@ -26,6 +26,7 @@ import {
   TransactionService,
 } from './services/transaction';
 import { WalletService } from './services/wallet';
+import { ConfirmationUXController } from './ui/confirmation/controller';
 import { logger } from './utils';
 
 assert(AppConfig, object());
@@ -74,6 +75,11 @@ const priceService = new PriceService({
   logger,
 });
 
+/** UX Controller */
+const confirmationUIController = new ConfirmationUXController({
+  logger,
+});
+
 /** ------------------------------ Keyring Handler ------------------------------ */
 
 const signTransactionHandler = new SignTransactionHandler({
@@ -89,6 +95,7 @@ const signMessageHandler = new SignMessageHandler({
   logger,
   accountService,
   onChainAccountService,
+  confirmationUIController,
   walletService,
 });
 
@@ -116,6 +123,7 @@ const userInputHandler = new UserInputHandler({
 const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
   logger,
   priceService,
+  confirmationUIController,
 });
 
 const trackTransactionHandler = new TrackTransactionHandler({
@@ -141,4 +149,5 @@ export {
   userInputHandler,
   signTransactionHandler,
   signMessageHandler,
+  confirmationUIController,
 };

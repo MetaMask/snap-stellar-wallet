@@ -1,6 +1,7 @@
+import type { Json } from '@metamask/utils';
+
 import {
   BackgroundEventMethod,
-  ConfirmationInterfaceKey,
   RefreshConfirmationPricesJsonRpcRequestStruct,
 } from './api';
 import type {
@@ -10,10 +11,15 @@ import type {
 import { CronjobBaseHandler } from './base';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import type { PriceService } from '../../services/price';
-import type { ContextWithPrices } from '../../ui/confirmation/api';
-import { FetchStatus } from '../../ui/confirmation/api';
-import { refreshConfirmationPrices as refreshConfirmationPricesChangeTrustlineOptIn } from '../../ui/confirmation/views/ConfirmSignChangeTrustOptIn/render';
-import { refreshConfirmationPrices as refreshConfirmationPricesChangeTrustlineOptOut } from '../../ui/confirmation/views/ConfirmSignChangeTrustOptOut/render';
+import type {
+  ConfirmationInterfaceKey,
+  ContextWithPrices,
+} from '../../ui/confirmation/api';
+import {
+  ContextWithPricesStruct,
+  FetchStatus,
+} from '../../ui/confirmation/api';
+import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import {
@@ -24,6 +30,7 @@ import {
 export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<RefreshConfirmationPricesJsonRpcRequest> {
   readonly #priceService: PriceService;
 
+  // Refresh interval
   static readonly duration = 'PT20S';
 
   static async scheduleBackgroundEvent(
@@ -37,12 +44,16 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
     });
   }
 
+  readonly #confirmationUIController: ConfirmationUXController;
+
   constructor({
     logger,
     priceService,
+    confirmationUIController,
   }: {
     logger: ILogger;
     priceService: PriceService;
+    confirmationUIController: ConfirmationUXController;
   }) {
     const prefixedLogger = createPrefixedLogger(
       logger,
@@ -53,38 +64,50 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
       requestStruct: RefreshConfirmationPricesJsonRpcRequestStruct,
     });
     this.#priceService = priceService;
+    this.#confirmationUIController = confirmationUIController;
   }
 
+  /**
+   * Handles the refresh confirmation prices cron job request.
+   *
+   * @param request - The refresh confirmation prices JSON-RPC request.
+   */
   async handleCronJobRequest(
     request: RefreshConfirmationPricesJsonRpcRequest,
   ): Promise<void> {
     this.logger.info('Refreshing confirmation prices...');
     const { interfaceId, scope, interfaceKey } = request.params;
 
+    // Find the interface context
     const interfaceContext =
       await getInterfaceContextIfExists<ContextWithPrices>(interfaceId);
+
+    // TODO: check if the interfaceContext match the ContextWithPrices
     if (!interfaceContext) {
       this.logger.info('Interface no longer exists, cleaning up');
       return;
     }
 
+    if (!ContextWithPricesStruct.is(interfaceContext)) {
+      this.logger.warn(
+        'Interface context does not match the ContextWithPrices interface, skipping refresh',
+      );
+      return;
+    }
+
     try {
-      const uniqueAssetCaipIds: KnownCaip19AssetIdOrSlip44Id[] = [
+      // Extract CAIP IDs from context
+      const uniqueAssetCaipIds = [
         ...Object.keys(interfaceContext.tokenPrices),
       ] as KnownCaip19AssetIdOrSlip44Id[];
 
+      // Fetch fresh prices via lazy cache mechanism
       const prices = await this.#priceService.getSpotPrices({
         assetIds: uniqueAssetCaipIds,
         vsCurrency: interfaceContext.currency,
       });
 
-      const latestContext =
-        await getInterfaceContextIfExists<ContextWithPrices>(interfaceId);
-      if (!latestContext) {
-        this.logger.info('Interface dismissed during price fetch, cleaning up');
-        return;
-      }
-
+      // Fill the context with the new prices
       const updatedTokenPrices = uniqueAssetCaipIds.reduce<
         ContextWithPrices['tokenPrices']
       >(
@@ -99,18 +122,29 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
         {} as ContextWithPrices['tokenPrices'],
       );
 
+      // Get the latest context, to ensure the interface is still visible after the price fetch
+      const latestContext =
+        await getInterfaceContextIfExists<ContextWithPrices>(interfaceId);
+      if (!latestContext) {
+        this.logger.info('Interface dismissed during price fetch, cleaning up');
+        return;
+      }
+
+      // Update the context with the new prices
       const updatedContext: ContextWithPrices = {
         ...latestContext,
         tokenPrices: updatedTokenPrices,
         tokenPricesFetchStatus: FetchStatus.Fetched,
       };
 
+      // Re-render the Component based on the interface key
       await this.#reRenderConfirmationPrices({
         interfaceId,
         updatedContext,
         interfaceKey,
       });
 
+      // Schedule the next background event
       await RefreshConfirmationPricesHandler.scheduleBackgroundEvent({
         scope,
         interfaceId,
@@ -122,6 +156,7 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
       const currentContext =
         await getInterfaceContextIfExists<ContextWithPrices>(interfaceId);
       if (currentContext) {
+        // Update the context with the error status
         const errorContext: ContextWithPrices = {
           ...currentContext,
           tokenPricesFetchStatus: FetchStatus.Error,
@@ -132,6 +167,7 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
           updatedContext: errorContext,
           interfaceKey,
         });
+        // Don't schedule another refresh on error
       }
     }
   }
@@ -142,14 +178,11 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
     interfaceKey: ConfirmationInterfaceKey;
   }): Promise<void> {
     const { interfaceId, interfaceKey, updatedContext } = params;
-    const render =
-      interfaceKey === ConfirmationInterfaceKey.ChangeTrustlineOptIn
-        ? refreshConfirmationPricesChangeTrustlineOptIn
-        : refreshConfirmationPricesChangeTrustlineOptOut;
 
-    await render({
+    await this.#confirmationUIController.updateConfirmation({
       interfaceId,
       updatedContext,
+      interfaceKey,
     });
   }
 }

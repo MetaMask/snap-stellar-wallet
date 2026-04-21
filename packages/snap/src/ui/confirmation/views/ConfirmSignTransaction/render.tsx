@@ -1,12 +1,18 @@
 import type { DialogResult } from '@metamask/snaps-sdk';
 
 import { ConfirmSignTransaction } from './ConfirmSignTransaction';
+import type { ConfirmSignTransactionProps } from './ConfirmSignTransaction';
 import type { SignTransactionRequest } from '../../../../handlers/keyring';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Transaction } from '../../../../services/transaction';
-import { createInterface, showDialog } from '../../../../utils';
+import {
+  createInterface,
+  getSlip44AssetId,
+  showDialog,
+} from '../../../../utils';
 import { STELLAR_IMAGE } from '../../../images/icon';
-import { formatOrigin, getLocale } from '../../utils';
+import { FetchStatus } from '../../api';
+import { formatFeeData, formatOrigin, getLocale } from '../../utils';
 
 /**
  * Renders the confirmation dialog for a sign transaction request.
@@ -24,6 +30,7 @@ export async function render(
   const { scope, origin } = request;
 
   const locale = await getLocale();
+  const nativeAssetId = getSlip44AssetId(scope);
 
   const id = await createInterface(
     <ConfirmSignTransaction
@@ -33,6 +40,12 @@ export async function render(
       locale={locale}
       networkImage={STELLAR_IMAGE}
       origin={formatOrigin(origin)}
+      currency="usd"
+      tokenPrices={
+        { [nativeAssetId]: null } as ConfirmSignTransactionProps['tokenPrices']
+      }
+      tokenPricesFetchStatus={FetchStatus.Fetched}
+      feeData={formatFeeData(scope, '100')}
     />,
     {},
   );

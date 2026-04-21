@@ -17,6 +17,7 @@ import {
   KnownCaip2ChainIdStruct,
   UuidStruct,
 } from '../../api';
+import { ConfirmationInterfaceKeyStruct } from '../../ui/confirmation/api';
 
 /**
  * Interface for the client request handler.
@@ -34,17 +35,8 @@ export enum BackgroundEventMethod {
   TrackTransaction = 'trackTransaction',
 }
 
-export enum ConfirmationInterfaceKey {
-  ChangeTrustlineOptIn = 'ChangeTrustlineOptIn',
-  ChangeTrustlineOptOut = 'ChangeTrustlineOptOut',
-}
-
 export const BackgroundEventMethodStruct = enums(
   Object.values(BackgroundEventMethod),
-);
-
-export const ConfirmationInterfaceKeyStruct = enums(
-  Object.values(ConfirmationInterfaceKey),
 );
 
 export const RefreshConfirmationPricesParamsStruct = type({
