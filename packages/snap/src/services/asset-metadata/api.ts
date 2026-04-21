@@ -1,4 +1,4 @@
-import type { FungibleAssetMetadata } from '@metamask/snaps-sdk';
+import type { AssetMetadata, FungibleAssetMetadata } from '@metamask/snaps-sdk';
 import type { NonEmptyArray } from '@metamask/utils';
 
 import type {
@@ -25,6 +25,12 @@ export type StellarAssetMetadata = FungibleAssetMetadata & {
 /** Sparse map persisted under state `assets` (not every id is present). */
 export type AssetMetadataByAssetId = Partial<
   Record<KnownCaip19AssetIdOrSlip44Id, StellarAssetMetadata>
+>;
+
+/** A map of asset IDs to Keyring asset metadata. */
+export type KeyringAssetMetadataByAssetId = Record<
+  KnownCaip19AssetIdOrSlip44Id,
+  AssetMetadata | null
 >;
 
 export type AssetMetadataState = {

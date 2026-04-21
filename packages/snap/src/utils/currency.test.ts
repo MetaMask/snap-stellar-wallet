@@ -47,21 +47,35 @@ describe('toSmallestUnit and normalizeAmount', () => {
 });
 
 describe('formatFiat', () => {
-  it('uses locale segment before underscore and currency style options', () => {
+  it('rounds to two decimals before locale formatting and passes currency options', () => {
     const toLocaleStringSpy = jest
       .spyOn(Number.prototype, 'toLocaleString')
-      .mockReturnValue('formatted');
+      .mockImplementation(function formatFiatLocaleSpy(
+        this: number,
+        locales?: Intl.LocalesArgument,
+        options?: Intl.NumberFormatOptions,
+      ) {
+        const locale = locales;
+        expect(this.valueOf()).toBe(12.35);
+        expect(locale).toBe('en');
+        expect(options).toStrictEqual({
+          style: 'currency',
+          currency: 'USD',
+          maximumFractionDigits: 2,
+          minimumFractionDigits: 2,
+        });
+        return 'formatted';
+      });
 
     expect(formatFiat('12.345', 'USD', 'en_US')).toBe('formatted');
 
-    expect(toLocaleStringSpy).toHaveBeenCalledWith('en', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 2,
-      minimumFractionDigits: 2,
-    });
+    expect(toLocaleStringSpy).toHaveBeenCalledTimes(1);
 
     toLocaleStringSpy.mockRestore();
+  });
+
+  it('throws when amount is not finite', () => {
+    expect(() => formatFiat('NaN', 'USD', 'en-US')).toThrow(RangeError);
   });
 });
 
@@ -76,8 +90,12 @@ describe('tokenToFiat', () => {
 });
 
 describe('isFiat', () => {
-  it('returns true for CAIP asset ids containing swift ISO4217 segment', () => {
-    expect(isFiat('eip155:1/swift:0/iso4217:USD' as CaipAssetType)).toBe(true);
+  it('returns true for swift ISO4217 ids', () => {
+    expect(isFiat('swift:0/iso4217:USD' as CaipAssetType)).toBe(true);
+  });
+
+  it('returns false for chain-prefixed fiat ids', () => {
+    expect(isFiat('eip155:1/swift:0/iso4217:USD' as CaipAssetType)).toBe(false);
   });
 
   it('returns false for stellar asset ids', () => {
@@ -87,13 +105,14 @@ describe('isFiat', () => {
       ),
     ).toBe(false);
   });
+
+  it('returns false when ISO4217 segment is not exactly three letters', () => {
+    expect(isFiat('swift:0/iso4217:US' as CaipAssetType)).toBe(false);
+    expect(isFiat('swift:0/iso4217:USDC' as CaipAssetType)).toBe(false);
+  });
 });
 
 describe('getFiatTicker', () => {
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
   it('throws when asset id is not fiat', () => {
     expect(() =>
       getFiatTicker('stellar:pubnet/slip44:148' as CaipAssetType),

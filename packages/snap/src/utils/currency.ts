@@ -1,7 +1,9 @@
+import { is } from '@metamask/superstruct';
 import type { CaipAssetType } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
+import { FiatCaipAssetStruct } from '../api/asset';
 import { STELLAR_DECIMAL_PLACES } from '../constants';
 
 /**
@@ -37,20 +39,29 @@ export function normalizeAmount(
 }
 
 /**
- * Formats a number as currency.
+ * Formats a number as currency (half-up rounded to 2 decimal places).
  *
  * @param amount - The amount of money.
  * @param currency - The currency to format the amount as.
  * @param locale - The locale to use for number formatting.
  * @returns The formatted currency string.
+ * @throws {RangeError} If the amount is not a finite number.
  */
 export function formatFiat(
   amount: string,
   currency: string,
   locale: string,
 ): string {
-  const bigAmount = new BigNumber(amount);
-  const amountNumber = bigAmount.toNumber();
+  const rounded = new BigNumber(amount).decimalPlaces(
+    2,
+    BigNumber.ROUND_HALF_UP,
+  );
+
+  if (!rounded.isFinite()) {
+    throw new RangeError('Amount must be a finite number for fiat formatting');
+  }
+
+  const amountNumber = rounded.toNumber();
   const [localeCode] = locale.split('_');
 
   return amountNumber.toLocaleString(localeCode, {
@@ -83,7 +94,7 @@ export function tokenToFiat(
  * @returns True if the asset is a fiat asset, false otherwise.
  */
 export function isFiat(assetId: CaipAssetType): boolean {
-  return assetId.includes('swift:0/iso4217:');
+  return is(assetId, FiatCaipAssetStruct);
 }
 
 /**
