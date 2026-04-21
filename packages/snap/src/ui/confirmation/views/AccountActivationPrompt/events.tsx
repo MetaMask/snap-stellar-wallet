@@ -5,7 +5,7 @@ import type {
 import { resolveInterface } from '../../../../utils';
 
 /**
- * Handles the click event for the cancel button.
+ * Handles the click event for the close button.
  *
  * @param options - The user input handler context from `onUserInput`.
  * @returns A promise that resolves when the interface has been updated.

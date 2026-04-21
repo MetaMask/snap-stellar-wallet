@@ -19,7 +19,7 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     duration: string = TrackTransactionHandler.duration,
   ): Promise<void> {
     await scheduleBackgroundEvent({
-      method: BackgroundEventMethod.RefreshConfirmationPrices,
+      method: BackgroundEventMethod.TrackTransaction,
       params,
       duration,
     });

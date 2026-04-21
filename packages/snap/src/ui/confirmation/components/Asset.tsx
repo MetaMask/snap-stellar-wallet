@@ -51,7 +51,7 @@ export const Asset = (props: AssetProps): ComponentOrElement => {
       <Box alignment="center" center>
         <AssetIcon iconUrl={iconUrl} size="sm" />
       </Box>
-      <AssetText aseset={assetText} link={link} />
+      <AssetText asset={assetText} link={link} />
     </Box>
   );
 };

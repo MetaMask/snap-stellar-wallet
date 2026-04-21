@@ -67,11 +67,11 @@ export const TrackTransactionJsonRpcRequestStruct = assign(
   }),
 );
 
-export const CrobJobJsonRpcRequestStruct = object({
+export const CronjobJsonRpcRequestStruct = object({
   status: boolean(),
 });
 
-export type CrobJobJsonRpcRequest = Infer<typeof CrobJobJsonRpcRequestStruct>;
+export type CronjobJsonRpcRequest = Infer<typeof CronjobJsonRpcRequestStruct>;
 
 export type RefreshConfirmationPricesJsonRpcRequest = Infer<
   typeof RefreshConfirmationPricesJsonRpcRequestStruct

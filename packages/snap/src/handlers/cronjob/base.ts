@@ -2,13 +2,13 @@ import type { Struct } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
 
 import { BaseHandler } from '../base';
-import type { CrobJobJsonRpcRequest } from './api';
-import { CrobJobJsonRpcRequestStruct } from './api';
+import type { CronjobJsonRpcRequest } from './api';
+import { CronjobJsonRpcRequestStruct } from './api';
 import type { ILogger } from '../../utils';
 
 export abstract class CronjobBaseHandler<
   RequestType extends Json,
-> extends BaseHandler<RequestType, CrobJobJsonRpcRequest> {
+> extends BaseHandler<RequestType, CronjobJsonRpcRequest> {
   constructor({
     logger,
     requestStruct,
@@ -19,7 +19,7 @@ export abstract class CronjobBaseHandler<
     super({
       logger,
       requestStruct,
-      responseStruct: CrobJobJsonRpcRequestStruct,
+      responseStruct: CronjobJsonRpcRequestStruct,
     });
   }
 

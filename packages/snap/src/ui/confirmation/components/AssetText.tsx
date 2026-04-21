@@ -5,7 +5,7 @@ type AssetTextProps = {
   /** The link to the asset. if provided, the asset text will be a link. */
   link?: string;
   /** The asset text to display. */
-  aseset: string;
+  asset: string;
 };
 
 /**
@@ -16,9 +16,9 @@ type AssetTextProps = {
  * @returns The rendered asset text element.
  */
 export const AssetText = (props: AssetTextProps): ComponentOrElement => {
-  const { aseset, link } = props;
+  const { asset, link } = props;
   if (link) {
-    return <Link href={link}>{aseset}</Link>;
+    return <Link href={link}>{asset}</Link>;
   }
-  return <SnapText>${aseset}</SnapText>;
+  return <SnapText>${asset}</SnapText>;
 };
