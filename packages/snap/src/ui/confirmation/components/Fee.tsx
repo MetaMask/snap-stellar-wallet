@@ -5,9 +5,9 @@ import type {
 import { Box, Text as SnapText } from '@metamask/snaps-sdk/jsx';
 
 import { Asset } from './Asset';
-import { FetchStatus } from '../api';
 import { i18n } from '../../../utils/i18n';
-import xlmSvg from '../../images/slip44:148.svg';
+import { xlmIcon } from '../../images';
+import { FetchStatus } from '../api';
 import type { FeeData } from '../api';
 
 type FeesProps = {
@@ -38,7 +38,7 @@ export const FeeRow = ({
         <Asset
           amount={fee.amount}
           symbol={fee.symbol}
-          iconUrl={xlmSvg}
+          iconUrl={xlmIcon}
           price={price}
           preferences={preferences}
           priceLoading={priceLoading}
