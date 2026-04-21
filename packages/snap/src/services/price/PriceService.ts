@@ -5,6 +5,7 @@ import type {
 } from '@metamask/snaps-sdk';
 import type { CaipAssetType } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
+import { BigNumber } from 'bignumber.js';
 import { pick } from 'lodash';
 
 import {
@@ -28,6 +29,22 @@ import type {
 } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
 import { AppConfig } from '../../config';
+
+/**
+ * Time window tokens passed to the Price API for multichain historical snapshots.
+ * Single source of truth for {@link PriceService.getHistoricalPriceWithAllTimePeriods}.
+ */
+export const HISTORICAL_PRICE_TIME_PERIODS = [
+  '1d',
+  '7d',
+  '1m',
+  '3m',
+  '1y',
+  '1000y',
+] as const;
+
+export type HistoricalPriceTimePeriod =
+  (typeof HISTORICAL_PRICE_TIME_PERIODS)[number];
 
 /**
  * Fetches and caches price data from the MetaMask Price API: spot quotes, fiat
@@ -175,35 +192,34 @@ export class PriceService {
     const toTicker = parseCaipAssetType(to).assetReference.toLowerCase();
 
     // For each time period, call the Price API to fetch the historical prices
-    const promises = ['1d', '7d', '1m', '3m', '1y', '1000y'].map(
-      async (timePeriod) =>
-        this.getHistoricalPrices(
-          {
-            assetType: from,
+    const promises = HISTORICAL_PRICE_TIME_PERIODS.map(async (timePeriod) =>
+      this.getHistoricalPrices(
+        {
+          assetType: from,
+          timePeriod,
+          // It is possible that the toTicker is not a valid vsCurrency,
+          // but we can safely cast it to VsCurrencyParam because the Price API will throw an error if it is not a valid value
+          vsCurrency: toTicker as VsCurrencyParam,
+        },
+        // Refresh the cache to ensure we get the latest data
+        true,
+      )
+        // Wrap the response in an object with the time period and the response for easier reducing
+        .then((response) => ({
+          timePeriod,
+          response,
+        }))
+        // Gracefully handle individual errors to avoid breaking the entire operation
+        .catch((error) => {
+          this.#logger.logErrorWithDetails(
+            `Error fetching historical prices for ${from} to ${to} with time period ${timePeriod}. Returning null object.`,
+            error,
+          );
+          return {
             timePeriod,
-            // It is possible that the toTicker is not a valid vsCurrency,
-            // but we can safely cast it to VsCurrencyParam because the Price API will throw an error if it is not a valid value
-            vsCurrency: toTicker as VsCurrencyParam,
-          },
-          // Refresh the cache to ensure we get the latest data
-          true,
-        )
-          // Wrap the response in an object with the time period and the response for easier reducing
-          .then((response) => ({
-            timePeriod,
-            response,
-          }))
-          // Gracefully handle individual errors to avoid breaking the entire operation
-          .catch((error) => {
-            this.#logger.logErrorWithDetails(
-              `Error fetching historical prices for ${from} to ${to} with time period ${timePeriod}. Returning null object.`,
-              error,
-            );
-            return {
-              timePeriod,
-              response: GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT,
-            };
-          }),
+            response: GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT,
+          };
+        }),
     );
 
     const wrappedHistoricalPrices = await Promise.all(promises);
@@ -408,7 +424,9 @@ export class PriceService {
    *
    * @param spotPrice - Spot payload for the base asset (from the Price API, vs USD).
    * @param rate - Non-zero USD price of one unit of the quote asset.
-   * @returns Market data scaled to the quote `unit`; empty strings where inputs are nullish.
+   * @returns Market data scaled to the quote `unit`; empty strings where converted
+   * monetary inputs are nullish. Circulating supply is not currency-converted; when
+   * the spot payload omits or nulls it, the value is `'0'` by design (same as numeric zero).
    */
   #computeMarketData(
     spotPrice: SpotPrice,
@@ -447,9 +465,9 @@ export class PriceService {
       fungible: true,
       marketCap: this.#toCurrencySafe(marketDataInUsd.marketCap, rate),
       totalVolume: this.#toCurrencySafe(marketDataInUsd.totalVolume, rate),
-      // Circulating supply counts the number of tokens in circulation, so we don't convert.
-      // Use empty string for nullish to match the docstring contract and stay consistent with other fields.
-      circulatingSupply: marketDataInUsd.circulatingSupply?.toString() ?? '',
+      // Circulating supply counts tokens in circulation (not a fiat amount); do not divide by `rate`.
+      // By design, missing or null from the API is treated as zero (`'0'`), matching other snaps.
+      circulatingSupply: (marketDataInUsd.circulatingSupply ?? 0).toString(),
       allTimeHigh: this.#toCurrencySafe(marketDataInUsd.allTimeHigh, rate),
       allTimeLow: this.#toCurrencySafe(marketDataInUsd.allTimeLow, rate),
       //   Add pricePercentChange field only if it has values
