@@ -35,7 +35,10 @@
     "snap_manageAccounts": {},
     "snap_manageState": {},
     "snap_dialog": {},
-    "snap_getPreferences": {}
+    "snap_getPreferences": {},
+    "endowment:assets": {
+      "scopes": ["stellar:pubnet"]
+    }
   },
   "platformVersion": "10.3.0",
   "manifestVersion": "0.1"
