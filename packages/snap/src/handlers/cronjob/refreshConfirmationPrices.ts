@@ -1,3 +1,5 @@
+import type { Json } from '@metamask/utils';
+
 import {
   BackgroundEventMethod,
   RefreshConfirmationPricesJsonRpcRequestStruct,
@@ -78,18 +80,8 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
 
     // Find the interface context
     const interfaceContext =
-      await getInterfaceContextIfExists<ContextWithPrices>(interfaceId);
-
-    // TODO: check if the interfaceContext match the ContextWithPrices
-    if (!interfaceContext) {
-      this.logger.info('Interface no longer exists, cleaning up');
-      return;
-    }
-
-    if (!ContextWithPricesStruct.is(interfaceContext)) {
-      this.logger.warn(
-        'Interface context does not match the ContextWithPrices interface, skipping refresh',
-      );
+      await this.#getInterfaceContextIfExists(interfaceId);
+    if (interfaceContext === null) {
       return;
     }
 
@@ -122,9 +114,8 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
 
       // Get the latest context, to ensure the interface is still visible after the price fetch
       const latestContext =
-        await getInterfaceContextIfExists<ContextWithPrices>(interfaceId);
-      if (!latestContext) {
-        this.logger.info('Interface dismissed during price fetch, cleaning up');
+        await this.#getInterfaceContextIfExists(interfaceId);
+      if (latestContext === null) {
         return;
       }
 
@@ -152,8 +143,8 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
       this.logger.error('Error refreshing confirmation prices:', error);
 
       const currentContext =
-        await getInterfaceContextIfExists<ContextWithPrices>(interfaceId);
-      if (currentContext) {
+        await this.#getInterfaceContextIfExists(interfaceId);
+      if (currentContext !== null) {
         // Update the context with the error status
         const errorContext: ContextWithPrices = {
           ...currentContext,
@@ -182,5 +173,26 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
       updatedContext,
       interfaceKey,
     });
+  }
+
+  async #getInterfaceContextIfExists(
+    interfaceId: string,
+  ): Promise<ContextWithPrices | null> {
+    const interfaceContext =
+      await getInterfaceContextIfExists<Json>(interfaceId);
+
+    if (!interfaceContext) {
+      this.logger.info('Interface no longer exists, cleaning up');
+      return null;
+    }
+
+    if (!ContextWithPricesStruct.is(interfaceContext)) {
+      this.logger.warn(
+        'Interface context does not match the ContextWithPrices interface, skipping refresh',
+      );
+      return null;
+    }
+
+    return interfaceContext;
   }
 }
