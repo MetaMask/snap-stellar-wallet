@@ -61,19 +61,21 @@ export class ConfirmationUXController {
    * @param params - The parameters for the render.
    * @param params.scope - The scope of the confirmation.
    * @param params.renderContext - The context for the render.
-   * @param params.fee - The fee for the render.
    * @param params.interfaceKey - The key of the interface to render.
-   * @param params.origin - The origin of the confirmation.
-   * @param params.renderOptions - The options for the render.
+   * @param params.fee - [Optional] The fee for the render.
+   * @param params.origin - [Optional] The origin of the confirmation. Defaults to 'metamask'.
+   * @param params.renderOptions - [Optional] The options for the render. Defaults to {@link #defaultRenderOptions}.
+   * @param params.tokenPrices - [Optional] The token prices for the render {@link ContextWithPrices['tokenPrices']}.
    * @returns A promise that resolves to the dialog result.
    */
   async renderConfirmationDialog<Props extends ConfirmationViewProps>(params: {
     scope: KnownCaip2ChainId;
     renderContext: Props;
-    fee?: string;
     interfaceKey: ConfirmationInterfaceKey;
+    fee?: string;
     origin?: string;
     renderOptions?: ConfirmationRenderOptions;
+    tokenPrices?: ContextWithPrices['tokenPrices'];
   }): Promise<DialogResult> {
     try {
       const {
@@ -93,6 +95,12 @@ export class ConfirmationUXController {
       const enablePricing =
         renderOptions.loadPrice && preferences.useExternalPricingData;
 
+      const defaultTokenPrices = fee
+        ? ({
+            [getSlip44AssetId(scope)]: null,
+          } as ContextWithPrices['tokenPrices'])
+        : {};
+
       const defaultContext = {
         // if pricing is disabled, mark as fetched immediately
         tokenPricesFetchStatus: enablePricing
@@ -103,12 +111,12 @@ export class ConfirmationUXController {
         networkImage: STELLAR_IMAGE,
         origin: formatOrigin(origin),
         currency: preferences.currency,
-        feeData: fee ? formatFeeData(scope, fee) : undefined,
-        tokenPrices: fee
-          ? ({
-              [getSlip44AssetId(scope)]: null,
-            } as ContextWithPrices['tokenPrices'])
-          : {},
+        scope,
+        feeData: fee ? formatFeeData(scope, fee) : {},
+        tokenPrices: {
+          ...defaultTokenPrices,
+          ...params.tokenPrices,
+        },
       };
 
       // 1. Initial context with loading state
@@ -195,8 +203,6 @@ export class ConfirmationUXController {
       case ConfirmationInterfaceKey.ChangeTrustlineOptIn:
         throw new Error(`Unsupported interface key: ${interfaceKey}`);
       case ConfirmationInterfaceKey.ChangeTrustlineOptOut:
-        throw new Error(`Unsupported interface key: ${interfaceKey}`);
-      case ConfirmationInterfaceKey.SendTransaction:
         throw new Error(`Unsupported interface key: ${interfaceKey}`);
       case ConfirmationInterfaceKey.SignTransaction:
         return (
