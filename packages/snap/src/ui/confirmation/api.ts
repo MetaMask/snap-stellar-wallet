@@ -1,3 +1,4 @@
+import type { GetPreferencesResult } from '@metamask/snaps-sdk';
 import { union } from '@metamask/snaps-sdk';
 import type { Infer } from '@metamask/superstruct';
 import {
@@ -9,11 +10,14 @@ import {
   nonempty,
 } from '@metamask/superstruct';
 
+import type {
+  KnownCaip2ChainId,
+  KnownCaip19AssetIdOrSlip44Id,
+} from '../../api';
 import {
   KnownCaip19ClassicAssetStruct,
   KnownCaip19Sep41AssetStruct,
   KnownCaip19Slip44IdStruct,
-  type KnownCaip19AssetIdOrSlip44Id,
 } from '../../api';
 
 export type FeeData = {
@@ -49,7 +53,6 @@ export type ContextWithPrices = Infer<typeof ContextWithPricesStruct>;
 export enum ConfirmationInterfaceKey {
   ChangeTrustlineOptIn = 'ChangeTrustlineOptIn',
   ChangeTrustlineOptOut = 'ChangeTrustlineOptOut',
-  SendTransaction = 'SendTransaction',
   SignMessage = 'SignMessage',
   SignTransaction = 'SignTransaction',
 }
@@ -57,3 +60,16 @@ export enum ConfirmationInterfaceKey {
 export const ConfirmationInterfaceKeyStruct = enums(
   Object.values(ConfirmationInterfaceKey),
 );
+
+/**
+ * Cross-cutting confirmation context injected by {@link ConfirmationUXController}
+ * before the caller's `renderContext` is merged in.
+ */
+export type ConfirmationBaseProps = Partial<ContextWithPrices> & {
+  preferences: GetPreferencesResult;
+  locale: string;
+  scope: KnownCaip2ChainId;
+  networkImage: string | null;
+  origin: string;
+  feeData?: FeeData;
+};
