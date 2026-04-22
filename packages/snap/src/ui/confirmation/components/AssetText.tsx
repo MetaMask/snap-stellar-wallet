@@ -20,5 +20,5 @@ export const AssetText = (props: AssetTextProps): ComponentOrElement => {
   if (link) {
     return <Link href={link}>{asset}</Link>;
   }
-  return <SnapText>${asset}</SnapText>;
+  return <SnapText>{asset}</SnapText>;
 };

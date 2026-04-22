@@ -29,7 +29,11 @@ import type { Locale, LocalizedMessage } from '../../../../utils';
 import { i18n, parseClassicAssetCodeIssuer } from '../../../../utils';
 import { STELLAR_IMAGE } from '../../../images/icon';
 import type { ContextWithPrices, FeeData } from '../../api';
-import { getClassicAssetExplorerUrl, getNetworkName } from '../../utils';
+import {
+  getAccountName,
+  getClassicAssetExplorerUrl,
+  getNetworkName,
+} from '../../utils';
 
 export type ConfirmSignTransactionProps = ContextWithPrices & {
   transaction: Transaction;
@@ -129,7 +133,7 @@ export const ConfirmSignTransaction = ({
 }: ConfirmSignTransactionProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
-  const addressCaip10 = `${scope}:${address}` as `0x${string}` | CaipAccountId;
+  const addressCaip10 = getAccountName(scope, address);
 
   const readableTransaction = new OperationMapper().mapTransaction(transaction);
 

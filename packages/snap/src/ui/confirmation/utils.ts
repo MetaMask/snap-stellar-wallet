@@ -122,8 +122,8 @@ export function getSepAssetExplorerUrl(assetReference: string): string {
 export function getAccountName(
   scope: KnownCaip2ChainId,
   address: string,
-): `0x${string}` | CaipAccountId {
-  return `${scope}:${address}` as `0x${string}` | CaipAccountId;
+): CaipAccountId {
+  return `${scope}:${address}`;
 }
 
 /**
