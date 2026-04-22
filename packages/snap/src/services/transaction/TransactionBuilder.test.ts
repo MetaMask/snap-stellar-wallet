@@ -20,6 +20,7 @@ import { logger } from '../../utils/logger';
 import {
   createMockAccountWithBalances,
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  horizonSource,
 } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
@@ -37,14 +38,12 @@ describe('TransactionBuilder', () => {
     transactionBuilder = new TransactionBuilder({ logger });
     testAsset = `stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN`;
     testWalletWithSigner = getTestWallet();
-    testOnChainAccount = new OnChainAccount(
-      createMockAccountWithBalances(
-        testWalletWithSigner.address,
-        '1',
-        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-      ),
-      KnownCaip2ChainId.Mainnet,
+    const acc = createMockAccountWithBalances(
+      testWalletWithSigner.address,
+      '1',
+      DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
     );
+    testOnChainAccount = new OnChainAccount(acc, KnownCaip2ChainId.Mainnet);
   });
 
   const getAccountSpies = () => ({
@@ -89,6 +88,17 @@ describe('TransactionBuilder', () => {
         });
       }).toThrow(TransactionBuilderException);
     });
+
+    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+      expect(() =>
+        transactionBuilder.changeTrust({
+          baseFee: '100',
+          scope: KnownCaip2ChainId.Testnet,
+          assetId: testAsset,
+          onChainAccount: testOnChainAccount,
+        }),
+      ).toThrow(TransactionBuilderException);
+    });
   });
 
   describe('rebuildTxnWithNewSeq', () => {
@@ -100,16 +110,15 @@ describe('TransactionBuilder', () => {
         onChainAccount: testOnChainAccount,
       });
 
+      const seqAcc = createMockAccountWithBalances(
+        getTestWallet().address,
+        '100',
+        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      );
       const rebuiltTransaction = transactionBuilder.rebuildTxnWithNewSeq({
         transaction,
-        sequenceNumber: new OnChainAccount(
-          createMockAccountWithBalances(
-            getTestWallet().address,
-            '100',
-            DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-          ),
-          KnownCaip2ChainId.Mainnet,
-        ).sequenceNumber,
+        sequenceNumber: new OnChainAccount(seqAcc, KnownCaip2ChainId.Mainnet)
+          .sequenceNumber,
       });
 
       expect(rebuiltTransaction).toBeInstanceOf(Transaction);
@@ -155,13 +164,19 @@ describe('TransactionBuilder', () => {
 
       expect(signedRaw.signatures.length).toBeGreaterThan(0);
 
-      const sameSourceOnChainAccount = new OnChainAccount(
-        createMockAccountWithBalances(testWalletWithSigner.address, '42', {
+      const sameSeqAcc = createMockAccountWithBalances(
+        testWalletWithSigner.address,
+        '42',
+        {
           nativeBalance: 10,
           subentryCount: 0,
           assets: [],
-        }),
+        },
+      );
+      const sameSourceOnChainAccount = new OnChainAccount(
+        sameSeqAcc,
         KnownCaip2ChainId.Mainnet,
+        horizonSource(sameSeqAcc, KnownCaip2ChainId.Mainnet),
       );
 
       const rebuilt = transactionBuilder.rebuildTxnWithNewSeq({
@@ -235,6 +250,23 @@ describe('TransactionBuilder', () => {
         });
       }).toThrow(InvalidAssetForCreateAccountException);
     });
+
+    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+      const testDestination = getTestWallet();
+      expect(() =>
+        transactionBuilder.transfer({
+          onChainAccount: testOnChainAccount,
+          scope: KnownCaip2ChainId.Testnet,
+          assetId: getSlip44AssetId(KnownCaip2ChainId.Mainnet),
+          amount: new BigNumber(100),
+          destination: {
+            address: testDestination.address,
+            isActivated: true,
+          },
+          baseFee: new BigNumber(100),
+        }),
+      ).toThrow(TransactionBuilderException);
+    });
   });
 
   describe('deserialize', () => {
@@ -296,6 +328,19 @@ describe('TransactionBuilder', () => {
           amount: new BigNumber(100000000),
         });
       }).toThrow(TransactionBuilderException);
+    });
+
+    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+      const testDestination = getTestWallet();
+      expect(() =>
+        transactionBuilder.sep41Transfer({
+          scope: KnownCaip2ChainId.Testnet,
+          onChainAccount: testOnChainAccount,
+          assetId: sep41AssetId,
+          destination: testDestination.address,
+          amount: new BigNumber(100000000),
+        }),
+      ).toThrow(TransactionBuilderException);
     });
   });
 });

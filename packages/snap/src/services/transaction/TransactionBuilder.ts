@@ -15,7 +15,7 @@ import {
   TransactionBuilderException,
 } from './exceptions';
 import { Transaction } from './Transaction';
-import { caip19ToStellarAsset } from './utils';
+import { assertAssetScopeMatch, caip19ToStellarAsset } from './utils';
 import type {
   KnownCaip2ChainId,
   KnownCaip19AssetIdOrSlip44Id,
@@ -31,6 +31,7 @@ import {
   isSep41Id,
   isSlip44Id,
   normalizeAmount,
+  rethrowIfInstanceElseThrow,
 } from '../../utils';
 import { caip2ChainIdToNetwork } from '../network/utils';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
@@ -54,7 +55,7 @@ export class TransactionBuilder {
    * @param params.scope - The CAIP-2 chain ID.
    * @param params.assetId - CAIP-19 asset id for the classic token asset.
    * @param params.onChainAccount - Source account (sequence and account id for the transaction).
-   * @param params.deleteTrustline - [optional] Whether to delete the trustline. Defaults to false.
+   * @param params.limit - [optional] limit of the trustline.
    * @returns An unsigned transaction ready for signing.
    * @throws {TransactionBuilderException} If building fails.
    */
@@ -63,21 +64,22 @@ export class TransactionBuilder {
     scope,
     assetId,
     onChainAccount,
-    deleteTrustline = false,
+    limit,
   }: {
     baseFee: string;
     scope: KnownCaip2ChainId;
     assetId: KnownCaip19ClassicAssetId;
     onChainAccount: OnChainAccount;
-    deleteTrustline?: boolean;
+    limit?: string;
   }): Transaction {
     try {
+      assertAssetScopeMatch(assetId, scope);
+
       const operationOpt: OperationOptions.ChangeTrust = {
         asset: caip19ToStellarAsset(assetId),
       };
-      // Remove trustline by setting the limit to 0
-      if (deleteTrustline) {
-        operationOpt.limit = '0';
+      if (limit !== undefined) {
+        operationOpt.limit = limit;
       }
       return this.#buildTransaction({
         onChainAccount,
@@ -118,6 +120,7 @@ export class TransactionBuilder {
   }): Transaction {
     try {
       const { scope, onChainAccount, assetId, destination, amount } = params;
+      assertAssetScopeMatch(assetId, scope);
 
       // If it is a SEP-41 asset, the asset reference is the token address
       const { assetReference: tokenAddress } = parseCaipAssetType(assetId);
@@ -236,6 +239,8 @@ export class TransactionBuilder {
     const { address: toAddress, isActivated } = destination;
 
     try {
+      assertAssetScopeMatch(assetId, scope);
+
       if (isSep41Id(assetId)) {
         return this.sep41Transfer({
           scope,
@@ -353,6 +358,9 @@ export class TransactionBuilder {
       );
 
       if (!Number.isFinite(fee) || fee <= 0) {
+        this.#logger.warn(
+          `Invalid fee amount, fallback to use fix base fee value ${BASE_FEE}`,
+        );
         fee = BASE_FEE;
       }
 
@@ -379,17 +387,18 @@ export class TransactionBuilder {
         tx.operations().forEach((op) => builder.addOperation(op));
       } else {
         throw new TransactionBuilderException(
-          'Transaction is not a compatible transaction',
+          'Failed to clone the transaction, it is not a compatible transaction',
         );
       }
 
       return new Transaction(builder.build());
     } catch (error: unknown) {
-      if (error instanceof TransactionBuilderException) {
-        throw error;
-      }
       this.#logger.logErrorWithDetails('Failed to rebuild transaction', error);
-      throw new TransactionBuilderException('Failed to rebuild transaction');
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TransactionBuilderException],
+        new TransactionBuilderException('Failed to rebuild transaction'),
+      );
     }
   }
 

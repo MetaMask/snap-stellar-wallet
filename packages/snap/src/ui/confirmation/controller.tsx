@@ -22,6 +22,10 @@ import {
   updateInterfaceIfExists,
 } from '../../utils';
 import { STELLAR_IMAGE } from '../images/icon';
+import type { ConfirmSignChangeTrustOptInProps } from './views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn';
+import { ConfirmSignChangeTrustOptIn } from './views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn';
+import type { ConfirmSignChangeTrustOptOutProps } from './views/ConfirmSignChangeTrustOptOut/ConfirmSignChangeTrustOptOut';
+import { ConfirmSignChangeTrustOptOut } from './views/ConfirmSignChangeTrustOptOut/ConfirmSignChangeTrustOptOut';
 import {
   ConfirmSignMessage,
   type ConfirmSignMessageProps,
@@ -211,9 +215,17 @@ export class ConfirmationUXController {
   ): ComponentOrElement {
     switch (interfaceKey) {
       case ConfirmationInterfaceKey.ChangeTrustlineOptIn:
-        throw new Error('ChangeTrustlineOptIn is not supported');
+        return (
+          <ConfirmSignChangeTrustOptIn
+            {...(context as unknown as ConfirmSignChangeTrustOptInProps)}
+          />
+        );
       case ConfirmationInterfaceKey.ChangeTrustlineOptOut:
-        throw new Error('ChangeTrustlineOptOut is not supported');
+        return (
+          <ConfirmSignChangeTrustOptOut
+            {...(context as unknown as ConfirmSignChangeTrustOptOutProps)}
+          />
+        );
       case ConfirmationInterfaceKey.SignTransaction:
         return (
           <ConfirmSignTransaction
