@@ -235,7 +235,11 @@ export const ConfirmSignTransaction = ({
 
         <Section>
           {readableTransaction.operations.map((operationJson, index) => (
-            <Box alignment="space-between" direction="vertical">
+            <Box
+              key={`op-${index}`}
+              alignment="space-between"
+              direction="vertical"
+            >
               <Heading>
                 {t(
                   `confirmation.transaction.${operationJson.type.toLowerCase()}` as LocalizedMessage,
@@ -261,6 +265,7 @@ export const ConfirmSignTransaction = ({
                       param.value.length > 40);
                   return (
                     <Box
+                      key={param.key}
                       alignment="space-between"
                       direction={useVertical ? 'vertical' : 'horizontal'}
                     >
