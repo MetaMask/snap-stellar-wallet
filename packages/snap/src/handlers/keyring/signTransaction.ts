@@ -18,12 +18,16 @@ import type {
   Transaction,
   TransactionService,
 } from '../../services/transaction';
+import { OperationMapper } from '../../services/transaction';
 import {
   assertTransactionScope,
   assertAccountInvolvesTransaction,
+  collectTransactionAssetCaipIds,
 } from '../../services/transaction/utils';
 import type { WalletService } from '../../services/wallet';
-import { render } from '../../ui/confirmation/views/ConfirmSignTransaction/render';
+import type { ContextWithPrices } from '../../ui/confirmation/api';
+import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
+import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
 
 export class SignTransactionHandler extends WithKeyringRequestActiveAccountResolve<
@@ -34,6 +38,8 @@ export class SignTransactionHandler extends WithKeyringRequestActiveAccountResol
 
   readonly #transactionService: TransactionService;
 
+  readonly #confirmationUIController: ConfirmationUXController;
+
   constructor({
     logger,
     accountService,
@@ -41,6 +47,7 @@ export class SignTransactionHandler extends WithKeyringRequestActiveAccountResol
     walletService,
     transactionBuilder,
     transactionService,
+    confirmationUIController,
   }: {
     logger: ILogger;
     accountService: AccountService;
@@ -48,6 +55,7 @@ export class SignTransactionHandler extends WithKeyringRequestActiveAccountResol
     transactionService: TransactionService;
     walletService: WalletService;
     transactionBuilder: TransactionBuilder;
+    confirmationUIController: ConfirmationUXController;
   }) {
     super({
       logger,
@@ -60,6 +68,7 @@ export class SignTransactionHandler extends WithKeyringRequestActiveAccountResol
     });
     this.#transactionBuilder = transactionBuilder;
     this.#transactionService = transactionService;
+    this.#confirmationUIController = confirmationUIController;
   }
 
   protected async _handle(
@@ -105,6 +114,31 @@ export class SignTransactionHandler extends WithKeyringRequestActiveAccountResol
     transaction: Transaction,
     account: StellarKeyringAccount,
   ): Promise<boolean> {
-    return (await render(request, transaction, account)) === true;
+    const readableTransaction = new OperationMapper().mapTransaction(
+      transaction,
+    );
+
+    // Seed every asset id we render so the cron refresh updates prices for all of them.
+    // The `as` cast bypasses superstruct typing that requires every union key.
+    const tokenPrices = Object.fromEntries(
+      collectTransactionAssetCaipIds(request.scope, readableTransaction).map(
+        (assetId) => [assetId, null] as const,
+      ),
+    ) as ContextWithPrices['tokenPrices'];
+
+    return (
+      (await this.#confirmationUIController.renderConfirmationDialog({
+        scope: request.scope,
+        origin: request.origin,
+        interfaceKey: ConfirmationInterfaceKey.SignTransaction,
+        fee: readableTransaction.feeStroops,
+        renderContext: {
+          readableTransaction,
+          account,
+        },
+        renderOptions: { loadPrice: true },
+        tokenPrices,
+      })) === true
+    );
   }
 }

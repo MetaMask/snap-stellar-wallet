@@ -11,69 +11,81 @@ import {
   Section,
   Text as SnapText,
   Tooltip,
-  Link,
   Divider,
 } from '@metamask/snaps-sdk/jsx';
-import type { Json, CaipAccountId } from '@metamask/utils';
+import type { Json } from '@metamask/utils';
 import { isNullOrUndefined } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import { ConfirmSignTransactionFormNames } from './events';
 import type { KnownCaip2ChainId } from '../../../../api';
 import type { StellarKeyringAccount } from '../../../../services/account';
-import {
-  OperationMapper,
-  type Transaction,
-} from '../../../../services/transaction';
+import type { ReadableTransactionJson } from '../../../../services/transaction';
 import type { Locale, LocalizedMessage } from '../../../../utils';
-import { i18n, parseClassicAssetCodeIssuer } from '../../../../utils';
+import { i18n } from '../../../../utils';
 import { STELLAR_IMAGE } from '../../../images/icon';
-import type { ContextWithPrices, FeeData } from '../../api';
+import type { ConfirmationBaseProps, FeeData } from '../../api';
+import { FetchStatus } from '../../api';
+import { Asset } from '../../components/Asset';
+import { FeeRow } from '../../components/Fee';
 import {
   getAccountName,
-  getClassicAssetExplorerUrl,
   getNetworkName,
+  resolveAssetDisplay,
 } from '../../utils';
 
-export type ConfirmSignTransactionProps = ContextWithPrices & {
-  transaction: Transaction;
-  account: StellarKeyringAccount;
-  scope: KnownCaip2ChainId;
-  locale: Locale;
-  networkImage: string | null;
-  origin: string;
+export type ConfirmSignTransactionProps = Omit<
+  ConfirmationBaseProps,
+  'feeData'
+> & {
   feeData: FeeData;
+  readableTransaction: ReadableTransactionJson;
+  account: StellarKeyringAccount;
 };
 
 const AmountRow = ({ amount }: { amount: string }): ComponentOrElement => {
   return <SnapText>{new BigNumber(amount).toString()}</SnapText>;
 };
 
-const AssetRow = ({
-  asset,
+const AssetParam = ({
+  scope,
+  assetReference,
   amount,
+  preferences,
+  price,
+  priceLoading,
 }: {
-  asset: string;
+  scope: KnownCaip2ChainId;
+  assetReference: string;
   amount?: string;
+  preferences?: ConfirmationBaseProps['preferences'];
+  price?: string | null;
+  priceLoading?: boolean;
 }): ComponentOrElement => {
-  let assetRow;
-  if (asset === 'native') {
-    assetRow = <SnapText>{'Native'}</SnapText>;
-  } else {
-    const { assetCode } = parseClassicAssetCodeIssuer(asset);
-    assetRow = (
-      <Link href={getClassicAssetExplorerUrl(asset)}>${assetCode}</Link>
+  const resolved = resolveAssetDisplay(scope, assetReference);
+  if (!resolved) {
+    // Liquidity pool ids and other non-classic references fall back to the raw string.
+    if (amount === undefined) {
+      return <SnapText>{assetReference}</SnapText>;
+    }
+    return (
+      <Box direction="horizontal" alignment="end">
+        <SnapText>{new BigNumber(amount).toString()}</SnapText>
+        <SnapText>{assetReference}</SnapText>
+      </Box>
     );
   }
 
-  if (amount === undefined) {
-    return assetRow;
-  }
   return (
-    <Box direction="horizontal" alignment="start">
-      <SnapText>{new BigNumber(amount).toString()}</SnapText>
-      {assetRow}
-    </Box>
+    <Asset
+      symbol={resolved.symbol}
+      amount={amount}
+      iconUrl={resolved.iconUrl}
+      link={resolved.link}
+      preferences={preferences}
+      price={price ?? null}
+      priceLoading={priceLoading}
+    />
   );
 };
 
@@ -84,33 +96,53 @@ const AddressRow = ({
   address: string;
   scope: KnownCaip2ChainId;
 }): ComponentOrElement => {
-  const addressCaip10 = `${scope}:${address}` as `0x${string}` | CaipAccountId;
-  return <Address address={addressCaip10} truncate displayName avatar />;
+  return (
+    <Address
+      address={getAccountName(scope, address)}
+      truncate
+      displayName
+      avatar
+    />
+  );
 };
 
 const RenderReadableParamValue = (params: {
   type: string;
   value: Json;
   scope: KnownCaip2ChainId;
+  preferences?: ConfirmationBaseProps['preferences'];
+  tokenPrices?: ConfirmationBaseProps['tokenPrices'];
+  priceLoading?: boolean;
 }): ComponentOrElement | null => {
-  const { type, value, scope } = params;
+  const { type, value, scope, preferences, tokenPrices, priceLoading } = params;
   if (isNullOrUndefined(value)) {
     return null;
   }
   switch (type) {
-    case 'assetWithAmount':
-      if (Array.isArray(value)) {
-        return (
-          <AssetRow asset={value[0] as string} amount={value[1] as string} />
-        );
+    case 'assetWithAmount': {
+      if (!Array.isArray(value)) {
+        return null;
       }
-      return null;
+      const [assetReference, amount] = value as [string, string];
+      const resolved = resolveAssetDisplay(scope, assetReference);
+      const price = resolved ? (tokenPrices?.[resolved.assetId] ?? null) : null;
+      return (
+        <AssetParam
+          scope={scope}
+          assetReference={assetReference}
+          amount={amount}
+          preferences={preferences}
+          price={price}
+          priceLoading={priceLoading}
+        />
+      );
+    }
+    case 'asset':
+      return <AssetParam scope={scope} assetReference={value as string} />;
     case 'address':
       return <AddressRow address={value as string} scope={scope} />;
     case 'amount':
       return <AmountRow amount={value as string} />;
-    case 'asset':
-      return <AssetRow asset={value as string} />;
     case 'json':
       return <SnapText>{JSON.stringify(value, null, 2)}</SnapText>;
     default:
@@ -125,18 +157,22 @@ const RenderReadableParamValue = (params: {
 };
 
 export const ConfirmSignTransaction = ({
-  transaction,
+  readableTransaction,
   account,
   scope,
   locale,
   networkImage,
   origin,
+  preferences,
+  feeData,
+  tokenPrices,
+  tokenPricesFetchStatus = FetchStatus.Initial,
 }: ConfirmSignTransactionProps): ComponentOrElement => {
-  const t = i18n(locale);
+  const t = i18n(locale as Locale);
   const { address } = account;
   const addressCaip10 = getAccountName(scope, address);
-
-  const readableTransaction = new OperationMapper().mapTransaction(transaction);
+  const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
+  const feePrice = tokenPrices?.[feeData.assetId] ?? null;
 
   return (
     <Container>
@@ -181,12 +217,12 @@ export const ConfirmSignTransaction = ({
               <SnapText>{getNetworkName(scope)}</SnapText>
             </Box>
           </Box>
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.transactionFee')}
-            </SnapText>
-            <SnapText>{readableTransaction.feeStroops} stroops</SnapText>
-          </Box>
+          <FeeRow
+            fee={feeData}
+            preferences={preferences}
+            price={feePrice}
+            tokenPricesFetchStatus={tokenPricesFetchStatus}
+          />
           {[readableTransaction.memo].filter(Boolean).map((memo) => (
             <Box alignment="space-between" direction="horizontal">
               <SnapText fontWeight="medium" color="alternative">
@@ -237,6 +273,9 @@ export const ConfirmSignTransaction = ({
                         type={param.type}
                         value={param.value}
                         scope={scope}
+                        preferences={preferences}
+                        tokenPrices={tokenPrices}
+                        priceLoading={priceLoading}
                       />
                     </Box>
                   );

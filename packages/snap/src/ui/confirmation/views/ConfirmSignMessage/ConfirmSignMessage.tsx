@@ -12,23 +12,21 @@ import {
   Text as SnapText,
   Tooltip,
 } from '@metamask/snaps-sdk/jsx';
-import type { CaipAccountId } from '@metamask/utils';
 
 import { ConfirmSignMessageFormNames } from './events';
-import type { KnownCaip2ChainId } from '../../../../api';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
 import { STELLAR_IMAGE } from '../../../images/icon';
-import { getNetworkName } from '../../utils';
+import type { ConfirmationBaseProps } from '../../api';
+import { getAccountName, getNetworkName } from '../../utils';
 
-export type ConfirmSignMessageProps = {
+export type ConfirmSignMessageProps = Pick<
+  ConfirmationBaseProps,
+  'scope' | 'locale' | 'networkImage' | 'origin'
+> & {
   message: string;
   account: StellarKeyringAccount;
-  scope: KnownCaip2ChainId;
-  locale: Locale;
-  networkImage: string | null;
-  origin: string;
 };
 
 export const ConfirmSignMessage = ({
@@ -39,9 +37,9 @@ export const ConfirmSignMessage = ({
   networkImage,
   origin,
 }: ConfirmSignMessageProps): ComponentOrElement => {
-  const translate = i18n(locale);
+  const translate = i18n(locale as Locale);
   const { address } = account;
-  const addressCaip10 = `${scope}:${address}` as `0x${string}` | CaipAccountId;
+  const addressCaip10 = getAccountName(scope, address);
 
   return (
     <Container>

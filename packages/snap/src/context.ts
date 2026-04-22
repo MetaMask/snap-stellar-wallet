@@ -99,6 +99,7 @@ const signTransactionHandler = new SignTransactionHandler({
   walletService,
   transactionBuilder,
   transactionService,
+  confirmationUIController,
 });
 
 const signMessageHandler = new SignMessageHandler({
