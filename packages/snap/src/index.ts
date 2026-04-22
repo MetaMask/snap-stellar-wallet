@@ -2,6 +2,7 @@ import type {
   OnUserInputHandler,
   OnKeyringRequestHandler,
   OnRpcRequestHandler,
+  OnCronjobHandler,
   OnAssetHistoricalPriceHandler,
   OnAssetsConversionHandler,
   OnAssetsLookupHandler,
@@ -15,6 +16,7 @@ import {
   signMessageHandler,
   userInputHandler,
   signTransactionHandler,
+  cronjobHandler,
   assetsHandler,
 } from './context';
 
@@ -38,6 +40,9 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
 
 export const onUserInput: OnUserInputHandler = async (params) =>
   userInputHandler.handle(params);
+
+export const onCronjob: OnCronjobHandler = async ({ request }) =>
+  cronjobHandler.handle(request);
 
 export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
   const { method } = request;

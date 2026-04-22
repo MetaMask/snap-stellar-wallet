@@ -36,6 +36,7 @@
     "snap_manageState": {},
     "snap_dialog": {},
     "snap_getPreferences": {},
+    "endowment:cronjob": {},
     "endowment:assets": {
       "scopes": ["stellar:pubnet"]
     }

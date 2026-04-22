@@ -10,8 +10,10 @@ import type { ResolvedActivatedAccountFor } from '../base';
 import type { SignMessageRequest, SignMessageResponse } from './api';
 import { SignMessageRequestStruct, SignMessageResponseStruct } from './api';
 import { WithKeyringRequestActiveAccountResolve } from './base';
-import { render } from '../../ui/confirmation/views/ConfirmSignMessage/render';
-import type { ILogger } from '../../utils';
+import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
+import type { ConfirmationUXController } from '../../ui/confirmation/controller';
+import { bufferToUint8Array, type ILogger } from '../../utils';
+import { isBase64 } from '../../utils/string';
 
 type SignMessageResolveOpts = { onChainAccount: false; wallet: true };
 
@@ -20,16 +22,20 @@ export class SignMessageHandler extends WithKeyringRequestActiveAccountResolve<
   SignMessageResponse,
   SignMessageResolveOpts
 > {
+  readonly #confirmationUIController: ConfirmationUXController;
+
   constructor({
     logger,
     accountService,
     onChainAccountService,
     walletService,
+    confirmationUIController,
   }: {
     logger: ILogger;
     accountService: AccountService;
     onChainAccountService: OnChainAccountService;
     walletService: WalletService;
+    confirmationUIController: ConfirmationUXController;
   }) {
     super({
       logger,
@@ -40,6 +46,7 @@ export class SignMessageHandler extends WithKeyringRequestActiveAccountResolve<
       responseStruct: SignMessageResponseStruct,
       resolveAccountOptions: { onChainAccount: false },
     });
+    this.#confirmationUIController = confirmationUIController;
   }
 
   protected async _handle(
@@ -63,6 +70,23 @@ export class SignMessageHandler extends WithKeyringRequestActiveAccountResolve<
     request: SignMessageRequest,
     account: StellarKeyringAccount,
   ): Promise<boolean> {
-    return (await render(request, account)) === true;
+    return (
+      (await this.#confirmationUIController.renderConfirmationDialog({
+        scope: request.scope,
+        renderContext: {
+          account,
+          message: this.#getUtf8Message(request.request.params.message),
+        },
+        origin: request.origin,
+        interfaceKey: ConfirmationInterfaceKey.SignMessage,
+      })) === true
+    );
+  }
+
+  #getUtf8Message(message: string): string {
+    if (isBase64(message)) {
+      return bufferToUint8Array(message, 'base64').toString('utf8');
+    }
+    return message;
   }
 }

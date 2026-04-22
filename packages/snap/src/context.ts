@@ -1,15 +1,18 @@
 import { assert, object } from '@metamask/superstruct';
 
 import { AppConfig } from './config';
-import { KeyringHandler } from './handlers';
+import { KeyringHandler, CronjobHandler, UserInputHandler } from './handlers';
 import { AssetsHandler } from './handlers/asset/assets';
+import type { ICronjobRequestHandler } from './handlers/cronjob/api';
+import { BackgroundEventMethod } from './handlers/cronjob/api';
+import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
+import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
   MultichainMethod,
   SignMessageHandler,
   SignTransactionHandler,
 } from './handlers/keyring';
-import { UserInputHandler } from './handlers/user-input/userInput';
 import { AccountService, AccountsRepository } from './services/account';
 import type { AccountBalanceState } from './services/account-balance';
 import {
@@ -28,6 +31,7 @@ import {
   TransactionService,
 } from './services/transaction';
 import { WalletService } from './services/wallet';
+import { ConfirmationUXController } from './ui/confirmation/controller';
 import { logger } from './utils';
 
 assert(AppConfig, object());
@@ -68,16 +72,22 @@ const transactionService = new TransactionService({
   logger,
   transactionRepository,
   networkService,
+  cache: new StateCache(state, logger, '__cache__transaction'),
+});
+
+const priceService = new PriceService({
+  cache: new StateCache(state, logger, '__cache__price'),
+  logger,
+});
+
+/** UX Controller */
+const confirmationUIController = new ConfirmationUXController({
+  logger,
 });
 
 const assetMetadataService = new AssetMetadataService({
   networkService,
   assetMetadataRepository,
-  logger,
-});
-
-const priceService = new PriceService({
-  cache: new StateCache(state, logger, '__cache__price'),
   logger,
 });
 
@@ -95,6 +105,7 @@ const signMessageHandler = new SignMessageHandler({
   logger,
   accountService,
   onChainAccountService,
+  confirmationUIController,
   walletService,
 });
 
@@ -118,6 +129,31 @@ const userInputHandler = new UserInputHandler({
   logger,
 });
 
+/** ------------------------------ Cronjob Handler ------------------------------ */
+
+const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
+  logger,
+  priceService,
+  confirmationUIController,
+});
+
+const trackTransactionHandler = new TrackTransactionHandler({
+  logger,
+});
+
+const cronjobMethodHandlers: Record<
+  BackgroundEventMethod,
+  ICronjobRequestHandler
+> = {
+  [BackgroundEventMethod.RefreshConfirmationPrices]:
+    refreshConfirmationPricesHandler,
+  [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
+};
+
+const cronjobHandler = new CronjobHandler({
+  handlers: cronjobMethodHandlers,
+});
+
 /** ------------------------------ Asset Handler ------------------------------ */
 const assetsHandler = new AssetsHandler({
   logger,
@@ -126,9 +162,11 @@ const assetsHandler = new AssetsHandler({
 });
 
 export {
+  cronjobHandler,
   assetsHandler,
   keyringHandler,
   userInputHandler,
   signTransactionHandler,
   signMessageHandler,
+  confirmationUIController,
 };

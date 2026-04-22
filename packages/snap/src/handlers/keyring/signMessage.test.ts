@@ -9,12 +9,9 @@ import { generateStellarKeyringAccount } from '../../services/account/__mocks__/
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
-import { render as confirmSignMessageRender } from '../../ui/confirmation/views/ConfirmSignMessage/render';
+import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
+import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
-
-jest.mock('../../ui/confirmation/views/ConfirmSignMessage/render', () => ({
-  render: jest.fn(),
-}));
 
 jest.mock('../../utils/logger');
 
@@ -45,6 +42,7 @@ describe('SignMessageHandler', () => {
     handler: SignMessageHandler;
     mockAccount: StellarKeyringAccount;
     wallet: ReturnType<typeof getTestWallet>;
+    renderConfirmationDialog: jest.Mock;
   } {
     const wallet = getTestWallet();
     const mockAccount = generateStellarKeyringAccount(
@@ -65,33 +63,54 @@ describe('SignMessageHandler', () => {
       .spyOn(WalletService.prototype, 'resolveWallet')
       .mockResolvedValue(wallet);
 
+    const renderConfirmationDialog = jest.fn();
+    const confirmationUIController = {
+      renderConfirmationDialog,
+    } as Pick<
+      ConfirmationUXController,
+      'renderConfirmationDialog'
+    > as unknown as ConfirmationUXController;
+
     const handler = new SignMessageHandler({
       logger,
       accountService,
       onChainAccountService,
       walletService,
+      confirmationUIController,
     });
 
-    return { handler, mockAccount, wallet };
+    return { handler, mockAccount, wallet, renderConfirmationDialog };
   }
 
   it('returns signature when confirmation accepts', async () => {
-    const { handler, mockAccount, wallet } = setupSignMessageHandler();
-    jest.mocked(confirmSignMessageRender).mockResolvedValue(true);
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupSignMessageHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
 
     const request = buildRequest(mockAccount);
     const result = await handler.handle(request);
 
     const expectedSignature = await wallet.signMessage(encodedMessage);
 
-    expect(confirmSignMessageRender).toHaveBeenCalledTimes(1);
-    expect(confirmSignMessageRender).toHaveBeenCalledWith(request, mockAccount);
+    expect(renderConfirmationDialog).toHaveBeenCalledTimes(1);
+    expect(renderConfirmationDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: request.scope,
+        origin: request.origin,
+        interfaceKey: ConfirmationInterfaceKey.SignMessage,
+        renderContext: expect.objectContaining({
+          account: mockAccount,
+          message: 'hello stellar',
+        }),
+      }),
+    );
     expect(result).toStrictEqual({ signature: expectedSignature });
   });
 
   it('throws when confirmation rejects', async () => {
-    const { handler, mockAccount } = setupSignMessageHandler();
-    jest.mocked(confirmSignMessageRender).mockResolvedValue(false);
+    const { handler, mockAccount, renderConfirmationDialog } =
+      setupSignMessageHandler();
+    renderConfirmationDialog.mockResolvedValue(false);
 
     const request = buildRequest(mockAccount);
 
@@ -99,12 +118,23 @@ describe('SignMessageHandler', () => {
       UserRejectedRequestError,
     );
 
-    expect(confirmSignMessageRender).toHaveBeenCalledWith(request, mockAccount);
+    expect(renderConfirmationDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: request.scope,
+        origin: request.origin,
+        interfaceKey: ConfirmationInterfaceKey.SignMessage,
+        renderContext: expect.objectContaining({
+          account: mockAccount,
+          message: 'hello stellar',
+        }),
+      }),
+    );
   });
 
   it('rejects invalid requests before calling render', async () => {
-    const { handler, mockAccount } = setupSignMessageHandler();
-    jest.mocked(confirmSignMessageRender).mockResolvedValue(true);
+    const { handler, mockAccount, renderConfirmationDialog } =
+      setupSignMessageHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
 
     await expect(
       handler.handle({
@@ -116,6 +146,6 @@ describe('SignMessageHandler', () => {
       }),
     ).rejects.toThrow(/request\.params\.message/u);
 
-    expect(confirmSignMessageRender).not.toHaveBeenCalled();
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 });

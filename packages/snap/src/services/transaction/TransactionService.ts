@@ -7,9 +7,13 @@ import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
 } from '../../api';
+import { BASE_FEE_CACHE_TTL_MILLISECONDS } from '../../constants';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
+import type { Serializable } from '../../utils/serialization';
 import type { StellarKeyringAccount } from '../account/api';
+import type { ICache } from '../cache';
+import { useCache } from '../cache';
 import type { NetworkService } from '../network';
 
 export class TransactionService {
@@ -19,18 +23,40 @@ export class TransactionService {
 
   readonly #networkService: NetworkService;
 
+  readonly #cache: ICache<Serializable>;
+
   constructor({
     logger,
     transactionRepository,
     networkService,
+    cache,
   }: {
     logger: ILogger;
     transactionRepository: TransactionRepository;
     networkService: NetworkService;
+    cache: ICache<Serializable>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🧾 TransactionService]');
     this.#transactionRepository = transactionRepository;
     this.#networkService = networkService;
+    this.#cache = cache;
+  }
+
+  /**
+   * Gets the base fee for a transaction.
+   *
+   * @param scope - The CAIP-2 chain id.
+   * @returns A promise that resolves to the base fee.
+   */
+  async getBaseFee(scope: KnownCaip2ChainId): Promise<BigNumber> {
+    return useCache(
+      this.#networkService.getBaseFee.bind(this.#networkService),
+      this.#cache,
+      {
+        functionName: 'TransactionService:getBaseFee',
+        ttlMilliseconds: BASE_FEE_CACHE_TTL_MILLISECONDS,
+      },
+    )(scope);
   }
 
   /**
