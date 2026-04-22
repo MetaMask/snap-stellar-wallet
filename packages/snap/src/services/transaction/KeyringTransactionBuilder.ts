@@ -163,7 +163,7 @@ export class KeyringTransactionBuilder {
     };
   }
 
-  #getCreateTime() {
+  #getCreateTime(): number {
     return Math.floor(Date.now() / 1000); // seconds since epoch
   }
 }
