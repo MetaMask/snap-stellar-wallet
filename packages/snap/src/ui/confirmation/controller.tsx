@@ -92,14 +92,27 @@ export class ConfirmationUXController {
 
       const preferences = await getPreferencesWithFallback();
 
-      const enablePricing =
-        renderOptions.loadPrice && preferences.useExternalPricingData;
-
       const defaultTokenPrices = fee
         ? ({
             [getSlip44AssetId(scope)]: null,
           } as ContextWithPrices['tokenPrices'])
         : {};
+
+      const tokenPrices = {
+        ...defaultTokenPrices,
+        ...params.tokenPrices,
+      };
+
+      /**
+       * Enazble Price Fetching if:
+       * - Pricing Loading is enabled
+       * - External Pricing Preferences is enabled
+       * - Token Prices mapping is provided
+       */
+      const enablePricing =
+        renderOptions.loadPrice &&
+        preferences.useExternalPricingData &&
+        tokenPrices !== undefined;
 
       const defaultContext = {
         // if pricing is disabled, mark as fetched immediately
@@ -113,10 +126,7 @@ export class ConfirmationUXController {
         currency: preferences.currency,
         scope,
         feeData: fee ? formatFeeData(scope, fee) : {},
-        tokenPrices: {
-          ...defaultTokenPrices,
-          ...params.tokenPrices,
-        },
+        tokenPrices,
       };
 
       // 1. Initial context with loading state
@@ -201,9 +211,9 @@ export class ConfirmationUXController {
   ): ComponentOrElement {
     switch (interfaceKey) {
       case ConfirmationInterfaceKey.ChangeTrustlineOptIn:
-        throw new Error(`Unsupported interface key: ${interfaceKey}`);
+        throw new Error('ChangeTrustlineOptIn is not supported');
       case ConfirmationInterfaceKey.ChangeTrustlineOptOut:
-        throw new Error(`Unsupported interface key: ${interfaceKey}`);
+        throw new Error('ChangeTrustlineOptOut is not supported');
       case ConfirmationInterfaceKey.SignTransaction:
         return (
           <ConfirmSignTransaction
