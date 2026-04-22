@@ -20,6 +20,8 @@ import {
   assetsHandler,
 } from './context';
 
+// random change
+
 export const onAssetHistoricalPrice: OnAssetHistoricalPriceHandler = async (
   args,
 ) => assetsHandler.onAssetHistoricalPrice(args);
