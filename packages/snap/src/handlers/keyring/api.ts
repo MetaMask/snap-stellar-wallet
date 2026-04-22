@@ -19,6 +19,11 @@ import {
 import type { Infer } from '@metamask/superstruct';
 import { base64 } from '@metamask/utils';
 
+import {
+  KnownCaip19ClassicAssetStruct,
+  KnownCaip19Sep41AssetStruct,
+  KnownCaip19Slip44IdStruct,
+} from '../../api';
 import { StellarAddressStruct } from '../../api/address';
 import { KnownCaip2ChainIdStruct } from '../../api/network';
 import { Utf8StringStruct } from '../../api/string';
@@ -153,9 +158,25 @@ export const GetAccountRequestStruct = UuidStruct;
 export const DeleteAccountRequestStruct = UuidStruct;
 
 /**
+ * Validation struct for the listAccountAssets request.
+ */
+export const ListAccountAssetsRequestStruct = UuidStruct;
+
+/**
  * Validation struct for the setSelectedAccounts request.
  */
 export const SetSelectedAccountsRequestStruct = array(UuidStruct);
+
+export const GetAccountBalancesRequestStruct = object({
+  accountId: UuidStruct,
+  assets: array(
+    union([
+      KnownCaip19Sep41AssetStruct,
+      KnownCaip19ClassicAssetStruct,
+      KnownCaip19Slip44IdStruct,
+    ]),
+  ),
+});
 
 /**
  * The options for the createAccount method.

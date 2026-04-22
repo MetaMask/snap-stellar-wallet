@@ -1,5 +1,22 @@
 import type { KnownCaip2ChainId } from '../../api';
 
+/** Per-asset view: native, classic trustline (limit + issuer in `address`), or SEP-41. */
+export type SpendableBalance = {
+  balance: BigNumber;
+  symbol: string;
+  limit?: BigNumber;
+  address?: string;
+  authorized?: boolean;
+  sponsored?: boolean;
+};
+
+/** Ledger fields used for native reserve / spendable math (Horizon or persisted snapshot). */
+export type OnChainAccountLedgerMeta = {
+  subentryCount: number;
+  numSponsoring: number;
+  numSponsored: number;
+};
+
 /**
  * Persisted on-chain account header fields for one keyring account on one network, refreshed on sync.
  * Does not include trustline balances (see `accountBalances` state).

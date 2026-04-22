@@ -1,4 +1,4 @@
-import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from './api';
+import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from '../api';
 import { PriceApiException } from './exceptions';
 import { PriceApiClient } from './PriceApiClient';
 import { buildUrl, logger } from '../../../utils';

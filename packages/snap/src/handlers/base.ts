@@ -12,8 +12,9 @@ import type { OnChainAccountService } from '../services/on-chain-account';
 import { OnChainAccount } from '../services/on-chain-account';
 import type { WalletService } from '../services/wallet';
 import { Wallet } from '../services/wallet';
+import { render as renderAccountActivationPrompt } from '../ui/confirmation/views/AccountActivationPrompt/render';
 import type { ILogger } from '../utils';
-import { validateRequest, validateResponse } from '../utils';
+import { serializeToString, validateRequest, validateResponse } from '../utils';
 
 export const DEFAULT_RESOLVE_ACCOUNT_OPTIONS = {
   onChainAccount: true,
@@ -41,6 +42,72 @@ export type ResolvedActivatedAccountFor<Opts extends ResolveAccountOptions> = {
 export type ResolvedActivatedAccount =
   ResolvedActivatedAccountFor<DefaultResolveAccountOptions>;
 
+export abstract class BaseHandler<
+  RequestType extends Json,
+  ResponseType extends Json,
+> {
+  protected readonly requestStruct: Struct<RequestType>;
+
+  protected readonly responseStruct: Struct<ResponseType>;
+
+  protected readonly logger: ILogger;
+
+  constructor({
+    logger,
+    requestStruct,
+    responseStruct,
+  }: {
+    logger: ILogger;
+    requestStruct: Struct<RequestType>;
+    responseStruct: Struct<ResponseType>;
+  }) {
+    this.logger = logger;
+    this.requestStruct = requestStruct;
+    this.responseStruct = responseStruct;
+  }
+
+  protected abstract handleRequest(
+    request: RequestType,
+  ): Promise<ResponseType | Json>;
+
+  /**
+   * Handles a JSON-RPC request by resolving an activated account and calling the _handle method.
+   *
+   * @param request - The JSON-RPC request to handle.
+   * @returns The result of the _handle method.
+   */
+  async handle(
+    request: RequestType | JsonRpcRequest | Json,
+  ): Promise<ResponseType | Json> {
+    this.logger.debug('Handling request', {
+      request: serializeToString({ value: request }),
+    });
+
+    const validatedRequest = validateRequest(request, this.requestStruct);
+
+    let result: ResponseType | Json;
+    try {
+      this.logger.debug(`Starting handle transformed request`, {
+        request: serializeToString({ value: validatedRequest }),
+      });
+      result = await this.handleRequest(validatedRequest);
+    } catch (error: unknown) {
+      this.logger.logErrorWithDetails(
+        'Error handling request',
+        ensureError(error).message,
+      );
+      throw error;
+    }
+
+    this.logger.debug('Handled request', {
+      result: serializeToString({ value: result }),
+    });
+
+    validateResponse(result, this.responseStruct);
+
+    return result;
+  }
+}
 /**
  * A base class for client request handlers that require an activated account.
  */
@@ -48,18 +115,12 @@ export abstract class WithActiveAccountResolve<
   RequestType extends Json,
   ResponseType extends Json,
   Opts extends ResolveAccountOptions = DefaultResolveAccountOptions,
-> {
-  protected readonly logger: ILogger;
-
+> extends BaseHandler<RequestType, ResponseType> {
   protected readonly accountService: AccountService;
 
   protected readonly onChainAccountService: OnChainAccountService;
 
   protected readonly walletService: WalletService;
-
-  protected readonly requestStruct: Struct<RequestType>;
-
-  protected readonly responseStruct: Struct<ResponseType>;
 
   readonly #resolveAccountOptions: ResolveAccountOptions;
 
@@ -81,12 +142,10 @@ export abstract class WithActiveAccountResolve<
     /** Partial override; omitted flags default to {@link DEFAULT_RESOLVE_ACCOUNT_OPTIONS}. */
     resolveAccountOptions?: Partial<ResolveAccountOptions>;
   }) {
-    this.logger = logger;
+    super({ logger, requestStruct, responseStruct });
     this.accountService = accountService;
     this.onChainAccountService = onChainAccountService;
     this.walletService = walletService;
-    this.requestStruct = requestStruct;
-    this.responseStruct = responseStruct;
     this.#resolveAccountOptions = {
       onChainAccount:
         resolveAccountOptions?.onChainAccount ??
@@ -107,38 +166,23 @@ export abstract class WithActiveAccountResolve<
    * @param request - The JSON-RPC request to handle.
    * @returns The result of the _handle method.
    */
-  async handle(
-    request: RequestType | JsonRpcRequest | Json,
+  protected async handleRequest(
+    request: RequestType,
   ): Promise<ResponseType | Json> {
-    this.logger.debug('Handling request', { request });
-
-    const validatedRequest = validateRequest(request, this.requestStruct);
+    this.logger.debug('resolve account request', {
+      resolveOptions: this.#resolveAccountOptions,
+    });
 
     let resolvedAccount: ResolvedActivatedAccountFor<Opts>;
     try {
-      resolvedAccount = await this.resolveAccount(validatedRequest);
+      resolvedAccount = await this.resolveAccount(request);
     } catch (error: unknown) {
       if (error instanceof AccountNotActivatedException) {
         return await this.handleAccountNotActivatedError(error);
       }
       throw ensureError(error);
     }
-
-    let result: ResponseType | Json;
-    try {
-      result = await this._handle(resolvedAccount, validatedRequest);
-    } catch (error: unknown) {
-      this.logger.logErrorWithDetails('Error handling request', error);
-      throw error;
-    }
-
-    this.logger.debug('Handled request', {
-      result: JSON.stringify(result, null, 2),
-    });
-
-    validateResponse(result, this.responseStruct);
-
-    return result;
+    return await this._handle(resolvedAccount, request);
   }
 
   protected async resolveAccount(
@@ -156,7 +200,7 @@ export abstract class WithActiveAccountResolve<
     if (loadOnChain) {
       promises.push(
         this.onChainAccountService.resolveOnChainAccount(
-          account,
+          account.address,
           AppConfig.selectedNetwork,
         ),
       );
@@ -189,9 +233,8 @@ export abstract class WithActiveAccountResolve<
    */
   protected abstract getAccountId(request: RequestType): string;
 
-  async #showAccountNotActivatedAlert(): Promise<void> {
-    // TODO: Implement account not activated alert
-    throw new Error('Account not activated: user alert not implemented');
+  async #showAccountNotActivatedAlert(address: string): Promise<void> {
+    await renderAccountActivationPrompt(address);
   }
 
   /**
@@ -204,7 +247,7 @@ export abstract class WithActiveAccountResolve<
   protected async handleAccountNotActivatedError(
     error: AccountNotActivatedException,
   ): Promise<Json> {
-    await this.#showAccountNotActivatedAlert();
+    await this.#showAccountNotActivatedAlert(error.address);
     throw error;
   }
 }

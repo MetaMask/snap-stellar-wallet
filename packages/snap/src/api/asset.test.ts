@@ -1,6 +1,7 @@
 import { assert, StructError } from '@metamask/superstruct';
 
 import {
+  FiatCaipAssetStruct,
   KnownCaip19ClassicAssetStruct,
   KnownCaip19Sep41AssetStruct,
   KnownCaip19Slip44IdStruct,
@@ -37,6 +38,25 @@ describe('KnownCaip19Sep41AssetStruct', () => {
     expect(() => assert(address, KnownCaip19Sep41AssetStruct)).toThrow(
       StructError,
     );
+  });
+});
+
+describe('FiatCaipAssetStruct', () => {
+  it.each(['swift:0/iso4217:USD', 'swift:0/iso4217:eur'])(
+    'accepts a valid fiat CAIP-19 asset id',
+    (assetId) => {
+      expect(() => assert(assetId, FiatCaipAssetStruct)).not.toThrow();
+    },
+  );
+
+  it.each([
+    'stellar:pubnet/slip44:148',
+    'eip155:1/swift:0/iso4217:USD',
+    'swift:0/iso4217:US',
+    'swift:0/iso4217:USDC',
+    'eip155:1/notswift:0/iso4217:USD',
+  ])('rejects a non-fiat CAIP-19 asset id', (assetId) => {
+    expect(() => assert(assetId, FiatCaipAssetStruct)).toThrow(StructError);
   });
 });
 

@@ -38,7 +38,8 @@
     "publish:preview": "yarn npm publish --tag preview",
     "serve": "mm-snap serve",
     "start": "node scripts/update-manifest-local.js && concurrently \"mm-snap watch\" \"yarn build:locale:watch\"",
-    "test": "jest --passWithNoTests && yarn jest-it-up",
+    "test": "jest --passWithNoTests --coverage=false",
+    "test:coverage": "jest --passWithNoTests --coverage=true && yarn jest-it-up",
     "test:integration": "./integration-test/run-integration.sh"
   },
   "devDependencies": {

@@ -1,4 +1,8 @@
-import { batchesAllSettled, chunks } from './async';
+import {
+  batchesAllSettled,
+  batchesAllSettledWithChunks,
+  chunks,
+} from './async';
 
 describe('batchesAllSettled', () => {
   it('throws when batchSize is less than 1', async () => {
@@ -95,5 +99,53 @@ describe('chunks', () => {
   it('throws when chunkSize is less than 1', () => {
     const run = () => chunks(['a', 'b', 'c'], 0);
     expect(run).toThrow(RangeError);
+  });
+});
+
+describe('batchesAllSettledWithChunks', () => {
+  it('returns empty array for empty items', async () => {
+    const result = await batchesAllSettledWithChunks([], 2, 3, async () => 0);
+    expect(result).toStrictEqual([]);
+  });
+
+  it('maps each chunk and preserves chunk order in settled results', async () => {
+    const settled = await batchesAllSettledWithChunks(
+      ['a', 'b', 'c', 'd'],
+      2,
+      2,
+      async (chunk, chunkIndex) => ({ chunkIndex, joined: chunk.join('') }),
+    );
+
+    expect(settled).toHaveLength(2);
+    expect(settled[0]).toStrictEqual({
+      status: 'fulfilled',
+      value: { chunkIndex: 0, joined: 'ab' },
+    });
+    expect(settled[1]).toStrictEqual({
+      status: 'fulfilled',
+      value: { chunkIndex: 1, joined: 'cd' },
+    });
+  });
+
+  it('records rejected chunk without failing other chunks', async () => {
+    const mapper = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('chunk0 fail'))
+      .mockResolvedValueOnce(7);
+
+    const settled = await batchesAllSettledWithChunks(
+      [1, 2, 3, 4],
+      2,
+      1,
+      mapper,
+    );
+
+    expect(mapper).toHaveBeenNthCalledWith(1, [1, 2], 0);
+    expect(mapper).toHaveBeenNthCalledWith(2, [3, 4], 1);
+    expect(settled[0]).toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({ message: 'chunk0 fail' }),
+    });
+    expect(settled[1]).toStrictEqual({ status: 'fulfilled', value: 7 });
   });
 });

@@ -1,13 +1,55 @@
 /* eslint-disable @typescript-eslint/naming-convention */
+import type { Horizon } from '@stellar/stellar-sdk';
 import { Account } from '@stellar/stellar-sdk';
 
+import type { KnownCaip2ChainId } from '../../../api';
 import { logger } from '../../../utils/logger';
 import { AccountService } from '../../account/AccountService';
 import { AccountsRepository } from '../../account/AccountsRepository';
 import { NetworkService } from '../../network';
 import { State } from '../../state/State';
 import { WalletService } from '../../wallet';
+import { OnChainAccount } from '../OnChainAccount';
+import type {
+  OnChainAccountMinimalSerializable,
+  OnChainAccountSerializable,
+} from '../OnChainAccountSerializable';
 import { OnChainAccountService } from '../OnChainAccountService';
+
+/**
+ * Wraps a Horizon-shaped SDK account as {@link OnChainAccountSerializable} for tests.
+ *
+ * @param account - Mock or SDK account that includes Horizon `balances` / meta fields.
+ * @param scope - CAIP-2 network (must match the `OnChainAccount` constructor scope).
+ * @returns Full serializable binding for {@link OnChainAccount} constructor.
+ */
+export function horizonSource(
+  account: Account,
+  scope: KnownCaip2ChainId,
+): OnChainAccountSerializable {
+  return OnChainAccount.fromHorizon(
+    account as unknown as Horizon.AccountResponse,
+    scope,
+  ).toSerializable();
+}
+
+/**
+ * Minimal header binding (no native line on Horizon): id, sequence, scope only.
+ *
+ * @param account - Bare SDK `Account` instance.
+ * @param scope - CAIP-2 network.
+ * @returns Binding for {@link OnChainAccount} constructor.
+ */
+export function unfundedHorizonBinding(
+  account: Account,
+  scope: KnownCaip2ChainId,
+): OnChainAccountMinimalSerializable {
+  return {
+    accountId: account.accountId(),
+    sequenceNumber: account.sequenceNumber(),
+    scope,
+  };
+}
 
 export type MockAssetLine = {
   assetType: string;
@@ -100,8 +142,8 @@ export const createMockAccountWithBalances = (
 };
 
 /**
- * Builds {@link OnChainAccountService} with real {@link AccountService}, shared {@link State},
- * and {@link NetworkService}, for integration-style tests.
+ * Builds {@link OnChainAccountService} with {@link NetworkService}, plus {@link AccountService}
+ * on shared {@link State} for tests that need derivation or persistence.
  *
  * @returns On-chain service plus the account and wallet services wired to the same state.
  */
@@ -120,10 +162,7 @@ export function mockOnChainAccountService() {
     walletService,
   });
   const networkService = new NetworkService({ logger });
-  const onChainAccountService = new OnChainAccountService({
-    networkService,
-    accountService,
-  });
+  const onChainAccountService = new OnChainAccountService({ networkService });
 
   return {
     onChainAccountService,

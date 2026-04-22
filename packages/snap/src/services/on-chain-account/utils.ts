@@ -9,6 +9,28 @@ type CalculateSpendableBalanceParams = {
   numSponsored: number;
 };
 
+type MinimumBalanceLedgerMeta = {
+  subentryCount: number;
+  numSponsoring: number;
+  numSponsored: number;
+};
+
+/**
+ * Minimum account balance in stroops for reserve calculation.
+ *
+ * @param meta - Ledger fields from Horizon or persisted snapshot.
+ * @returns Minimum balance in stroops.
+ */
+export function minimumBalanceStroops(
+  meta: MinimumBalanceLedgerMeta,
+): BigNumber {
+  return new BigNumber(2)
+    .plus(meta.subentryCount)
+    .plus(meta.numSponsoring)
+    .minus(meta.numSponsored)
+    .times(BASE_RESERVE_STROOPS);
+}
+
 /**
  * Spendable native balance (stroops): total native minus minimum balance.
  *
@@ -27,11 +49,11 @@ export function calculateSpendableBalance(
   params: CalculateSpendableBalanceParams,
 ): BigNumber {
   const { nativeBalance, subentryCount, numSponsoring, numSponsored } = params;
-  const minBalanceStroops = new BigNumber(2)
-    .plus(subentryCount)
-    .plus(numSponsoring)
-    .minus(numSponsored)
-    .times(BASE_RESERVE_STROOPS);
+  const minBalanceStroops = minimumBalanceStroops({
+    subentryCount,
+    numSponsoring,
+    numSponsored,
+  });
 
   return BigNumber.maximum(nativeBalance.minus(minBalanceStroops), 0);
 }

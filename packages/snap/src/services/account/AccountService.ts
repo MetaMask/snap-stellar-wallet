@@ -12,7 +12,7 @@ import { assertSameAddress } from './utils';
 import type { StellarAddress, KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { KEYRING_ACCOUNT_TYPE } from '../../constants';
-import { MultichainMethod } from '../../handlers/keyring';
+import { MultichainMethod } from '../../handlers/keyring/api';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,

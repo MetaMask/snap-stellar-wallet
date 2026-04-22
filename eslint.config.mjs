@@ -48,6 +48,9 @@ export default createConfig([
       '@typescript-eslint/explicit-function-return-type': 'off',
       'prettier/prettier': 'error',
       'jest/no-mocks-import': 'off',
+      'jsdoc/require-jsdoc': 'off',
+      'jsdoc/require-returns': 'off',
+      'jsdoc/require-param-description': 'off',
     },
   },
   {

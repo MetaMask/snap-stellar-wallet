@@ -1,65 +1,17 @@
-import type { EntropySourceId } from '@metamask/keyring-api';
-
-import type { KnownCaip2ChainId } from '../../api';
-import type { AccountService, StellarKeyringAccount } from '../account';
 import type { OnChainAccount } from './OnChainAccount';
+import type { KnownCaip2ChainId } from '../../api';
 import { assertSameAddress } from '../account/utils';
 import type { NetworkService } from '../network';
 
 /**
- * Stellar on-chain account operations: activation checks, loading {@link OnChainAccount}.
- *
- * Signing keypairs are derived by {@link WalletService}; this service does not depend on it.
+ * Stellar on-chain account operations: activation checks and loading {@link OnChainAccount}
+ * via {@link NetworkService}.
  */
 export class OnChainAccountService {
   readonly #networkService: NetworkService;
 
-  readonly #accountService: AccountService;
-
-  constructor({
-    networkService,
-    accountService,
-  }: {
-    networkService: NetworkService;
-    accountService: AccountService;
-  }) {
+  constructor({ networkService }: { networkService: NetworkService }) {
     this.#networkService = networkService;
-    this.#accountService = accountService;
-  }
-
-  /**
-   * Derives a keyring-shaped account and returns it when that address is activated on Stellar.
-   *
-   * @param options - Discovery inputs.
-   * @param options.entropySource - Entropy source used to derive the address.
-   * @param options.index - Derivation index.
-   * @param options.scope - CAIP-2 network to check activation on.
-   * @returns The derived keyring-shaped account if funded on-chain, otherwise `null`.
-   */
-  async discoverOnChainAccount({
-    entropySource,
-    index,
-    scope,
-  }: {
-    entropySource: EntropySourceId;
-    index: number;
-    scope: KnownCaip2ChainId;
-  }): Promise<StellarKeyringAccount | null> {
-    const account = await this.#accountService.deriveKeyringAccount({
-      entropySource,
-      index,
-    });
-
-    const isActivated = await this.isAccountActivated({
-      accountAddress: account.address,
-      scope,
-    });
-
-    if (!isActivated) {
-      return null;
-    }
-
-    return account;
   }
 
   /**
@@ -82,24 +34,24 @@ export class OnChainAccountService {
   }
 
   /**
-   * Loads activated on-chain state for a keyring row on the given network and verifies the loaded
-   * account id matches the keyring address.
+   * Loads activated on-chain state for an address on the given network and verifies the loaded
+   * account id matches that address.
    *
-   * @param account - Keyring account whose address must match the Horizon account id.
+   * @param accountAddress - Stellar address (strkey) expected to match Horizon `account_id`.
    * @param scope - CAIP-2 network to load the account from (Horizon `loadAccount`).
    * @returns Loaded {@link OnChainAccount} for simulation, fees, and sequence.
    * @throws {AccountNotActivatedException} When the account is not funded (from {@link NetworkService.loadOnChainAccount}).
-   * @throws {DerivedAccountAddressMismatchException} When loaded id does not match `account.address`.
+   * @throws {DerivedAccountAddressMismatchException} When loaded id does not match `accountAddress`.
    */
   async resolveOnChainAccount(
-    account: StellarKeyringAccount,
+    accountAddress: string,
     scope: KnownCaip2ChainId,
   ): Promise<OnChainAccount> {
     const loaded = await this.#networkService.loadOnChainAccount(
-      account.address,
+      accountAddress,
       scope,
     );
-    assertSameAddress(account.address, loaded.accountId);
+    assertSameAddress(accountAddress, loaded.accountId);
     return loaded;
   }
 }

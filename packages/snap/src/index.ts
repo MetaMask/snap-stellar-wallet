@@ -2,6 +2,11 @@ import type {
   OnUserInputHandler,
   OnKeyringRequestHandler,
   OnRpcRequestHandler,
+  OnCronjobHandler,
+  OnAssetHistoricalPriceHandler,
+  OnAssetsConversionHandler,
+  OnAssetsLookupHandler,
+  OnAssetsMarketDataHandler,
 } from '@metamask/snaps-sdk';
 import { MethodNotFoundError } from '@metamask/snaps-sdk';
 import type { JsonRpcRequest } from '@metamask/utils';
@@ -11,7 +16,22 @@ import {
   signMessageHandler,
   userInputHandler,
   signTransactionHandler,
+  cronjobHandler,
+  assetsHandler,
 } from './context';
+
+export const onAssetHistoricalPrice: OnAssetHistoricalPriceHandler = async (
+  args,
+) => assetsHandler.onAssetHistoricalPrice(args);
+
+export const onAssetsConversion: OnAssetsConversionHandler = async (args) =>
+  assetsHandler.onAssetsConversion(args);
+
+export const onAssetsLookup: OnAssetsLookupHandler = async (args) =>
+  assetsHandler.onAssetsLookup(args);
+
+export const onAssetsMarketData: OnAssetsMarketDataHandler = async (args) =>
+  assetsHandler.onAssetsMarketData(args);
 
 export const onKeyringRequest: OnKeyringRequestHandler = async ({
   origin,
@@ -20,6 +40,9 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
 
 export const onUserInput: OnUserInputHandler = async (params) =>
   userInputHandler.handle(params);
+
+export const onCronjob: OnCronjobHandler = async ({ request }) =>
+  cronjobHandler.handle(request);
 
 export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
   const { method } = request;

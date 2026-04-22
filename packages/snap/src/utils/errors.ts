@@ -21,6 +21,31 @@ import {
 import type { ILogger } from './logger';
 import { logger as defaultLogger } from './logger';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- must accept arbitrary `Error` subclass ctor signatures
+type AnyErrorConstructor = abstract new (...args: any[]) => Error;
+
+/**
+ * Re-throws `error` when it is an instance of **any** constructor in `exceptionClasses` (subclasses
+ * count). Otherwise throws `fallback`. Typical use after logging in an API client `catch` so known
+ * domain errors propagate unchanged. Use a one-element array when only one type should match.
+ *
+ * @param error - Value from a `catch` clause.
+ * @param exceptionClasses - `Error` subclass constructors to match with `instanceof`, in order.
+ * @param fallback - Error to throw when nothing matches.
+ */
+export function rethrowIfInstanceElseThrow<Err extends Error>(
+  error: unknown,
+  exceptionClasses: readonly AnyErrorConstructor[],
+  fallback: Err,
+): never {
+  for (const ExceptionClass of exceptionClasses) {
+    if (error instanceof ExceptionClass) {
+      throw error;
+    }
+  }
+  throw fallback;
+}
+
 /**
  * Sanitizes error messages that may contain sensitive cryptographic information.
  * This prevents leaking details about private keys, entropy, or derivation paths.
