@@ -147,6 +147,18 @@ const SignOpsButton = styled.button`
   }
 `;
 
+const TrustlineButtonRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  margin-top: 1.2rem;
+  align-self: flex-start;
+  ${({ theme }) => theme.mediaQueries.small} {
+    width: 100%;
+    flex-direction: column;
+  }
+`;
+
 const Index = () => {
   const { error } = useMetaMaskContext();
   const { isFlask, snapsDetected, installedSnap } = useMetaMask();
@@ -162,6 +174,12 @@ const Index = () => {
     null,
   );
   const [signTxnOutput, setSignTxnOutput] = useState<string | null>(null);
+
+  const [trustlineAssetId, setTrustlineAssetId] = useState(
+    'stellar:testnet/asset:USDT-GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER',
+  );
+  const [trustlineOutput, setTrustlineOutput] = useState<string | null>(null);
+  const [trustlineLimit, setTrustlineLimit] = useState('');
 
   const isMetaMaskReady = isLocalSnap(defaultSnapOrigin)
     ? isFlask
@@ -289,6 +307,72 @@ const Index = () => {
     console.log('response', response);
 
     setSignTxnOutput(response.signature);
+  };
+
+  const invokeChangeTrustOpt = async (action: 'add' | 'delete') => {
+    setTrustlineOutput(null);
+    const trimmedAsset = trustlineAssetId.trim();
+    if (!trimmedAsset) {
+      setTrustlineOutput(
+        'Enter a CAIP-19 classic asset id (e.g. stellar:testnet/asset:CODE-ISSUER).',
+      );
+      return;
+    }
+
+    const trimmedLimit = trustlineLimit.trim();
+    if (action === 'delete' && !trimmedLimit) {
+      setTrustlineOutput('For remove trustline, enter limit 0.');
+      return;
+    }
+
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+
+    const account = accounts?.[0];
+    if (!account) {
+      setTrustlineOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    const scope = account.scopes[0];
+    if (!scope) {
+      setTrustlineOutput('Selected account has no chain scope.');
+      return;
+    }
+
+    const params: Record<string, unknown> = {
+      accountId: account.id,
+      assetId: trimmedAsset,
+      scope,
+      action,
+    };
+    if (action === 'add' && trimmedLimit) {
+      params.limit = trimmedLimit;
+    } else if (action === 'delete') {
+      params.limit = '0';
+    }
+
+    try {
+      const result = await invokeSnap({
+        method: 'stellar_changeTrustOpt',
+        params: {
+          jsonrpc: '2.0',
+          id: crypto.randomUUID(),
+          method: 'changeTrustOpt',
+          params,
+        },
+      });
+      setTrustlineOutput(JSON.stringify(result, null, 2));
+    } catch (trustlineError: unknown) {
+      const message =
+        trustlineError instanceof Error
+          ? trustlineError.message
+          : String(trustlineError);
+      setTrustlineOutput(message);
+    }
   };
 
   return (
@@ -426,6 +510,50 @@ const Index = () => {
           fullWidth
         />
 
+        <Card
+          content={{
+            title: 'Change trust (test dapp RPC)',
+            description:
+              'Invokes stellar_changeTrustOpt (changeTrustOpt with action add or delete). Optional limit for add; for delete, limit must be 0. Uses the last keyring account.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="CAIP-19 asset id for trustline"
+                  value={trustlineAssetId}
+                  onChange={({ target }) => setTrustlineAssetId(target.value)}
+                  disabled={!installedSnap}
+                />
+                <MessageField
+                  aria-label="Trust limit (optional for add; required for delete, must be 0)"
+                  value={trustlineLimit}
+                  onChange={({ target }) => setTrustlineLimit(target.value)}
+                  disabled={!installedSnap}
+                />
+                {trustlineOutput !== null && (
+                  <SignatureOutput>{trustlineOutput}</SignatureOutput>
+                )}
+                <TrustlineButtonRow>
+                  <SignOpsButton
+                    type="button"
+                    onClick={async () => invokeChangeTrustOpt('add')}
+                    disabled={!installedSnap}
+                  >
+                    Add trustline
+                  </SignOpsButton>
+                  <SignOpsButton
+                    type="button"
+                    onClick={async () => invokeChangeTrustOpt('delete')}
+                    disabled={!installedSnap}
+                  >
+                    Remove trustline
+                  </SignOpsButton>
+                </TrustlineButtonRow>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
         <Notice>
           <p>
             Please note that the <b>snap.manifest.json</b> and{' '}

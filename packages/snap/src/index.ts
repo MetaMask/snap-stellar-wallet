@@ -2,11 +2,12 @@ import type {
   OnUserInputHandler,
   OnKeyringRequestHandler,
   OnRpcRequestHandler,
-  OnCronjobHandler,
-  OnAssetHistoricalPriceHandler,
   OnAssetsConversionHandler,
+  OnAssetHistoricalPriceHandler,
   OnAssetsLookupHandler,
   OnAssetsMarketDataHandler,
+  OnClientRequestHandler,
+  OnCronjobHandler,
 } from '@metamask/snaps-sdk';
 import { MethodNotFoundError } from '@metamask/snaps-sdk';
 import type { JsonRpcRequest } from '@metamask/utils';
@@ -16,8 +17,9 @@ import {
   signMessageHandler,
   userInputHandler,
   signTransactionHandler,
-  cronjobHandler,
   assetsHandler,
+  clientRequestHandler,
+  cronjobHandler,
 } from './context';
 
 export const onAssetHistoricalPrice: OnAssetHistoricalPriceHandler = async (
@@ -41,6 +43,9 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
 export const onUserInput: OnUserInputHandler = async (params) =>
   userInputHandler.handle(params);
 
+export const onClientRequest: OnClientRequestHandler = async ({ request }) =>
+  clientRequestHandler.handle(request);
+
 export const onCronjob: OnCronjobHandler = async ({ request }) =>
   cronjobHandler.handle(request);
 
@@ -54,6 +59,10 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
       );
     case 'stellar_signTransaction':
       return signTransactionHandler.handle(
+        request.params as unknown as JsonRpcRequest,
+      );
+    case 'stellar_changeTrustOpt':
+      return clientRequestHandler.handle(
         request.params as unknown as JsonRpcRequest,
       );
     default:
