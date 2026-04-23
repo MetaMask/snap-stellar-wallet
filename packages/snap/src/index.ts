@@ -18,7 +18,10 @@ import {
   signTransactionHandler,
   cronjobHandler,
   assetsHandler,
+  sep43SignMessageHandler,
+  sep43SignTransactionHandler,
 } from './context';
+import { Sep43Method } from './handlers/sep43';
 
 export const onAssetHistoricalPrice: OnAssetHistoricalPriceHandler = async (
   args,
@@ -47,16 +50,27 @@ export const onCronjob: OnCronjobHandler = async ({ request }) =>
 export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
   const { method } = request;
 
-  switch (method) {
-    case 'stellar_signMessage':
-      return signMessageHandler.handle(
-        request.params as unknown as JsonRpcRequest,
-      );
-    case 'stellar_signTransaction':
-      return signTransactionHandler.handle(
-        request.params as unknown as JsonRpcRequest,
-      );
-    default:
-      throw new MethodNotFoundError() as Error;
+  // SEP-43 dapp-facing methods. Both handlers always resolve to the SEP-43
+  // response shape (success or error envelope) — they never throw to the dapp.
+  // @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
+  if (method === String(Sep43Method.SignMessage)) {
+    return sep43SignMessageHandler.handle(request.params);
   }
+  if (method === String(Sep43Method.SignTransaction)) {
+    return sep43SignTransactionHandler.handle(request.params);
+  }
+
+  // TODO: deprecate the legacy `stellar_*` methods once dapps migrate to SEP-43.
+  if (method === 'stellar_signMessage') {
+    return signMessageHandler.handle(
+      request.params as unknown as JsonRpcRequest,
+    );
+  }
+  if (method === 'stellar_signTransaction') {
+    return signTransactionHandler.handle(
+      request.params as unknown as JsonRpcRequest,
+    );
+  }
+
+  throw new MethodNotFoundError() as Error;
 };
