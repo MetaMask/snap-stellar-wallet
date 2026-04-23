@@ -24,12 +24,19 @@ import type {
   AssetMetadataService,
   StellarAssetMetadata,
 } from '../../services/asset-metadata';
-import type { OnChainAccountService } from '../../services/on-chain-account';
+import type {
+  OnChainAccount,
+  OnChainAccountService,
+} from '../../services/on-chain-account';
 import {
   TrustlineNotFoundException,
   KeyringTransactionType,
+  RemoveTrustlineWithNonZeroBalanceException,
 } from '../../services/transaction';
-import type { TransactionService } from '../../services/transaction';
+import type {
+  Transaction,
+  TransactionService,
+} from '../../services/transaction';
 import type { WalletService } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
@@ -121,13 +128,11 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
 
     const assetMetadata = await this.#assetMetadataService.resolve(assetId);
 
-    const transaction =
-      await this.#transactionService.createValidatedChangeTrustTransaction({
-        onChainAccount,
-        assetId,
-        scope,
-        limit: limitForTx,
-      });
+    const transaction = await this.#createTransaction({
+      request,
+      onChainAccount,
+      limit: limitForTx,
+    });
 
     const confirmed = await this.#confirmChangeTrustOpt({
       request,
@@ -268,5 +273,34 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
         },
       })) === true
     );
+  }
+
+  async #createTransaction(params: {
+    request: ChangeTrustOptJsonRpcRequest;
+    onChainAccount: OnChainAccount;
+    limit?: string;
+  }): Promise<Transaction> {
+    const {
+      request: {
+        params: { scope, assetId },
+      },
+      onChainAccount,
+      limit,
+    } = params;
+
+    try {
+      return this.#transactionService.createValidatedChangeTrustTransaction({
+        onChainAccount,
+        assetId,
+        scope,
+        limit,
+      });
+    } catch (error: unknown) {
+      if (error instanceof RemoveTrustlineWithNonZeroBalanceException) {
+        // TODO: Display a alert for showing user balance and error message (TBC)
+        throw error;
+      }
+      throw error;
+    }
   }
 }

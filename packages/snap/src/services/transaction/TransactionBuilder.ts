@@ -359,7 +359,7 @@ export class TransactionBuilder {
 
       if (!Number.isFinite(fee) || fee <= 0) {
         this.#logger.warn(
-          `Invalid fee amount, fallback to use fix base fee value ${BASE_FEE}`,
+          `Invalid fee amount, fallback to use fixed base fee value ${BASE_FEE}`,
         );
         fee = BASE_FEE;
       }

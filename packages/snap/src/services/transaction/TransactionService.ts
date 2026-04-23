@@ -10,7 +10,7 @@ import type { TransactionBuilder } from './TransactionBuilder';
 import type { TransactionRepository } from './TransactionRepository';
 import type { KnownCaip19ClassicAssetId, KnownCaip2ChainId } from '../../api';
 import { BASE_FEE_CACHE_TTL_MILLISECONDS } from '../../constants';
-import type { Serializable } from '../../utils';
+import { getSnapProvider, type Serializable } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account/api';
@@ -310,8 +310,12 @@ export class TransactionService {
   ): Promise<void> {
     const transactionsByAccountId = groupBy(transactions, 'account');
 
-    await emitSnapKeyringEvent(snap, KeyringEvent.AccountTransactionsUpdated, {
-      transactions: transactionsByAccountId,
-    });
+    await emitSnapKeyringEvent(
+      getSnapProvider(),
+      KeyringEvent.AccountTransactionsUpdated,
+      {
+        transactions: transactionsByAccountId,
+      },
+    );
   }
 }

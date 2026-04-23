@@ -184,8 +184,7 @@ const clientRequestMethodHandlers: Record<
   IClientRequestHandler
 > = {
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
-  // TEMP: force cast until we have all handlers, remove this once we have all handlers
-} as unknown as Record<ClientRequestMethod, IClientRequestHandler>;
+};
 
 const clientRequestHandler = new ClientRequestHandler({
   logger,
