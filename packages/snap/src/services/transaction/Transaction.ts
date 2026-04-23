@@ -35,16 +35,48 @@ export class Transaction {
     }
   }
 
-  getMemo(encode: 'hex' | 'base64' | 'utf8' = 'utf8'): string | null {
+  /**
+   * Memo for confirmations: lowercase hex for hash/return (32 raw bytes), decimal string for
+   * id, UTF-8 for text (up to 28 on-chain bytes), or null when the memo is `none` or missing.
+   *
+   * @returns Encoded memo string or null.
+   */
+  getMemo(): string | null {
     const raw = this.getRaw();
-    if (raw instanceof FeeBumpTransaction) {
-      return raw.innerTransaction.memo?.value
-        ? bufferToUint8Array(raw.innerTransaction.memo.value).toString(encode)
-        : null;
+    const memo =
+      raw instanceof FeeBumpTransaction ? raw.innerTransaction.memo : raw.memo;
+
+    if (!memo) {
+      return null;
     }
-    return raw.memo?.value
-      ? bufferToUint8Array(raw.memo.value).toString(encode)
-      : null;
+
+    switch (memo.type) {
+      case 'hash':
+      case 'return': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return bufferToUint8Array(value).toString('hex');
+      }
+      case 'id': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return typeof value === 'string' ? value : String(value);
+      }
+      case 'text': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return bufferToUint8Array(value).toString('utf8');
+      }
+      case 'none':
+      default:
+        return null;
+    }
   }
 
   /**
