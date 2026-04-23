@@ -15,7 +15,6 @@ import {
 } from '@metamask/snaps-sdk/jsx';
 import type { Json } from '@metamask/utils';
 import { isNullOrUndefined } from '@metamask/utils';
-import { BigNumber } from 'bignumber.js';
 
 import { ConfirmSignTransactionFormNames } from './events';
 import type { KnownCaip2ChainId } from '../../../../api';
@@ -44,7 +43,7 @@ export type ConfirmSignTransactionProps = Omit<
 };
 
 const AmountRow = ({ amount }: { amount: string }): ComponentOrElement => {
-  return <SnapText>{new BigNumber(amount).toString()}</SnapText>;
+  return <SnapText>{amount}</SnapText>;
 };
 
 const AssetParam = ({
@@ -70,7 +69,7 @@ const AssetParam = ({
     }
     return (
       <Box direction="horizontal" alignment="end">
-        <SnapText>{new BigNumber(amount).toString()}</SnapText>
+        <SnapText>{amount}</SnapText>
         <SnapText>{assetReference}</SnapText>
       </Box>
     );

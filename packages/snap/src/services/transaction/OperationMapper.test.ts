@@ -83,7 +83,7 @@ describe('OperationMapper', () => {
         {
           key: 'asset',
           type: 'assetWithAmount',
-          value: ['native', '10.0000000'],
+          value: ['native', '10'],
         },
       ],
     });
@@ -96,7 +96,7 @@ describe('OperationMapper', () => {
       classic: true,
       params: [
         { key: 'line', value: `USD:${issuer}`, type: 'text' },
-        { key: 'limit', value: '1000.0000000', type: 'amount' },
+        { key: 'limit', value: '1000', type: 'amount' },
       ],
     });
   });
@@ -143,7 +143,7 @@ describe('OperationMapper', () => {
     expect(op?.explicitSource).toBeNull();
     expect(op?.params).toStrictEqual([
       { key: 'destination', value: dest, type: 'address' },
-      { key: 'startingBalance', value: '5.0000000', type: 'amount' },
+      { key: 'startingBalance', value: '5', type: 'amount' },
     ]);
   });
 
@@ -255,13 +255,13 @@ describe('OperationMapper', () => {
     expect(op?.params).toStrictEqual([
       {
         key: 'sendAsset',
-        value: ['native', '50.0000000'],
+        value: ['native', '50'],
         type: 'assetWithAmount',
       },
       { key: 'destination', value: dest, type: 'address' },
       {
         key: 'destAsset',
-        value: [`USD:${issuer}`, '100.0000000'],
+        value: [`USD:${issuer}`, '100'],
         type: 'assetWithAmount',
       },
       { key: 'path', value: [`EUR:${issuer}`], type: 'json' },
@@ -288,13 +288,13 @@ describe('OperationMapper', () => {
     expect(op?.params).toStrictEqual([
       {
         key: 'sendAsset',
-        value: ['native', '25.0000000'],
+        value: ['native', '25'],
         type: 'assetWithAmount',
       },
       { key: 'destination', value: dest, type: 'address' },
       {
         key: 'destAsset',
-        value: [`EUR:${issuer}`, '20.0000000'],
+        value: [`EUR:${issuer}`, '20'],
         type: 'assetWithAmount',
       },
       { key: 'path', value: [], type: 'json' },
@@ -318,7 +318,7 @@ describe('OperationMapper', () => {
     expect(op?.params).toStrictEqual([
       {
         key: 'selling',
-        value: ['native', '10.0000000'],
+        value: ['native', '10'],
         type: 'assetWithAmount',
       },
       { key: 'buying', value: `USD:${issuer}`, type: 'asset' },
@@ -344,7 +344,7 @@ describe('OperationMapper', () => {
     expect(op?.params).toStrictEqual([
       {
         key: 'buying',
-        value: [`BTC:${issuer}`, '5.0000000'],
+        value: [`BTC:${issuer}`, '5'],
         type: 'assetWithAmount',
       },
       { key: 'selling', value: 'native', type: 'asset' },
@@ -369,7 +369,7 @@ describe('OperationMapper', () => {
     expect(op?.params).toStrictEqual([
       {
         key: 'selling',
-        value: ['native', '100.0000000'],
+        value: ['native', '100'],
         type: 'assetWithAmount',
       },
       { key: 'buying', value: `EUR:${issuer}`, type: 'asset' },
@@ -442,7 +442,7 @@ describe('OperationMapper', () => {
     expect(op?.type).toBe('createClaimableBalance');
     expect(op?.params[0]).toStrictEqual({
       key: 'asset',
-      value: ['native', '50.0000000'],
+      value: ['native', '50'],
       type: 'assetWithAmount',
     });
     expect(op?.params[1]?.key).toBe('claimants');
@@ -509,7 +509,7 @@ describe('OperationMapper', () => {
     expect(op?.params).toStrictEqual([
       {
         key: 'asset',
-        value: [`USD:${issuer}`, '100.0000000'],
+        value: [`USD:${issuer}`, '100'],
         type: 'assetWithAmount',
       },
       { key: 'from', value: from, type: 'address' },
@@ -566,8 +566,8 @@ describe('OperationMapper', () => {
     expect(op?.type).toBe('liquidityPoolDeposit');
     expect(op?.params).toStrictEqual([
       { key: 'liquidityPoolId', value: poolId, type: 'text' },
-      { key: 'maxAmountA', value: '100.0000000', type: 'amount' },
-      { key: 'maxAmountB', value: '200.0000000', type: 'amount' },
+      { key: 'maxAmountA', value: '100', type: 'amount' },
+      { key: 'maxAmountB', value: '200', type: 'amount' },
       { key: 'minPrice', value: '0.5', type: 'price' },
       { key: 'maxPrice', value: '2', type: 'price' },
     ]);
@@ -589,9 +589,9 @@ describe('OperationMapper', () => {
     expect(op?.type).toBe('liquidityPoolWithdraw');
     expect(op?.params).toStrictEqual([
       { key: 'liquidityPoolId', value: poolId, type: 'text' },
-      { key: 'amount', value: '50.0000000', type: 'amount' },
-      { key: 'minAmountA', value: '20.0000000', type: 'amount' },
-      { key: 'minAmountB', value: '25.0000000', type: 'amount' },
+      { key: 'amount', value: '50', type: 'amount' },
+      { key: 'minAmountA', value: '20', type: 'amount' },
+      { key: 'minAmountB', value: '25', type: 'amount' },
     ]);
   });
 

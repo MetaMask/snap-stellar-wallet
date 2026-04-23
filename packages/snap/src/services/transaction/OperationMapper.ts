@@ -1,6 +1,7 @@
 import type { Json } from '@metamask/utils';
 import type { Asset, Operation } from '@stellar/stellar-sdk';
 import { LiquidityPoolAsset, LiquidityPoolId, xdr } from '@stellar/stellar-sdk';
+import { BigNumber } from 'bignumber.js';
 
 import type { Transaction } from './Transaction';
 import type { KnownCaip2ChainId } from '../../api';
@@ -664,7 +665,30 @@ export class OperationMapper {
     value: Json,
     type: ReadableFieldType,
   ): ReadableOperationField {
-    return { key, value, type };
+    let normalizedValue: Json = value;
+    if (type === 'amount') {
+      normalizedValue = OperationMapper.#normalizeStellarAmount(value);
+    } else if (type === 'assetWithAmount' && Array.isArray(value)) {
+      const [asset, amount] = value as [Json, Json];
+      normalizedValue = [
+        asset,
+        OperationMapper.#normalizeStellarAmount(amount),
+      ];
+    }
+    return { key, value: normalizedValue, type };
+  }
+
+  /**
+   * Strips trailing zeros from Stellar amount strings; passes other values through.
+   *
+   * @param value - Field value as produced by the Stellar SDK operation.
+   * @returns Normalized amount string, or the original value when not numeric.
+   */
+  static #normalizeStellarAmount(value: Json): Json {
+    if (typeof value === 'string' && /^-?\d+(\.\d+)?$/u.test(value)) {
+      return new BigNumber(value).toString();
+    }
+    return value;
   }
 
   #formatTrustLine(line: Asset | LiquidityPoolAsset): string {

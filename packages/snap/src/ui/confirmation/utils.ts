@@ -195,6 +195,8 @@ export function resolveAssetDisplay(
   // Safe: parseOperationAssetReference returned non-null for a non-native ref,
   // so the reference is a parseable classic CODE-ISSUER pair.
   const { assetCode } = parseClassicAssetCodeIssuer(assetReference);
+  // TODO: resolve classic-asset iconUrl via AssetMetadataService once
+  // integrated, instead of letting <AssetIcon> fall back to question-mark.
   return {
     assetId,
     symbol: assetCode,
