@@ -163,6 +163,15 @@ const Index = () => {
   );
   const [signTxnOutput, setSignTxnOutput] = useState<string | null>(null);
 
+  const [sep43MessageText, setSep43MessageText] = useState(
+    'Hello from the SEP-43 test dapp',
+  );
+  const [sep43TxnText, setSep43TxnText] = useState('');
+  const [sep43MessageOutput, setSep43MessageOutput] = useState<string | null>(
+    null,
+  );
+  const [sep43TxnOutput, setSep43TxnOutput] = useState<string | null>(null);
+
   const isMetaMaskReady = isLocalSnap(defaultSnapOrigin)
     ? isFlask
     : snapsDetected;
@@ -289,6 +298,97 @@ const Index = () => {
     console.log('response', response);
 
     setSignTxnOutput(response.signature);
+  };
+
+  /**
+   * Invokes the snap's SEP-43 `SignMessage` dapp-facing method.
+   * Always displays the full response (success + `error` envelope) so devs can
+   * dogfood the rejection paths without dropping into DevTools.
+   */
+  const handleSep43SignMessageClick = async () => {
+    setSep43MessageOutput(null);
+    const trimmed = sep43MessageText.trim();
+    if (!trimmed) {
+      setSep43MessageOutput('Enter a non-empty message to sign.');
+      return;
+    }
+
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+    const account = accounts?.[0];
+    if (!account) {
+      setSep43MessageOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+    const scope = account.scopes[0];
+    if (!scope) {
+      setSep43MessageOutput('Selected account has no chain scope.');
+      return;
+    }
+
+    const response = await invokeSnap({
+      method: 'SignMessage',
+      params: {
+        id: crypto.randomUUID(),
+        origin: 'http://localhost:3000',
+        scope,
+        account: account.id,
+        request: {
+          method: 'SignMessage',
+          params: { message: utf8StringToBase64(trimmed) },
+        },
+      },
+    });
+
+    setSep43MessageOutput(JSON.stringify(response, null, 2));
+  };
+
+  /**
+   * Invokes the snap's SEP-43 `SignTransaction` dapp-facing method.
+   * Expects a base64 XDR string pre-built elsewhere (the snap only signs).
+   */
+  const handleSep43SignTxnClick = async () => {
+    setSep43TxnOutput(null);
+    const trimmed = sep43TxnText.trim();
+    if (!trimmed) {
+      setSep43TxnOutput('Enter a base64 encoded transaction XDR to sign.');
+      return;
+    }
+
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+    const account = accounts?.[accounts.length - 1];
+    if (!account) {
+      setSep43TxnOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+    const scope = account.scopes[0];
+    if (!scope) {
+      setSep43TxnOutput('Selected account has no chain scope.');
+      return;
+    }
+
+    const response = await invokeSnap({
+      method: 'SignTransaction',
+      params: {
+        id: crypto.randomUUID(),
+        origin: 'http://localhost:3000',
+        scope,
+        account: account.id,
+        request: {
+          method: 'SignTransaction',
+          params: { xdr: trimmed },
+        },
+      },
+    });
+
+    setSep43TxnOutput(JSON.stringify(response, null, 2));
   };
 
   return (
@@ -418,6 +518,66 @@ const Index = () => {
                   disabled={!installedSnap}
                 >
                   Sign transaction
+                </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+
+        <Card
+          content={{
+            title: 'Sign message (SEP-43)',
+            description:
+              'Calls the snap via wallet_invokeSnap with SEP-43 SignMessage. Always displays the full response envelope (success or structured error).',
+            button: (
+              <>
+                <MessageField
+                  aria-label="Message to sign (SEP-43)"
+                  value={sep43MessageText}
+                  onChange={({ target }) => setSep43MessageText(target.value)}
+                  disabled={!installedSnap}
+                />
+                {sep43MessageOutput !== null && (
+                  <SignatureOutput>{sep43MessageOutput}</SignatureOutput>
+                )}
+                <SignOpsButton
+                  type="button"
+                  onClick={handleSep43SignMessageClick}
+                  disabled={!installedSnap}
+                >
+                  Sign message (SEP-43)
+                </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+
+        <Card
+          content={{
+            title: 'Sign transaction (SEP-43)',
+            description:
+              'Calls the snap via wallet_invokeSnap with SEP-43 SignTransaction. Paste a mainnet base64 XDR whose source is the wallet account.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="Transaction to sign (SEP-43)"
+                  value={sep43TxnText}
+                  onChange={({ target }) => setSep43TxnText(target.value)}
+                  disabled={!installedSnap}
+                />
+                {sep43TxnOutput !== null && (
+                  <SignatureOutput>{sep43TxnOutput}</SignatureOutput>
+                )}
+                <SignOpsButton
+                  type="button"
+                  onClick={handleSep43SignTxnClick}
+                  disabled={!installedSnap}
+                >
+                  Sign transaction (SEP-43)
                 </SignOpsButton>
               </>
             ),

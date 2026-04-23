@@ -1,9 +1,12 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, jest/no-disabled-tests */
+import { Networks } from '@stellar/stellar-sdk';
+
 import { Sep43Method, type Sep43SignMessageRequest } from './api';
+import { Sep43ErrorCode } from './exceptions';
 import { Sep43SignMessageHandler } from './signMessage';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
-import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
+import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
+import { AccountNotFoundException } from '../../services/account/exceptions';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
@@ -12,7 +15,7 @@ import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
 
-describe.skip('Sep43SignMessageHandler', () => {
+describe('Sep43SignMessageHandler', () => {
   /**
    * Builds a `Sep43SignMessageHandler` with mocked account / wallet resolution
    * and a stubbed `ConfirmationUXController`.
@@ -21,19 +24,19 @@ describe.skip('Sep43SignMessageHandler', () => {
    */
   function setupHandler() {
     const wallet = getTestWallet();
-    const [mockAccount] = generateMockStellarKeyringAccounts(
-      1,
+    const accountId = globalThis.crypto.randomUUID();
+    const mockAccount = generateStellarKeyringAccount(
+      accountId,
+      wallet.address,
       'entropy-source-1',
+      0,
     );
-    if (!mockAccount) {
-      throw new Error('mockAccount is undefined');
-    }
 
     const { accountService, walletService } = mockOnChainAccountService();
 
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: { ...mockAccount, address: wallet.address },
-    });
+    const resolveAccountSpy = jest
+      .spyOn(AccountService.prototype, 'resolveAccount')
+      .mockResolvedValue({ account: mockAccount });
 
     jest
       .spyOn(WalletService.prototype, 'resolveWallet')
@@ -54,35 +57,153 @@ describe.skip('Sep43SignMessageHandler', () => {
       confirmationUIController,
     });
 
-    return { handler, mockAccount, wallet, renderConfirmationDialog };
+    return {
+      handler,
+      mockAccount,
+      wallet,
+      renderConfirmationDialog,
+      resolveAccountSpy,
+    };
   }
 
   const buildRequest = (
-    overrides: Partial<Sep43SignMessageRequest> = {},
+    accountId: string,
+    overrides: Partial<Sep43SignMessageRequest['request']['params']> = {},
   ): Sep43SignMessageRequest => ({
     id: '11111111-1111-4111-8111-111111111111',
     origin: 'https://example.com',
     scope: KnownCaip2ChainId.Mainnet,
-    account: '00000000-0000-4000-8000-000000000001',
+    account: accountId,
     request: {
       method: Sep43Method.SignMessage,
       params: {
         message: btoa('hello stellar'),
+        ...overrides,
       },
     },
-    ...overrides,
   });
 
-  // TODO: implement specs
-  it.todo('returns signedMessage and signerAddress on confirm');
-  it.todo('returns error -4 when user rejects');
-  it.todo('returns error -3 when scope is testnet');
-  it.todo(
-    'returns error -3 when opts.networkPassphrase is not the mainnet passphrase',
-  );
-  it.todo('returns error -3 when opts.submit or opts.submitUrl is provided');
-  it.todo(
-    'returns error -3 when opts.address does not match the wrapper account',
-  );
-  it.todo('returns error -3 when message is not valid base64');
+  it('returns signedMessage and signerAddress on confirm', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
+
+    const result = await handler.handle(buildRequest(mockAccount.id));
+
+    const expected = await wallet.signMessage(btoa('hello stellar'));
+    expect(result).toStrictEqual({
+      signedMessage: expected,
+      signerAddress: wallet.address,
+    });
+  });
+
+  it('returns error -4 when user rejects', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
+    renderConfirmationDialog.mockResolvedValue(false);
+
+    const result = await handler.handle(buildRequest(mockAccount.id));
+
+    expect(result.signedMessage).toBe('');
+    expect(result.signerAddress).toBe(wallet.address);
+    expect(result.error?.code).toBe(Sep43ErrorCode.UserRejected);
+  });
+
+  it('returns error -3 when scope is testnet', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle({
+      ...buildRequest(mockAccount.id),
+      scope: KnownCaip2ChainId.Testnet,
+    });
+
+    expect(result.signedMessage).toBe('');
+    expect(result.signerAddress).toBe('');
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when opts.networkPassphrase is not the mainnet passphrase', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, {
+        opts: { networkPassphrase: Networks.TESTNET },
+      }),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result.error?.ext?.[0]).toContain('mainnet');
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['opts.submit', { submit: true }],
+    ['opts.submitUrl', { submitUrl: 'https://horizon.stellar.org' }],
+  ])('returns error -3 when %s is provided', async (_label, forbiddenOpts) => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const base = buildRequest(mockAccount.id);
+    // Inject the forbidden opt bypassing the struct type so we can assert the
+    // handler rejects it at runtime with -3 InvalidRequest.
+    (base.request.params as unknown as { opts: Record<string, unknown> }).opts =
+      forbiddenOpts;
+
+    const result = await handler.handle(base);
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when opts.address cannot be resolved', async () => {
+    const { handler, mockAccount, resolveAccountSpy } = setupHandler();
+    const unknownAddress =
+      'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB';
+    resolveAccountSpy.mockRejectedValueOnce(
+      new AccountNotFoundException(unknownAddress),
+    );
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, { opts: { address: unknownAddress } }),
+    );
+
+    expect(result.signedMessage).toBe('');
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+  });
+
+  it('returns error -3 when opts.address resolves to a different account than the wrapper UUID', async () => {
+    const {
+      handler,
+      mockAccount,
+      renderConfirmationDialog,
+      resolveAccountSpy,
+    } = setupHandler();
+    const otherAccount = generateStellarKeyringAccount(
+      globalThis.crypto.randomUUID(),
+      mockAccount.address,
+      'entropy-source-1',
+      1,
+    );
+    resolveAccountSpy.mockResolvedValueOnce({ account: otherAccount });
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, {
+        opts: { address: otherAccount.address },
+      }),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when message is not valid base64', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, { message: 'not valid base64 !!!' }),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
 });
