@@ -1,7 +1,6 @@
 import type {
   Transaction as StellarTransaction,
   Operation,
-  Memo,
 } from '@stellar/stellar-sdk';
 import { FeeBumpTransaction } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
@@ -36,38 +35,48 @@ export class Transaction {
     }
   }
 
+  /**
+   * Memo for confirmations: lowercase hex for hash/return (32 raw bytes), decimal string for
+   * id, UTF-8 for text (up to 28 on-chain bytes), or null when the memo is `none` or missing.
+   *
+   * @returns Encoded memo string or null.
+   */
   getMemo(): string | null {
     const raw = this.getRaw();
-    let memo: Memo | null = null;
+    const memo =
+      raw instanceof FeeBumpTransaction ? raw.innerTransaction.memo : raw.memo;
 
-    if (raw instanceof FeeBumpTransaction) {
-      memo = raw.innerTransaction.memo;
-    } else {
-      memo = raw.memo;
+    if (!memo) {
+      return null;
     }
 
-    if (memo) {
-      switch (memo.type) {
-        case 'hash':
-        case 'return':
-          // Hash and return memo value is always hex, so encoded to hex
-          return memo?.value
-            ? bufferToUint8Array(memo?.value).toString('hex')
-            : null;
-        case 'id':
-          // ID memo value is always a uint64, so encoded to string
-          return memo?.value ? memo?.value.toString() : null;
-        case 'text':
-          // Text memo value is always a ASCII string, so encoded to utf8
-          return memo?.value
-            ? bufferToUint8Array(memo?.value).toString('utf8')
-            : null;
-        case 'none':
-        default:
+    switch (memo.type) {
+      case 'hash':
+      case 'return': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
           return null;
+        }
+        return bufferToUint8Array(value).toString('hex');
       }
+      case 'id': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return typeof value === 'string' ? value : String(value);
+      }
+      case 'text': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return bufferToUint8Array(value).toString('utf8');
+      }
+      case 'none':
+      default:
+        return null;
     }
-    return null;
   }
 
   /**

@@ -83,10 +83,44 @@ describe('Transaction', () => {
     );
   });
 
+  it('reads memo from inner transaction for a fee-bump envelope', () => {
+    const source = Keypair.random();
+    const feeSource = Keypair.random();
+    const dest = Keypair.random().publicKey();
+
+    const inner = new StellarTransactionBuilder(
+      new Account(source.publicKey(), '1'),
+      { fee: '100', networkPassphrase: Networks.TESTNET },
+    )
+      .addOperation(
+        Operation.payment({
+          destination: dest,
+          asset: Asset.native(),
+          amount: '1',
+        }),
+      )
+      .addMemo(Memo.text('inner-memo'))
+      .setTimeout(60)
+      .build();
+
+    const feeBump = StellarTransactionBuilder.buildFeeBumpTransaction(
+      feeSource,
+      String(Number(inner.fee) * 2),
+      inner,
+      Networks.TESTNET,
+    );
+
+    expect(new Transaction(feeBump).getMemo()).toBe('inner-memo');
+  });
+
   it.each([
     {
       memo: Memo.text('english'),
       expected: 'english',
+    },
+    {
+      memo: Memo.text(''),
+      expected: '',
     },
     {
       memo: Memo.text('🧾 éclair'),
@@ -95,6 +129,10 @@ describe('Transaction', () => {
     {
       memo: Memo.id('12321'),
       expected: '12321',
+    },
+    {
+      memo: Memo.id('0'),
+      expected: '0',
     },
     {
       memo: Memo.hash(
