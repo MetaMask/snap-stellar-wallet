@@ -115,11 +115,13 @@ export type Sep43ErrorEnvelope = Infer<typeof Sep43ErrorEnvelopeStruct>;
 /**
  * SEP-43 SignMessage response.
  *
- * `signedMessage` is base64-encoded (matches the rest of the codebase / SEP-53 byte signing).
+ * `signedMessage` is base64-encoded on success; empty string on error.
+ * `signerAddress` is the signer's G-address on success, or empty when
+ * account resolution failed before we could determine the address.
  */
 export const Sep43SignMessageResponseStruct = object({
-  signedMessage: nonempty(base64(string())),
-  signerAddress: StellarAddressStruct,
+  signedMessage: union([nonempty(base64(string())), literal('')]),
+  signerAddress: union([StellarAddressStruct, literal('')]),
   error: optional(Sep43ErrorEnvelopeStruct),
 });
 
@@ -130,11 +132,14 @@ export type Sep43SignMessageResponse = Infer<
 /**
  * SEP-43 SignTransaction response.
  *
- * `signedTxXdr` is the signed transaction envelope as base64 XDR.
+ * `signedTxXdr` is the signed transaction envelope as base64 XDR on success;
+ * empty string on error.
+ * `signerAddress` is the signer's G-address on success, or empty when
+ * account resolution failed before we could determine the address.
  */
 export const Sep43SignTransactionResponseStruct = object({
-  signedTxXdr: XdrStruct,
-  signerAddress: StellarAddressStruct,
+  signedTxXdr: union([XdrStruct, literal('')]),
+  signerAddress: union([StellarAddressStruct, literal('')]),
   error: optional(Sep43ErrorEnvelopeStruct),
 });
 

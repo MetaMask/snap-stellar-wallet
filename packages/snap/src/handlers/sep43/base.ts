@@ -17,12 +17,6 @@ import { validateRequest } from '../../utils/requestResponse';
 /** Mainnet is the only network the snap currently signs for. */
 const SUPPORTED_PASSPHRASE: string = Networks.PUBLIC;
 
-/** Mapping from supported scope to the matching Stellar SDK passphrase. */
-const SUPPORTED_SCOPE_PASSPHRASE: Record<KnownCaip2ChainId, string> = {
-  [Caip2.Mainnet]: String(Networks.PUBLIC),
-  [Caip2.Testnet]: String(Networks.TESTNET),
-};
-
 /**
  * Base class shared by SEP-43 SignMessage and SignTransaction handlers.
  *
@@ -72,26 +66,32 @@ export abstract class BaseSep43Handler<
   }
 
   /**
-   * Top-level entry point. Runs the full pipeline (validate → check
-   * network/opts → resolve account → execute) inside a single try/catch so
-   * every failure (including struct validation) is serialized into the
+   * Top-level entry point. Runs the full pipeline (validate → override origin
+   * → check network/opts → resolve account → execute) inside a single try/catch
+   * so every failure (including struct validation) is serialized into the
    * SEP-43 `error` envelope. The dapp never sees a thrown JSON-RPC error.
    *
    * @param rawRequest - The unvalidated SEP-43 request as it arrives from the dapp.
+   * @param trustedOrigin - The verified origin provided by MetaMask's `onRpcRequest`
+   * handler. Overrides the dapp-supplied `params.origin` so the confirmation UI
+   * cannot be spoofed by a malicious dapp.
    * @returns The SEP-43 response with either the success fields or `error` populated.
    */
-  async handle(rawRequest: unknown): Promise<Response> {
+  async handle(rawRequest: unknown, trustedOrigin: string): Promise<Response> {
     let signerAddress = '';
     try {
       const request = validateRequest(rawRequest, this.requestStruct);
 
-      this.assertSupportedNetwork(request);
-      this.assertNoSubmit(request.request.params.opts);
+      // Override the dapp-supplied origin with the MM-verified one.
+      const verifiedRequest = { ...request, origin: trustedOrigin };
 
-      const { account, wallet } = await this.resolveAccount(request);
+      this.assertSupportedNetwork(verifiedRequest);
+      this.assertNoSubmit(verifiedRequest.request.params.opts);
+
+      const { account, wallet } = await this.resolveAccount(verifiedRequest);
       signerAddress = account.address;
 
-      return await this.execute(request, { account, wallet });
+      return await this.execute(verifiedRequest, { account, wallet });
     } catch (error: unknown) {
       const sep43 = toSep43Error(error);
       this.logger.logErrorWithDetails('SEP-43 request failed', sep43);
@@ -182,20 +182,6 @@ export abstract class BaseSep43Handler<
         code: Sep43ErrorCode.InvalidRequest,
         ext: [
           `Only Stellar mainnet is supported by this wallet. Received passphrase: ${requestedPassphrase}.`,
-        ],
-      });
-    }
-
-    // Defensive: scope and passphrase must agree when both are set.
-    const scopePassphrase = SUPPORTED_SCOPE_PASSPHRASE[request.scope];
-    if (
-      requestedPassphrase !== undefined &&
-      requestedPassphrase !== scopePassphrase
-    ) {
-      throw new Sep43Error({
-        code: Sep43ErrorCode.InvalidRequest,
-        ext: [
-          `opts.networkPassphrase does not match scope (${request.scope}).`,
         ],
       });
     }

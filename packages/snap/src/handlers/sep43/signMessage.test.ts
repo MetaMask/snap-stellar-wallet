@@ -15,6 +15,9 @@ import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
 
+/** Simulates the verified origin MetaMask passes to `onRpcRequest`. */
+const TRUSTED_ORIGIN = 'https://example.com';
+
 describe('Sep43SignMessageHandler', () => {
   /**
    * Builds a `Sep43SignMessageHandler` with mocked account / wallet resolution
@@ -88,7 +91,10 @@ describe('Sep43SignMessageHandler', () => {
       setupHandler();
     renderConfirmationDialog.mockResolvedValue(true);
 
-    const result = await handler.handle(buildRequest(mockAccount.id));
+    const result = await handler.handle(
+      buildRequest(mockAccount.id),
+      TRUSTED_ORIGIN,
+    );
 
     const expected = await wallet.signMessage(btoa('hello stellar'));
     expect(result).toStrictEqual({
@@ -102,7 +108,10 @@ describe('Sep43SignMessageHandler', () => {
       setupHandler();
     renderConfirmationDialog.mockResolvedValue(false);
 
-    const result = await handler.handle(buildRequest(mockAccount.id));
+    const result = await handler.handle(
+      buildRequest(mockAccount.id),
+      TRUSTED_ORIGIN,
+    );
 
     expect(result.signedMessage).toBe('');
     expect(result.signerAddress).toBe(wallet.address);
@@ -112,10 +121,10 @@ describe('Sep43SignMessageHandler', () => {
   it('returns error -3 when scope is testnet', async () => {
     const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
 
-    const result = await handler.handle({
-      ...buildRequest(mockAccount.id),
-      scope: KnownCaip2ChainId.Testnet,
-    });
+    const result = await handler.handle(
+      { ...buildRequest(mockAccount.id), scope: KnownCaip2ChainId.Testnet },
+      TRUSTED_ORIGIN,
+    );
 
     expect(result.signedMessage).toBe('');
     expect(result.signerAddress).toBe('');
@@ -130,6 +139,7 @@ describe('Sep43SignMessageHandler', () => {
       buildRequest(mockAccount.id, {
         opts: { networkPassphrase: Networks.TESTNET },
       }),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
@@ -149,7 +159,7 @@ describe('Sep43SignMessageHandler', () => {
     (base.request.params as unknown as { opts: Record<string, unknown> }).opts =
       forbiddenOpts;
 
-    const result = await handler.handle(base);
+    const result = await handler.handle(base, TRUSTED_ORIGIN);
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
@@ -165,6 +175,7 @@ describe('Sep43SignMessageHandler', () => {
 
     const result = await handler.handle(
       buildRequest(mockAccount.id, { opts: { address: unknownAddress } }),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.signedMessage).toBe('');
@@ -190,6 +201,7 @@ describe('Sep43SignMessageHandler', () => {
       buildRequest(mockAccount.id, {
         opts: { address: otherAccount.address },
       }),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
@@ -201,6 +213,7 @@ describe('Sep43SignMessageHandler', () => {
 
     const result = await handler.handle(
       buildRequest(mockAccount.id, { message: 'not valid base64 !!!' }),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);

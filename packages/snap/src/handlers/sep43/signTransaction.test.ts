@@ -21,6 +21,9 @@ import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
 
+/** Simulates the verified origin MetaMask passes to `onRpcRequest`. */
+const TRUSTED_ORIGIN = 'https://example.com';
+
 describe('Sep43SignTransactionHandler', () => {
   /**
    * Builds a `Sep43SignTransactionHandler` with mocked services + account/wallet
@@ -138,7 +141,10 @@ describe('Sep43SignTransactionHandler', () => {
     const signSpy = jest.spyOn(wallet, 'signTransaction');
     renderConfirmationDialog.mockResolvedValue(true);
 
-    const result = await handler.handle(buildRequest(mockAccount.id, xdr));
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, xdr),
+      TRUSTED_ORIGIN,
+    );
 
     expect(signSpy).toHaveBeenCalledWith(transaction);
     expect(result.signedTxXdr).toStrictEqual(transaction.getRaw().toXDR());
@@ -161,7 +167,10 @@ describe('Sep43SignTransactionHandler', () => {
     const signSpy = jest.spyOn(wallet, 'signTransaction');
     renderConfirmationDialog.mockResolvedValue(false);
 
-    const result = await handler.handle(buildRequest(mockAccount.id, xdr));
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, xdr),
+      TRUSTED_ORIGIN,
+    );
 
     expect(signSpy).not.toHaveBeenCalled();
     expect(result.signedTxXdr).toBe('');
@@ -174,6 +183,7 @@ describe('Sep43SignTransactionHandler', () => {
 
     const result = await handler.handle(
       buildRequest(mockAccount.id, 'not-an-xdr'),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
@@ -210,6 +220,7 @@ describe('Sep43SignTransactionHandler', () => {
 
     const result = await handler.handle(
       buildRequest(mockAccount.id, testnetTx.getRaw().toXDR()),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
@@ -247,6 +258,7 @@ describe('Sep43SignTransactionHandler', () => {
 
     const result = await handler.handle(
       buildRequest(mockAccount.id, strangerTx.getRaw().toXDR()),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
@@ -256,10 +268,13 @@ describe('Sep43SignTransactionHandler', () => {
   it('returns error -3 when scope is testnet', async () => {
     const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
 
-    const result = await handler.handle({
-      ...buildRequest(mockAccount.id, 'AAAA'),
-      scope: KnownCaip2ChainId.Testnet,
-    });
+    const result = await handler.handle(
+      {
+        ...buildRequest(mockAccount.id, 'AAAA'),
+        scope: KnownCaip2ChainId.Testnet,
+      },
+      TRUSTED_ORIGIN,
+    );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
@@ -272,6 +287,7 @@ describe('Sep43SignTransactionHandler', () => {
       buildRequest(mockAccount.id, 'AAAA', {
         opts: { networkPassphrase: Networks.TESTNET },
       }),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
@@ -288,7 +304,7 @@ describe('Sep43SignTransactionHandler', () => {
     (base.request.params as unknown as { opts: Record<string, unknown> }).opts =
       forbiddenOpts;
 
-    const result = await handler.handle(base);
+    const result = await handler.handle(base, TRUSTED_ORIGIN);
 
     expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
@@ -312,6 +328,7 @@ describe('Sep43SignTransactionHandler', () => {
 
     const result = await handler.handle(
       buildRequest(mockAccount.id, transaction.getRaw().toXDR()),
+      TRUSTED_ORIGIN,
     );
 
     expect(result.error?.code).toBe(Sep43ErrorCode.ExternalService);

@@ -47,17 +47,22 @@ export const onUserInput: OnUserInputHandler = async (params) =>
 export const onCronjob: OnCronjobHandler = async ({ request }) =>
   cronjobHandler.handle(request);
 
-export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
+export const onRpcRequest: OnRpcRequestHandler = async ({
+  origin,
+  request,
+}) => {
   const { method } = request;
 
   // SEP-43 dapp-facing methods. Both handlers always resolve to the SEP-43
   // response shape (success or error envelope) — they never throw to the dapp.
+  // `origin` comes from MetaMask (verified); we override the dapp-supplied
+  // `params.origin` so the confirmation UI cannot be phished.
   // @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
   if (method === String(Sep43Method.SignMessage)) {
-    return sep43SignMessageHandler.handle(request.params);
+    return sep43SignMessageHandler.handle(request.params, origin);
   }
   if (method === String(Sep43Method.SignTransaction)) {
-    return sep43SignTransactionHandler.handle(request.params);
+    return sep43SignTransactionHandler.handle(request.params, origin);
   }
 
   // TODO: deprecate the legacy `stellar_*` methods once dapps migrate to SEP-43.
