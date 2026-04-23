@@ -55,6 +55,9 @@
     "confirmation.account": {
       "message": "Account"
     },
+    "confirmation.memo": {
+      "message": "Memo"
+    },
     "confirmation.asset": {
       "message": "Asset"
     },
@@ -208,6 +211,9 @@
     "confirmation.transaction.param.clearFlags": {
       "message": "Clear flags"
     },
+    "confirmation.transaction.param.contractId": {
+      "message": "Contract ID"
+    },
     "confirmation.transaction.param.destAmount": {
       "message": "Destination amount"
     },
@@ -225,6 +231,12 @@
     },
     "confirmation.transaction.param.flags": {
       "message": "Flags"
+    },
+    "confirmation.transaction.param.functionName": {
+      "message": "Function"
+    },
+    "confirmation.transaction.param.arguments": {
+      "message": "Arguments"
     },
     "confirmation.transaction.param.from": {
       "message": "From"
@@ -313,11 +325,29 @@
     "confirmation.transaction.param.signer": {
       "message": "Signer"
     },
+    "confirmation.transaction.param.signerEd25519": {
+      "message": "Signer (public key)"
+    },
+    "confirmation.transaction.param.signerSha256Hash": {
+      "message": "Signer (SHA-256)"
+    },
+    "confirmation.transaction.param.signerPreAuthTx": {
+      "message": "Signer (pre-auth tx)"
+    },
+    "confirmation.transaction.param.signerSignedPayload": {
+      "message": "Signer (signed payload)"
+    },
+    "confirmation.transaction.param.signerWeight": {
+      "message": "Signer weight"
+    },
     "confirmation.transaction.param.sponsoredId": {
       "message": "Sponsored account"
     },
     "confirmation.transaction.param.startingBalance": {
       "message": "Starting balance"
+    },
+    "confirmation.transaction.param.source": {
+      "message": "Source"
     },
     "confirmation.transaction.param.trustor": {
       "message": "Trustor"
