@@ -1,11 +1,16 @@
-import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
+import {
+  KeyringEvent,
+  TransactionStatus,
+  TransactionType,
+} from '@metamask/keyring-api';
+import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { hexToBytes } from '@metamask/utils';
 
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
 import { TransactionBuilder } from './TransactionBuilder';
 import type { KnownCaip19ClassicAssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
-import { getSlip44AssetId } from '../../utils';
+import { getSlip44AssetId, getSnapProvider } from '../../utils';
 import { createMockTransactionService } from './__mocks__/transaction.fixtures';
 import { generateMockStellarKeyringAccounts } from '../account/__mocks__/account.fixtures';
 import type { StellarKeyringAccount } from '../account/api';
@@ -22,11 +27,19 @@ import type { Wallet } from '../wallet/Wallet';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
+jest.mock('@metamask/keyring-snap-sdk', () => ({
+  emitSnapKeyringEvent: jest.fn(),
+}));
 
 describe('TransactionService', () => {
+  beforeEach(() => {
+    jest.mocked(emitSnapKeyringEvent).mockReset();
+    jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
+  });
+
   describe('savePendingKeyringTransaction', () => {
     it('creates and saves a pending send transaction', async () => {
-      const { transactionService, transactionRepositorySaveSpy } =
+      const { transactionService, transactionRepositorySaveManySpy } =
         createMockTransactionService();
       const [fromAccount, toAccount] = generateMockStellarKeyringAccounts(
         2,
@@ -88,8 +101,18 @@ describe('TransactionService', () => {
       };
 
       expect(transaction).toStrictEqual(expectedTransaction);
-      expect(transactionRepositorySaveSpy).toHaveBeenCalledWith(
+      expect(transactionRepositorySaveManySpy).toHaveBeenCalledWith([
         expectedTransaction,
+      ]);
+      expect(emitSnapKeyringEvent).toHaveBeenCalledTimes(1);
+      expect(emitSnapKeyringEvent).toHaveBeenCalledWith(
+        getSnapProvider(),
+        KeyringEvent.AccountTransactionsUpdated,
+        {
+          transactions: {
+            [fromAccount.id]: [expectedTransaction],
+          },
+        },
       );
     });
   });

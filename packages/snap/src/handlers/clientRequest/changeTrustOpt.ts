@@ -86,7 +86,7 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
    * @param request - JSON-RPC request containing `scope`, `assetId`, `action`, and optional `limit`.
    * @returns A `ChangeTrustOptJsonRpcResponse`:
    * - `{ status: true, transactionId }` when the transaction is built, signed, and submitted.
-   * - `{ status: true }` when preflight detects the trustline already exists for an add request.
+   * - `{ status: true }` when preflight finds an existing classic trustline with limit greater than zero for an add request.
    * @throws {TrustlineNotFoundException} If a delete request targets a trustline that does not exist.
    * @throws {UserRejectedRequestError} If the user rejects the confirmation prompt.
    */
@@ -94,18 +94,17 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
     resolvedAccount: ResolvedActivatedAccount,
     request: ChangeTrustOptJsonRpcRequest,
   ): Promise<ChangeTrustOptJsonRpcResponse> {
-    const { scope, assetId, action, limit } = request.params;
+    const { scope, assetId, action } = request.params;
     const { wallet, account, onChainAccount } = resolvedAccount;
 
-    // Quit early if the trustline already exists for add
-    if (
-      action === ChangeTrustOptAction.Add &&
-      onChainAccount.hasAsset(assetId)
-    ) {
-      // If the trustline already exists, we return a success response
-      return {
-        status: true,
-      };
+    // Quit early if add is redundant (classic line already present with limit > 0)
+    if (action === ChangeTrustOptAction.Add) {
+      const asset = onChainAccount.getAsset(assetId);
+      if (asset?.limit?.gt(0)) {
+        return {
+          status: true,
+        };
+      }
     }
 
     // Quit early if the trustline does not exist for delete
@@ -117,7 +116,8 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
     }
 
     // Safeguard to ensure we use the correct limit for delete
-    const limitForTx = action === ChangeTrustOptAction.Delete ? '0' : limit;
+    const limitForTx =
+      action === ChangeTrustOptAction.Delete ? '0' : request.params.limit;
 
     const assetMetadata = await this.#assetMetadataService.resolve(assetId);
 

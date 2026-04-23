@@ -1,3 +1,4 @@
+import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -39,8 +40,16 @@ import { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
+jest.mock('@metamask/keyring-snap-sdk', () => ({
+  emitSnapKeyringEvent: jest.fn(),
+}));
 
 describe('ChangeTrustOptHandler', () => {
+  beforeEach(() => {
+    jest.mocked(emitSnapKeyringEvent).mockReset();
+    jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
+  });
+
   const accountId = '11111111-1111-4111-8111-111111111111';
   const scope = KnownCaip2ChainId.Mainnet;
   const assetId = USDC_CLASSIC as KnownCaip19ClassicAssetId;
@@ -72,7 +81,6 @@ describe('ChangeTrustOptHandler', () => {
       scope,
       assetId,
       action: ChangeTrustOptAction.Delete,
-      limit: '0',
     },
   };
 
@@ -109,8 +117,11 @@ describe('ChangeTrustOptHandler', () => {
 
     const signTransactionSpy = jest.spyOn(wallet, 'signTransaction');
 
-    const { transactionService, transactionRepositorySaveSpy } =
-      createMockTransactionService();
+    const {
+      transactionService,
+      transactionRepositorySaveSpy,
+      transactionRepositorySaveManySpy,
+    } = createMockTransactionService();
     const getBaseFeeSpy = jest
       .spyOn(NetworkService.prototype, 'getBaseFee')
       .mockResolvedValue(new BigNumber(100));
@@ -169,6 +180,7 @@ describe('ChangeTrustOptHandler', () => {
       sendTransaction,
       savePendingKeyringTransaction,
       transactionRepositorySaveSpy,
+      transactionRepositorySaveManySpy,
       resolve,
       renderConfirmationDialog,
       signTransactionSpy,
@@ -348,8 +360,9 @@ describe('ChangeTrustOptHandler', () => {
   });
 
   it('continues successfully when saving pending transaction fails', async () => {
-    const { handler, transactionRepositorySaveSpy, sendTransaction } = setup();
-    transactionRepositorySaveSpy.mockRejectedValueOnce(
+    const { handler, transactionRepositorySaveManySpy, sendTransaction } =
+      setup();
+    transactionRepositorySaveManySpy.mockRejectedValueOnce(
       new Error('failed save'),
     );
 

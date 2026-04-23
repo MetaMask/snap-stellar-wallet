@@ -1,4 +1,9 @@
-import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
+import {
+  KeyringEvent,
+  type Transaction as KeyringTransaction,
+} from '@metamask/keyring-api';
+import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
+import { groupBy } from 'lodash';
 
 import type { Transaction } from './Transaction';
 import type { TransactionBuilder } from './TransactionBuilder';
@@ -268,7 +273,9 @@ export class TransactionService {
    * @returns A promise that resolves when the transaction is saved.
    */
   async save(transaction: KeyringTransaction): Promise<void> {
-    await this.#transactionRepository.save(transaction);
+    // use saveMany here to leverage the state lock,
+    // hence the update of the state and the transaction event emission will be in sequence
+    await this.saveMany([transaction]);
   }
 
   /**
@@ -279,6 +286,7 @@ export class TransactionService {
    */
   async saveMany(transactions: KeyringTransaction[]): Promise<void> {
     await this.#transactionRepository.saveMany(transactions);
+    await this.#emitAccountTransactionsUpdated(transactions);
   }
 
   /**
@@ -295,5 +303,15 @@ export class TransactionService {
     this.#logger.debug(
       'TransactionService.synchronize: transaction history sync not implemented yet',
     );
+  }
+
+  async #emitAccountTransactionsUpdated(
+    transactions: KeyringTransaction[],
+  ): Promise<void> {
+    const transactionsByAccountId = groupBy(transactions, 'account');
+
+    await emitSnapKeyringEvent(snap, KeyringEvent.AccountTransactionsUpdated, {
+      transactions: transactionsByAccountId,
+    });
   }
 }

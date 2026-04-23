@@ -22,14 +22,6 @@ import {
   NonZeroValidAmountStruct,
 } from '../../api';
 
-export enum MultiChainSendErrorCodes {
-  // eslint-disable-next-line @typescript-eslint/no-shadow
-  Required = 'Required',
-  Invalid = 'Invalid',
-  InsufficientBalance = 'InsufficientBalance',
-  InsufficientBalanceToCoverFee = 'InsufficientBalanceToCoverFee',
-}
-
 /**
  * Enum for the client request method.
  */
@@ -84,7 +76,6 @@ const ChangeTrustRemoveStruct = assign(
   ChangeTrustBaseParamsStruct,
   object({
     action: literal(ChangeTrustOptAction.Delete),
-    limit: literal('0'),
   }),
 );
 
@@ -106,7 +97,7 @@ export const ChangeTrustOptJsonRpcRequestStruct = refine(
     if (result) {
       return true;
     }
-    return `Asset id ${params.assetId} scope is not match with the request scope ${params.scope}`;
+    return `The chain implied by asset id ${params.assetId} does not match request scope ${params.scope}`;
   },
 );
 

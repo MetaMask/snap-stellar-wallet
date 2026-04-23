@@ -118,7 +118,6 @@ describe('ChangeTrustOptJsonRpcRequestStruct', () => {
         scope,
         assetId,
         action: 'delete',
-        limit: '0',
       },
     },
   ])('accepts valid changeTrustOpt JSON-RPC requests', (request) => {
@@ -170,17 +169,6 @@ describe('ChangeTrustOptJsonRpcRequestStruct', () => {
         scope: 'stellar:pubnet',
         assetId,
         action: 'add',
-      },
-    },
-    {
-      jsonrpc: '2.0' as const,
-      id: 1,
-      method: 'changeTrustOpt',
-      params: {
-        accountId,
-        scope,
-        assetId,
-        action: 'delete',
       },
     },
     {
