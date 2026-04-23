@@ -3,6 +3,7 @@ import {
   Asset,
   FeeBumpTransaction,
   Keypair,
+  Memo,
   Networks,
   Operation,
   TransactionBuilder as StellarTransactionBuilder,
@@ -81,4 +82,60 @@ describe('Transaction', () => {
       new BigNumber(inner.fee).toFixed(0),
     );
   });
+
+  it.each([
+    {
+      memo: Memo.text('english'),
+      expected: 'english',
+    },
+    {
+      memo: Memo.text('🧾 éclair'),
+      expected: '🧾 éclair',
+    },
+    {
+      memo: Memo.id('12321'),
+      expected: '12321',
+    },
+    {
+      memo: Memo.hash(
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      ),
+      expected:
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    },
+    {
+      memo: Memo.return(
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      ),
+      expected:
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    },
+    {
+      memo: Memo.none(),
+      expected: null,
+    },
+  ])(
+    'decodes memo values correctly',
+    ({ memo, expected }: { memo: Memo; expected: string | null }) => {
+      const source = Keypair.random();
+      const dest = Keypair.random().publicKey();
+      const inner = new StellarTransactionBuilder(
+        new Account(source.publicKey(), '1'),
+        { fee: '100', networkPassphrase: Networks.TESTNET },
+      )
+        .addOperation(
+          Operation.payment({
+            destination: dest,
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        .addMemo(memo)
+        .setTimeout(60)
+        .build();
+
+      const wrapped = new Transaction(inner);
+      expect(wrapped.getMemo()).toStrictEqual(expected);
+    },
+  );
 });
