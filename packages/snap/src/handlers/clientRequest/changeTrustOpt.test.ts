@@ -175,10 +175,6 @@ describe('ChangeTrustOptHandler', () => {
     };
   }
 
-  beforeEach(() => {
-    jest.restoreAllMocks();
-  });
-
   it('handles changeTrust opt-in and saves pending keyring transaction', async () => {
     const {
       handler,
