@@ -95,8 +95,8 @@ const assetMetadataService = new AssetMetadataService({
 const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountService,
-  onChainAccountService,
   walletService,
+  onChainAccountService,
   transactionBuilder,
   transactionService,
   confirmationUIController,

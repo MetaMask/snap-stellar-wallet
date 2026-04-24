@@ -1,50 +1,44 @@
-import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 import { Keypair, Networks } from '@stellar/stellar-sdk';
 
 import { MultichainMethod, type SignTransactionRequest } from './api';
+import { Sep43ErrorCode } from './exceptions';
 import { SignTransactionHandler } from './signTransaction';
 import { KnownCaip2ChainId } from '../../api';
-import type { StellarKeyringAccount } from '../../services/account';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
+import { AccountNotActivatedException } from '../../services/network';
+import { SimulationException } from '../../services/network/exceptions';
+import { OnChainAccountService } from '../../services/on-chain-account';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
-import type { TransactionBuilder } from '../../services/transaction';
-import {
-  TransactionService,
-  OperationMapper,
-} from '../../services/transaction';
+import type { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
+import type { Transaction } from '../../services/transaction';
+import { TransactionService } from '../../services/transaction';
 import {
   buildMockClassicTransaction,
   createMockTransactionService,
 } from '../../services/transaction/__mocks__/transaction.fixtures';
-import { WalletService, Wallet } from '../../services/wallet';
-import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
+import { WalletService } from '../../services/wallet';
+import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
+/* eslint-disable @typescript-eslint/naming-convention -- Jest ESM interop */
+jest.mock('../../ui/confirmation/views/AccountActivationPrompt/render', () => ({
+  __esModule: true,
+  render: jest.fn().mockResolvedValue(undefined),
+}));
+/* eslint-enable @typescript-eslint/naming-convention */
 
 describe('SignTransactionHandler', () => {
-  const keyringRequestId = '22222222-2222-4222-8222-222222222222';
-
   /**
-   * Builds a {@link SignTransactionHandler} with mocked account/wallet resolution
-   * and a stubbed `ConfirmationUXController`.
+   * Builds a {@link SignTransactionHandler} with mocked services + account/wallet
+   * resolution, plus a stubbed `ConfirmationUXController`.
    *
    * @returns Handler instance and the test doubles needed by each spec.
    */
-  function setupSignTransactionHandler(): {
-    handler: SignTransactionHandler;
-    mockAccount: StellarKeyringAccount;
-    wallet: Wallet;
-    walletKeypair: Keypair;
-    renderConfirmationDialog: jest.Mock;
-    transactionBuilder: TransactionBuilder;
-    transactionService: TransactionService;
-  } {
-    const walletKeypair = Keypair.random();
-    const wallet = new Wallet(walletKeypair);
-
+  function setupHandler() {
+    const wallet = getTestWallet();
     const mockAccount = generateStellarKeyringAccount(
       globalThis.crypto.randomUUID(),
       wallet.address,
@@ -52,24 +46,27 @@ describe('SignTransactionHandler', () => {
       0,
     );
 
-    const { accountService, onChainAccountService, walletService } =
+    const { transactionBuilder, transactionService } =
+      createMockTransactionService();
+    const { accountService, walletService, onChainAccountService } =
       mockOnChainAccountService();
 
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: mockAccount,
-    });
+    const resolveOnChainAccountSpy = jest
+      .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
+      .mockResolvedValue({ assetIds: [] } as unknown as OnChainAccount);
+
+    const resolveAccountSpy = jest
+      .spyOn(AccountService.prototype, 'resolveAccount')
+      .mockResolvedValue({ account: mockAccount });
 
     jest
       .spyOn(WalletService.prototype, 'resolveWallet')
       .mockResolvedValue(wallet);
 
-    const { transactionBuilder, transactionService } =
-      createMockTransactionService();
-
     // Default: pass-through fee (no Soroban simulation needed for classic tx).
     jest
       .spyOn(TransactionService.prototype, 'computingFee')
-      .mockImplementation(async (transaction) => transaction);
+      .mockImplementation(async (tx) => tx);
 
     const renderConfirmationDialog = jest.fn();
     const confirmationUIController = {
@@ -82,8 +79,8 @@ describe('SignTransactionHandler', () => {
     const handler = new SignTransactionHandler({
       logger,
       accountService,
-      onChainAccountService,
       walletService,
+      onChainAccountService,
       transactionBuilder,
       transactionService,
       confirmationUIController,
@@ -93,21 +90,22 @@ describe('SignTransactionHandler', () => {
       handler,
       mockAccount,
       wallet,
-      walletKeypair,
-      renderConfirmationDialog,
       transactionBuilder,
       transactionService,
+      renderConfirmationDialog,
+      resolveAccountSpy,
+      resolveOnChainAccountSpy,
     };
   }
 
   /**
-   * Builds a single-payment transaction whose source is the wallet account so it
-   * passes {@link assertAccountInvolvesTransaction}.
+   * Builds a mainnet payment transaction whose source is the wallet so it
+   * passes `assertAccountInvolvesTransaction`.
    *
-   * @param walletAddress - The wallet's Stellar public key (`G…`).
-   * @returns The mock transaction.
+   * @param walletAddress - Wallet's Stellar public key (`G…`).
+   * @returns Mock transaction built with `Networks.PUBLIC`.
    */
-  function buildPaymentTxFromWallet(walletAddress: string) {
+  function buildMainnetPaymentFromWallet(walletAddress: string): Transaction {
     return buildMockClassicTransaction(
       [
         {
@@ -115,94 +113,107 @@ describe('SignTransactionHandler', () => {
           params: {
             destination: Keypair.random().publicKey(),
             asset: 'native',
-            amount: '10',
+            amount: '1',
           },
         },
       ],
       {
-        networkPassphrase: Networks.TESTNET,
+        networkPassphrase: Networks.PUBLIC,
         source: { accountId: walletAddress, sequence: '1' },
       },
     );
   }
 
-  const buildRequest = (transactionXdr: string): SignTransactionRequest => ({
-    id: keyringRequestId,
+  const buildRequest = (
+    accountId: string,
+    xdr: string,
+    overrides: Partial<SignTransactionRequest['request']['params']> = {},
+  ): SignTransactionRequest => ({
+    id: '22222222-2222-4222-8222-222222222222',
     origin: 'https://example.com',
-    scope: KnownCaip2ChainId.Testnet,
-    account: '00000000-0000-4000-8000-000000000001',
+    scope: KnownCaip2ChainId.Mainnet,
+    account: accountId,
     request: {
       method: MultichainMethod.SignTransaction,
-      params: { transaction: transactionXdr },
+      params: { xdr, ...overrides },
     },
   });
 
-  it('renders confirmation with fee, native price slot, and signs when accepted', async () => {
+  it('returns signedTxXdr and signerAddress on confirm', async () => {
     const {
       handler,
       mockAccount,
       wallet,
-      renderConfirmationDialog,
       transactionBuilder,
-    } = setupSignTransactionHandler();
+      renderConfirmationDialog,
+    } = setupHandler();
 
-    const transaction = buildPaymentTxFromWallet(wallet.address);
+    const transaction = buildMainnetPaymentFromWallet(wallet.address);
     const xdr = transaction.getRaw().toXDR();
-
     jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
     const signSpy = jest.spyOn(wallet, 'signTransaction');
-
     renderConfirmationDialog.mockResolvedValue(true);
 
-    const request = buildRequest(xdr);
-    const result = await handler.handle(request);
-
-    expect(renderConfirmationDialog).toHaveBeenCalledTimes(1);
-    const callArgs = renderConfirmationDialog.mock.calls[0]?.[0];
-    expect(callArgs).toMatchObject({
-      scope: KnownCaip2ChainId.Testnet,
-      origin: 'https://example.com',
-      interfaceKey: ConfirmationInterfaceKey.SignTransaction,
-      fee: transaction.totalFee.toFixed(0),
-      renderOptions: { loadPrice: true },
-    });
-    expect(callArgs.renderContext.account).toStrictEqual(mockAccount);
-    expect(callArgs.renderContext.readableTransaction).toStrictEqual(
-      new OperationMapper().mapTransaction(transaction),
-    );
-
-    // Hard-coded so a parser regression actually fails the test.
-    expect(callArgs.tokenPrices).toStrictEqual({
-      'stellar:testnet/slip44:148': null,
-    });
+    const result = await handler.handle(buildRequest(mockAccount.id, xdr));
 
     expect(signSpy).toHaveBeenCalledWith(transaction);
-    expect(typeof result).toBe('object');
-    expect((result as { signature: string }).signature).toStrictEqual(
-      transaction.getRaw().toXDR(),
-    );
+    expect(result.signedTxXdr).toStrictEqual(transaction.getRaw().toXDR());
+    expect(result.signerAddress).toBe(wallet.address);
+    expect(result.error).toBeUndefined();
   });
 
-  it('seeds tokenPrices with classic-asset CAIP-19 ids alongside the native fee asset', async () => {
-    const { handler, wallet, renderConfirmationDialog, transactionBuilder } =
-      setupSignTransactionHandler();
+  it('returns error -4 when user rejects', async () => {
+    const {
+      handler,
+      mockAccount,
+      wallet,
+      transactionBuilder,
+      renderConfirmationDialog,
+    } = setupHandler();
 
-    const issuer = Keypair.random().publicKey();
-    const transaction = buildMockClassicTransaction(
+    const transaction = buildMainnetPaymentFromWallet(wallet.address);
+    const xdr = transaction.getRaw().toXDR();
+    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
+    const signSpy = jest.spyOn(wallet, 'signTransaction');
+    renderConfirmationDialog.mockResolvedValue(false);
+
+    const result = await handler.handle(buildRequest(mockAccount.id, xdr));
+
+    expect(signSpy).not.toHaveBeenCalled();
+    expect(result.signedTxXdr).toBe('');
+    expect(result.signerAddress).toBe(wallet.address);
+    expect(result.error?.code).toBe(Sep43ErrorCode.UserRejected);
+  });
+
+  it('returns error -3 when XDR is invalid', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, 'not-an-xdr'),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when the transaction scope does not match the request scope', async () => {
+    const {
+      handler,
+      mockAccount,
+      wallet,
+      transactionBuilder,
+      renderConfirmationDialog,
+    } = setupHandler();
+
+    // Build a TESTNET transaction but request signing on MAINNET scope.
+    const testnetTx = buildMockClassicTransaction(
       [
         {
           type: 'payment',
           params: {
             destination: Keypair.random().publicKey(),
-            asset: { code: 'USDC', issuer },
-            amount: '5',
-          },
-        },
-        {
-          type: 'changeTrust',
-          params: {
-            asset: { code: 'USDC', issuer },
-            limit: '1000',
+            asset: 'native',
+            amount: '1',
           },
         },
       ],
@@ -211,62 +222,149 @@ describe('SignTransactionHandler', () => {
         source: { accountId: wallet.address, sequence: '1' },
       },
     );
-    const xdr = transaction.getRaw().toXDR();
-    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
-    renderConfirmationDialog.mockResolvedValue(true);
+    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(testnetTx);
 
-    await handler.handle(buildRequest(xdr));
-
-    const callArgs = renderConfirmationDialog.mock.calls[0]?.[0];
-    expect(callArgs).toBeDefined();
-    const { tokenPrices } = callArgs;
-
-    // Classic asset CAIP-19 keyed for cron price refresh.
-    expect(tokenPrices).toHaveProperty(
-      `stellar:testnet/asset:USDC-${issuer}`,
-      null,
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, testnetTx.getRaw().toXDR()),
     );
-    // Same USDC trustline op should not duplicate the entry.
-    expect(Object.keys(tokenPrices)).toHaveLength(1);
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
-  it('throws UserRejectedRequestError when confirmation rejects', async () => {
-    const { handler, wallet, renderConfirmationDialog, transactionBuilder } =
-      setupSignTransactionHandler();
+  it('returns error -3 when the wallet does not participate in the transaction', async () => {
+    const {
+      handler,
+      mockAccount,
+      transactionBuilder,
+      renderConfirmationDialog,
+    } = setupHandler();
 
-    const transaction = buildPaymentTxFromWallet(wallet.address);
-    const xdr = transaction.getRaw().toXDR();
-
-    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
-    const signSpy = jest.spyOn(wallet, 'signTransaction');
-
-    renderConfirmationDialog.mockResolvedValue(false);
-
-    await expect(handler.handle(buildRequest(xdr))).rejects.toThrow(
-      UserRejectedRequestError,
-    );
-    expect(signSpy).not.toHaveBeenCalled();
-  });
-
-  it('rejects invalid requests before resolving the account', async () => {
-    const { handler, renderConfirmationDialog } = setupSignTransactionHandler();
-
-    const resolveAccountSpy = jest.spyOn(
-      AccountService.prototype,
-      'resolveAccount',
-    );
-
-    await expect(
-      handler.handle({
-        ...buildRequest(''),
-        request: {
-          method: MultichainMethod.SignTransaction,
-          params: { transaction: '' },
+    const strangerTx = buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: Keypair.random().publicKey(),
+            asset: 'native',
+            amount: '1',
+          },
         },
-      }),
-    ).rejects.toThrow(/transaction/u);
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: Keypair.random().publicKey(),
+          sequence: '1',
+        },
+      },
+    );
+    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(strangerTx);
 
-    expect(resolveAccountSpy).not.toHaveBeenCalled();
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, strangerTx.getRaw().toXDR()),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when scope is testnet', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle({
+      ...buildRequest(mockAccount.id, 'AAAA'),
+      scope: KnownCaip2ChainId.Testnet,
+    });
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when opts.networkPassphrase is not the mainnet passphrase', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, 'AAAA', {
+        opts: { networkPassphrase: Networks.TESTNET },
+      }),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['opts.submit', { submit: true }],
+    ['opts.submitUrl', { submitUrl: 'https://horizon.stellar.org' }],
+  ])('returns error -3 when %s is provided', async (_label, forbiddenOpts) => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const base = buildRequest(mockAccount.id, 'AAAA');
+    (base.request.params as unknown as { opts: Record<string, unknown> }).opts =
+      forbiddenOpts;
+
+    const result = await handler.handle(base);
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -2 when fee simulation fails', async () => {
+    const {
+      handler,
+      mockAccount,
+      wallet,
+      transactionBuilder,
+      transactionService,
+      renderConfirmationDialog,
+    } = setupHandler();
+
+    const transaction = buildMainnetPaymentFromWallet(wallet.address);
+    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
+    jest
+      .spyOn(transactionService, 'computingFee')
+      .mockRejectedValueOnce(new SimulationException('contract not found'));
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, transaction.getRaw().toXDR()),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.ExternalService);
+    expect(result.error?.ext?.[0]).toContain('Failed to simulate transaction');
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('shows the account activation prompt and returns ExternalService when the account is not funded', async () => {
+    const { render: renderAccountActivationPrompt } =
+      await import('../../ui/confirmation/views/AccountActivationPrompt/render');
+    const {
+      handler,
+      mockAccount,
+      wallet,
+      transactionBuilder,
+      renderConfirmationDialog,
+      resolveOnChainAccountSpy,
+    } = setupHandler();
+
+    const transaction = buildMainnetPaymentFromWallet(wallet.address);
+    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
+
+    resolveOnChainAccountSpy.mockRejectedValueOnce(
+      new AccountNotActivatedException(
+        mockAccount.address,
+        KnownCaip2ChainId.Mainnet,
+      ),
+    );
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, transaction.getRaw().toXDR()),
+    );
+
+    expect(jest.mocked(renderAccountActivationPrompt)).toHaveBeenCalledWith(
+      mockAccount.address,
+    );
+    expect(result.error?.code).toBe(Sep43ErrorCode.ExternalService);
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 });

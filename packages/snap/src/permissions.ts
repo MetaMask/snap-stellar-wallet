@@ -9,7 +9,7 @@ const prodOrigins = ['https://portfolio.metamask.io'];
 const allowedOrigins = isDev ? ['http://localhost:3000'] : prodOrigins;
 
 const dappPermissions = isDev
-  ? new Set([
+  ? new Set<string>([
       // Keyring methods
       KeyringRpcMethod.ListAccounts,
       KeyringRpcMethod.GetAccount,
@@ -20,8 +20,12 @@ const dappPermissions = isDev
       KeyringRpcMethod.SubmitRequest,
       KeyringRpcMethod.ListAccountTransactions,
       KeyringRpcMethod.ListAccountAssets,
+      // Dev-only RPC aliases for the local test dapp (see `onRpcRequest`).
+      // Production dapps reach the same handlers via the multichain API.
+      'stellar_signMessage',
+      'stellar_signTransaction',
     ])
-  : new Set([]);
+  : new Set<string>([]);
 
 const metamaskPermissions = new Set([
   // Keyring methods
