@@ -26,7 +26,6 @@ import {
 } from '../../api';
 import { StellarAddressStruct } from '../../api/address';
 import { KnownCaip2ChainIdStruct } from '../../api/network';
-import { Utf8StringStruct } from '../../api/string';
 import { UuidStruct } from '../../api/uuid';
 import { XdrStruct } from '../../api/xdr';
 
@@ -89,7 +88,36 @@ export const DiscoverAccountsStruct = object({
 });
 
 /**
+ * Optional bag accepted by both SEP-43 sign methods.
+ *
+ * `submit` and `submitUrl` are intentionally omitted from the schema:
+ * the snap signs only and rejects any caller asking for submission.
+ *
+ * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
+ */
+export const Sep43OptsStruct = object({
+  networkPassphrase: optional(nonempty(string())),
+  address: optional(StellarAddressStruct),
+});
+
+export type Sep43Opts = Infer<typeof Sep43OptsStruct>;
+
+/**
+ * Shape of the SEP-43 error envelope returned alongside the success fields.
+ */
+export const Sep43ErrorEnvelopeStruct = object({
+  message: nonempty(string()),
+  code: number(),
+  ext: optional(array(string())),
+});
+
+export type Sep43ErrorEnvelope = Infer<typeof Sep43ErrorEnvelopeStruct>;
+
+/**
  * Validation struct for the signMessage request.
+ *
+ * Params follow the SEP-43 `SignMessage` shape: a base64-encoded message and
+ * the optional `opts` bag (`address`, `networkPassphrase`).
  */
 export const SignMessageRequestStruct = assign(
   KeyringRequestStruct,
@@ -97,7 +125,8 @@ export const SignMessageRequestStruct = assign(
     request: object({
       method: literal(MultichainMethod.SignMessage),
       params: object({
-        message: nonempty(union([base64(string()), Utf8StringStruct])),
+        message: nonempty(base64(string())),
+        opts: optional(Sep43OptsStruct),
       }),
     }),
     scope: KnownCaip2ChainIdStruct,
@@ -107,13 +136,23 @@ export const SignMessageRequestStruct = assign(
 
 /**
  * Validation struct for the signMessage response.
+ *
+ * `signedMessage` is base64-encoded on success; empty string on error.
+ * `signerAddress` is the signer's G-address on success, or empty when
+ * account resolution failed before we could determine the address.
  */
 export const SignMessageResponseStruct = object({
-  signature: nonempty(base64(string())),
+  signedMessage: union([nonempty(base64(string())), literal('')]),
+  signerAddress: union([StellarAddressStruct, literal('')]),
+  error: optional(Sep43ErrorEnvelopeStruct),
 });
 
 /**
  * Validation struct for the signTransaction request.
+ *
+ * Params follow the SEP-43 `SignTransaction` shape: a base64-encoded
+ * transaction envelope XDR and the optional `opts` bag (`address`,
+ * `networkPassphrase`).
  */
 export const SignTransactionRequestStruct = assign(
   KeyringRequestStruct,
@@ -121,7 +160,8 @@ export const SignTransactionRequestStruct = assign(
     request: object({
       method: literal(MultichainMethod.SignTransaction),
       params: object({
-        transaction: XdrStruct,
+        xdr: XdrStruct,
+        opts: optional(Sep43OptsStruct),
       }),
     }),
     scope: KnownCaip2ChainIdStruct,
@@ -142,9 +182,16 @@ export const ListAccountTransactionsRequestStruct = object({
 
 /**
  * Validation struct for the signTransaction response.
+ *
+ * `signedTxXdr` is the signed transaction envelope as base64 XDR on success;
+ * empty string on error.
+ * `signerAddress` is the signer's G-address on success, or empty when
+ * account resolution failed before we could determine the address.
  */
 export const SignTransactionResponseStruct = object({
-  signature: XdrStruct,
+  signedTxXdr: union([XdrStruct, literal('')]),
+  signerAddress: union([StellarAddressStruct, literal('')]),
+  error: optional(Sep43ErrorEnvelopeStruct),
 });
 
 /**

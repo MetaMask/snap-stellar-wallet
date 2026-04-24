@@ -1,63 +1,56 @@
-import { UserRejectedRequestError } from '@metamask/snaps-sdk';
+import { Networks } from '@stellar/stellar-sdk';
 
 import { MultichainMethod, type SignMessageRequest } from './api';
+import { Sep43ErrorCode } from './exceptions';
 import { SignMessageHandler } from './signMessage';
 import { KnownCaip2ChainId } from '../../api';
-import type { StellarKeyringAccount } from '../../services/account';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
+import { AccountNotFoundException } from '../../services/account/exceptions';
+import { AccountNotActivatedException } from '../../services/network';
+import { OnChainAccountService } from '../../services/on-chain-account';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
+import type { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
-import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
+/* eslint-disable @typescript-eslint/naming-convention -- Jest ESM interop */
+jest.mock('../../ui/confirmation/views/AccountActivationPrompt/render', () => ({
+  __esModule: true,
+  render: jest.fn().mockResolvedValue(undefined),
+}));
+/* eslint-enable @typescript-eslint/naming-convention */
 
 describe('SignMessageHandler', () => {
-  const keyringRequestId = '11111111-1111-4111-8111-111111111111';
-
-  const encodedMessage = btoa('hello stellar');
-
-  const buildRequest = (
-    account: StellarKeyringAccount,
-  ): SignMessageRequest => ({
-    id: keyringRequestId,
-    origin: 'https://example.com',
-    scope: KnownCaip2ChainId.Mainnet,
-    account: account.id,
-    request: {
-      method: MultichainMethod.SignMessage,
-      params: { message: encodedMessage },
-    },
-  });
-
   /**
-   * Builds a {@link SignMessageHandler} with mocked account/wallet resolution.
+   * Builds a {@link SignMessageHandler} with mocked account / wallet
+   * resolution and a stubbed `ConfirmationUXController`.
    *
-   * @returns Handler instance, resolved keyring account, and test wallet.
+   * @returns Handler instance and the test doubles needed by each spec.
    */
-  function setupSignMessageHandler(): {
-    handler: SignMessageHandler;
-    mockAccount: StellarKeyringAccount;
-    wallet: ReturnType<typeof getTestWallet>;
-    renderConfirmationDialog: jest.Mock;
-  } {
+  function setupHandler() {
     const wallet = getTestWallet();
+    const accountId = globalThis.crypto.randomUUID();
     const mockAccount = generateStellarKeyringAccount(
-      globalThis.crypto.randomUUID(),
+      accountId,
       wallet.address,
       'entropy-source-1',
       0,
     );
 
-    const { accountService, onChainAccountService, walletService } =
+    const { accountService, walletService, onChainAccountService } =
       mockOnChainAccountService();
 
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: mockAccount,
-    });
+    const resolveOnChainAccountSpy = jest
+      .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
+      .mockResolvedValue({ assetIds: [] } as unknown as OnChainAccount);
+
+    const resolveAccountSpy = jest
+      .spyOn(AccountService.prototype, 'resolveAccount')
+      .mockResolvedValue({ account: mockAccount });
 
     jest
       .spyOn(WalletService.prototype, 'resolveWallet')
@@ -74,78 +67,184 @@ describe('SignMessageHandler', () => {
     const handler = new SignMessageHandler({
       logger,
       accountService,
-      onChainAccountService,
       walletService,
+      onChainAccountService,
       confirmationUIController,
     });
 
-    return { handler, mockAccount, wallet, renderConfirmationDialog };
+    return {
+      handler,
+      mockAccount,
+      wallet,
+      renderConfirmationDialog,
+      resolveAccountSpy,
+      resolveOnChainAccountSpy,
+    };
   }
 
-  it('returns signature when confirmation accepts', async () => {
-    const { handler, mockAccount, wallet, renderConfirmationDialog } =
-      setupSignMessageHandler();
-    renderConfirmationDialog.mockResolvedValue(true);
-
-    const request = buildRequest(mockAccount);
-    const result = await handler.handle(request);
-
-    const expectedSignature = await wallet.signMessage(encodedMessage);
-
-    expect(renderConfirmationDialog).toHaveBeenCalledTimes(1);
-    expect(renderConfirmationDialog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: request.scope,
-        origin: request.origin,
-        interfaceKey: ConfirmationInterfaceKey.SignMessage,
-        renderContext: expect.objectContaining({
-          account: mockAccount,
-          message: 'hello stellar',
-        }),
-      }),
-    );
-    expect(result).toStrictEqual({ signature: expectedSignature });
+  const buildRequest = (
+    accountId: string,
+    overrides: Partial<SignMessageRequest['request']['params']> = {},
+  ): SignMessageRequest => ({
+    id: '11111111-1111-4111-8111-111111111111',
+    origin: 'https://example.com',
+    scope: KnownCaip2ChainId.Mainnet,
+    account: accountId,
+    request: {
+      method: MultichainMethod.SignMessage,
+      params: {
+        message: btoa('hello stellar'),
+        ...overrides,
+      },
+    },
   });
 
-  it('throws when confirmation rejects', async () => {
-    const { handler, mockAccount, renderConfirmationDialog } =
-      setupSignMessageHandler();
+  it('returns signedMessage and signerAddress on confirm', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
+
+    const result = await handler.handle(buildRequest(mockAccount.id));
+
+    const expected = await wallet.signMessage(btoa('hello stellar'));
+    expect(result).toStrictEqual({
+      signedMessage: expected,
+      signerAddress: wallet.address,
+    });
+  });
+
+  it('returns error -4 when user rejects', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
     renderConfirmationDialog.mockResolvedValue(false);
 
-    const request = buildRequest(mockAccount);
+    const result = await handler.handle(buildRequest(mockAccount.id));
 
-    await expect(handler.handle(request)).rejects.toThrow(
-      UserRejectedRequestError,
-    );
-
-    expect(renderConfirmationDialog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: request.scope,
-        origin: request.origin,
-        interfaceKey: ConfirmationInterfaceKey.SignMessage,
-        renderContext: expect.objectContaining({
-          account: mockAccount,
-          message: 'hello stellar',
-        }),
-      }),
-    );
+    expect(result.signedMessage).toBe('');
+    expect(result.signerAddress).toBe(wallet.address);
+    expect(result.error?.code).toBe(Sep43ErrorCode.UserRejected);
   });
 
-  it('rejects invalid requests before calling render', async () => {
-    const { handler, mockAccount, renderConfirmationDialog } =
-      setupSignMessageHandler();
-    renderConfirmationDialog.mockResolvedValue(true);
+  it('returns error -3 when scope is testnet', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
 
-    await expect(
-      handler.handle({
-        ...buildRequest(mockAccount),
-        request: {
-          method: MultichainMethod.SignMessage,
-          params: { message: '' },
-        },
+    const result = await handler.handle({
+      ...buildRequest(mockAccount.id),
+      scope: KnownCaip2ChainId.Testnet,
+    });
+
+    expect(result.signedMessage).toBe('');
+    expect(result.signerAddress).toBe('');
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when opts.networkPassphrase is not the mainnet passphrase', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, {
+        opts: { networkPassphrase: Networks.TESTNET },
       }),
-    ).rejects.toThrow(/request\.params\.message/u);
+    );
 
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result.error?.ext?.[0]).toContain('mainnet');
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['opts.submit', { submit: true }],
+    ['opts.submitUrl', { submitUrl: 'https://horizon.stellar.org' }],
+  ])('returns error -3 when %s is provided', async (_label, forbiddenOpts) => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const base = buildRequest(mockAccount.id);
+    // Inject the forbidden opt bypassing the struct type so we can assert the
+    // handler rejects it at runtime with -3 InvalidRequest.
+    (base.request.params as unknown as { opts: Record<string, unknown> }).opts =
+      forbiddenOpts;
+
+    const result = await handler.handle(base);
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when opts.address cannot be resolved', async () => {
+    const { handler, mockAccount, resolveAccountSpy } = setupHandler();
+    const unknownAddress =
+      'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB';
+    resolveAccountSpy.mockRejectedValueOnce(
+      new AccountNotFoundException(unknownAddress),
+    );
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, { opts: { address: unknownAddress } }),
+    );
+
+    expect(result.signedMessage).toBe('');
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+  });
+
+  it('returns error -3 when opts.address resolves to a different account than the wrapper UUID', async () => {
+    const {
+      handler,
+      mockAccount,
+      renderConfirmationDialog,
+      resolveAccountSpy,
+    } = setupHandler();
+    const otherAccount = generateStellarKeyringAccount(
+      globalThis.crypto.randomUUID(),
+      mockAccount.address,
+      'entropy-source-1',
+      1,
+    );
+    resolveAccountSpy.mockResolvedValueOnce({ account: otherAccount });
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, {
+        opts: { address: otherAccount.address },
+      }),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when message is not valid base64', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, { message: 'not valid base64 !!!' }),
+    );
+
+    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('shows the account activation prompt and returns ExternalService when the account is not funded', async () => {
+    const { render: renderAccountActivationPrompt } =
+      await import('../../ui/confirmation/views/AccountActivationPrompt/render');
+    const {
+      handler,
+      mockAccount,
+      renderConfirmationDialog,
+      resolveOnChainAccountSpy,
+    } = setupHandler();
+    resolveOnChainAccountSpy.mockRejectedValueOnce(
+      new AccountNotActivatedException(
+        mockAccount.address,
+        KnownCaip2ChainId.Mainnet,
+      ),
+    );
+
+    const result = await handler.handle(buildRequest(mockAccount.id));
+
+    expect(jest.mocked(renderAccountActivationPrompt)).toHaveBeenCalledWith(
+      mockAccount.address,
+    );
+    expect(result.error?.code).toBe(Sep43ErrorCode.ExternalService);
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 });

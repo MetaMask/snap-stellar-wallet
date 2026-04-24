@@ -13,10 +13,6 @@ import {
   SignMessageHandler,
   SignTransactionHandler,
 } from './handlers/keyring';
-import {
-  Sep43SignMessageHandler,
-  Sep43SignTransactionHandler,
-} from './handlers/sep43';
 import { AccountService, AccountsRepository } from './services/account';
 import type { AccountBalanceState } from './services/account-balance';
 import {
@@ -99,8 +95,8 @@ const assetMetadataService = new AssetMetadataService({
 const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountService,
-  onChainAccountService,
   walletService,
+  onChainAccountService,
   transactionBuilder,
   transactionService,
   confirmationUIController,
@@ -166,23 +162,6 @@ const assetsHandler = new AssetsHandler({
   priceService,
 });
 
-/** ------------------------------ SEP-43 Handlers (dapp-facing) ------------------------------ */
-const sep43SignMessageHandler = new Sep43SignMessageHandler({
-  logger,
-  accountService,
-  walletService,
-  confirmationUIController,
-});
-
-const sep43SignTransactionHandler = new Sep43SignTransactionHandler({
-  logger,
-  accountService,
-  walletService,
-  transactionBuilder,
-  transactionService,
-  confirmationUIController,
-});
-
 export {
   cronjobHandler,
   assetsHandler,
@@ -190,7 +169,5 @@ export {
   userInputHandler,
   signTransactionHandler,
   signMessageHandler,
-  sep43SignMessageHandler,
-  sep43SignTransactionHandler,
   confirmationUIController,
 };
