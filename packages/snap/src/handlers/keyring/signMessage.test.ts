@@ -106,9 +106,11 @@ describe('SignMessageHandler', () => {
 
     const result = await handler.handle(buildRequest(mockAccount.id));
 
-    expect(result.signedMessage).toBe('');
-    expect(result.signerAddress).toBe(wallet.address);
-    expect(result.error?.code).toBe(Sep43ErrorCode.UserRejected);
+    expect(result).toMatchObject({
+      signedMessage: '',
+      signerAddress: wallet.address,
+      error: { code: Sep43ErrorCode.UserRejected },
+    });
   });
 
   it('returns error -3 when scope is testnet', async () => {
@@ -119,9 +121,11 @@ describe('SignMessageHandler', () => {
       scope: KnownCaip2ChainId.Testnet,
     });
 
-    expect(result.signedMessage).toBe('');
-    expect(result.signerAddress).toBe('');
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      signedMessage: '',
+      signerAddress: '',
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -134,8 +138,12 @@ describe('SignMessageHandler', () => {
       }),
     );
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
-    expect(result.error?.ext?.[0]).toContain('mainnet');
+    expect(result).toMatchObject({
+      error: {
+        code: Sep43ErrorCode.InvalidRequest,
+        ext: [expect.stringContaining('mainnet')],
+      },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -153,7 +161,9 @@ describe('SignMessageHandler', () => {
 
     const result = await handler.handle(base);
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -169,18 +179,26 @@ describe('SignMessageHandler', () => {
       buildRequest(mockAccount.id, { opts: { address: unknownAddress } }),
     );
 
-    expect(result.signedMessage).toBe('');
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      signedMessage: '',
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
   });
 
-  it('returns error -3 when message is not valid base64', async () => {
-    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+  it('signs a non-base64 string as UTF-8 text', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
 
+    const utf8Message = 'Sign in to dapp';
     const result = await handler.handle(
-      buildRequest(mockAccount.id, { message: 'not valid base64 !!!' }),
+      buildRequest(mockAccount.id, { message: utf8Message }),
     );
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
-    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+    const expected = await wallet.signMessage(utf8Message);
+    expect(result).toStrictEqual({
+      signedMessage: expected,
+      signerAddress: wallet.address,
+    });
   });
 });

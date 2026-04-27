@@ -27,6 +27,7 @@ import {
 } from '../../api';
 import { StellarAddressStruct } from '../../api/address';
 import { KnownCaip2ChainId, KnownCaip2ChainIdStruct } from '../../api/network';
+import { Utf8StringStruct } from '../../api/string';
 import { UuidStruct } from '../../api/uuid';
 import { XdrStruct } from '../../api/xdr';
 import { networkToCaip2ChainId } from '../../services/network/utils';
@@ -131,8 +132,9 @@ export type Sep43ErrorEnvelope = Infer<typeof Sep43ErrorEnvelopeStruct>;
 /**
  * Validation struct for the signMessage request.
  *
- * Params follow the SEP-43 `SignMessage` shape: a base64-encoded message and
- * the optional `opts` bag (`address`, `networkPassphrase`).
+ * Params follow the SEP-43 `SignMessage` shape: per spec, `message` may be
+ * either a base64-encoded byte string or arbitrary UTF-8 text. The wallet
+ * detects which at sign time and signs the corresponding bytes.
  */
 export const SignMessageRequestStruct = assign(
   KeyringRequestStruct,
@@ -140,7 +142,7 @@ export const SignMessageRequestStruct = assign(
     request: object({
       method: literal(MultichainMethod.SignMessage),
       params: object({
-        message: nonempty(base64(string())),
+        message: nonempty(union([base64(string()), Utf8StringStruct])),
         opts: optional(Sep43OptsStruct),
       }),
     }),
@@ -150,17 +152,33 @@ export const SignMessageRequestStruct = assign(
 );
 
 /**
- * Validation struct for the signMessage response.
- *
- * `signedMessage` is base64-encoded on success; empty string on error.
- * `signerAddress` is the signer's G-address on success, or empty when
- * account resolution failed before we could determine the address.
+ * Error-shape of the signMessage response: an `error` envelope is present.
+ * Success fields are kept loose to allow partial data alongside the error.
  */
-export const SignMessageResponseStruct = object({
+export const SignMessageResponseStructWithError = object({
   signedMessage: union([nonempty(base64(string())), literal('')]),
   signerAddress: union([StellarAddressStruct, literal('')]),
-  error: optional(Sep43ErrorEnvelopeStruct),
+  error: Sep43ErrorEnvelopeStruct,
 });
+
+/**
+ * Success-shape of the signMessage response: signature present, no `error`.
+ */
+export const SignMessageResponseStructWithoutError = object({
+  signedMessage: nonempty(base64(string())),
+  signerAddress: StellarAddressStruct,
+});
+
+/**
+ * Validation struct for the signMessage response.
+ *
+ * Modeled as a discriminated union: a response either has an `error`
+ * envelope or the success fields — never neither.
+ */
+export const SignMessageResponseStruct = union([
+  SignMessageResponseStructWithError,
+  SignMessageResponseStructWithoutError,
+]);
 
 /**
  * Validation struct for the signTransaction request.
@@ -196,18 +214,35 @@ export const ListAccountTransactionsRequestStruct = object({
 });
 
 /**
- * Validation struct for the signTransaction response.
- *
- * `signedTxXdr` is the signed transaction envelope as base64 XDR on success;
- * empty string on error.
- * `signerAddress` is the signer's G-address on success, or empty when
- * account resolution failed before we could determine the address.
+ * Error-shape of the signTransaction response: an `error` envelope is
+ * present. Success fields are kept loose to allow partial data alongside
+ * the error.
  */
-export const SignTransactionResponseStruct = object({
+export const SignTransactionResponseStructWithError = object({
   signedTxXdr: union([XdrStruct, literal('')]),
   signerAddress: union([StellarAddressStruct, literal('')]),
-  error: optional(Sep43ErrorEnvelopeStruct),
+  error: Sep43ErrorEnvelopeStruct,
 });
+
+/**
+ * Success-shape of the signTransaction response: signed XDR present, no
+ * `error`.
+ */
+export const SignTransactionResponseStructWithoutError = object({
+  signedTxXdr: XdrStruct,
+  signerAddress: StellarAddressStruct,
+});
+
+/**
+ * Validation struct for the signTransaction response.
+ *
+ * Modeled as a discriminated union: a response either has an `error`
+ * envelope or the success fields — never neither.
+ */
+export const SignTransactionResponseStruct = union([
+  SignTransactionResponseStructWithError,
+  SignTransactionResponseStructWithoutError,
+]);
 
 /**
  * Validation struct for the getAccount request.

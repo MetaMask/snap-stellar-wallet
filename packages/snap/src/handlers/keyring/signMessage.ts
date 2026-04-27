@@ -13,6 +13,7 @@ import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
 import { bufferToUint8Array } from '../../utils';
+import { isBase64 } from '../../utils/string';
 
 /**
  * SEP-43 `signMessage` keyring handler.
@@ -79,7 +80,7 @@ export class SignMessageHandler extends BaseSep43KeyringHandler<
       // SEP-43 schema requires the field even on error; keep it empty when unknown.
       signedMessage: '',
       signerAddress,
-      error: error.toEnvelope(),
+      error: error.toJSON(),
     };
   }
 
@@ -102,12 +103,17 @@ export class SignMessageHandler extends BaseSep43KeyringHandler<
   }
 
   /**
-   * Decodes the SEP-43 base64 message for display in the confirmation dialog.
+   * Resolves the message to a UTF-8 string for display in the confirmation
+   * dialog. SEP-43 accepts either base64-encoded bytes or UTF-8 text — we
+   * mirror the wallet's detection so the user sees the same content that
+   * gets signed.
    *
-   * @param message - Base64-encoded bytes (validated by {@link SignMessageRequestStruct}).
-   * @returns The same content interpreted as UTF-8 text for the UI.
+   * @param message - The raw message string from the request.
+   * @returns The message interpreted as UTF-8 text for the UI.
    */
   #getUtf8Message(message: string): string {
-    return bufferToUint8Array(message, 'base64').toString('utf8');
+    return isBase64(message)
+      ? bufferToUint8Array(message, 'base64').toString('utf8')
+      : message;
   }
 }

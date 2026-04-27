@@ -143,9 +143,10 @@ describe('SignTransactionHandler', () => {
     const result = await handler.handle(buildRequest(mockAccount.id, xdr));
 
     expect(signSpy).toHaveBeenCalledWith(transaction);
-    expect(result.signedTxXdr).toStrictEqual(transaction.getRaw().toXDR());
-    expect(result.signerAddress).toBe(wallet.address);
-    expect(result.error).toBeUndefined();
+    expect(result).toStrictEqual({
+      signedTxXdr: transaction.getRaw().toXDR(),
+      signerAddress: wallet.address,
+    });
   });
 
   it('returns error -4 when user rejects', async () => {
@@ -166,9 +167,11 @@ describe('SignTransactionHandler', () => {
     const result = await handler.handle(buildRequest(mockAccount.id, xdr));
 
     expect(signSpy).not.toHaveBeenCalled();
-    expect(result.signedTxXdr).toBe('');
-    expect(result.signerAddress).toBe(wallet.address);
-    expect(result.error?.code).toBe(Sep43ErrorCode.UserRejected);
+    expect(result).toMatchObject({
+      signedTxXdr: '',
+      signerAddress: wallet.address,
+      error: { code: Sep43ErrorCode.UserRejected },
+    });
   });
 
   it('returns error -3 when XDR is invalid', async () => {
@@ -178,7 +181,9 @@ describe('SignTransactionHandler', () => {
       buildRequest(mockAccount.id, 'not-an-xdr'),
     );
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -214,7 +219,9 @@ describe('SignTransactionHandler', () => {
       buildRequest(mockAccount.id, testnetTx.getRaw().toXDR()),
     );
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -251,7 +258,9 @@ describe('SignTransactionHandler', () => {
       buildRequest(mockAccount.id, strangerTx.getRaw().toXDR()),
     );
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -263,7 +272,9 @@ describe('SignTransactionHandler', () => {
       scope: KnownCaip2ChainId.Testnet,
     });
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -276,7 +287,9 @@ describe('SignTransactionHandler', () => {
       }),
     );
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -292,7 +305,9 @@ describe('SignTransactionHandler', () => {
 
     const result = await handler.handle(base);
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.InvalidRequest);
+    expect(result).toMatchObject({
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
@@ -316,8 +331,12 @@ describe('SignTransactionHandler', () => {
       buildRequest(mockAccount.id, transaction.getRaw().toXDR()),
     );
 
-    expect(result.error?.code).toBe(Sep43ErrorCode.ExternalService);
-    expect(result.error?.ext?.[0]).toContain('Failed to simulate transaction');
+    expect(result).toMatchObject({
+      error: {
+        code: Sep43ErrorCode.ExternalService,
+        ext: [expect.stringContaining('Failed to simulate transaction')],
+      },
+    });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 });

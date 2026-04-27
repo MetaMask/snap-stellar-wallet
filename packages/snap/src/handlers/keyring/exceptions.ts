@@ -85,9 +85,9 @@ export class Sep43Error extends Error {
   /**
    * Serializes to the SEP-43 `error` shape.
    *
-   * @returns The serialized error envelope (`message`, `code`, optional `ext`).
+   * @returns The serialized error payload (`message`, `code`, optional `ext`).
    */
-  toEnvelope(): { message: string; code: number; ext?: string[] } {
+  toJSON(): { message: string; code: number; ext?: string[] } {
     return {
       message: this.message,
       code: this.code,

@@ -121,7 +121,7 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       // SEP-43 schema requires the field even on error; keep it empty when unknown.
       signedTxXdr: '',
       signerAddress,
-      error: error.toEnvelope(),
+      error: error.toJSON(),
     };
   }
 

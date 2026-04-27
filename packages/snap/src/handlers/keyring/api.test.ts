@@ -195,6 +195,21 @@ describe('SignMessageRequestStruct', () => {
     ).not.toThrow();
   });
 
+  it('accepts a UTF-8 string message (SEP-43 allows either base64 or UTF-8)', () => {
+    expect(() =>
+      assert(
+        {
+          ...validSignMessageRequest,
+          request: {
+            method: MultichainMethod.SignMessage,
+            params: { message: 'Sign in to dapp' },
+          },
+        },
+        SignMessageRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
   it('accepts an SEP-43 opts bag with address and networkPassphrase', () => {
     expect(() =>
       assert(
@@ -230,13 +245,6 @@ describe('SignMessageRequestStruct', () => {
       request: {
         method: MultichainMethod.SignMessage,
         params: { message: '' },
-      },
-    },
-    {
-      ...validSignMessageRequest,
-      request: {
-        method: MultichainMethod.SignMessage,
-        params: { message: 'not valid base64 !!!' },
       },
     },
     {
