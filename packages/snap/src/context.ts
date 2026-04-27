@@ -96,7 +96,6 @@ const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountService,
   walletService,
-  onChainAccountService,
   transactionBuilder,
   transactionService,
   confirmationUIController,
@@ -105,9 +104,8 @@ const signTransactionHandler = new SignTransactionHandler({
 const signMessageHandler = new SignMessageHandler({
   logger,
   accountService,
-  onChainAccountService,
-  confirmationUIController,
   walletService,
+  confirmationUIController,
 });
 
 const keyringMethodHandlers: Record<MultichainMethod, IKeyringRequestHandler> =

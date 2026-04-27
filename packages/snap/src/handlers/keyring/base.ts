@@ -1,19 +1,14 @@
 import type { Struct } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
-import { Networks } from '@stellar/stellar-sdk';
 
 import type { Sep43ErrorEnvelope, Sep43Opts } from './api';
 import { Sep43Error, Sep43ErrorCode, toSep43Error } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';
-import { KnownCaip2ChainId as Caip2 } from '../../api';
 import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
-import { AccountNotActivatedException } from '../../services/network';
-import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { Wallet, WalletService } from '../../services/wallet';
-import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
 import type { ILogger } from '../../utils';
 import { createPrefixedLogger } from '../../utils';
 import { validateRequest, validateResponse } from '../../utils/requestResponse';
@@ -24,9 +19,6 @@ import { validateRequest, validateResponse } from '../../utils/requestResponse';
 export type IKeyringRequestHandler = {
   handle: (request: Json) => Promise<Json>;
 };
-
-/** Mainnet is the only network the snap currently signs for. */
-const SUPPORTED_PASSPHRASE: string = Networks.PUBLIC;
 
 /**
  * Base class shared by the SEP-43 SignMessage and SignTransaction keyring
@@ -39,13 +31,9 @@ const SUPPORTED_PASSPHRASE: string = Networks.PUBLIC;
  * thrown errors into the SEP-43 `error` envelope so the dapp always receives a
  * well-formed payload.
  *
- * After the keyring account is resolved, {@link OnChainAccountService} is used
- * the same way as other activated-account flows: an unfunded ledger account
- * triggers the account-activation UI, then a SEP-43 `error` (not a JSON-RPC
- * error) is returned.
- *
- * `request.origin` is the dapp or wallet caller origin already validated by
- * MetaMask before the snap runs; the confirmation UI uses it for display only.
+ * SEP-43 is a sign-only protocol — no on-chain activation check is performed.
+ * The dapp is responsible for ensuring the account exists on-chain before
+ * constructing the transaction or message.
  *
  * Subclasses implement {@link execute} which performs the wallet signing and
  * returns the success-shaped fields. They never throw to the dapp directly.
@@ -70,8 +58,6 @@ export abstract class BaseSep43KeyringHandler<
 
   protected readonly walletService: WalletService;
 
-  protected readonly onChainAccountService: OnChainAccountService;
-
   protected readonly requestStruct: Struct<Request>;
 
   protected readonly responseStruct: Struct<Response>;
@@ -80,7 +66,6 @@ export abstract class BaseSep43KeyringHandler<
     logger,
     accountService,
     walletService,
-    onChainAccountService,
     loggerPrefix,
     requestStruct,
     responseStruct,
@@ -88,7 +73,6 @@ export abstract class BaseSep43KeyringHandler<
     logger: ILogger;
     accountService: AccountService;
     walletService: WalletService;
-    onChainAccountService: OnChainAccountService;
     loggerPrefix: string;
     requestStruct: Struct<Request>;
     responseStruct: Struct<Response>;
@@ -96,44 +80,48 @@ export abstract class BaseSep43KeyringHandler<
     this.logger = createPrefixedLogger(logger, loggerPrefix);
     this.accountService = accountService;
     this.walletService = walletService;
-    this.onChainAccountService = onChainAccountService;
     this.requestStruct = requestStruct;
     this.responseStruct = responseStruct;
   }
 
   /**
-   * Top-level entry point. Runs the full pipeline (validate → check
-   * network/opts → resolve account → execute) inside a single try/catch so
-   * every failure (including struct validation) is serialized into the SEP-43
-   * `error` envelope. The dapp never sees a thrown JSON-RPC error.
+   * Top-level entry point. Runs the full pipeline (validate → resolve account
+   * → execute) inside a single try/catch so every failure (including struct
+   * validation) is serialized into the SEP-43 `error` envelope. The dapp
+   * never sees a thrown JSON-RPC error.
    *
    * @param rawRequest - The unvalidated keyring request as forwarded by
-   * `KeyringHandler.submitRequest` (or the dev `stellar_*` RPC aliases). The
-   * wrapper's `origin` is the caller origin MetaMask attached; treat it as
-   * system-trusted for labeling in confirmation UI, not as a crypto capability.
+   * `KeyringHandler.submitRequest` (or the dev `stellar_*` RPC aliases).
    * @returns The SEP-43 response with either the success fields or `error`
    * populated.
    */
   async handle(rawRequest: Json): Promise<Response> {
     let signerAddress = '';
     try {
-      const request = validateRequest(rawRequest, this.requestStruct);
+      // Check submit/submitUrl on the raw JSON before validateRequest coerces
+      // the opts struct and strips unknown fields. The snap is sign-only.
+      const rawOpts = (
+        (rawRequest as Record<string, unknown>)?.request as
+          | Record<string, unknown>
+          | undefined
+      )?.params as Record<string, unknown> | undefined;
+      const opts = rawOpts?.opts as Record<string, unknown> | undefined;
+      if (opts?.submit !== undefined || opts?.submitUrl !== undefined) {
+        throw new Sep43Error({
+          code: Sep43ErrorCode.InvalidRequest,
+          ext: ['This wallet does not submit transactions; use sign only.'],
+        });
+      }
 
-      this.assertSupportedNetwork(request);
-      this.assertNoSubmit(request.request.params.opts);
+      const request = validateRequest(rawRequest, this.requestStruct);
 
       const { account, wallet } = await this.resolveAccount(request);
       signerAddress = account.address;
-
-      await this.assertAccountActivatedOnChain(request, account);
 
       const result = await this.execute(request, { account, wallet });
       validateResponse(result, this.responseStruct);
       return result;
     } catch (error: unknown) {
-      if (error instanceof AccountNotActivatedException) {
-        await renderAccountActivationPrompt(error.address);
-      }
       const sep43 = toSep43Error(error);
       this.logger.logErrorWithDetails('SEP-43 request failed', sep43);
       return this.toErrorResponse(signerAddress, sep43);
@@ -185,79 +173,7 @@ export abstract class BaseSep43KeyringHandler<
         })
       : await this.accountService.resolveAccount({ accountId });
 
-    if (optsAddress && account.id !== accountId) {
-      throw new Sep43Error({
-        code: Sep43ErrorCode.InvalidRequest,
-        ext: [
-          `opts.address ${optsAddress} does not match the session-selected account.`,
-        ],
-      });
-    }
-
     const wallet = await this.walletService.resolveWallet(account);
     return { account, wallet };
-  }
-
-  /**
-   * Throws when the dapp asks for a network we don't support.
-   * Today: mainnet only. The snap rejects any other `opts.networkPassphrase`
-   * and any non-mainnet `scope`.
-   *
-   * @param request - The keyring request.
-   */
-  protected assertSupportedNetwork(request: Request): void {
-    if (request.scope !== Caip2.Mainnet) {
-      throw new Sep43Error({
-        code: Sep43ErrorCode.InvalidRequest,
-        ext: [`Only mainnet is supported, received scope ${request.scope}.`],
-      });
-    }
-
-    const requestedPassphrase = request.request.params.opts?.networkPassphrase;
-    if (
-      requestedPassphrase !== undefined &&
-      requestedPassphrase !== SUPPORTED_PASSPHRASE
-    ) {
-      throw new Sep43Error({
-        code: Sep43ErrorCode.InvalidRequest,
-        ext: [
-          `Only Stellar mainnet is supported by this wallet. Received passphrase: ${requestedPassphrase}.`,
-        ],
-      });
-    }
-  }
-
-  /**
-   * Throws when the dapp set `submit` or `submitUrl`. The snap is sign-only.
-   *
-   * @param opts - The SEP-43 opts bag (may be undefined).
-   */
-  protected assertNoSubmit(opts: Sep43Opts | undefined): void {
-    // Use property access to detect even runtime-injected fields the struct stripped.
-    const raw = opts as undefined | Record<string, unknown>;
-    if (raw?.submit !== undefined || raw?.submitUrl !== undefined) {
-      throw new Sep43Error({
-        code: Sep43ErrorCode.InvalidRequest,
-        ext: ['This wallet does not submit transactions; use sign only.'],
-      });
-    }
-  }
-
-  /**
-   * Ensures the account exists on the Stellar network (funded) before signing.
-   * Aligns with the `WithActiveAccountResolve` path in `handlers/base.ts` for
-   * non-SEP-43 client routes.
-   *
-   * @param request - The validated keyring request (used for `scope`).
-   * @param account - The resolved keyring account.
-   */
-  protected async assertAccountActivatedOnChain(
-    request: Request,
-    account: StellarKeyringAccount,
-  ): Promise<void> {
-    await this.onChainAccountService.resolveOnChainAccount(
-      account.address,
-      request.scope,
-    );
   }
 }

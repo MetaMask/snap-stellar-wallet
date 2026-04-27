@@ -8,7 +8,6 @@ import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
-import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { Wallet, WalletService } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
@@ -35,20 +34,17 @@ export class SignMessageHandler extends BaseSep43KeyringHandler<
     logger,
     accountService,
     walletService,
-    onChainAccountService,
     confirmationUIController,
   }: {
     logger: ILogger;
     accountService: AccountService;
     walletService: WalletService;
-    onChainAccountService: OnChainAccountService;
     confirmationUIController: ConfirmationUXController;
   }) {
     super({
       logger,
       accountService,
       walletService,
-      onChainAccountService,
       loggerPrefix: '[✉️ SignMessageHandler]',
       requestStruct: SignMessageRequestStruct,
       responseStruct: SignMessageResponseStruct,

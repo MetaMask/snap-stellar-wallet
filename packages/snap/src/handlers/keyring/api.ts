@@ -15,6 +15,7 @@ import {
   assign,
   nullable,
   enums,
+  refine,
 } from '@metamask/superstruct';
 import type { Infer } from '@metamask/superstruct';
 import { base64 } from '@metamask/utils';
@@ -25,9 +26,10 @@ import {
   KnownCaip19Slip44IdStruct,
 } from '../../api';
 import { StellarAddressStruct } from '../../api/address';
-import { KnownCaip2ChainIdStruct } from '../../api/network';
+import { KnownCaip2ChainId, KnownCaip2ChainIdStruct } from '../../api/network';
 import { UuidStruct } from '../../api/uuid';
 import { XdrStruct } from '../../api/xdr';
+import { networkToCaip2ChainId } from '../../services/network/utils';
 
 /** JSON-RPC methods supported by this snap's multichain keyring. */
 export enum MultichainMethod {
@@ -90,13 +92,26 @@ export const DiscoverAccountsStruct = object({
 /**
  * Optional bag accepted by both SEP-43 sign methods.
  *
- * `submit` and `submitUrl` are intentionally omitted from the schema:
- * the snap signs only and rejects any caller asking for submission.
+ * Network and submission constraints are enforced at the struct level:
+ * - `networkPassphrase`, when provided, must map to Stellar mainnet via
+ * {@link networkToCaip2ChainId}.
+ * - `submit` and `submitUrl` are declared as `never` so any present value
+ * fails validation with -3 InvalidRequest — the snap is sign-only.
  *
  * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
  */
 export const Sep43OptsStruct = object({
-  networkPassphrase: optional(nonempty(string())),
+  networkPassphrase: optional(
+    refine(nonempty(string()), 'mainnet-passphrase', (value) => {
+      try {
+        return networkToCaip2ChainId(value) === KnownCaip2ChainId.Mainnet
+          ? true
+          : `Only Stellar mainnet is supported, received passphrase: ${value}`;
+      } catch {
+        return `Unknown network passphrase: ${value}`;
+      }
+    }),
+  ),
   address: optional(StellarAddressStruct),
 });
 
@@ -129,7 +144,7 @@ export const SignMessageRequestStruct = assign(
         opts: optional(Sep43OptsStruct),
       }),
     }),
-    scope: KnownCaip2ChainIdStruct,
+    scope: literal(KnownCaip2ChainId.Mainnet),
     account: UuidStruct,
   }),
 );
@@ -164,7 +179,7 @@ export const SignTransactionRequestStruct = assign(
         opts: optional(Sep43OptsStruct),
       }),
     }),
-    scope: KnownCaip2ChainIdStruct,
+    scope: literal(KnownCaip2ChainId.Mainnet),
     account: UuidStruct,
   }),
 );

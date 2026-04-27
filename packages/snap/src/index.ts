@@ -19,7 +19,6 @@ import {
   signMessageHandler,
   signTransactionHandler,
 } from './context';
-import { validateOrigin } from './utils';
 
 export const onAssetHistoricalPrice: OnAssetHistoricalPriceHandler = async (
   args,
@@ -72,20 +71,14 @@ export const onCronjob: OnCronjobHandler = async ({ request }) =>
  * snaps built without `endowment:rpc` never expose `onRpcRequest` to the network.
  *
  * @param args - The RPC request from MetaMask.
- * @param args.origin - The dapp or caller origin (enforced via {@link validateOrigin}).
  * @param args.request - The JSON-RPC request payload.
  * @returns The SEP-43 response envelope produced by the matching handler.
  */
-export const onRpcRequest: OnRpcRequestHandler = async ({
-  origin,
-  request,
-}) => {
+export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
   switch (request.method) {
     case 'stellar_signMessage':
-      validateOrigin(origin, request.method);
       return signMessageHandler.handle(request.params as Json);
     case 'stellar_signTransaction':
-      validateOrigin(origin, request.method);
       return signTransactionHandler.handle(request.params as Json);
     default:
       throw new MethodNotFoundError() as Error;

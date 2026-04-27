@@ -11,7 +11,6 @@ import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
-import type { OnChainAccountService } from '../../services/on-chain-account';
 import type {
   Transaction,
   TransactionBuilder,
@@ -53,7 +52,6 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
     logger,
     accountService,
     walletService,
-    onChainAccountService,
     transactionBuilder,
     transactionService,
     confirmationUIController,
@@ -61,7 +59,6 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
     logger: ILogger;
     accountService: AccountService;
     walletService: WalletService;
-    onChainAccountService: OnChainAccountService;
     transactionBuilder: TransactionBuilder;
     transactionService: TransactionService;
     confirmationUIController: ConfirmationUXController;
@@ -70,7 +67,6 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       logger,
       accountService,
       walletService,
-      onChainAccountService,
       loggerPrefix: '[📝 SignTransactionHandler]',
       requestStruct: SignTransactionRequestStruct,
       responseStruct: SignTransactionResponseStruct,

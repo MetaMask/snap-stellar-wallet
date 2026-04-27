@@ -5,12 +5,11 @@ import { Sep43ErrorCode } from './exceptions';
 import { SignTransactionHandler } from './signTransaction';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
-import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
-import { AccountNotActivatedException } from '../../services/network';
+import {
+  generateStellarKeyringAccount,
+  mockAccountService,
+} from '../../services/account/__mocks__/account.fixtures';
 import { SimulationException } from '../../services/network/exceptions';
-import { OnChainAccountService } from '../../services/on-chain-account';
-import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
-import type { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
 import type { Transaction } from '../../services/transaction';
 import { TransactionService } from '../../services/transaction';
 import {
@@ -23,12 +22,6 @@ import type { ConfirmationUXController } from '../../ui/confirmation/controller'
 import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
-/* eslint-disable @typescript-eslint/naming-convention -- Jest ESM interop */
-jest.mock('../../ui/confirmation/views/AccountActivationPrompt/render', () => ({
-  __esModule: true,
-  render: jest.fn().mockResolvedValue(undefined),
-}));
-/* eslint-enable @typescript-eslint/naming-convention */
 
 describe('SignTransactionHandler', () => {
   /**
@@ -48,12 +41,7 @@ describe('SignTransactionHandler', () => {
 
     const { transactionBuilder, transactionService } =
       createMockTransactionService();
-    const { accountService, walletService, onChainAccountService } =
-      mockOnChainAccountService();
-
-    const resolveOnChainAccountSpy = jest
-      .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
-      .mockResolvedValue({ assetIds: [] } as unknown as OnChainAccount);
+    const { accountService, walletService } = mockAccountService();
 
     const resolveAccountSpy = jest
       .spyOn(AccountService.prototype, 'resolveAccount')
@@ -80,7 +68,6 @@ describe('SignTransactionHandler', () => {
       logger,
       accountService,
       walletService,
-      onChainAccountService,
       transactionBuilder,
       transactionService,
       confirmationUIController,
@@ -94,7 +81,6 @@ describe('SignTransactionHandler', () => {
       transactionService,
       renderConfirmationDialog,
       resolveAccountSpy,
-      resolveOnChainAccountSpy,
     };
   }
 
@@ -332,39 +318,6 @@ describe('SignTransactionHandler', () => {
 
     expect(result.error?.code).toBe(Sep43ErrorCode.ExternalService);
     expect(result.error?.ext?.[0]).toContain('Failed to simulate transaction');
-    expect(renderConfirmationDialog).not.toHaveBeenCalled();
-  });
-
-  it('shows the account activation prompt and returns ExternalService when the account is not funded', async () => {
-    const { render: renderAccountActivationPrompt } =
-      await import('../../ui/confirmation/views/AccountActivationPrompt/render');
-    const {
-      handler,
-      mockAccount,
-      wallet,
-      transactionBuilder,
-      renderConfirmationDialog,
-      resolveOnChainAccountSpy,
-    } = setupHandler();
-
-    const transaction = buildMainnetPaymentFromWallet(wallet.address);
-    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
-
-    resolveOnChainAccountSpy.mockRejectedValueOnce(
-      new AccountNotActivatedException(
-        mockAccount.address,
-        KnownCaip2ChainId.Mainnet,
-      ),
-    );
-
-    const result = await handler.handle(
-      buildRequest(mockAccount.id, transaction.getRaw().toXDR()),
-    );
-
-    expect(jest.mocked(renderAccountActivationPrompt)).toHaveBeenCalledWith(
-      mockAccount.address,
-    );
-    expect(result.error?.code).toBe(Sep43ErrorCode.ExternalService);
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 });

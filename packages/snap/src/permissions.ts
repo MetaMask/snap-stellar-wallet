@@ -20,10 +20,6 @@ const dappPermissions = isDev
       KeyringRpcMethod.SubmitRequest,
       KeyringRpcMethod.ListAccountTransactions,
       KeyringRpcMethod.ListAccountAssets,
-      // Dev-only RPC aliases for the local test dapp (see `onRpcRequest`).
-      // Production dapps reach the same handlers via the multichain API.
-      'stellar_signMessage',
-      'stellar_signTransaction',
     ])
   : new Set<string>([]);
 
