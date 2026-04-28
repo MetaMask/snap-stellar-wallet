@@ -2,7 +2,6 @@ import {
   Account,
   Address,
   Contract,
-  Networks,
   type Operation,
   rpc,
   scValToNative,
@@ -10,6 +9,10 @@ import {
   TransactionBuilder,
   xdr,
 } from '@stellar/stellar-sdk';
+
+import { caip2ChainIdToNetwork } from './utils';
+import { KnownCaip2ChainId } from '../../api/network';
+import { BASE_FEE } from '../../constants';
 
 /**
  * A simulation account to craft a transaction to simulate the balances read
@@ -137,20 +140,27 @@ export class MultiCall {
    * Simulates a multicall and returns the decoded result value.
    *
    * @param invocations - Invocations to batch.
-   * @param opts - Optional caller and source account overrides.
+   * @param opts - Optional caller, source account and scope overrides.
    * @param opts.caller - Account that authorizes the host function call; defaults to the simulation account.
    * @param opts.source - Transaction `source` account; defaults to the simulation account.
+   * @param opts.scope - CAIP-2 network ID; defaults to Mainnet.
    * @returns The simulation result as a native value.
    */
   async simResult<Result>(
     invocations: (InvocationV1 | InvocationV0)[],
-    opts?: { caller?: string; source?: string },
+    opts?: { caller?: string; source?: string; scope?: KnownCaip2ChainId },
   ): Promise<Result> {
     const sourceAccount = opts?.source ?? this.#simulationAccount;
     const callerAccount = opts?.caller ?? this.#simulationAccount;
+    const scope = opts?.scope ?? KnownCaip2ChainId.Mainnet;
     const tx: Transaction = new TransactionBuilder(
+      // The account sequence number is not used for the simulation,
+      // so we can safely set it to 0.
       new Account(sourceAccount, '0'),
-      { networkPassphrase: Networks.PUBLIC, fee: '0' },
+      {
+        networkPassphrase: caip2ChainIdToNetwork(scope),
+        fee: BASE_FEE.toString(),
+      },
     )
       .setTimeout(0)
       .addOperation(this.exec(callerAccount, invocations))

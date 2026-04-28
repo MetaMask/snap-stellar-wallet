@@ -445,6 +445,7 @@ export class NetworkService {
       return {};
     }
 
+    // Multicall is not supported on testnet.
     if (scope === KnownCaip2ChainId.Testnet) {
       return {};
     }
@@ -473,7 +474,9 @@ export class NetworkService {
       }
       const totalRecords = accounts.length * assetIds.length;
 
-      const simResults: unknown[] = await multiCall.simResult(invocations);
+      const simResults: unknown[] = await multiCall.simResult(invocations, {
+        scope,
+      });
 
       if (simResults.length !== totalRecords) {
         throw new NetworkServiceException(

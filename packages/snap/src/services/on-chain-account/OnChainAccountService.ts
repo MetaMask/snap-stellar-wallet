@@ -89,14 +89,15 @@ export class OnChainAccountService {
    * @param scope - The CAIP-2 chain id to load the on-chain account for.
    * @returns The on-chain account, or `null` if not found.
    */
-  async resolveOnChainAccountByAccountId(
+  async resolveOnChainAccountByKeyringAccountId(
     keyringAccountId: string,
     scope: KnownCaip2ChainId,
   ): Promise<OnChainAccount | null> {
-    const onChainAccount = await this.#onChainAccountRepository.findByAccountId(
-      keyringAccountId,
-      scope,
-    );
+    const onChainAccount =
+      await this.#onChainAccountRepository.findByKeyringAccountId(
+        keyringAccountId,
+        scope,
+      );
     return onChainAccount
       ? OnChainAccount.fromSerializable(onChainAccount)
       : null;
@@ -106,15 +107,15 @@ export class OnChainAccountService {
    * Enriches accounts with SEP-41 balances, persists snapshots, then notifies the keyring when
    * balances or the tracked asset set changed. Delegates to {@link OnChainAccountSynchronizeService}.
    *
-   * @param keyringAccount - Stellar keyring accounts to sync for `scope`.
+   * @param keyringAccounts - Stellar keyring accounts to sync for `scope`.
    * @param scope - CAIP-2 network.
    */
   async synchronize(
-    keyringAccount: StellarKeyringAccount[],
+    keyringAccounts: StellarKeyringAccount[],
     scope: KnownCaip2ChainId,
   ): Promise<void> {
     await this.#onChainAccountSynchronizeService.synchronize(
-      keyringAccount,
+      keyringAccounts,
       scope,
     );
   }

@@ -31,7 +31,7 @@ jest.mock('@metamask/keyring-snap-sdk', () => ({
   emitSnapKeyringEvent: jest.fn(),
 }));
 
-describe('OnChainAccountService.synchronize', () => {
+describe('OnChainAccountSynchronizeService', () => {
   const seed = hexToBytes(
     '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
   );
@@ -54,9 +54,9 @@ describe('OnChainAccountService.synchronize', () => {
       typeof mockOnChainAccountService
     >['onChainAccountRepository'],
   ) => ({
-    findByAccountIdsSpy: jest.spyOn(
+    findByKeyringAccountIdsSpy: jest.spyOn(
       onChainAccountRepository,
-      'findByAccountIds',
+      'findByKeyringAccountIds',
     ),
     saveManySpy: jest.spyOn(onChainAccountRepository, 'saveMany'),
   });
@@ -168,7 +168,7 @@ describe('OnChainAccountService.synchronize', () => {
     );
 
     const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
-    const { onChainAccountService, findByAccountIdsSpy, saveManySpy } =
+    const { onChainAccountService, findByKeyringAccountIdsSpy, saveManySpy } =
       setupSynchronizeService();
 
     await onChainAccountService.synchronize(
@@ -177,7 +177,7 @@ describe('OnChainAccountService.synchronize', () => {
     );
 
     expect(getSep41AssetBalancesSpy).not.toHaveBeenCalled();
-    expect(findByAccountIdsSpy).not.toHaveBeenCalled();
+    expect(findByKeyringAccountIdsSpy).not.toHaveBeenCalled();
     expect(saveManySpy).not.toHaveBeenCalled();
     expect(emitSnapKeyringEventSpy).not.toHaveBeenCalled();
   });
@@ -233,9 +233,9 @@ describe('OnChainAccountService.synchronize', () => {
     loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
-    const { onChainAccountService, findByAccountIdsSpy, saveManySpy } =
+    const { onChainAccountService, findByKeyringAccountIdsSpy, saveManySpy } =
       setupSynchronizeService();
-    findByAccountIdsSpy.mockResolvedValue({
+    findByKeyringAccountIdsSpy.mockResolvedValue({
       [keyringAccount.id]: binding,
     });
 
@@ -300,9 +300,9 @@ describe('OnChainAccountService.synchronize', () => {
     });
 
     const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
-    const { onChainAccountService, findByAccountIdsSpy } =
+    const { onChainAccountService, findByKeyringAccountIdsSpy } =
       setupSynchronizeService();
-    findByAccountIdsSpy.mockResolvedValue({
+    findByKeyringAccountIdsSpy.mockResolvedValue({
       [keyringAccount.id]: withSep,
     });
     loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
@@ -360,9 +360,9 @@ describe('OnChainAccountService.synchronize', () => {
     loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
-    const { onChainAccountService, findByAccountIdsSpy, saveManySpy } =
+    const { onChainAccountService, findByKeyringAccountIdsSpy, saveManySpy } =
       setupSynchronizeService();
-    findByAccountIdsSpy.mockResolvedValue({
+    findByKeyringAccountIdsSpy.mockResolvedValue({
       [keyringAccount.id]: withPersistedSep41,
     });
 
@@ -403,9 +403,9 @@ describe('OnChainAccountService.synchronize', () => {
     });
     loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
-    const { onChainAccountService, findByAccountIdsSpy, saveManySpy } =
+    const { onChainAccountService, findByKeyringAccountIdsSpy, saveManySpy } =
       setupSynchronizeService();
-    findByAccountIdsSpy.mockResolvedValue({
+    findByKeyringAccountIdsSpy.mockResolvedValue({
       [keyringAccount.id]: withPersistedBackupSep41,
     });
 

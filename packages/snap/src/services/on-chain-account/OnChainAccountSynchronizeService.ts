@@ -44,7 +44,7 @@ type Sep41BalanceFetchResult = {
  * Persists on-chain account snapshots and emits keyring balance / asset-list events after a sync.
  *
  * {@link synchronize} uses a mutex so overlapping syncs cannot interleave read–merge–write across
- * `findByAccountIds` and `saveMany`. Each `saveMany` call is still one atomic `IStateManager.update`.
+ * `findByKeyringAccountIds` and `saveMany`. Each `saveMany` call is still one atomic `IStateManager.update`.
  */
 export class OnChainAccountSynchronizeService {
   readonly #networkService: NetworkService;
@@ -133,27 +133,28 @@ export class OnChainAccountSynchronizeService {
           stellarAccountIds,
           scope,
         );
-      } catch {
-        this.#logger.debug(
+      } catch (error: unknown) {
+        this.#logger.logErrorWithDetails(
           'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 token rows where needed',
+          error,
         );
       }
 
       // 3. Snap state: latest serialized snapshots before this run (merge source + keyring diff baseline).
       this.#logger.debug('Load latest state snapshots for on-chain accounts');
-      const latestSerializedAccountSnaphotByKeyringId =
-        await this.#onChainAccountRepository.findByAccountIds(
+      const latestSerializedAccountSnapshotByKeyringId =
+        await this.#onChainAccountRepository.findByKeyringAccountIds(
           keyringAccountIds,
           scope,
         );
       const lengthOfSnapshot = Object.keys(
-        latestSerializedAccountSnaphotByKeyringId,
-      ).length;
+        latestSerializedAccountSnapshotByKeyringId,
+      ).filter((snapshot) => snapshot !== null).length;
       this.#logger.debug(
         'Loaded latest state snapshots for on-chain accounts - no of accounts loaded',
         {
           noOfAccounts: lengthOfSnapshot,
-          newActivedAccountPairs:
+          newActivatedAccountPairs:
             activatedAccountPairs.length - lengthOfSnapshot,
         },
       );
@@ -178,7 +179,7 @@ export class OnChainAccountSynchronizeService {
       } of activatedAccountPairs) {
         const keyringAccountId = keyringAccount.id;
         const latestStateSnapshotSerialized =
-          latestSerializedAccountSnaphotByKeyringId[keyringAccountId] ?? null;
+          latestSerializedAccountSnapshotByKeyringId[keyringAccountId] ?? null;
         const stateSnapshotOnChainAccount =
           latestStateSnapshotSerialized === null
             ? null
@@ -199,7 +200,7 @@ export class OnChainAccountSynchronizeService {
         );
 
         const { balanceChanges, assetListChanges } =
-          this.#diffFullSnapshotsForKeyring(
+          this.#computeKeyringSyncDeltas(
             stateSnapshotOnChainAccount,
             synchronizedOnChainAccount,
           );
@@ -432,15 +433,14 @@ export class OnChainAccountSynchronizeService {
   }
 
   /**
-   * Builds keyring event deltas:
-   * - `stateSnapshotOnChainAccount`: rehydrated account from the latest serialized state snapshot.
-   * - `synchronizedOnChainAccount`: in-memory account after merge (matches what was just serialized to state).
+   * Compares persisted on-chain state to the account after this sync and produces keyring
+   * event data: per-asset balance updates (all assets) and non-native token add/remove.
    *
-   * @param stateSnapshotOnChainAccount - Latest account from state (`null` on first sync for this id/scope).
-   * @param synchronizedOnChainAccount - Bound account after Horizon + SEP-41 + merge.
-   * @returns Nullable payloads for balance and non-native asset-list deltas.
+   * @param stateSnapshotOnChainAccount - Last saved account from state, or `null` when none exists.
+   * @param synchronizedOnChainAccount - Same account after Horizon, SEP-41, and merge steps.
+   * @returns `balanceChanges` and/or `assetListChanges`, each `null` when that side is unchanged.
    */
-  #diffFullSnapshotsForKeyring(
+  #computeKeyringSyncDeltas(
     stateSnapshotOnChainAccount: OnChainAccount | null,
     synchronizedOnChainAccount: OnChainAccount,
   ): {

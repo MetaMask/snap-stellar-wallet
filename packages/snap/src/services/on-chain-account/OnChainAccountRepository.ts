@@ -18,15 +18,17 @@ export class OnChainAccountRepository {
   }
 
   /**
+   * Find the on-chain account for the given keyring account id from the State.
+   *
    * @param keyringAccountId - MetaMask keyring account id (not the Stellar G-address).
    * @param scope - CAIP-2 chain id for the cached snapshot.
    * @returns The stored snapshot, or `null` when none exists for this keyring id and scope.
    */
-  async findByAccountId(
+  async findByKeyringAccountId(
     keyringAccountId: string,
     scope: KnownCaip2ChainId,
   ): Promise<OnChainAccountSerializableFull | null> {
-    const snapshotsByAccountId = await this.findByAccountIds(
+    const snapshotsByAccountId = await this.findByKeyringAccountIds(
       [keyringAccountId],
       scope,
     );
@@ -35,11 +37,13 @@ export class OnChainAccountRepository {
   }
 
   /**
+   * Find the on-chain accounts for the given keyring account ids from the State.
+   *
    * @param keyringAccountIds - MetaMask keyring account ids (not Stellar G-addresses).
    * @param scope - CAIP-2 chain id for the cached snapshots.
    * @returns Account id -> snapshot (or `null` when missing for the given scope).
    */
-  async findByAccountIds(
+  async findByKeyringAccountIds(
     keyringAccountIds: string[],
     scope: KnownCaip2ChainId,
   ): Promise<Record<string, OnChainAccountSerializableFull | null>> {
