@@ -354,7 +354,6 @@ export class OnChainAccountSynchronizeService {
     }
 
     const unresolvedSep41AssetIds = new Set<KnownCaip19Sep41AssetId>();
-    // Missing address entry: batch result had no map for this account (often an empty overall result). Not a throw — the call still resolved.
     const sep41AssetBalances =
       sep41BalanceFetchResult.balancesByAccountId[onChainAccount.accountId] ??
       {};
