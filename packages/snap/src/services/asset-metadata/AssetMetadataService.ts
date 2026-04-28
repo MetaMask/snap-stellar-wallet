@@ -136,6 +136,18 @@ export class AssetMetadataService {
   }
 
   /**
+   * Returns all persisted assets for the given scope.
+   *
+   * @param scope - The chain ID to look up.
+   * @returns A Promise that resolves to all persisted assets for the given scope.
+   */
+  async getAllByScope(
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarAssetMetadata[]> {
+    return this.#assetMetadataRepository.getAllByScope(scope);
+  }
+
+  /**
    * Fetches and persists all Assets for the given chain ID from the token API.
    *
    * @param scope - The chain ID to fetch and persist assets for.

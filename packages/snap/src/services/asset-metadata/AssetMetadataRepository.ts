@@ -74,6 +74,24 @@ export class AssetMetadataRepository {
   }
 
   /**
+   * Returns all persisted assets for the given scope.
+   *
+   * @param scope - The chain ID to look up.
+   * @returns A Promise that resolves to all persisted assets for the given scope.
+   */
+  async getAllByScope(
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarAssetMetadata[]> {
+    const assets =
+      (await this.#state.getKey<AssetMetadataByAssetId>(this.#stateKey)) ?? {};
+
+    return Object.values(assets).filter(
+      (asset): asset is StellarAssetMetadata =>
+        asset !== undefined && asset.chainId === scope,
+    );
+  }
+
+  /**
    * Returns persisted assets for the given asset type and chain ID.
    *
    * @param assetType - The asset type to look up.
