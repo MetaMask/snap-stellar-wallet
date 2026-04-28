@@ -1,3 +1,4 @@
+import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 import type { KnownCaip2ChainId } from '../../api';
 
 /** Per-asset view: native, classic trustline (limit + issuer in `address`), or SEP-41. */
@@ -10,37 +11,17 @@ export type SpendableBalance = {
   sponsored?: boolean;
 };
 
-/** Ledger fields used for native reserve / spendable math (Horizon or persisted snapshot). */
-export type OnChainAccountLedgerMeta = {
-  subentryCount: number;
-  numSponsoring: number;
-  numSponsored: number;
-};
+type AccountId = string;
 
-/**
- * Persisted on-chain account header fields for one keyring account on one network, refreshed on sync.
- * Does not include trustline balances (see `accountBalances` state).
- */
-export type OnChainAccountSnapshot = {
-  accountId: string;
-  sequenceNumber: string;
-  subentryCount: number;
-  numSponsoring: number;
-  numSponsored: number;
-  /** Unix ms when this row was written to snap state. */
-  persistedAt?: number;
-};
-
-/** `accountMetadata[keyringAccountId][scope]` → last synced {@link OnChainAccountSnapshot}. */
+/** `onChainAccounts[keyringAccountId][scope]` → last synced snapshot. */
 export type OnChainAccountSnapshotsByKeyringId = Record<
-  string,
-  Partial<Record<KnownCaip2ChainId, OnChainAccountSnapshot>>
+  AccountId,
+  Partial<Record<KnownCaip2ChainId, OnChainAccountSerializableFull>>
 >;
 
 /**
- * Snap state slice for cached on-chain account snapshots.
- * The root key stays `accountMetadata` for persisted snap state compatibility.
+ * Snap state slice for cached on-chain account snapshots (persisted under `onChainAccounts`).
  */
-export type OnChainAccountSnapshotState = {
-  accountMetadata: OnChainAccountSnapshotsByKeyringId;
+export type OnChainAccountState = {
+  onChainAccounts: OnChainAccountSnapshotsByKeyringId;
 };

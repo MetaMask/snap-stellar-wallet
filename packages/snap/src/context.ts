@@ -21,8 +21,11 @@ import {
 } from './services/asset-metadata';
 import { StateCache } from './services/cache';
 import { NetworkService } from './services/network';
-import type { OnChainAccountSnapshotState } from './services/on-chain-account';
-import { OnChainAccountService } from './services/on-chain-account';
+import type { OnChainAccountState } from './services/on-chain-account';
+import {
+  OnChainAccountRepository,
+  OnChainAccountService,
+} from './services/on-chain-account';
 import { PriceService } from './services/price';
 import { State } from './services/state';
 import {
@@ -43,7 +46,7 @@ const state = new State({
     assets: {},
     transactions: {},
     accountBalances: {} as AccountBalanceState['accountBalances'],
-    accountMetadata: {} as OnChainAccountSnapshotState['accountMetadata'],
+    onChainAccounts: {} as OnChainAccountState['onChainAccounts'],
   },
 });
 
@@ -53,6 +56,13 @@ const assetMetadataRepository = new AssetMetadataRepository(state);
 
 /** ------------------------------ Services  ------------------------------ */
 const networkService = new NetworkService({ logger });
+
+const assetMetadataService = new AssetMetadataService({
+  networkService,
+  assetMetadataRepository,
+  logger,
+});
+
 const transactionBuilder = new TransactionBuilder({
   logger,
 });
@@ -64,8 +74,13 @@ const accountService = new AccountService({
   walletService,
 });
 
+const onChainAccountRepository = new OnChainAccountRepository(state);
+
 const onChainAccountService = new OnChainAccountService({
+  logger,
   networkService,
+  onChainAccountRepository,
+  assetMetadataService,
 });
 
 const transactionService = new TransactionService({
@@ -82,12 +97,6 @@ const priceService = new PriceService({
 
 /** UX Controller */
 const confirmationUIController = new ConfirmationUXController({
-  logger,
-});
-
-const assetMetadataService = new AssetMetadataService({
-  networkService,
-  assetMetadataRepository,
   logger,
 });
 
