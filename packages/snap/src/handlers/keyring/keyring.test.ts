@@ -550,7 +550,7 @@ describe('KeyringHandler', () => {
   });
 
   describe('resolveAccountAddress', () => {
-    it('resolves an account address', async () => {
+    it('resolves an account address from opts.address', async () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({
         account: mockAccount,
@@ -563,7 +563,7 @@ describe('KeyringHandler', () => {
           id: '1',
           jsonrpc: '2.0',
           params: {
-            address: mockAccount.address,
+            opts: { address: mockAccount.address },
           },
         },
       );
@@ -588,7 +588,7 @@ describe('KeyringHandler', () => {
           method: MultichainMethod.SignMessage,
           id: '1',
           jsonrpc: '2.0',
-          params: { address: mockAccount.address },
+          params: { opts: { address: mockAccount.address } },
         }),
       ).rejects.toThrow(KeyringResolveAccountAddressException);
     });
@@ -600,7 +600,7 @@ describe('KeyringHandler', () => {
           id: '1',
           jsonrpc: '2.0',
           params: {
-            address: mockAccount.address,
+            opts: { address: mockAccount.address },
           },
         }),
       ).rejects.toThrow(InvalidParamsError);

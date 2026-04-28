@@ -65,12 +65,22 @@ export const CreateAccountOptionsStruct = optional(
 
 /**
  * Validation struct for the resolveAccountAddress JSON-RPC request.
+ *
+ * Per SEP-43, the address that identifies the requested signer lives at
+ * `params.opts.address` (alongside the method-specific fields like
+ * `message` / `xdr`). `type()` is used at both levels so the SEP-43
+ * payload's other fields pass through untouched — only `opts.address` is
+ * required for resolution.
+ *
+ * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
  */
 export const ResolveAccountAddressJsonRpcRequestStruct = object({
   jsonrpc: literal('2.0'),
   id: union([string(), number(), literal(null)] as const),
   method: MultichainMethodStruct,
-  params: type({ address: StellarAddressStruct }),
+  params: type({
+    opts: type({ address: StellarAddressStruct }),
+  }),
 });
 
 /**

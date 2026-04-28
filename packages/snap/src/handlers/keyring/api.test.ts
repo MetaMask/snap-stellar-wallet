@@ -59,26 +59,32 @@ describe('CreateAccountOptionsStruct', () => {
 
 describe('ResolveAccountAddressRequestStruct', () => {
   it.each([
-    // Test case: SignMessage are allowed
+    // Test case: SignMessage with opts.address
     {
       jsonrpc: '2.0',
       id: '1',
       method: MultichainMethod.SignMessage,
-      params: { address: account.address },
+      params: { opts: { address: account.address } },
     },
-    // Test case: SignTransaction are allowed
+    // Test case: SignTransaction with opts.address
     {
       jsonrpc: '2.0',
       id: '1',
       method: MultichainMethod.SignTransaction,
-      params: { address: account.address },
+      params: { opts: { address: account.address } },
     },
-    // Test case: Additional Params are allowed
+    // Test case: SEP-43 method-specific fields pass through (loose params/opts)
     {
       jsonrpc: '2.0',
       id: '1',
-      method: MultichainMethod.SignTransaction,
-      params: { address: account.address, message: 'Hello, world!' },
+      method: MultichainMethod.SignMessage,
+      params: {
+        message: btoa('Hello, world!'),
+        opts: {
+          address: account.address,
+          networkPassphrase: 'Public Global Stellar Network ; September 2015',
+        },
+      },
     },
   ])(
     'accepts a valid resolveAccountAddressJsonRpcRequest request',
@@ -102,7 +108,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
         jsonrpc: '2.0',
         id: '1',
         method: 'resolveAccountAddress',
-        params: { address: account.address },
+        params: { opts: { address: account.address } },
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
@@ -110,17 +116,37 @@ describe('ResolveAccountAddressRequestStruct', () => {
     {
       request: {
         method: MultichainMethod.SignMessage,
-        params: { address: account.address },
+        params: { opts: { address: account.address } },
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
-    // Test case: Invalid address
+    // Test case: Invalid address inside opts
     {
       request: {
         jsonrpc: '2.0',
         id: '1',
         method: MultichainMethod.SignMessage,
-        params: { address: 'invalid-address' },
+        params: { opts: { address: 'invalid-address' } },
+      },
+      scope: KnownCaip2ChainId.Mainnet,
+    },
+    // Test case: Address at the wrong path (top-level params, not opts)
+    {
+      request: {
+        jsonrpc: '2.0',
+        id: '1',
+        method: MultichainMethod.SignMessage,
+        params: { address: account.address },
+      },
+      scope: KnownCaip2ChainId.Mainnet,
+    },
+    // Test case: Missing opts entirely
+    {
+      request: {
+        jsonrpc: '2.0',
+        id: '1',
+        method: MultichainMethod.SignMessage,
+        params: { message: btoa('Hello') },
       },
       scope: KnownCaip2ChainId.Mainnet,
     },

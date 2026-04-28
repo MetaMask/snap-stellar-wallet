@@ -471,7 +471,7 @@ export class KeyringHandler implements Keyring {
     try {
       const { account } = await this.#accountService.resolveAccount({
         scope,
-        accountAddress: request.params.address,
+        accountAddress: request.params.opts.address,
       });
       return { address: `${scope}:${account.address}` };
     } catch (error: unknown) {
