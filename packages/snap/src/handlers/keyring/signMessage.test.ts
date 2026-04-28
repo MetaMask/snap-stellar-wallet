@@ -1,4 +1,4 @@
-import { Networks } from '@stellar/stellar-sdk';
+import { Keypair, Networks } from '@stellar/stellar-sdk';
 
 import { MultichainMethod, type SignMessageRequest } from './api';
 import { Sep43ErrorCode } from './exceptions';
@@ -176,6 +176,26 @@ describe('SignMessageHandler', () => {
     );
 
     const expected = await wallet.signMessage(utf8Message);
+    expect(result).toStrictEqual({
+      signedMessage: expected,
+      signerAddress: wallet.address,
+    });
+  });
+
+  it('ignores opts.address: signer is always determined by the keyring account UUID', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
+
+    // A different (well-formed) Stellar address that the dapp might pass —
+    // MetaMask routed to `mockAccount` via the UUID, so this MUST be ignored.
+    const otherAddress = Keypair.random().publicKey();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, { opts: { address: otherAddress } }),
+    );
+
+    const expected = await wallet.signMessage(btoa('hello stellar'));
     expect(result).toStrictEqual({
       signedMessage: expected,
       signerAddress: wallet.address,

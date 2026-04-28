@@ -93,15 +93,14 @@ export const DiscoverAccountsStruct = object({
 /**
  * Optional bag accepted by both SEP-43 sign methods.
  *
- * Network and submission constraints are enforced at the struct level:
  * - `networkPassphrase`, when provided, must map to Stellar mainnet via
  * {@link networkToCaip2ChainId}.
+ * - `address` is accepted for SEP-43 spec compliance but NOT used for
+ * signer resolution. MetaMask's keyring controller has already mapped
+ * `opts.address` to the keyring `account` UUID before the request reaches
+ * this snap, so we trust the UUID as the single source of truth.
  * - `submit` / `submitUrl` are not declared, so superstruct rejects them
  * as unknown keys with -3 InvalidRequest — the snap is sign-only.
- * - `address` is not declared. The MetaMask keyring framework has already
- * mapped the dapp's selection to a UUID; we trust that as the source of
- * truth and ignore any dapp-supplied `opts.address` to prevent a
- * redirected signer.
  *
  * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
  */
@@ -117,6 +116,7 @@ export const Sep43OptsStruct = object({
       }
     }),
   ),
+  address: optional(StellarAddressStruct),
 });
 
 export type Sep43Opts = Infer<typeof Sep43OptsStruct>;
@@ -187,8 +187,8 @@ export const SignMessageResponseStruct = union([
  * Validation struct for the signTransaction request.
  *
  * Params follow the SEP-43 `SignTransaction` shape: a base64-encoded
- * transaction envelope XDR and the optional `opts` bag
- * (`networkPassphrase`).
+ * transaction envelope XDR and the optional `opts` bag (`address`,
+ * `networkPassphrase`).
  */
 export const SignTransactionRequestStruct = assign(
   KeyringRequestStruct,

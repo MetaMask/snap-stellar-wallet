@@ -150,10 +150,12 @@ export abstract class BaseSep43KeyringHandler<
   ): Response;
 
   /**
-   * Resolves the signing account by the keyring `account` UUID. The keyring
-   * framework has already mapped the dapp's selection to a UUID, so we trust
-   * it as the single source of truth — `opts.address` is intentionally not
-   * honored to avoid letting the dapp redirect the signer.
+   * Resolves the signing account by the keyring `account` UUID. MetaMask's
+   * keyring controller has already used `opts.address` (when provided by the
+   * dapp) to route to the right account before this snap sees the request,
+   * so the UUID is the single source of truth. We accept `opts.address` in
+   * the struct for SEP-43 spec compliance but intentionally do not honor it
+   * here, to avoid letting the dapp redirect the signer.
    *
    * @param request - The keyring request.
    * @returns The resolved keyring account and signing wallet.
