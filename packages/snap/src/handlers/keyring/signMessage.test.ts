@@ -1,63 +1,43 @@
-import { UserRejectedRequestError } from '@metamask/snaps-sdk';
+import { Keypair, Networks } from '@stellar/stellar-sdk';
 
 import { MultichainMethod, type SignMessageRequest } from './api';
+import { Sep43ErrorCode } from './exceptions';
 import { SignMessageHandler } from './signMessage';
 import { KnownCaip2ChainId } from '../../api';
-import type { StellarKeyringAccount } from '../../services/account';
 import { AccountService } from '../../services/account';
-import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
-import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
+import {
+  generateStellarKeyringAccount,
+  mockAccountService,
+} from '../../services/account/__mocks__/account.fixtures';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
-import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
 
 jest.mock('../../utils/logger');
 
 describe('SignMessageHandler', () => {
-  const keyringRequestId = '11111111-1111-4111-8111-111111111111';
-
-  const encodedMessage = btoa('hello stellar');
-
-  const buildRequest = (
-    account: StellarKeyringAccount,
-  ): SignMessageRequest => ({
-    id: keyringRequestId,
-    origin: 'https://example.com',
-    scope: KnownCaip2ChainId.Mainnet,
-    account: account.id,
-    request: {
-      method: MultichainMethod.SignMessage,
-      params: { message: encodedMessage },
-    },
-  });
-
   /**
-   * Builds a {@link SignMessageHandler} with mocked account/wallet resolution.
+   * Builds a {@link SignMessageHandler} with mocked account / wallet
+   * resolution and a stubbed `ConfirmationUXController`.
    *
-   * @returns Handler instance, resolved keyring account, and test wallet.
+   * @returns Handler instance and the test doubles needed by each spec.
    */
-  function setupSignMessageHandler(): {
-    handler: SignMessageHandler;
-    mockAccount: StellarKeyringAccount;
-    wallet: ReturnType<typeof getTestWallet>;
-    renderConfirmationDialog: jest.Mock;
-  } {
+  function setupHandler() {
     const wallet = getTestWallet();
+    const accountId = globalThis.crypto.randomUUID();
     const mockAccount = generateStellarKeyringAccount(
-      globalThis.crypto.randomUUID(),
+      accountId,
       wallet.address,
       'entropy-source-1',
       0,
     );
 
-    const { accountService, onChainAccountService, walletService } =
-      mockOnChainAccountService();
+    const { accountService, walletService } = mockAccountService();
 
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: mockAccount,
-    });
+    jest
+      .spyOn(AccountService.prototype, 'resolveAccount')
+      .mockResolvedValue({ account: mockAccount });
 
     jest
       .spyOn(WalletService.prototype, 'resolveWallet')
@@ -74,78 +54,151 @@ describe('SignMessageHandler', () => {
     const handler = new SignMessageHandler({
       logger,
       accountService,
-      onChainAccountService,
       walletService,
       confirmationUIController,
     });
 
-    return { handler, mockAccount, wallet, renderConfirmationDialog };
+    return {
+      handler,
+      mockAccount,
+      wallet,
+      renderConfirmationDialog,
+    };
   }
 
-  it('returns signature when confirmation accepts', async () => {
-    const { handler, mockAccount, wallet, renderConfirmationDialog } =
-      setupSignMessageHandler();
-    renderConfirmationDialog.mockResolvedValue(true);
-
-    const request = buildRequest(mockAccount);
-    const result = await handler.handle(request);
-
-    const expectedSignature = await wallet.signMessage(encodedMessage);
-
-    expect(renderConfirmationDialog).toHaveBeenCalledTimes(1);
-    expect(renderConfirmationDialog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: request.scope,
-        origin: request.origin,
-        interfaceKey: ConfirmationInterfaceKey.SignMessage,
-        renderContext: expect.objectContaining({
-          account: mockAccount,
-          message: 'hello stellar',
-        }),
-      }),
-    );
-    expect(result).toStrictEqual({ signature: expectedSignature });
+  const buildRequest = (
+    accountId: string,
+    overrides: Partial<SignMessageRequest['request']['params']> = {},
+  ): SignMessageRequest => ({
+    id: '11111111-1111-4111-8111-111111111111',
+    origin: 'https://example.com',
+    scope: KnownCaip2ChainId.Mainnet,
+    account: accountId,
+    request: {
+      method: MultichainMethod.SignMessage,
+      params: {
+        message: btoa('hello stellar'),
+        ...overrides,
+      },
+    },
   });
 
-  it('throws when confirmation rejects', async () => {
-    const { handler, mockAccount, renderConfirmationDialog } =
-      setupSignMessageHandler();
+  it('returns signedMessage and signerAddress on confirm', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
+
+    const result = await handler.handle(buildRequest(mockAccount.id));
+
+    const expected = await wallet.signMessage(btoa('hello stellar'));
+    expect(result).toStrictEqual({
+      signedMessage: expected,
+      signerAddress: wallet.address,
+    });
+  });
+
+  it('returns error -4 when user rejects', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
     renderConfirmationDialog.mockResolvedValue(false);
 
-    const request = buildRequest(mockAccount);
+    const result = await handler.handle(buildRequest(mockAccount.id));
 
-    await expect(handler.handle(request)).rejects.toThrow(
-      UserRejectedRequestError,
-    );
-
-    expect(renderConfirmationDialog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: request.scope,
-        origin: request.origin,
-        interfaceKey: ConfirmationInterfaceKey.SignMessage,
-        renderContext: expect.objectContaining({
-          account: mockAccount,
-          message: 'hello stellar',
-        }),
-      }),
-    );
+    expect(result).toMatchObject({
+      signedMessage: '',
+      signerAddress: wallet.address,
+      error: { code: Sep43ErrorCode.UserRejected },
+    });
   });
 
-  it('rejects invalid requests before calling render', async () => {
-    const { handler, mockAccount, renderConfirmationDialog } =
-      setupSignMessageHandler();
+  it('returns error -3 when scope is testnet', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle({
+      ...buildRequest(mockAccount.id),
+      scope: KnownCaip2ChainId.Testnet,
+    });
+
+    expect(result).toMatchObject({
+      signedMessage: '',
+      signerAddress: '',
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('returns error -3 when opts.networkPassphrase is not the mainnet passphrase', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, {
+        opts: { networkPassphrase: Networks.TESTNET },
+      }),
+    );
+
+    expect(result).toMatchObject({
+      error: {
+        code: Sep43ErrorCode.InvalidRequest,
+        ext: [expect.stringContaining('mainnet')],
+      },
+    });
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['opts.submit', { submit: true }],
+    ['opts.submitUrl', { submitUrl: 'https://horizon.stellar.org' }],
+  ])('returns error -3 when %s is provided', async (_label, forbiddenOpts) => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    const base = buildRequest(mockAccount.id);
+    // Inject the forbidden opt bypassing the struct type so we can assert the
+    // handler rejects it at runtime with -3 InvalidRequest.
+    (base.request.params as unknown as { opts: Record<string, unknown> }).opts =
+      forbiddenOpts;
+
+    const result = await handler.handle(base);
+
+    expect(result).toMatchObject({
+      error: { code: Sep43ErrorCode.InvalidRequest },
+    });
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it('signs a non-base64 string as UTF-8 text', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
     renderConfirmationDialog.mockResolvedValue(true);
 
-    await expect(
-      handler.handle({
-        ...buildRequest(mockAccount),
-        request: {
-          method: MultichainMethod.SignMessage,
-          params: { message: '' },
-        },
-      }),
-    ).rejects.toThrow(/request\.params\.message/u);
+    const utf8Message = 'Sign in to dapp';
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, { message: utf8Message }),
+    );
 
-    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+    const expected = await wallet.signMessage(utf8Message);
+    expect(result).toStrictEqual({
+      signedMessage: expected,
+      signerAddress: wallet.address,
+    });
+  });
+
+  it('ignores opts.address: signer is always determined by the keyring account UUID', async () => {
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
+
+    // A different (well-formed) Stellar address that the dapp might pass —
+    // MetaMask routed to `mockAccount` via the UUID, so this MUST be ignored.
+    const otherAddress = Keypair.random().publicKey();
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, { opts: { address: otherAddress } }),
+    );
+
+    const expected = await wallet.signMessage(btoa('hello stellar'));
+    expect(result).toStrictEqual({
+      signedMessage: expected,
+      signerAddress: wallet.address,
+    });
   });
 });

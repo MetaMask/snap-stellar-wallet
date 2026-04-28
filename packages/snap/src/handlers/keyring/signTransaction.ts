@@ -1,36 +1,44 @@
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
-import { ensureError } from '@metamask/utils';
 
-import type {
-  AccountService,
-  StellarKeyringAccount,
-} from '../../services/account';
-import type { OnChainAccountService } from '../../services/on-chain-account';
-import type { ResolvedActivatedAccount } from '../base';
 import type { SignTransactionRequest, SignTransactionResponse } from './api';
 import {
   SignTransactionRequestStruct,
   SignTransactionResponseStruct,
 } from './api';
-import { WithKeyringRequestActiveAccountResolve } from './base';
+import { BaseSep43KeyringHandler } from './base';
+import type { Sep43Error } from './exceptions';
 import type {
-  TransactionBuilder,
+  AccountService,
+  StellarKeyringAccount,
+} from '../../services/account';
+import type {
   Transaction,
+  TransactionBuilder,
   TransactionService,
 } from '../../services/transaction';
 import { OperationMapper } from '../../services/transaction';
 import {
-  assertTransactionScope,
   assertAccountInvolvesTransaction,
+  assertTransactionScope,
   collectTransactionAssetCaipIds,
 } from '../../services/transaction/utils';
-import type { WalletService } from '../../services/wallet';
+import type { Wallet, WalletService } from '../../services/wallet';
 import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
 
-export class SignTransactionHandler extends WithKeyringRequestActiveAccountResolve<
+/**
+ * SEP-43 `signTransaction` keyring handler.
+ *
+ * Reuses the existing sign-transaction confirmation view via
+ * {@link ConfirmationUXController}. Returns the SEP-43 response shape
+ * (`signedTxXdr`, `signerAddress`, optional `error`) and never throws to the
+ * dapp — failures are wrapped in the `error` envelope by the base.
+ *
+ * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
+ */
+export class SignTransactionHandler extends BaseSep43KeyringHandler<
   SignTransactionRequest,
   SignTransactionResponse
 > {
@@ -43,7 +51,6 @@ export class SignTransactionHandler extends WithKeyringRequestActiveAccountResol
   constructor({
     logger,
     accountService,
-    onChainAccountService,
     walletService,
     transactionBuilder,
     transactionService,
@@ -51,41 +58,36 @@ export class SignTransactionHandler extends WithKeyringRequestActiveAccountResol
   }: {
     logger: ILogger;
     accountService: AccountService;
-    onChainAccountService: OnChainAccountService;
-    transactionService: TransactionService;
     walletService: WalletService;
     transactionBuilder: TransactionBuilder;
+    transactionService: TransactionService;
     confirmationUIController: ConfirmationUXController;
   }) {
     super({
       logger,
       accountService,
-      onChainAccountService,
       walletService,
+      loggerPrefix: '[📝 SignTransactionHandler]',
       requestStruct: SignTransactionRequestStruct,
       responseStruct: SignTransactionResponseStruct,
-      resolveAccountOptions: { onChainAccount: false },
     });
     this.#transactionBuilder = transactionBuilder;
     this.#transactionService = transactionService;
     this.#confirmationUIController = confirmationUIController;
   }
 
-  protected async _handle(
-    resolved: ResolvedActivatedAccount,
+  protected async execute(
     request: SignTransactionRequest,
+    resolved: { account: StellarKeyringAccount; wallet: Wallet },
   ): Promise<SignTransactionResponse> {
-    const { wallet, account } = resolved;
+    const { account, wallet } = resolved;
     const { scope } = request;
-    const { transaction: transactionBase64Xdr } = request.request.params;
+    const { xdr } = request.request.params;
 
     // Deserializing validates that the transaction is well-formed and scope-compatible.
     // We intentionally skip balance and operation-level checks here;
     // callers must validate those before requesting a signature.
-    const transaction = this.#transactionBuilder.deserialize({
-      xdr: transactionBase64Xdr,
-      scope,
-    });
+    const transaction = this.#transactionBuilder.deserialize({ xdr, scope });
 
     // verify the transaction scope matches the requested scope
     assertTransactionScope(transaction, scope);
@@ -99,14 +101,28 @@ export class SignTransactionHandler extends WithKeyringRequestActiveAccountResol
       await this.#transactionService.computingFee(transaction);
 
     if (!(await this.#confirmation(request, transactionWithFee, account))) {
-      throw ensureError(new UserRejectedRequestError());
+      throw new UserRejectedRequestError() as unknown as Error;
     }
 
     wallet.signTransaction(transactionWithFee);
+    const signedTxXdr = transactionWithFee.getRaw().toXDR();
 
-    const signature = transactionWithFee.getRaw().toXDR();
+    return {
+      signedTxXdr,
+      signerAddress: account.address,
+    };
+  }
 
-    return { signature };
+  protected toErrorResponse(
+    signerAddress: string,
+    error: Sep43Error,
+  ): SignTransactionResponse {
+    return {
+      // SEP-43 schema requires the field even on error; keep it empty when unknown.
+      signedTxXdr: '',
+      signerAddress,
+      error: error.toJSON(),
+    };
   }
 
   async #confirmation(
