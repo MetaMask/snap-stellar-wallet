@@ -577,7 +577,26 @@ describe('KeyringHandler', () => {
       });
     });
 
-    it('throws an error if the account address resolution fails', async () => {
+    it('returns null when the account is not in this snap (AccountNotFoundException)', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockRejectedValue(
+        new AccountNotFoundException(mockAccount.address),
+      );
+
+      const result = await keyringHandler.resolveAccountAddress(
+        KnownCaip2ChainId.Mainnet,
+        {
+          method: MultichainMethod.SignMessage,
+          id: '1',
+          jsonrpc: '2.0',
+          params: { opts: { address: mockAccount.address } },
+        },
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('throws an error if the account address resolution fails for other reasons', async () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockRejectedValue(
         new Error('Account address resolution failed'),
