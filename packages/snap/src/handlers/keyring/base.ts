@@ -2,7 +2,8 @@ import type { Struct } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
 
 import type { Sep43ErrorEnvelope, Sep43Opts } from './api';
-import { Sep43Error, Sep43ErrorCode, toSep43Error } from './exceptions';
+import type { Sep43Error } from './exceptions';
+import { toSep43Error } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';
 import type {
   AccountService,
@@ -12,6 +13,7 @@ import type { Wallet, WalletService } from '../../services/wallet';
 import type { ILogger } from '../../utils';
 import { createPrefixedLogger } from '../../utils';
 import { validateRequest, validateResponse } from '../../utils/requestResponse';
+import { BaseHandler } from '../base';
 
 /**
  * Interface for the client request handler.
@@ -24,24 +26,23 @@ export type IKeyringRequestHandler = {
  * Base class shared by the SEP-43 SignMessage and SignTransaction keyring
  * handlers.
  *
- * Provides common cross-cutting concerns: validates `opts.networkPassphrase`
- * (mainnet only), validates `scope` is mainnet, forbids `submit` / `submitUrl`
- * (snap is sign-only), resolves the keyring account by `opts.address` when
- * provided (otherwise falls back to the wrapper's `account` UUID), and wraps
- * thrown errors into the SEP-43 `error` envelope so the dapp always receives a
- * well-formed payload.
+ * Extends {@link BaseHandler} for codebase consistency (inherits
+ * `logger` / `requestStruct` / `responseStruct`) but overrides `handle()`:
+ * `BaseHandler.handle()` throws on validation/handler errors, whereas SEP-43
+ * must serialize every failure into the response `error` envelope so the
+ * dapp always receives a well-formed payload.
  *
  * SEP-43 is a sign-only protocol — no on-chain activation check is performed.
  * The dapp is responsible for ensuring the account exists on-chain before
  * constructing the transaction or message.
  *
  * Subclasses implement {@link execute} which performs the wallet signing and
- * returns the success-shaped fields. They never throw to the dapp directly.
+ * returns the success-shaped fields.
  *
  * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
  */
 export abstract class BaseSep43KeyringHandler<
-  Request extends {
+  Request extends Json & {
     scope: KnownCaip2ChainId;
     account: string;
     origin: string;
@@ -51,16 +52,13 @@ export abstract class BaseSep43KeyringHandler<
     signerAddress: string;
     error?: Sep43ErrorEnvelope;
   },
-> implements IKeyringRequestHandler {
-  protected readonly logger: ILogger;
-
+>
+  extends BaseHandler<Request, Response>
+  implements IKeyringRequestHandler
+{
   protected readonly accountService: AccountService;
 
   protected readonly walletService: WalletService;
-
-  protected readonly requestStruct: Struct<Request>;
-
-  protected readonly responseStruct: Struct<Response>;
 
   constructor({
     logger,
@@ -77,11 +75,13 @@ export abstract class BaseSep43KeyringHandler<
     requestStruct: Struct<Request>;
     responseStruct: Struct<Response>;
   }) {
-    this.logger = createPrefixedLogger(logger, loggerPrefix);
+    super({
+      logger: createPrefixedLogger(logger, loggerPrefix),
+      requestStruct,
+      responseStruct,
+    });
     this.accountService = accountService;
     this.walletService = walletService;
-    this.requestStruct = requestStruct;
-    this.responseStruct = responseStruct;
   }
 
   /**
@@ -91,33 +91,16 @@ export abstract class BaseSep43KeyringHandler<
    * never sees a thrown JSON-RPC error.
    *
    * @param rawRequest - The unvalidated keyring request as forwarded by
-   * `KeyringHandler.submitRequest` (or the dev `stellar_*` RPC aliases).
+   * `KeyringHandler.submitRequest`.
    * @returns The SEP-43 response with either the success fields or `error`
    * populated.
    */
-  async handle(rawRequest: Json): Promise<Response> {
+  override async handle(rawRequest: Json): Promise<Response> {
     let signerAddress = '';
     try {
-      // Check submit/submitUrl on the raw JSON before validateRequest coerces
-      // the opts struct and strips unknown fields. The snap is sign-only.
-      const rawOpts = (
-        (rawRequest as Record<string, unknown>)?.request as
-          | Record<string, unknown>
-          | undefined
-      )?.params as Record<string, unknown> | undefined;
-      const opts = rawOpts?.opts as Record<string, unknown> | undefined;
-      if (opts?.submit !== undefined || opts?.submitUrl !== undefined) {
-        throw new Sep43Error({
-          code: Sep43ErrorCode.InvalidRequest,
-          ext: ['This wallet does not submit transactions; use sign only.'],
-        });
-      }
-
       const request = validateRequest(rawRequest, this.requestStruct);
-
       const { account, wallet } = await this.resolveAccount(request);
       signerAddress = account.address;
-
       const result = await this.execute(request, { account, wallet });
       validateResponse(result, this.responseStruct);
       return result;
@@ -126,6 +109,20 @@ export abstract class BaseSep43KeyringHandler<
       this.logger.logErrorWithDetails('SEP-43 request failed', sep43);
       return this.toErrorResponse(signerAddress, sep43);
     }
+  }
+
+  /**
+   * Implements {@link BaseHandler.handleRequest}. Not on the SEP-43 hot path
+   * (the {@link handle} override calls {@link execute} directly so that
+   * `signerAddress` can be captured for the error envelope), but kept as a
+   * sane delegation for any caller that invokes `super.handle()`.
+   *
+   * @param request - The validated request.
+   * @returns The execute result.
+   */
+  protected async handleRequest(request: Request): Promise<Response> {
+    const { account, wallet } = await this.resolveAccount(request);
+    return await this.execute(request, { account, wallet });
   }
 
   /**
@@ -153,9 +150,10 @@ export abstract class BaseSep43KeyringHandler<
   ): Response;
 
   /**
-   * Resolves the signing account.
-   * Prefers `opts.address` when provided; otherwise uses the wrapper's
-   * `account` UUID. When both are present, the resolved address must match.
+   * Resolves the signing account by the keyring `account` UUID. The keyring
+   * framework has already mapped the dapp's selection to a UUID, so we trust
+   * it as the single source of truth — `opts.address` is intentionally not
+   * honored to avoid letting the dapp redirect the signer.
    *
    * @param request - The keyring request.
    * @returns The resolved keyring account and signing wallet.
@@ -163,16 +161,8 @@ export abstract class BaseSep43KeyringHandler<
   protected async resolveAccount(
     request: Request,
   ): Promise<{ account: StellarKeyringAccount; wallet: Wallet }> {
-    const { account: accountId, scope } = request;
-    const optsAddress = request.request.params.opts?.address;
-
-    const { account } = optsAddress
-      ? await this.accountService.resolveAccount({
-          scope,
-          accountAddress: optsAddress,
-        })
-      : await this.accountService.resolveAccount({ accountId });
-
+    const { account: accountId } = request;
+    const { account } = await this.accountService.resolveAccount({ accountId });
     const wallet = await this.walletService.resolveWallet(account);
     return { account, wallet };
   }

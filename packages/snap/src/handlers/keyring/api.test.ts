@@ -210,7 +210,7 @@ describe('SignMessageRequestStruct', () => {
     ).not.toThrow();
   });
 
-  it('accepts an SEP-43 opts bag with address and networkPassphrase', () => {
+  it('accepts an SEP-43 opts bag with networkPassphrase', () => {
     expect(() =>
       assert(
         {
@@ -220,7 +220,6 @@ describe('SignMessageRequestStruct', () => {
             params: {
               message: btoa('Hello, world!'),
               opts: {
-                address: account.address,
                 networkPassphrase:
                   'Public Global Stellar Network ; September 2015',
               },
@@ -230,6 +229,24 @@ describe('SignMessageRequestStruct', () => {
         SignMessageRequestStruct,
       ),
     ).not.toThrow();
+  });
+
+  it('rejects opts.address (signer is determined by the keyring account UUID)', () => {
+    expect(() =>
+      assert(
+        {
+          ...validSignMessageRequest,
+          request: {
+            method: MultichainMethod.SignMessage,
+            params: {
+              message: btoa('Hello, world!'),
+              opts: { address: account.address },
+            },
+          },
+        },
+        SignMessageRequestStruct,
+      ),
+    ).toThrow(StructError);
   });
 
   it.each([
@@ -320,7 +337,7 @@ describe('SignTransactionRequestStruct', () => {
     ).not.toThrow();
   });
 
-  it('accepts an SEP-43 opts bag with address', () => {
+  it('rejects opts.address (signer is determined by the keyring account UUID)', () => {
     expect(() =>
       assert(
         {
@@ -332,7 +349,7 @@ describe('SignTransactionRequestStruct', () => {
         },
         SignTransactionRequestStruct,
       ),
-    ).not.toThrow();
+    ).toThrow(StructError);
   });
 
   it.each([

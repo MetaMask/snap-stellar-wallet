@@ -9,7 +9,6 @@ import {
   generateStellarKeyringAccount,
   mockAccountService,
 } from '../../services/account/__mocks__/account.fixtures';
-import { AccountNotFoundException } from '../../services/account/exceptions';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
@@ -36,7 +35,7 @@ describe('SignMessageHandler', () => {
 
     const { accountService, walletService } = mockAccountService();
 
-    const resolveAccountSpy = jest
+    jest
       .spyOn(AccountService.prototype, 'resolveAccount')
       .mockResolvedValue({ account: mockAccount });
 
@@ -64,7 +63,6 @@ describe('SignMessageHandler', () => {
       mockAccount,
       wallet,
       renderConfirmationDialog,
-      resolveAccountSpy,
     };
   }
 
@@ -165,24 +163,6 @@ describe('SignMessageHandler', () => {
       error: { code: Sep43ErrorCode.InvalidRequest },
     });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
-  });
-
-  it('returns error -3 when opts.address cannot be resolved', async () => {
-    const { handler, mockAccount, resolveAccountSpy } = setupHandler();
-    const unknownAddress =
-      'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB';
-    resolveAccountSpy.mockRejectedValueOnce(
-      new AccountNotFoundException(unknownAddress),
-    );
-
-    const result = await handler.handle(
-      buildRequest(mockAccount.id, { opts: { address: unknownAddress } }),
-    );
-
-    expect(result).toMatchObject({
-      signedMessage: '',
-      error: { code: Sep43ErrorCode.InvalidRequest },
-    });
   });
 
   it('signs a non-base64 string as UTF-8 text', async () => {
