@@ -39,6 +39,29 @@ export function normalizeAmount(
 }
 
 /**
+ * Decimal string for keyring / MetaMask multichain balances.
+ * {@link BigNumber#toString} may use scientific notation (e.g. `1e-7`); the extension's
+ * `parseBalanceWithDecimals` only accepts `\d+(\.\d+)?`, so we use `toFixed` and trim
+ * redundant trailing zeros.
+ *
+ * @param amountInSmallestUnit - Balance in the asset's smallest unit (e.g. stroops).
+ * @param decimalPlaces - Asset decimals (e.g. 7 for XLM / classic Stellar assets).
+ */
+export function formatBalanceAmountForKeyringApi(
+  amountInSmallestUnit: BigNumber,
+  decimalPlaces: number,
+): string {
+  const fixed = normalizeAmount(amountInSmallestUnit, decimalPlaces).toFixed(
+    decimalPlaces,
+  );
+  if (!fixed.includes('.')) {
+    return fixed;
+  }
+  const trimmed = fixed.replace(/0+$/u, '').replace(/\.$/u, '');
+  return trimmed === '' ? '0' : trimmed;
+}
+
+/**
  * Formats a number as currency (half-up rounded to 2 decimal places).
  *
  * @param amount - The amount of money.

@@ -2,6 +2,7 @@ import type { CaipAssetType } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import {
+  formatBalanceAmountForKeyringApi,
   formatFiat,
   getFiatTicker,
   isFiat,
@@ -35,6 +36,21 @@ describe('normalizeAmount', () => {
 
   it('uses custom decimal places when provided', () => {
     expect(normalizeAmount(new BigNumber(123), 2).toString()).toBe('1.23');
+  });
+});
+
+describe('formatBalanceAmountForKeyringApi', () => {
+  it('avoids scientific notation for one stroop', () => {
+    expect(formatBalanceAmountForKeyringApi(new BigNumber(1), 7)).toBe(
+      '0.0000001',
+    );
+    expect(normalizeAmount(new BigNumber(1), 7).toString()).toBe('1e-7');
+  });
+
+  it('trims trailing zeros while keeping significant fractional digits', () => {
+    expect(formatBalanceAmountForKeyringApi(new BigNumber(10), 7)).toBe(
+      '0.000001',
+    );
   });
 });
 

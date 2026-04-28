@@ -78,7 +78,7 @@ import {
   getSnapProvider,
   isSep41Id,
   isSlip44Id,
-  normalizeAmount,
+  formatBalanceAmountForKeyringApi,
   rethrowIfInstanceElseThrow,
   validateOrigin,
   validateRequest,
@@ -478,11 +478,7 @@ export class KeyringHandler implements Keyring {
         const decimal = assetMetadata.units[0].decimals;
         assetBalances[assetId] = {
           unit: asset.symbol ?? '',
-          amount: normalizeAmount(
-            asset.balance,
-            decimal,
-            // TODO: Handle decimal places overflow
-          ).toString(),
+          amount: formatBalanceAmountForKeyringApi(asset.balance, decimal),
         };
       }
       return assetBalances;
