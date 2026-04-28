@@ -19,6 +19,7 @@ import {
   TransactionRetryableException,
   TransactionSendException,
 } from './exceptions';
+import { MultiCall } from './MultiCall';
 import { NetworkService } from './NetworkService';
 import type { KnownCaip19Sep41AssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
@@ -607,6 +608,79 @@ describe('NetworkService', () => {
         ),
       ).rejects.toThrow(NetworkServiceException);
       expect(pollTransactionSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getSep41AssetBalances', () => {
+    const account = 'GDYTQGVA3NCXM5JPVMOHLDUAHMI3OQ2B2YI25BXYKROAGXXT2T3ZGHE6';
+    const secondAssetId =
+      'stellar:pubnet/sep41:CBGV2QFQBBGEQRUKUMCPO3SZOHDDYO6SCP5CH6TW7EALKVHCXTMWDDOF' as KnownCaip19Sep41AssetId;
+
+    it('returns empty object when accounts is empty', async () => {
+      const result = await networkService.getSep41AssetBalances({
+        accounts: [],
+        assetIds: [validSep41AssetId],
+        scope: KnownCaip2ChainId.Mainnet,
+      });
+      expect(result).toStrictEqual({});
+    });
+
+    it('returns empty object when assetIds is empty', async () => {
+      const result = await networkService.getSep41AssetBalances({
+        accounts: [account],
+        assetIds: [],
+        scope: KnownCaip2ChainId.Mainnet,
+      });
+      expect(result).toStrictEqual({});
+    });
+
+    it('maps multicall simulation vector to per-account balances on mainnet', async () => {
+      const simResultSpy = jest
+        .spyOn(MultiCall.prototype, 'simResult')
+        .mockResolvedValue([BigInt('100'), BigInt('200')]);
+
+      const result = await networkService.getSep41AssetBalances({
+        accounts: [account],
+        assetIds: [validSep41AssetId, secondAssetId],
+        scope: KnownCaip2ChainId.Mainnet,
+      });
+
+      expect(simResultSpy).toHaveBeenCalled();
+      expect(result[account]?.[validSep41AssetId]?.toFixed()).toBe('100');
+      expect(result[account]?.[secondAssetId]?.toFixed()).toBe('200');
+      simResultSpy.mockRestore();
+    });
+
+    it('maps failed multicall cells to null', async () => {
+      const simResultSpy = jest
+        .spyOn(MultiCall.prototype, 'simResult')
+        .mockResolvedValue([BigInt('1'), {}]);
+
+      const result = await networkService.getSep41AssetBalances({
+        accounts: [account],
+        assetIds: [validSep41AssetId, secondAssetId],
+        scope: KnownCaip2ChainId.Mainnet,
+      });
+
+      expect(result[account]?.[validSep41AssetId]?.toFixed()).toBe('1');
+      expect(result[account]?.[secondAssetId]).toBeNull();
+      simResultSpy.mockRestore();
+    });
+
+    it('returns empty object on testnet (batch SEP-41 balances not supported)', async () => {
+      const simResultSpy = jest.spyOn(MultiCall.prototype, 'simResult');
+      const testnetAssetId =
+        'stellar:testnet/sep41:CDLZFC3SYJYDZT7K67VZ75HVSSBAXAVVD2XGDFEUCDZUFE7MDUROSPZM' as KnownCaip19Sep41AssetId;
+
+      const result = await networkService.getSep41AssetBalances({
+        accounts: [account],
+        assetIds: [testnetAssetId],
+        scope: KnownCaip2ChainId.Testnet,
+      });
+
+      expect(result).toStrictEqual({});
+      expect(simResultSpy).not.toHaveBeenCalled();
+      simResultSpy.mockRestore();
     });
   });
 });

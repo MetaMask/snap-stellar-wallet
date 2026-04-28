@@ -6,10 +6,12 @@ import type { KnownCaip2ChainId } from '../../../api';
 import { logger } from '../../../utils/logger';
 import { AccountService } from '../../account/AccountService';
 import { AccountsRepository } from '../../account/AccountsRepository';
+import { createMockAssetMetadataService } from '../../asset-metadata/__mocks__/assets.fixtures';
 import { NetworkService } from '../../network';
 import { State } from '../../state/State';
 import { WalletService } from '../../wallet';
 import { OnChainAccount } from '../OnChainAccount';
+import { OnChainAccountRepository } from '../OnChainAccountRepository';
 import type {
   OnChainAccountMinimalSerializable,
   OnChainAccountSerializable,
@@ -153,7 +155,7 @@ export function mockOnChainAccountService() {
     encrypted: false,
     defaultState: {
       keyringAccounts: {},
-      accountMetadata: {},
+      onChainAccounts: {},
     },
   });
   const accountService = new AccountService({
@@ -162,10 +164,18 @@ export function mockOnChainAccountService() {
     walletService,
   });
   const networkService = new NetworkService({ logger });
-  const onChainAccountService = new OnChainAccountService({ networkService });
+  const onChainAccountRepository = new OnChainAccountRepository(state);
+  const { service: assetMetadataService } = createMockAssetMetadataService();
+  const onChainAccountService = new OnChainAccountService({
+    logger,
+    networkService,
+    onChainAccountRepository,
+    assetMetadataService,
+  });
 
   return {
     onChainAccountService,
+    onChainAccountRepository,
     accountService,
     walletService,
   };

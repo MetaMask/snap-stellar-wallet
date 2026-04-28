@@ -26,16 +26,23 @@ import {
   TransactionSendException,
 } from './exceptions';
 import {
+  InvocationV1,
+  MultiCall,
+  SIMULATION_ACCOUNT,
+  StellarRouterContract,
+} from './MultiCall';
+import {
   caip2ChainIdToNetwork,
   extractAssetDataFromContractData,
   isAccountNotFoundError,
   parseScValToNative,
+  sep41MulticallCellToBalance,
 } from './utils';
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Sep41AssetId,
-  KnownCaip2ChainId,
 } from '../../api';
+import { KnownCaip2ChainId } from '../../api';
 import type { NetworkConfig } from '../../config';
 import { AppConfig } from '../../config';
 import { STELLAR_DECIMAL_PLACES } from '../../constants';
@@ -363,7 +370,6 @@ export class NetworkService {
   }): Promise<BigNumber> {
     const { accountAddress, assetId, scope, sequenceNumber } = params;
     const { assetReference: tokenAddress } = parseCaipAssetType(assetId);
-    // TODO: change to use https://github.com/Creit-Tech/Stellar-Router-SDK to batch collect balances
     try {
       const client = this.#getRpcClient(scope);
       const token = new Contract(tokenAddress);
@@ -400,6 +406,95 @@ export class NetworkService {
       const native = scValToNative(retval);
 
       return parseScValToNative(native);
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails(
+        'Failed to load SEP-41 token balance',
+        error,
+      );
+      return rethrowIfInstanceElseThrow(
+        error,
+        [NetworkServiceException],
+        new NetworkServiceException('Failed to load SEP-41 token balance'),
+      );
+    }
+  }
+
+  /**
+   * Fetches SEP-41 asset balances for multiple accounts via Soroban simulation of `balance(Address)`.
+   *
+   * **Mainnet only** — uses the Stellar MultiCall router (single simulation). On testnet this method
+   * returns `{}` until batch SEP-41 reads are supported there.
+   *
+   * @param params - Balance query input.
+   * @param params.accounts - Accounts holding the token (`G…`).
+   * @param params.assetIds - CAIP-19 asset ids for SEP-41 tokens.
+   * @param params.scope - CAIP-2 chain id.
+   * @returns Per-account map of asset id to balance in smallest units, or `null` when a cell cannot be read.
+   * @throws {NetworkServiceException} When the RPC request fails or the multicall result length is wrong.
+   */
+  async getSep41AssetBalances(params: {
+    accounts: string[];
+    assetIds: KnownCaip19Sep41AssetId[];
+    scope: KnownCaip2ChainId;
+  }): Promise<
+    Record<string, Record<KnownCaip19Sep41AssetId, BigNumber | null>>
+  > {
+    const { accounts, assetIds, scope } = params;
+
+    if (accounts.length === 0 || assetIds.length === 0) {
+      return {};
+    }
+
+    if (scope === KnownCaip2ChainId.Testnet) {
+      return {};
+    }
+
+    try {
+      const multiCall = new MultiCall({
+        rpcClient: this.#getRpcClient(scope),
+        routerContract: StellarRouterContract.V1,
+        // Caller for `exec` on the router; first funded user account is typical; else the shared sim account.
+        simulationAccount: accounts[0] ?? SIMULATION_ACCOUNT,
+      });
+
+      const invocations: InvocationV1[] = [];
+      for (const account of accounts) {
+        for (const assetId of assetIds) {
+          invocations.push(
+            new InvocationV1({
+              contract: parseCaipAssetType(assetId).assetReference,
+              method: 'balance',
+              args: [new Address(account).toScVal()],
+              // Allow the batch simulation to continue when a cell fails (missing contract, etc.).
+              canFail: true,
+            }),
+          );
+        }
+      }
+      const totalRecords = accounts.length * assetIds.length;
+
+      const simResults: unknown[] = await multiCall.simResult(invocations);
+
+      if (simResults.length !== totalRecords) {
+        throw new NetworkServiceException(
+          `Failed to load SEP-41 token balance - multicall result length: ${simResults.length} does not match the expected number of records: ${totalRecords}`,
+        );
+      }
+
+      const result: Record<
+        string,
+        Record<KnownCaip19Sep41AssetId, BigNumber | null>
+      > = {};
+      let idx = 0;
+      for (const account of accounts) {
+        for (const assetId of assetIds) {
+          const simResult = simResults[idx];
+          result[account] ??= {};
+          result[account][assetId] = sep41MulticallCellToBalance(simResult);
+          idx += 1;
+        }
+      }
+      return result;
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails(
         'Failed to load SEP-41 token balance',
