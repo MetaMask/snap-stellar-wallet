@@ -1,5 +1,6 @@
 import type { EntropySourceId, KeyringAccount } from '@metamask/keyring-api';
 import {
+  AccountCreationType,
   DiscoveredAccountType,
   KeyringEvent,
   KeyringRpcMethod,
@@ -31,7 +32,10 @@ import {
   AccountService,
   type StellarKeyringAccount,
 } from '../../services/account';
-import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
+import {
+  generateMockStellarKeyringAccounts,
+  generateStellarKeyringAccount,
+} from '../../services/account/__mocks__/account.fixtures';
 import { AccountNotFoundException } from '../../services/account/exceptions';
 import { createMockAssetMetadataService } from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { AccountNotActivatedException } from '../../services/network';
@@ -274,6 +278,108 @@ describe('KeyringHandler', () => {
       await expect(keyringHandler.createAccount()).rejects.toThrow(
         KeyringCreateAccountException,
       );
+    });
+  });
+
+  describe('createAccounts', () => {
+    it('creates one account for bip44:derive-index without emitting AccountCreated', async () => {
+      const { createAccountSpy } = getAccountServiceSpies();
+      createAccountSpy.mockResolvedValue(mockAccount);
+      const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
+
+      const result = await keyringHandler.createAccounts({
+        type: AccountCreationType.Bip44DeriveIndex,
+        entropySource: entropySourceId,
+        groupIndex: 2,
+      });
+
+      expect(createAccountSpy).toHaveBeenCalledTimes(1);
+      expect(createAccountSpy).toHaveBeenCalledWith({
+        entropySource: entropySourceId,
+        index: 2,
+      });
+      expect(result).toStrictEqual([toKeyringAccount(mockAccount)]);
+      expect(emitSnapKeyringEventSpy).not.toHaveBeenCalled();
+    });
+
+    it('creates accounts for each index in bip44:derive-index-range', async () => {
+      const { createAccountSpy } = getAccountServiceSpies();
+      const accountAt1 = generateStellarKeyringAccount(
+        'id-1',
+        mockAccount.address,
+        entropySourceId,
+        1,
+      );
+      const accountAt2 = generateStellarKeyringAccount(
+        'id-2',
+        mockAccount.address,
+        entropySourceId,
+        2,
+      );
+      const accountAt3 = generateStellarKeyringAccount(
+        'id-3',
+        mockAccount.address,
+        entropySourceId,
+        3,
+      );
+      createAccountSpy
+        .mockResolvedValueOnce(accountAt1)
+        .mockResolvedValueOnce(accountAt2)
+        .mockResolvedValueOnce(accountAt3);
+
+      const result = await keyringHandler.createAccounts({
+        type: AccountCreationType.Bip44DeriveIndexRange,
+        entropySource: entropySourceId,
+        range: { from: 1, to: 3 },
+      });
+
+      expect(createAccountSpy).toHaveBeenCalledTimes(3);
+      expect(createAccountSpy).toHaveBeenNthCalledWith(1, {
+        entropySource: entropySourceId,
+        index: 1,
+      });
+      expect(createAccountSpy).toHaveBeenNthCalledWith(2, {
+        entropySource: entropySourceId,
+        index: 2,
+      });
+      expect(createAccountSpy).toHaveBeenNthCalledWith(3, {
+        entropySource: entropySourceId,
+        index: 3,
+      });
+      expect(result).toHaveLength(3);
+      expect(result[0]?.options).toMatchObject({
+        entropy: expect.objectContaining({ groupIndex: 1 }),
+      });
+      expect(result[1]?.options).toMatchObject({
+        entropy: expect.objectContaining({ groupIndex: 2 }),
+      });
+      expect(result[2]?.options).toMatchObject({
+        entropy: expect.objectContaining({ groupIndex: 3 }),
+      });
+      expect(jest.mocked(emitSnapKeyringEvent)).not.toHaveBeenCalled();
+    });
+
+    it('throws KeyringCreateAccountException when account creation fails', async () => {
+      const { createAccountSpy } = getAccountServiceSpies();
+      createAccountSpy.mockRejectedValue(new Error('Batch create failed'));
+
+      await expect(
+        keyringHandler.createAccounts({
+          type: AccountCreationType.Bip44DeriveIndex,
+          entropySource: entropySourceId,
+          groupIndex: 0,
+        }),
+      ).rejects.toThrow(KeyringCreateAccountException);
+    });
+
+    it('throws when create account option type is not supported', async () => {
+      await expect(
+        keyringHandler.createAccounts({
+          type: AccountCreationType.Bip44Discover,
+          entropySource: entropySourceId,
+          groupIndex: 0,
+        }),
+      ).rejects.toThrow('Unsupported create account option type');
     });
   });
 
