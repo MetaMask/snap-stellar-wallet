@@ -143,19 +143,19 @@ describe('OnChainAccountService', () => {
     });
   });
 
-  describe('resolveOnChainAccountByAccountId', () => {
+  describe('resolveOnChainAccountByKeyringAccountId', () => {
     it('returns null when no snapshot exists for the keyring id and scope', async () => {
       const keyringAccountId = globalThis.crypto.randomUUID();
       const { onChainAccountService, onChainAccountRepository } =
         mockOnChainAccountService();
       const findByAccountIdSpy = jest.spyOn(
         onChainAccountRepository,
-        'findByAccountId',
+        'findByKeyringAccountId',
       );
       findByAccountIdSpy.mockResolvedValue(null);
 
       const result =
-        await onChainAccountService.resolveOnChainAccountByAccountId(
+        await onChainAccountService.resolveOnChainAccountByKeyringAccountId(
           keyringAccountId,
           KnownCaip2ChainId.Mainnet,
         );
@@ -184,12 +184,12 @@ describe('OnChainAccountService', () => {
         mockOnChainAccountService();
       const findByAccountIdSpy = jest.spyOn(
         onChainAccountRepository,
-        'findByAccountId',
+        'findByKeyringAccountId',
       );
       findByAccountIdSpy.mockResolvedValue(binding);
 
       const result =
-        await onChainAccountService.resolveOnChainAccountByAccountId(
+        await onChainAccountService.resolveOnChainAccountByKeyringAccountId(
           keyringAccountId,
           KnownCaip2ChainId.Mainnet,
         );

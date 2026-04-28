@@ -11,11 +11,11 @@ export type SpendableBalance = {
   sponsored?: boolean;
 };
 
-type AccountId = string;
+type KeyringAccountId = string;
 
 /** `onChainAccounts[keyringAccountId][scope]` → last synced snapshot. */
 export type OnChainAccountSnapshotsByKeyringId = Record<
-  AccountId,
+  KeyringAccountId,
   Partial<Record<KnownCaip2ChainId, OnChainAccountSerializableFull>>
 >;
 
