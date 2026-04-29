@@ -1,12 +1,19 @@
+import { assert } from '@metamask/superstruct';
 import {
-  assert,
   ensureError,
   parseCaipAssetType,
   type NonEmptyArray,
 } from '@metamask/utils';
 
-import type { TokenMetadata, TokenMetadataResponse } from './api';
-import { TokenMetadataResponseStruct } from './api';
+import type {
+  TokenMetadata,
+  TokenMetadataByAssetIdsResponse,
+  TokenMetadataByChainIdResponse,
+} from './api';
+import {
+  TokenMetadataByAssetIdsResponseStruct,
+  TokenMetadatabyChainIdResponseStruct,
+} from './api';
 import { TokenApiException } from './exceptions';
 import type {
   AssetType,
@@ -52,7 +59,7 @@ export class TokenApiClient {
 
   async #fetchTokenMetadataBatch(
     assetIds: KnownCaip19AssetIdOrSlip44Id[],
-  ): Promise<TokenMetadataResponse> {
+  ): Promise<TokenMetadataByAssetIdsResponse> {
     try {
       const url = buildUrl({
         baseUrl: this.#baseUrl,
@@ -70,7 +77,7 @@ export class TokenApiClient {
 
       const data = await response.json();
 
-      assert(TokenMetadataResponseStruct, data);
+      assert(data, TokenMetadataByAssetIdsResponseStruct);
 
       return data;
     } catch (error) {
@@ -96,7 +103,7 @@ export class TokenApiClient {
    */
   async #fetchAllTokensMetadata(
     scope: KnownCaip2ChainId,
-  ): Promise<TokenMetadataResponse> {
+  ): Promise<TokenMetadataByChainIdResponse> {
     try {
       const url = buildUrl({
         baseUrl: this.#baseUrl,
@@ -117,7 +124,7 @@ export class TokenApiClient {
 
       const data = await response.json();
 
-      assert(TokenMetadataResponseStruct, data);
+      assert(data, TokenMetadatabyChainIdResponseStruct);
 
       return data;
     } catch (error) {
@@ -168,7 +175,11 @@ export class TokenApiClient {
         'Error fetching token metadata',
         ensureError(error).message,
       );
-      throw new TokenApiException(`Failed to fetch token metadata`);
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TokenApiException],
+        new TokenApiException(`Failed to fetch token metadata`),
+      );
     }
   }
 
@@ -181,11 +192,23 @@ export class TokenApiClient {
   async getAllTokensMetadata(
     scope: KnownCaip2ChainId,
   ): Promise<StellarAssetMetadata[]> {
-    const tokenMetadataResponses = await this.#fetchAllTokensMetadata(scope);
-    // Note: it is possible that the token metadata does not contain all the asset ids.
-    return tokenMetadataResponses.map((tokenMetadata) =>
-      this.#toAssetMetadata(tokenMetadata),
-    );
+    try {
+      const tokenMetadataResponses = await this.#fetchAllTokensMetadata(scope);
+      // Note: it is possible that the token metadata does not contain all the asset ids.
+      return tokenMetadataResponses.data.map((tokenMetadata) =>
+        this.#toAssetMetadata(tokenMetadata),
+      );
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Error fetching token metadata',
+        ensureError(error).message,
+      );
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TokenApiException],
+        new TokenApiException(`Failed to fetch token metadata`),
+      );
+    }
   }
 
   #toAssetMetadata(tokenMetadata: TokenMetadata): StellarAssetMetadata {
