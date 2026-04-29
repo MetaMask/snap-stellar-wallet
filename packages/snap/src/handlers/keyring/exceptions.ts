@@ -202,7 +202,7 @@ export class KeyringResolveAccountAddressException extends KeyringException {
     request: ResolveAccountAddressJsonRpcRequest,
   ) {
     super(
-      `Failed to resolve account address for scope ${scope} and address ${request.params.address}`,
+      `Failed to resolve account address for scope ${scope} and address ${request.params.opts.address}`,
     );
   }
 }
