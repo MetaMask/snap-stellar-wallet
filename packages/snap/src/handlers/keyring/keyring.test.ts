@@ -10,9 +10,15 @@ import {
   handleKeyringRequest,
 } from '@metamask/keyring-snap-sdk';
 import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
+import { create } from '@metamask/superstruct';
+import type { Json } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
-import { MultichainMethod } from './api';
+import {
+  MultichainMethod,
+  SignMessageResponseStruct,
+  SignTransactionResponseStruct,
+} from './api';
 import type { IKeyringRequestHandler } from './base';
 import {
   KeyringCreateAccountException,
@@ -650,7 +656,7 @@ describe('KeyringHandler', () => {
   });
 
   describe('resolveAccountAddress', () => {
-    it('resolves an account address', async () => {
+    it('resolves an account address from opts.address', async () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({
         account: mockAccount,
@@ -663,7 +669,7 @@ describe('KeyringHandler', () => {
           id: '1',
           jsonrpc: '2.0',
           params: {
-            address: mockAccount.address,
+            opts: { address: mockAccount.address },
           },
         },
       );
@@ -677,7 +683,26 @@ describe('KeyringHandler', () => {
       });
     });
 
-    it('throws an error if the account address resolution fails', async () => {
+    it('returns null when the account is not in this snap (AccountNotFoundException)', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockRejectedValue(
+        new AccountNotFoundException(mockAccount.address),
+      );
+
+      const result = await keyringHandler.resolveAccountAddress(
+        KnownCaip2ChainId.Mainnet,
+        {
+          method: MultichainMethod.SignMessage,
+          id: '1',
+          jsonrpc: '2.0',
+          params: { opts: { address: mockAccount.address } },
+        },
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('throws an error if the account address resolution fails for other reasons', async () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockRejectedValue(
         new Error('Account address resolution failed'),
@@ -688,7 +713,7 @@ describe('KeyringHandler', () => {
           method: MultichainMethod.SignMessage,
           id: '1',
           jsonrpc: '2.0',
-          params: { address: mockAccount.address },
+          params: { opts: { address: mockAccount.address } },
         }),
       ).rejects.toThrow(KeyringResolveAccountAddressException);
     });
@@ -700,7 +725,7 @@ describe('KeyringHandler', () => {
           id: '1',
           jsonrpc: '2.0',
           params: {
-            address: mockAccount.address,
+            opts: { address: mockAccount.address },
           },
         }),
       ).rejects.toThrow(InvalidParamsError);
@@ -794,10 +819,11 @@ describe('KeyringHandler', () => {
 
     it('submits a sign message request', async () => {
       const expectedResult = {
-        signature: bufferToUint8Array(
+        signedMessage: bufferToUint8Array(
           'Stellar Signed Message: Hello, world!',
           'utf8',
         ).toString('base64'),
+        signerAddress: mockAccount.address,
       };
 
       jest
@@ -809,7 +835,11 @@ describe('KeyringHandler', () => {
         origin: 'metamask',
         request: {
           method: MultichainMethod.SignMessage,
-          params: { message: 'Hello, world!' },
+          params: {
+            message: bufferToUint8Array('Hello, world!', 'utf8').toString(
+              'base64',
+            ),
+          },
         },
         scope: KnownCaip2ChainId.Mainnet,
         account: mockAccountId,
@@ -832,10 +862,8 @@ describe('KeyringHandler', () => {
       const xdr = `AAAAAgAAAADjngeX0YTNoQ15A0xC83aMm/sDnXrmLF+apmXvdmkUugAAAGQAC3gAAAAAQQAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAOZfkjSFZ31vI/Nx28cC6iAFWLWcPIvJhM2NVoxmfgVTAAAAAAAAAAAAmJaAAAAAAAAAAAA=`;
 
       const expectedResult = {
-        signature: bufferToUint8Array(
-          `Stellar Signed transaction: ${xdr}`,
-          'utf8',
-        ).toString('base64'),
+        signedTxXdr: xdr,
+        signerAddress: mockAccount.address,
       };
 
       jest
@@ -847,7 +875,7 @@ describe('KeyringHandler', () => {
         origin: 'metamask',
         request: {
           method: MultichainMethod.SignTransaction,
-          params: { transaction: xdr },
+          params: { xdr },
         },
         scope: KnownCaip2ChainId.Mainnet,
         account: mockAccountId,
@@ -882,6 +910,76 @@ describe('KeyringHandler', () => {
 
       expect(mockSignMessageHandler.handle).not.toHaveBeenCalled();
       expect(mockSignTransactionHandler.handle).not.toHaveBeenCalled();
+    });
+
+    it('exposes a submitRequest result that satisfies the SEP-43 response struct', async () => {
+      const expectedWithError = {
+        signedMessage: '',
+        signerAddress:
+          'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        error: { message: 'x', code: -3, ext: ['y'] },
+      };
+      jest
+        .mocked(mockSignMessageHandler.handle)
+        .mockResolvedValue(expectedWithError);
+
+      const signMessagePayload = {
+        id: keyringRequestId,
+        origin: 'metamask',
+        request: {
+          method: MultichainMethod.SignMessage,
+          params: {
+            message: bufferToUint8Array('Hello, world!', 'utf8').toString(
+              'base64',
+            ),
+          },
+        },
+        scope: KnownCaip2ChainId.Mainnet,
+        account: mockAccountId,
+      };
+
+      const response = await keyringHandler.submitRequest(signMessagePayload);
+      expect(response).toMatchObject({ pending: false });
+      expect(() =>
+        create(
+          (response as { pending: false; result: Json }).result,
+          SignMessageResponseStruct,
+        ),
+      ).not.toThrow();
+    });
+
+    it('exposes a sign-tx submitRequest result that satisfies the SEP-43 response struct', async () => {
+      const xdr = `AAAAAgAAAADjngeX0YTNoQ15A0xC83aMm/sDnXrmLF+apmXvdmkUugAAAGQAC3gAAAAAQQAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAOZfkjSFZ31vI/Nx28cC6iAFWLWcPIvJhM2NVoxmfgVTAAAAAAAAAAAAmJaAAAAAAAAAAAA=`;
+      const expectedWithError = {
+        signedTxXdr: '',
+        signerAddress: mockAccount.address,
+        error: { message: 'x', code: -1 },
+      };
+      jest
+        .mocked(mockSignTransactionHandler.handle)
+        .mockResolvedValue(expectedWithError);
+
+      const signTransactionPayload = {
+        id: keyringRequestId,
+        origin: 'metamask',
+        request: {
+          method: MultichainMethod.SignTransaction,
+          params: { xdr },
+        },
+        scope: KnownCaip2ChainId.Mainnet,
+        account: mockAccountId,
+      };
+
+      const response = await keyringHandler.submitRequest(
+        signTransactionPayload,
+      );
+      expect(response).toMatchObject({ pending: false });
+      expect(() =>
+        create(
+          (response as { pending: false; result: Json }).result,
+          SignTransactionResponseStruct,
+        ),
+      ).not.toThrow();
     });
   });
 });

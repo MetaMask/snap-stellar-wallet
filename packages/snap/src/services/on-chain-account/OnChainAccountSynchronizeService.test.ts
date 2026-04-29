@@ -86,6 +86,10 @@ describe('OnChainAccountSynchronizeService', () => {
     return payload[keyringAccountId] as OnChainAccountSerializableFull;
   };
 
+  const getOnChainAccountServiceSpies = () => ({
+    setSep41AssetSpy: jest.spyOn(OnChainAccount.prototype, 'setSep41Asset'),
+  });
+
   const setupTest = () => {
     jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
     const metadata = generateMockStellarAssetMetadata();
@@ -337,6 +341,33 @@ describe('OnChainAccountSynchronizeService', () => {
     );
   });
 
+  it('does not restore SEP-41 rows when SEP-41 balance fetch fails and no persisted snapshot is found', async () => {
+    setupTest();
+
+    const { keyringAccount, onChainAccount } = setupOnChainAccountWithBalance(
+      'entropy-sync-fallback-all-fail',
+    );
+    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
+      getNetworkServiceSpies();
+    getSep41AssetBalancesSpy.mockRejectedValue(
+      new Error('sep41 fetch temporarily unavailable'),
+    );
+    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
+
+    const { setSep41AssetSpy } = getOnChainAccountServiceSpies();
+    const { onChainAccountService, findByKeyringAccountIdsSpy } =
+      setupSynchronizeService();
+    // Mock no persisted snapshot is found for the account.
+    findByKeyringAccountIdsSpy.mockResolvedValue({ [keyringAccount.id]: null });
+
+    await onChainAccountService.synchronize(
+      [keyringAccount],
+      KnownCaip2ChainId.Mainnet,
+    );
+
+    expect(setSep41AssetSpy).not.toHaveBeenCalled();
+  });
+
   it('restores persisted SEP-41 rows when SEP-41 balance fetch fails', async () => {
     setupTest();
 
@@ -421,5 +452,34 @@ describe('OnChainAccountSynchronizeService', () => {
     );
     expect(resolvedSep41Row?.balance).toBe('500');
     expect(restoredSep41Row?.balance).toBe('250');
+  });
+
+  it('does not emit keyring events when saveMany fails', async () => {
+    setupTest();
+
+    const { signer, keyringAccount, onChainAccount } =
+      setupOnChainAccountWithBalance('entropy-sync-1');
+    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
+      getNetworkServiceSpies();
+    getSep41AssetBalancesSpy.mockResolvedValue({
+      [signer.publicKey()]: {
+        [sep41Id]: new BigNumber('1000'),
+      },
+    });
+    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
+
+    const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
+    const { onChainAccountService, saveManySpy } = setupSynchronizeService();
+    saveManySpy.mockRejectedValue(new Error('saveMany failed'));
+
+    await expect(
+      onChainAccountService.synchronize(
+        [keyringAccount],
+        KnownCaip2ChainId.Mainnet,
+      ),
+    ).rejects.toThrow('saveMany failed');
+
+    expect(saveManySpy).toHaveBeenCalled();
+    expect(emitSnapKeyringEventSpy).not.toHaveBeenCalled();
   });
 });
