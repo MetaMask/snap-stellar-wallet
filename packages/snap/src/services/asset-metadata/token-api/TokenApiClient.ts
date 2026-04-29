@@ -12,7 +12,7 @@ import type {
 } from './api';
 import {
   TokenMetadataByAssetIdsResponseStruct,
-  TokenMetadatabyChainIdResponseStruct,
+  TokenMetadataByChainIdResponseStruct,
 } from './api';
 import { TokenApiException } from './exceptions';
 import type {
@@ -124,7 +124,7 @@ export class TokenApiClient {
 
       const data = await response.json();
 
-      assert(data, TokenMetadatabyChainIdResponseStruct);
+      assert(data, TokenMetadataByChainIdResponseStruct);
 
       return data;
     } catch (error) {
@@ -192,23 +192,11 @@ export class TokenApiClient {
   async getAllTokensMetadata(
     scope: KnownCaip2ChainId,
   ): Promise<StellarAssetMetadata[]> {
-    try {
-      const tokenMetadataResponses = await this.#fetchAllTokensMetadata(scope);
-      // Note: it is possible that the token metadata does not contain all the asset ids.
-      return tokenMetadataResponses.data.map((tokenMetadata) =>
-        this.#toAssetMetadata(tokenMetadata),
-      );
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Error fetching token metadata',
-        ensureError(error).message,
-      );
-      return rethrowIfInstanceElseThrow(
-        error,
-        [TokenApiException],
-        new TokenApiException(`Failed to fetch token metadata`),
-      );
-    }
+    const tokenMetadataResponses = await this.#fetchAllTokensMetadata(scope);
+    // Note: it is possible that the token metadata does not contain all the asset ids.
+    return tokenMetadataResponses.data.map((tokenMetadata) =>
+      this.#toAssetMetadata(tokenMetadata),
+    );
   }
 
   #toAssetMetadata(tokenMetadata: TokenMetadata): StellarAssetMetadata {

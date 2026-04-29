@@ -19,7 +19,6 @@ import {
 
 export const TokenMetadataStruct = object({
   decimals: integer(),
-  // there should be no slip44 assets in the token metadata response
   assetId: union([
     KnownCaip19ClassicAssetStruct,
     KnownCaip19Sep41AssetStruct,
@@ -32,7 +31,7 @@ export const TokenMetadataStruct = object({
 
 export const TokenMetadataByAssetIdsResponseStruct = array(TokenMetadataStruct);
 
-export const TokenMetadatabyChainIdResponseStruct = object({
+export const TokenMetadataByChainIdResponseStruct = object({
   data: array(TokenMetadataStruct),
   count: number(),
   totalCount: number(),
@@ -44,7 +43,7 @@ export type TokenMetadataByAssetIdsResponse = Infer<
   typeof TokenMetadataByAssetIdsResponseStruct
 >;
 export type TokenMetadataByChainIdResponse = Infer<
-  typeof TokenMetadatabyChainIdResponseStruct
+  typeof TokenMetadataByChainIdResponseStruct
 >;
 
 export type TokenMetadata = Infer<typeof TokenMetadataStruct>;
