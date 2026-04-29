@@ -48,7 +48,11 @@ function createMockStateManager(
       }
       return undefined;
     },
-    setKey: jest.fn(async () => Promise.resolve()),
+    setKey: jest.fn(async (key: string, value: unknown) => {
+      if (key === 'assets') {
+        state.assets = cloneDeep(value) as AssetMetadataState['assets'];
+      }
+    }),
     update: async (updater) => {
       state = updater(cloneDeep(state));
       return cloneDeep(state);
@@ -133,5 +137,31 @@ describe('AssetMetadataRepository', () => {
 
     expect(await repo.getByAssetId(classicId)).toStrictEqual(row);
     expect(await repo.getByAssetId(sep41Id)).toBeNull();
+  });
+
+  it('preserves all rows when saveMany runs concurrently for disjoint asset ids', async () => {
+    const manager = createMockStateManager({ assets: {} });
+    const repo = new AssetMetadataRepository(manager);
+    const classic = generateAssetData(
+      classicId,
+      AssetType.Token,
+      KnownCaip2ChainId.Testnet,
+    );
+    const sep41 = generateAssetData(
+      sep41Id,
+      AssetType.Sep41,
+      KnownCaip2ChainId.Mainnet,
+    );
+
+    await Promise.all([repo.saveMany([classic]), repo.saveMany([sep41])]);
+
+    expect(await repo.getByAssetId(classicId)).toMatchObject({
+      assetId: classicId,
+      persistedAt: expect.any(Number),
+    });
+    expect(await repo.getByAssetId(sep41Id)).toMatchObject({
+      assetId: sep41Id,
+      persistedAt: expect.any(Number),
+    });
   });
 });
