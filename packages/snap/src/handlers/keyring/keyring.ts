@@ -477,8 +477,8 @@ export class KeyringHandler implements Keyring {
       return { address: `${scope}:${account.address}` };
     } catch (error: unknown) {
       // Per the keyring API, returning `null` signals "this snap does not
-      // own the requested address" so MetaMask's routing layer can try the
-      // next snap. Throwing here would be treated as a hard routing error.
+      // own the requested address" so MetaMask's routing layer will fallback to
+      // the current connected account.
       if (error instanceof AccountNotFoundException) {
         return null;
       }

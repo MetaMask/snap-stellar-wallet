@@ -79,7 +79,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
       id: '1',
       method: MultichainMethod.SignMessage,
       params: {
-        message: btoa('Hello, world!'),
+        message: 'Hello, world!',
         opts: {
           address: account.address,
           networkPassphrase: 'Public Global Stellar Network ; September 2015',
@@ -146,7 +146,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
         jsonrpc: '2.0',
         id: '1',
         method: MultichainMethod.SignMessage,
-        params: { message: btoa('Hello') },
+        params: { message: 'Hello' },
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
@@ -211,7 +211,7 @@ describe('SignMessageRequestStruct', () => {
     account: account.id,
     request: {
       method: MultichainMethod.SignMessage,
-      params: { message: btoa('Hello, world!') },
+      params: { message: 'Hello, world!' },
     },
   };
 
@@ -244,7 +244,7 @@ describe('SignMessageRequestStruct', () => {
           request: {
             method: MultichainMethod.SignMessage,
             params: {
-              message: btoa('Hello, world!'),
+              message: 'Hello, world!',
               opts: {
                 address: account.address,
                 networkPassphrase:
@@ -263,7 +263,7 @@ describe('SignMessageRequestStruct', () => {
       ...validSignMessageRequest,
       request: {
         method: MultichainMethod.SignTransaction,
-        params: { message: btoa('Hello') },
+        params: { message: 'Hello' },
       },
     },
     {
