@@ -60,6 +60,7 @@ import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
+import { AccountNotFoundException } from '../../services/account/exceptions';
 import type { AssetMetadataService } from '../../services/asset-metadata';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import type {
@@ -462,7 +463,7 @@ export class KeyringHandler implements Keyring {
   async resolveAccountAddress(
     scope: KnownCaip2ChainId,
     request: ResolveAccountAddressJsonRpcRequest,
-  ): Promise<ResolvedAccountAddress> {
+  ): Promise<ResolvedAccountAddress | null> {
     validateRequest(
       {
         request,
@@ -474,10 +475,16 @@ export class KeyringHandler implements Keyring {
     try {
       const { account } = await this.#accountService.resolveAccount({
         scope,
-        accountAddress: request.params.address,
+        accountAddress: request.params.opts.address,
       });
       return { address: `${scope}:${account.address}` };
     } catch (error: unknown) {
+      // Per the keyring API, returning `null` signals "this snap does not
+      // own the requested address" so MetaMask's routing layer will fallback to
+      // the current connected account.
+      if (error instanceof AccountNotFoundException) {
+        return null;
+      }
       this.#logger.logErrorWithDetails(
         'Failed to resolve account address',
         ensureError(error).message,
