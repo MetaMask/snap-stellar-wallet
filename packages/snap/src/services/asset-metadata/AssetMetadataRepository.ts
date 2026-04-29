@@ -1,3 +1,4 @@
+import { Mutex } from 'async-mutex';
 import { cloneDeep } from 'lodash';
 
 import type {
@@ -16,6 +17,13 @@ export class AssetMetadataRepository {
   readonly #state: IStateManager<AssetMetadataState>;
 
   readonly #stateKey = 'assets';
+
+  /**
+   * Serializes read-merge-write on the `assets` map so concurrent `saveMany`
+   * calls cannot drop each other's rows (lost update), without using
+   * `snap_manageState` on the entire snap state blob.
+   */
+  readonly #saveMutex = new Mutex();
 
   constructor(state: IStateManager<AssetMetadataState>) {
     this.#state = state;
@@ -117,6 +125,9 @@ export class AssetMetadataRepository {
    * Upserts rows by `assetId`. Stamps `persistedAt` (same value for all rows in this call)
    * for future staleness / TTL logic.
    *
+   * Uses `snap_setState` on the `assets` key (via `setKey`) instead of `snap_manageState`
+   * so imports and lookups avoid rewriting the entire encrypted state blob.
+   *
    * @param assets - Full metadata rows; `assetId` must match the CAIP-19 key for that network.
    */
   async saveMany(assets: StellarAssetMetadata[]): Promise<void> {
@@ -124,16 +135,20 @@ export class AssetMetadataRepository {
       return;
     }
     const persistedAt = Date.now();
-    await this.#state.update((stateValue) => {
-      const newState = cloneDeep(stateValue);
+    await this.#saveMutex.runExclusive(async () => {
+      const current =
+        (await this.#state.getKey<AssetMetadataByAssetId>(this.#stateKey)) ??
+        {};
+      const merged = cloneDeep(current);
 
       for (const asset of assets) {
-        newState.assets[asset.assetId] = {
+        merged[asset.assetId] = {
           ...asset,
           persistedAt,
         };
       }
-      return newState;
+
+      await this.#state.setKey(this.#stateKey, merged);
     });
   }
 }
