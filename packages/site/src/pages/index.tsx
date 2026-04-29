@@ -151,8 +151,8 @@ const Index = () => {
   const { error } = useMetaMaskContext();
   const { isFlask, snapsDetected, installedSnap } = useMetaMask();
   const requestSnap = useRequestSnap();
-  const invokeSnap = useInvokeSnap();
   const invokeKeyring = useInvokeKeyring();
+  const invokeSnap = useInvokeSnap();
   const [signMessageText, setSignMessageText] = useState(
     'Hello from the Stellar wallet test dapp',
   );
@@ -207,7 +207,8 @@ const Index = () => {
       setSignMessageOutput('Selected account has no chain scope.');
       return;
     }
-    const response = (await invokeSnap({
+
+    const response = await invokeSnap({
       method: 'stellar_signMessage',
       params: {
         id: crypto.randomUUID(),
@@ -221,20 +222,9 @@ const Index = () => {
           },
         },
       },
-    })) as { pending: false; signature: string } | { pending: true } | null;
+    });
 
-    if (!response) {
-      return;
-    }
-
-    if (response.pending) {
-      setSignMessageOutput('Request is pending in MetaMask.');
-      return;
-    }
-
-    console.log('response', response);
-
-    setSignMessageOutput(response.signature);
+    setSignMessageOutput(JSON.stringify(response, null, 2));
   };
 
   const handleSignTxnClick = async () => {
@@ -248,7 +238,7 @@ const Index = () => {
     const accounts = (await invokeKeyring({
       method: KeyringRpcMethod.ListAccounts,
     })) as KeyringAccount[] | null;
-    const account = accounts?.[accounts.length - 1];
+    const account = accounts?.[0];
     if (!account) {
       setSignTxnOutput(
         'No keyring accounts found. Add a Stellar account in MetaMask first.',
@@ -261,7 +251,8 @@ const Index = () => {
       setSignTxnOutput('Selected account has no chain scope.');
       return;
     }
-    const response = (await invokeSnap({
+
+    const response = await invokeSnap({
       method: 'stellar_signTransaction',
       params: {
         id: crypto.randomUUID(),
@@ -271,24 +262,13 @@ const Index = () => {
         request: {
           method: 'signTransaction',
           params: {
-            transaction: trimmed,
+            xdr: trimmed,
           },
         },
       },
-    })) as { pending: false; signature: string } | { pending: true } | null;
+    });
 
-    if (!response) {
-      return;
-    }
-
-    if (response.pending) {
-      setSignTxnOutput('Request is pending in MetaMask.');
-      return;
-    }
-
-    console.log('response', response);
-
-    setSignTxnOutput(response.signature);
+    setSignTxnOutput(JSON.stringify(response, null, 2));
   };
 
   return (
@@ -368,9 +348,9 @@ const Index = () => {
         />
         <Card
           content={{
-            title: 'Sign message (Keyring API)',
+            title: 'Sign message',
             description:
-              'Calls keyring_submitRequest with signMessage using the first Stellar keyring account.',
+              'Calls the dev-only stellar_signMessage RPC alias (SEP-43-shaped params + response). In production, the same handler is reached via the multichain API.',
             button: (
               <>
                 <MessageField
@@ -398,9 +378,9 @@ const Index = () => {
 
         <Card
           content={{
-            title: 'Sign transaction (Keyring API)',
+            title: 'Sign transaction',
             description:
-              'Calls keyring_submitRequest with signTransaction using the first Stellar keyring account.',
+              'Calls the dev-only stellar_signTransaction RPC alias (SEP-43-shaped params + response). Paste a mainnet base64 XDR whose source is the wallet account. In production, the same handler is reached via the multichain API.',
             button: (
               <>
                 <MessageField
