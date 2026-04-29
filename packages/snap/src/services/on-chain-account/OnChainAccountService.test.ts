@@ -9,8 +9,13 @@ import {
   mockOnChainAccountService,
 } from './__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from './OnChainAccount';
+import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
+import { OnChainAccountSynchronizeService } from './OnChainAccountSynchronizeService';
 import { bufferToUint8Array } from '../../utils/buffer';
-import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
+import {
+  generateMockStellarKeyringAccounts,
+  generateStellarKeyringAccount,
+} from '../account/__mocks__/account.fixtures';
 import { DerivedAccountAddressMismatchException } from '../account/exceptions';
 import { NetworkService } from '../network';
 import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
@@ -31,6 +36,10 @@ describe('OnChainAccountService', () => {
     loadOnChainAccountSpy: jest.spyOn(
       NetworkService.prototype,
       'loadOnChainAccount',
+    ),
+    loadActivatedAccountOrNullSpy: jest.spyOn(
+      NetworkService.prototype,
+      'loadActivatedAccountOrNull',
     ),
   });
 
@@ -131,6 +140,90 @@ describe('OnChainAccountService', () => {
           KnownCaip2ChainId.Mainnet,
         ),
       ).rejects.toThrow(DerivedAccountAddressMismatchException);
+    });
+  });
+
+  describe('resolveOnChainAccountByKeyringAccountId', () => {
+    it('returns null when no snapshot exists for the keyring id and scope', async () => {
+      const keyringAccountId = globalThis.crypto.randomUUID();
+      const { onChainAccountService, onChainAccountRepository } =
+        mockOnChainAccountService();
+      const findByAccountIdSpy = jest.spyOn(
+        onChainAccountRepository,
+        'findByKeyringAccountId',
+      );
+      findByAccountIdSpy.mockResolvedValue(null);
+
+      const result =
+        await onChainAccountService.resolveOnChainAccountByKeyringAccountId(
+          keyringAccountId,
+          KnownCaip2ChainId.Mainnet,
+        );
+
+      expect(result).toBeNull();
+      expect(findByAccountIdSpy).toHaveBeenCalledWith(
+        keyringAccountId,
+        KnownCaip2ChainId.Mainnet,
+      );
+    });
+
+    it('returns rehydrated OnChainAccount when a snapshot exists', async () => {
+      const signer = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
+      const keyringAccountId = globalThis.crypto.randomUUID();
+      const loadedAcc = createMockAccountWithBalances(
+        signer.publicKey(),
+        '1',
+        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      );
+      const binding = horizonSource(
+        loadedAcc,
+        KnownCaip2ChainId.Mainnet,
+      ) as OnChainAccountSerializableFull;
+
+      const { onChainAccountService, onChainAccountRepository } =
+        mockOnChainAccountService();
+      const findByAccountIdSpy = jest.spyOn(
+        onChainAccountRepository,
+        'findByKeyringAccountId',
+      );
+      findByAccountIdSpy.mockResolvedValue(binding);
+
+      const result =
+        await onChainAccountService.resolveOnChainAccountByKeyringAccountId(
+          keyringAccountId,
+          KnownCaip2ChainId.Mainnet,
+        );
+
+      expect(result).toBeInstanceOf(OnChainAccount);
+      expect(result?.accountId).toStrictEqual(signer.publicKey());
+      expect(findByAccountIdSpy).toHaveBeenCalledWith(
+        keyringAccountId,
+        KnownCaip2ChainId.Mainnet,
+      );
+    });
+  });
+
+  describe('synchronize', () => {
+    it('calls OnChainAccountSynchronizeService', async () => {
+      const keyringAccounts = generateMockStellarKeyringAccounts(
+        2,
+        'entropy-source-1',
+      );
+      const { onChainAccountService } = mockOnChainAccountService();
+      const synchronizeSpy = jest.spyOn(
+        OnChainAccountSynchronizeService.prototype,
+        'synchronize',
+      );
+
+      await onChainAccountService.synchronize(
+        keyringAccounts,
+        KnownCaip2ChainId.Mainnet,
+      );
+
+      expect(synchronizeSpy).toHaveBeenCalledWith(
+        keyringAccounts,
+        KnownCaip2ChainId.Mainnet,
+      );
     });
   });
 });
