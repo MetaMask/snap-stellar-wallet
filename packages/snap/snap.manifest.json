@@ -36,7 +36,19 @@
     "snap_manageState": {},
     "snap_dialog": {},
     "snap_getPreferences": {},
-    "endowment:cronjob": {},
+    "endowment:cronjob": {
+      "jobs": [
+        {
+          "duration": "PT30S",
+          "request": {
+            "method": "synchronizeAccounts",
+            "params": {
+              "accountIds": "selected"
+            }
+          }
+        }
+      ]
+    },
     "endowment:assets": {
       "scopes": ["stellar:pubnet"]
     }
