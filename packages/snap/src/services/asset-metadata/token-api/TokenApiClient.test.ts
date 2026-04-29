@@ -84,13 +84,6 @@ describe('TokenApiClient', () => {
   const createClient = () =>
     new TokenApiClient(tokenApiClientOptions, logger, mockFetch);
 
-  beforeEach(() => {
-    jest.clearAllMocks();
-    // clearAllMocks does not remove mockImplementation; a prior test that used it
-    // would otherwise take precedence over mockResolvedValueOnce.
-    mockFetch.mockReset();
-  });
-
   describe('getTokensMetadata', () => {
     it('returns empty array when assetIds is empty', async () => {
       const client = createClient();
