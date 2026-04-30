@@ -46,6 +46,7 @@ export function normalizeAmount(
  *
  * @param amountInSmallestUnit - Balance in the asset's smallest unit (e.g. stroops).
  * @param decimalPlaces - Asset decimals (e.g. 7 for XLM / classic Stellar assets).
+ * @returns Decimal string suitable for the keyring / multichain balance APIs.
  */
 export function formatBalanceAmountForKeyringApi(
   amountInSmallestUnit: BigNumber,
