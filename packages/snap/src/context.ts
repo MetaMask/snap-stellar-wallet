@@ -19,7 +19,7 @@ import {
   AssetMetadataRepository,
   AssetMetadataService,
 } from './services/asset-metadata';
-import { StateCache } from './services/cache';
+import { InMemoryCache, StateCache } from './services/cache';
 import { NetworkService } from './services/network';
 import type { OnChainAccountState } from './services/on-chain-account';
 import {
@@ -35,7 +35,7 @@ import {
 } from './services/transaction';
 import { WalletService } from './services/wallet';
 import { ConfirmationUXController } from './ui/confirmation/controller';
-import { logger } from './utils';
+import { logger, noOpLogger } from './utils';
 
 assert(AppConfig, object());
 
@@ -91,7 +91,7 @@ const transactionService = new TransactionService({
 });
 
 const priceService = new PriceService({
-  cache: new StateCache(state, logger, '__cache__price'),
+  cache: new InMemoryCache(noOpLogger),
   logger,
 });
 
