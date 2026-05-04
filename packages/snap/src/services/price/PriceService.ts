@@ -28,7 +28,6 @@ import type {
   VsCurrencyParam,
 } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
-import { parseCacheKey, toCacheKey } from './utils';
 import { AppConfig } from '../../config';
 
 /**
@@ -120,19 +119,31 @@ export class PriceService {
 
     const cacheKeyPrefix = 'PriceApiClient:getSpotPrices';
 
+    // Shorthand method to generate the cache key
+    const toCacheKey = (tokenCaipAssetType: CaipAssetType): string =>
+      `${cacheKeyPrefix}:${tokenCaipAssetType}:${vsCurrency}`;
+
+    // Parses back the cache key
+    const parseCacheKey = (key: string): RegExpMatchArray => {
+      const regex = new RegExp(`^${cacheKeyPrefix}:(.+):(.+)$`, 'u');
+      const match = key.match(regex);
+
+      if (!match) {
+        throw new Error('Invalid cache key');
+      }
+
+      return match;
+    };
+
     // Get the cached spot prices
     const cachedSpotPricesRecord = refreshCache
       ? {}
-      : await this.#cache.mget(
-          uniqueTokenCaip19Types.map((tokenCaip19Type: CaipAssetType) =>
-            toCacheKey(cacheKeyPrefix, tokenCaip19Type, vsCurrency),
-          ),
-        );
+      : await this.#cache.mget(uniqueTokenCaip19Types.map(toCacheKey));
 
     // `mget` keys results by full cache keys (`PriceApiClient:getSpotPrices:…`), not by CAIP asset ID; map back to asset IDs.
     const cachedSpotPricesRecordWithParsedKeys = mapKeys(
       cachedSpotPricesRecord,
-      (_value, key) => parseCacheKey(cacheKeyPrefix, key)[1],
+      (_value, key) => parseCacheKey(key)[1],
     );
 
     // We still need to fetch the spot prices for the tokens that are not cached
@@ -155,11 +166,7 @@ export class PriceService {
     await this.#cache.mset(
       Object.entries(nonCachedSpotPrices).map(
         ([tokenCaipAssetType, spotPrice]) => ({
-          key: toCacheKey(
-            cacheKeyPrefix,
-            tokenCaipAssetType as CaipAssetType,
-            vsCurrency,
-          ),
+          key: toCacheKey(tokenCaipAssetType as CaipAssetType),
           value: spotPrice,
           ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
         }),

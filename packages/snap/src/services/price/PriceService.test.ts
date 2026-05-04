@@ -15,7 +15,6 @@ import type {
   SpotPrice,
 } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
-import { toCacheKey } from './utils';
 import { createMemoryCache } from '../cache/__mocks__/cache.fixtures';
 
 jest.mock('../../utils/logger');
@@ -56,8 +55,14 @@ const minimalSpot = (id: string, price: number): SpotPrice => ({
 
 const SPOT_PRICES_CACHE_KEY_PREFIX = 'PriceApiClient:getSpotPrices' as const;
 
+/**
+ * Mirrors {@link PriceService} spot-price cache keys: `prefix:caipAsset:vsCurrency`.
+ *
+ * @param assetId
+ * @param vsCurrency
+ */
 const cacheKeySpotPrice = (assetId: CaipAssetType, vsCurrency: string) =>
-  toCacheKey(SPOT_PRICES_CACHE_KEY_PREFIX, assetId, vsCurrency);
+  `${SPOT_PRICES_CACHE_KEY_PREFIX}:${assetId}:${vsCurrency}`;
 
 const cacheKeyFiatExchangeRates = () => 'PriceService:getFiatExchangeRates:';
 
