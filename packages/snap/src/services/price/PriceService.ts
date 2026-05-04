@@ -122,22 +122,34 @@ export class PriceService {
     const toCacheKey = (tokenCaipAssetType: CaipAssetType): string =>
       `${cacheKeyPrefix}:${tokenCaipAssetType}:${vsCurrency}`;
 
-    const cachedSpotPricesRecord = refreshCache
-      ? {}
-      : await this.#cache.mget(uniqueAssetTypes.map(toCacheKey));
+    let cachedSpotPricesRecord: Record<string, Serializable> = {};
+    // Continue even if there is an error fetching the cached spot prices
+    try {
+      cachedSpotPricesRecord = refreshCache
+        ? {}
+        : await this.#cache.mget(uniqueAssetTypes.map(toCacheKey));
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Error fetching cached spot prices',
+        error,
+      );
+    }
 
     const cachedSpotPricesByAssetId: Partial<SpotPrices> = {};
+    const nonCachedAssetTypes: CaipAssetType[] = [];
     for (const assetType of uniqueAssetTypes) {
       const value = cachedSpotPricesRecord[toCacheKey(assetType)];
-      if (value !== undefined) {
+      // Not found in cache
+      if (value === undefined) {
+        // Add to query list
+        nonCachedAssetTypes.push(assetType);
+      } else {
+        // Add to result
         cachedSpotPricesByAssetId[assetType] = value as SpotPrice | null;
       }
     }
 
-    const nonCachedAssetTypes = uniqueAssetTypes.filter(
-      (assetType) => cachedSpotPricesByAssetId[assetType] === undefined,
-    );
-
+    // if there are no assets to query, return the cached results
     if (nonCachedAssetTypes.length === 0) {
       return cachedSpotPricesByAssetId;
     }
@@ -147,15 +159,20 @@ export class PriceService {
       vsCurrency,
     );
 
-    await this.#cache.mset(
-      Object.entries(nonCachedSpotPrices).map(
-        ([tokenCaipAssetType, spotPrice]) => ({
-          key: toCacheKey(tokenCaipAssetType as CaipAssetType),
-          value: spotPrice,
-          ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
-        }),
-      ),
-    );
+    // Continue even if there is an error caching the spot prices
+    try {
+      await this.#cache.mset(
+        Object.entries(nonCachedSpotPrices).map(
+          ([tokenCaipAssetType, spotPrice]) => ({
+            key: toCacheKey(tokenCaipAssetType as CaipAssetType),
+            value: spotPrice,
+            ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
+          }),
+        ),
+      );
+    } catch (error) {
+      this.#logger.logErrorWithDetails('Error caching spot prices', error);
+    }
 
     return {
       ...cachedSpotPricesByAssetId,
