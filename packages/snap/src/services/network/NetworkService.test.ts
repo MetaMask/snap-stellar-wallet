@@ -436,6 +436,63 @@ describe('NetworkService', () => {
     });
   });
 
+  describe('getHorizonTransactionInclusionStatus', () => {
+    it('returns pending when Horizon returns NotFoundError', async () => {
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({
+            call: jest
+              .fn()
+              .mockRejectedValue(new NotFoundError('not found', {})),
+          }),
+        } as never);
+
+      const result = await networkService.getHorizonTransactionInclusionStatus(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('pending');
+      transactionsSpy.mockRestore();
+    });
+
+    it('returns success when Horizon record is successful', async () => {
+      const call = jest.fn().mockResolvedValue({ successful: true });
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
+
+      const result = await networkService.getHorizonTransactionInclusionStatus(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('success');
+      expect(call).toHaveBeenCalledTimes(1);
+      transactionsSpy.mockRestore();
+    });
+
+    it('returns failed when Horizon record is not successful', async () => {
+      const call = jest.fn().mockResolvedValue({ successful: false });
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
+
+      const result = await networkService.getHorizonTransactionInclusionStatus(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('failed');
+      transactionsSpy.mockRestore();
+    });
+  });
+
   describe('send', () => {
     it('returns transaction hash when pollTransaction is false', async () => {
       const { sendTransactionSpy, pollTransactionSpy } = getRpcServerSpies();

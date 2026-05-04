@@ -229,6 +229,16 @@ export class AccountService {
     return (await this.#accountsRepository.findById(id)) ?? undefined;
   }
 
+  /**
+   * Finds Stellar keyring accounts matching the given ids (order not preserved).
+   *
+   * @param ids - Keyring account UUIDs.
+   * @returns Accounts that exist in snap state for those ids.
+   */
+  async findByIds(ids: string[]): Promise<StellarKeyringAccount[]> {
+    return await this.#accountsRepository.findByIds(ids);
+  }
+
   async #resolveKeyringAccountByAddress({
     scope,
     address,

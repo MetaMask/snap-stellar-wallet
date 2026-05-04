@@ -38,6 +38,7 @@ import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
+import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 jest.mock('../../utils/logger');
 jest.mock('@metamask/keyring-snap-sdk', () => ({
@@ -48,6 +49,9 @@ describe('ChangeTrustOptHandler', () => {
   beforeEach(() => {
     jest.mocked(emitSnapKeyringEvent).mockReset();
     jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
+    jest
+      .spyOn(TrackTransactionHandler, 'scheduleBackgroundEvent')
+      .mockResolvedValue(undefined);
   });
 
   const accountId = '11111111-1111-4111-8111-111111111111';
@@ -247,6 +251,13 @@ describe('ChangeTrustOptHandler', () => {
         },
       },
     });
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).toHaveBeenCalledWith({
+      txId: 'dGVzdC10eC1pZA==',
+      scope,
+      accountIds: [account.id],
+    });
   });
 
   it('returns success early for opt-in when trustline already exists', async () => {
@@ -269,6 +280,9 @@ describe('ChangeTrustOptHandler', () => {
     expect(signTransactionSpy).not.toHaveBeenCalled();
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).not.toHaveBeenCalled();
   });
 
   it('throws TrustlineNotFoundException for opt-out when trustline does not exist', async () => {
@@ -336,6 +350,13 @@ describe('ChangeTrustOptHandler', () => {
         },
       },
     });
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).toHaveBeenCalledWith({
+      txId: 'dGVzdC10eC1pZA==',
+      scope,
+      accountIds: [account.id],
+    });
   });
 
   it('throws UserRejectedRequestError when confirmation is rejected', async () => {
@@ -357,6 +378,9 @@ describe('ChangeTrustOptHandler', () => {
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(networkSendSpy).not.toHaveBeenCalled();
     expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).not.toHaveBeenCalled();
   });
 
   it('continues successfully when saving pending transaction fails', async () => {
@@ -373,5 +397,6 @@ describe('ChangeTrustOptHandler', () => {
       transactionId: 'dGVzdC10eC1pZA==',
     });
     expect(sendTransaction).toHaveBeenCalledTimes(1);
+    expect(TrackTransactionHandler.scheduleBackgroundEvent).toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import {
   KeyringEvent,
+  TransactionStatus,
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
@@ -136,6 +137,53 @@ export class TransactionService {
     await this.save(transaction);
 
     return transaction;
+  }
+
+  /**
+   * Updates a persisted keyring transaction to a terminal status and emits
+   * {@link KeyringEvent.AccountTransactionsUpdated} so the extension Activity list can leave
+   * the "pending" state after Horizon inclusion (or failure).
+   *
+   * @param params - Settlement parameters.
+   * @param params.txId - Transaction hash (`Transaction.id`).
+   * @param params.accountIds - Accounts that may hold the tx (from the track job).
+   * @param params.status - {@link TransactionStatus.Confirmed} or {@link TransactionStatus.Failed}.
+   */
+  async applyKeyringTransactionSettlement(params: {
+    txId: string;
+    accountIds: readonly string[];
+    status: TransactionStatus.Confirmed | TransactionStatus.Failed;
+  }): Promise<void> {
+    const { txId, accountIds, status } = params;
+
+    const existing = await this.#transactionRepository.findByIdAmongAccounts(
+      txId,
+      accountIds,
+    );
+
+    if (!existing) {
+      this.#logger.debug(
+        'applyKeyringTransactionSettlement: no matching persisted transaction',
+        { txId, accountIds },
+      );
+      return;
+    }
+
+    if (
+      existing.status === TransactionStatus.Confirmed ||
+      existing.status === TransactionStatus.Failed
+    ) {
+      return;
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const updated: KeyringTransaction = {
+      ...existing,
+      status,
+      events: [...existing.events, { status, timestamp }],
+    };
+
+    await this.save(updated);
   }
 
   /**

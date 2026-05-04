@@ -4,9 +4,12 @@ import {
   assign,
   boolean,
   enums,
+  integer,
   literal,
   nonempty,
   object,
+  optional,
+  size,
   string,
   type,
 } from '@metamask/superstruct';
@@ -49,6 +52,8 @@ export const TrackTransactionParamsStruct = type({
   txId: nonempty(string()),
   scope: KnownCaip2ChainIdStruct,
   accountIds: nonempty(array(UuidStruct)),
+  /** Reschedule counter; omitted on first schedule (treated as 0). */
+  attempt: optional(size(integer(), 0, 30)),
 });
 
 export const RefreshConfirmationPricesJsonRpcRequestStruct = assign(

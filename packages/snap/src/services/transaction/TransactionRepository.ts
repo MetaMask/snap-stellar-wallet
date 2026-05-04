@@ -26,11 +26,32 @@ export class TransactionRepository {
   }
 
   async findByAccountId(accountId: string): Promise<KeyringTransaction[]> {
-    const transactions = await this.#state.getKey<KeyringTransaction[]>(
-      `${this.#stateKey}.${accountId}`,
-    );
+    const transactionsByAccount = await this.#state.getKey<
+      TransactionStateValue['transactions']
+    >(this.#stateKey);
 
-    return transactions ?? [];
+    return transactionsByAccount?.[accountId] ?? [];
+  }
+
+  /**
+   * Finds a persisted keyring transaction by hash among the given accounts.
+   *
+   * @param txId - Stellar transaction hash (keyring `Transaction.id`).
+   * @param accountIds - Account ids to search (same order as the track job).
+   * @returns The transaction when found; otherwise `undefined`.
+   */
+  async findByIdAmongAccounts(
+    txId: string,
+    accountIds: readonly string[],
+  ): Promise<KeyringTransaction | undefined> {
+    for (const accountId of accountIds) {
+      const list = await this.findByAccountId(accountId);
+      const found = list.find((t) => t.id === txId);
+      if (found) {
+        return found;
+      }
+    }
+    return undefined;
   }
 
   async save(transaction: KeyringTransaction): Promise<void> {
