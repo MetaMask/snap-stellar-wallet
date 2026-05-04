@@ -79,7 +79,7 @@ import {
   getSnapProvider,
   isSep41Id,
   isSlip44Id,
-  formatBalanceAmountForKeyringApi,
+  toDisplayBalance,
   rethrowIfInstanceElseThrow,
   validateOrigin,
   validateRequest,
@@ -479,7 +479,7 @@ export class KeyringHandler implements Keyring {
         const decimal = assetMetadata.units[0].decimals;
         assetBalances[assetId] = {
           unit: asset.symbol ?? '',
-          amount: formatBalanceAmountForKeyringApi(asset.balance, decimal),
+          amount: toDisplayBalance(asset.balance, decimal),
         };
       }
       return assetBalances;

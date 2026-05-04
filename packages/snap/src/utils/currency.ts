@@ -48,7 +48,7 @@ export function normalizeAmount(
  * @param decimalPlaces - Asset decimals (e.g. 7 for XLM / classic Stellar assets).
  * @returns Decimal string suitable for the keyring / multichain balance APIs.
  */
-export function formatBalanceAmountForKeyringApi(
+export function toDisplayBalance(
   amountInSmallestUnit: BigNumber,
   decimalPlaces: number,
 ): string {
