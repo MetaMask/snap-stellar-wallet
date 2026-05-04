@@ -26,6 +26,10 @@ const xdr = `AAAAAgAAAADjngeX0YTNoQ15A0xC83aMm/sDnXrmLF+apmXvdmkUugAAAGQAC3gAAAA
 // against a deterministic 32-byte contract id, no sub-invocations. Round-trips
 // through `xdr.HashIdPreimage.fromXDR(..., 'base64')`.
 const authEntry = `AAAACXrDOZdUTjF10ma9AiQ5sizbFlCMARY/JuXLKj4QRal5AAAAAAdbzRUAD0JAAAAAAAAAAAECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAAh0cmFuc2ZlcgAAAAAAAAAA`;
+// Same shape, but with the embedded `networkId` bound to testnet — used to
+// assert `HashIdPreimageXdrStruct` rejects preimages whose networkId does not
+// match Stellar mainnet.
+const testnetAuthEntry = `AAAACc7gMC1ZhE0yvcqRXIID3USzP7t+3BkFHqN6vt8o7NRyAAAAAAdbzRUAD0JAAAAAAAAAAAECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAAh0cmFuc2ZlcgAAAAAAAAAA`;
 
 describe('MultichainMethodStruct', () => {
   it.each([
@@ -490,6 +494,16 @@ describe('SignAuthEntryRequestStruct', () => {
       request: {
         method: MultichainMethod.SignAuthEntry,
         params: { authEntry: btoa('not a HashIdPreimage') },
+      },
+    },
+    // Valid Soroban authorization preimage but bound to testnet networkId —
+    // mainnet-only snap must reject so the resulting signature can't be
+    // smuggled across networks.
+    {
+      ...validSignAuthEntryRequest,
+      request: {
+        method: MultichainMethod.SignAuthEntry,
+        params: { authEntry: testnetAuthEntry },
       },
     },
     // Forbidden opt: snap is sign-only, never submits

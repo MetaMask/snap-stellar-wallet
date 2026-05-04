@@ -23,9 +23,14 @@ jest.mock('../../utils/logger');
  * arbitrary — we only need the XDR to round-trip through superstruct
  * validation and the handler's preimage decoder.
  *
+ * @param networkPassphrase - Network passphrase to embed as `networkId`.
+ * Defaults to mainnet so happy-path tests pass `HashIdPreimageXdrStruct`'s
+ * mainnet-only check.
  * @returns Base64 XDR of a Soroban authorization preimage.
  */
-function buildAuthEntryPreimageXdr(): string {
+function buildAuthEntryPreimageXdr(
+  networkPassphrase: string = Networks.PUBLIC,
+): string {
   const contractIdBytes = new Uint8Array(32).fill(1);
   const contractAddress = Address.contract(
     bufferToUint8Array(contractIdBytes),
@@ -44,7 +49,7 @@ function buildAuthEntryPreimageXdr(): string {
     subInvocations: [],
   });
   const sorobanAuth = new xdr.HashIdPreimageSorobanAuthorization({
-    networkId: hash(bufferToUint8Array(Networks.PUBLIC, 'utf8')),
+    networkId: hash(bufferToUint8Array(networkPassphrase, 'utf8')),
     nonce: xdr.Int64.fromString('123456789'),
     signatureExpirationLedger: 1_000_000,
     invocation,
@@ -236,6 +241,28 @@ describe('SignAuthEntryHandler', () => {
 
     expect(result).toMatchObject({
       error: { code: Sep43ErrorCode.InvalidRequest },
+    });
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
+  it("returns error -3 when authEntry's embedded networkId is not mainnet", async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+
+    // Same shape as the mainnet fixture, but with the embedded `networkId`
+    // bound to testnet. The keyring `scope`/`opts.networkPassphrase` look
+    // mainnet-y, so without the networkId check the snap would happily sign
+    // a Soroban auth signature valid only against testnet.
+    const testnetAuthEntry = buildAuthEntryPreimageXdr(Networks.TESTNET);
+
+    const result = await handler.handle(
+      buildRequest(mockAccount.id, { authEntry: testnetAuthEntry }),
+    );
+
+    expect(result).toMatchObject({
+      error: {
+        code: Sep43ErrorCode.InvalidRequest,
+        ext: [expect.stringContaining('networkId')],
+      },
     });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
