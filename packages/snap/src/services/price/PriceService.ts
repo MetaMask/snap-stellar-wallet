@@ -96,15 +96,88 @@ export class PriceService {
     },
     refreshCache: boolean = false,
   ): Promise<Partial<SpotPrices>> {
-    return useCache(
-      this.#priceApiClient.getSpotPrices.bind(this.#priceApiClient),
-      this.#cache,
-      {
-        functionName: 'PriceService:getSpotPrices',
-        ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
-        refreshCache,
-      },
-    )(assetIds, vsCurrency);
+    return this.#getCachedSpotPrices(assetIds, vsCurrency, refreshCache);
+  }
+
+  /**
+   * Internal caching for {@link PriceService.getSpotPrices}:
+   * - Uses `mget` / `mset` for batch reads and writes.
+   * - One cache entry per asset and quote currency.
+   * - On partial hits, fetches only assets missing from the cache.
+   *
+   * @param tokenCaip19Types - CAIP-19 asset IDs to quote.
+   * @param vsCurrency - Quote currency.
+   * @param refreshCache - When true, bypasses the cache for this call.
+   * @returns Spot prices keyed by asset ID.
+   */
+  async #getCachedSpotPrices(
+    tokenCaip19Types: CaipAssetType[],
+    vsCurrency: VsCurrencyParam | string = 'usd',
+    refreshCache: boolean = false,
+  ): Promise<Partial<SpotPrices>> {
+    const uniqueAssetTypes = [...new Set(tokenCaip19Types)];
+
+    const cacheKeyPrefix = 'PriceApiClient:getSpotPrices';
+
+    const toCacheKey = (tokenCaipAssetType: CaipAssetType): string =>
+      `${cacheKeyPrefix}:${tokenCaipAssetType}:${vsCurrency}`;
+
+    let cachedSpotPricesRecord: Record<string, Serializable> = {};
+    // Continue even if there is an error fetching the cached spot prices
+    try {
+      cachedSpotPricesRecord = refreshCache
+        ? {}
+        : await this.#cache.mget(uniqueAssetTypes.map(toCacheKey));
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Error fetching cached spot prices',
+        error,
+      );
+    }
+
+    const cachedSpotPricesByAssetId: Partial<SpotPrices> = {};
+    const nonCachedAssetTypes: CaipAssetType[] = [];
+    for (const assetType of uniqueAssetTypes) {
+      const value = cachedSpotPricesRecord[toCacheKey(assetType)];
+      // Not found in cache
+      if (value === undefined) {
+        // Add to query list
+        nonCachedAssetTypes.push(assetType);
+      } else {
+        // Add to result
+        cachedSpotPricesByAssetId[assetType] = value as SpotPrice | null;
+      }
+    }
+
+    // if there are no assets to query, return the cached results
+    if (nonCachedAssetTypes.length === 0) {
+      return cachedSpotPricesByAssetId;
+    }
+
+    const nonCachedSpotPrices = await this.#priceApiClient.getSpotPrices(
+      nonCachedAssetTypes,
+      vsCurrency,
+    );
+
+    // Continue even if there is an error caching the spot prices
+    try {
+      await this.#cache.mset(
+        Object.entries(nonCachedSpotPrices).map(
+          ([tokenCaipAssetType, spotPrice]) => ({
+            key: toCacheKey(tokenCaipAssetType as CaipAssetType),
+            value: spotPrice,
+            ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
+          }),
+        ),
+      );
+    } catch (error) {
+      this.#logger.logErrorWithDetails('Error caching spot prices', error);
+    }
+
+    return {
+      ...cachedSpotPricesByAssetId,
+      ...nonCachedSpotPrices,
+    };
   }
 
   /**

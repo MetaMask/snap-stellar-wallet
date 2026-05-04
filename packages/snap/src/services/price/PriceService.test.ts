@@ -53,11 +53,10 @@ const minimalSpot = (id: string, price: number): SpotPrice => ({
   price,
 });
 
-const cacheKeySpotPrices = (
-  assetIds: KnownCaip19AssetIdOrSlip44Id[],
-  vsCurrency: string,
-) =>
-  `PriceService:getSpotPrices:${JSON.stringify(serialize(assetIds))}:${JSON.stringify(serialize(vsCurrency))}`;
+const SPOT_PRICES_CACHE_KEY_PREFIX = 'PriceApiClient:getSpotPrices' as const;
+
+const cacheKeySpotPrice = (assetId: CaipAssetType, vsCurrency: string) =>
+  `${SPOT_PRICES_CACHE_KEY_PREFIX}:${assetId}:${vsCurrency}`;
 
 const cacheKeyFiatExchangeRates = () => 'PriceService:getFiatExchangeRates:';
 
@@ -70,32 +69,40 @@ const cacheKeyHistoricalPrices = (params: {
 }) => `PriceService:getHistoricalPrices:${JSON.stringify(serialize(params))}`;
 
 describe('PriceService', () => {
-  let getSpotPricesSpy: jest.SpiedFunction<PriceApiClient['getSpotPrices']>;
-  let getFiatExchangeRatesSpy: jest.SpiedFunction<
-    PriceApiClient['getFiatExchangeRates']
-  >;
-  let getHistoricalPricesSpy: jest.SpiedFunction<
-    PriceApiClient['getHistoricalPrices']
-  >;
+  const setupTest = () => {
+    const getSpotPricesSpy = jest.spyOn(
+      PriceApiClient.prototype,
+      'getSpotPrices',
+    );
+    getSpotPricesSpy.mockReset();
+    getSpotPricesSpy.mockResolvedValue({ [stellarClassicUsdc]: null });
 
-  beforeEach(() => {
-    getSpotPricesSpy = jest
-      .spyOn(PriceApiClient.prototype, 'getSpotPrices')
-      .mockResolvedValue({ [stellarClassicUsdc]: null });
-    getFiatExchangeRatesSpy = jest
-      .spyOn(PriceApiClient.prototype, 'getFiatExchangeRates')
-      .mockResolvedValue(fiatExchangeRatesBody);
-    getHistoricalPricesSpy = jest
-      .spyOn(PriceApiClient.prototype, 'getHistoricalPrices')
-      .mockResolvedValue(GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT);
-  });
+    const getFiatExchangeRatesSpy = jest.spyOn(
+      PriceApiClient.prototype,
+      'getFiatExchangeRates',
+    );
+    getFiatExchangeRatesSpy.mockReset();
+    getFiatExchangeRatesSpy.mockResolvedValue(fiatExchangeRatesBody);
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+    const getHistoricalPricesSpy = jest.spyOn(
+      PriceApiClient.prototype,
+      'getHistoricalPrices',
+    );
+    getHistoricalPricesSpy.mockReset();
+    getHistoricalPricesSpy.mockResolvedValue(
+      GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT,
+    );
+
+    return {
+      getSpotPricesSpy,
+      getFiatExchangeRatesSpy,
+      getHistoricalPricesSpy,
+    };
+  };
 
   describe('getSpotPrices', () => {
     it('calls PriceApiClient and stores result in cache', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
       const spotResult = { [stellarClassicUsdc]: null };
@@ -113,21 +120,22 @@ describe('PriceService', () => {
         [stellarClassicUsdc],
         'usd',
       );
-      const key = cacheKeySpotPrices([stellarClassicUsdc], 'usd');
-      expect(cache.set).toHaveBeenCalledWith(
-        key,
-        spotResult,
-        AppConfig.cache.ttlMilliseconds.spotPrices,
-      );
+      expect(cache.mset).toHaveBeenCalledWith([
+        {
+          key: cacheKeySpotPrice(stellarClassicUsdc, 'usd'),
+          value: null,
+          ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
+        },
+      ]);
     });
 
     it('returns cached spot prices without calling PriceApiClient', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache, store } = createMemoryCache();
       const service = new PriceService({ cache, logger });
       const cached = { [stellarClassicUsdc]: null };
-      const key = cacheKeySpotPrices([stellarClassicUsdc], 'eur');
 
-      store.set(key, cached);
+      store.set(cacheKeySpotPrice(stellarClassicUsdc, 'eur'), null);
 
       expect(
         await service.getSpotPrices({
@@ -140,11 +148,11 @@ describe('PriceService', () => {
     });
 
     it('calls PriceApiClient when refreshCache is true', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache, store } = createMemoryCache();
       const service = new PriceService({ cache, logger });
-      const key = cacheKeySpotPrices([stellarClassicUsdc], 'usd');
 
-      store.set(key, { [stellarClassicUsdc]: null });
+      store.set(cacheKeySpotPrice(stellarClassicUsdc, 'usd'), null);
 
       await service.getSpotPrices(
         { assetIds: [stellarClassicUsdc], vsCurrency: 'usd' },
@@ -153,10 +161,165 @@ describe('PriceService', () => {
 
       expect(getSpotPricesSpy).toHaveBeenCalledTimes(1);
     });
+
+    it('returns empty object without calling PriceApiClient when assetIds is empty', async () => {
+      const { getSpotPricesSpy } = setupTest();
+      const { cache } = createMemoryCache();
+      const service = new PriceService({ cache, logger });
+
+      expect(await service.getSpotPrices({ assetIds: [] })).toStrictEqual({});
+
+      expect(getSpotPricesSpy).not.toHaveBeenCalled();
+      expect(cache.mget).toHaveBeenCalledWith([]);
+      expect(cache.mset).not.toHaveBeenCalled();
+    });
+
+    it('deduplicates assetIds before calling PriceApiClient', async () => {
+      const { getSpotPricesSpy } = setupTest();
+      const { cache } = createMemoryCache();
+      const service = new PriceService({ cache, logger });
+      const spotResult = {
+        [stellarClassicUsdc]: minimalSpot(stellarClassicUsdc, 1),
+      };
+
+      getSpotPricesSpy.mockResolvedValueOnce(spotResult);
+
+      expect(
+        await service.getSpotPrices({
+          assetIds: [stellarClassicUsdc, stellarClassicUsdc],
+          vsCurrency: 'usd',
+        }),
+      ).toStrictEqual(spotResult);
+
+      expect(getSpotPricesSpy).toHaveBeenCalledTimes(1);
+      expect(getSpotPricesSpy).toHaveBeenCalledWith(
+        [stellarClassicUsdc],
+        'usd',
+      );
+      expect(cache.mset).toHaveBeenCalledWith([
+        {
+          key: cacheKeySpotPrice(stellarClassicUsdc, 'usd'),
+          value: spotResult[stellarClassicUsdc],
+          ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
+        },
+      ]);
+    });
+
+    it('uses default vsCurrency usd when vsCurrency is omitted', async () => {
+      const { getSpotPricesSpy } = setupTest();
+      const { cache } = createMemoryCache();
+      const service = new PriceService({ cache, logger });
+      const spotResult = { [stellarClassicUsdc]: null };
+
+      getSpotPricesSpy.mockResolvedValueOnce(spotResult);
+
+      await service.getSpotPrices({ assetIds: [stellarClassicUsdc] });
+
+      expect(getSpotPricesSpy).toHaveBeenCalledWith(
+        [stellarClassicUsdc],
+        'usd',
+      );
+      expect(cache.mset).toHaveBeenCalledWith([
+        {
+          key: cacheKeySpotPrice(stellarClassicUsdc, 'usd'),
+          value: null,
+          ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
+        },
+      ]);
+    });
+
+    it('fetches only assets missing from cache on partial hit', async () => {
+      const { getSpotPricesSpy } = setupTest();
+      const { cache, store } = createMemoryCache();
+      const service = new PriceService({ cache, logger });
+      const cachedPrice = minimalSpot(stellarClassicUsdc, 0.99);
+      const mockPrice = minimalSpot(stellarTestnetMockAsset, 2);
+
+      store.set(cacheKeySpotPrice(stellarClassicUsdc, 'usd'), cachedPrice);
+
+      getSpotPricesSpy.mockResolvedValueOnce({
+        [stellarTestnetMockAsset]: mockPrice,
+      });
+
+      expect(
+        await service.getSpotPrices({
+          assetIds: [stellarClassicUsdc, stellarTestnetMockAsset],
+          vsCurrency: 'usd',
+        }),
+      ).toStrictEqual({
+        [stellarClassicUsdc]: cachedPrice,
+        [stellarTestnetMockAsset]: mockPrice,
+      });
+
+      expect(getSpotPricesSpy).toHaveBeenCalledTimes(1);
+      expect(getSpotPricesSpy).toHaveBeenCalledWith(
+        [stellarTestnetMockAsset],
+        'usd',
+      );
+      expect(cache.mset).toHaveBeenCalledWith([
+        {
+          key: cacheKeySpotPrice(stellarTestnetMockAsset, 'usd'),
+          value: mockPrice,
+          ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
+        },
+      ]);
+    });
+
+    it('returns all assets from cache when every asset is cached', async () => {
+      const { getSpotPricesSpy } = setupTest();
+      const { cache, store } = createMemoryCache();
+      const service = new PriceService({ cache, logger });
+      const usdcPrice = minimalSpot(stellarClassicUsdc, 1);
+      const mockPrice = minimalSpot(stellarTestnetMockAsset, 3);
+
+      store.set(cacheKeySpotPrice(stellarClassicUsdc, 'usd'), usdcPrice);
+      store.set(cacheKeySpotPrice(stellarTestnetMockAsset, 'usd'), mockPrice);
+
+      expect(
+        await service.getSpotPrices({
+          assetIds: [stellarClassicUsdc, stellarTestnetMockAsset],
+          vsCurrency: 'usd',
+        }),
+      ).toStrictEqual({
+        [stellarClassicUsdc]: usdcPrice,
+        [stellarTestnetMockAsset]: mockPrice,
+      });
+
+      expect(getSpotPricesSpy).not.toHaveBeenCalled();
+      expect(cache.mset).not.toHaveBeenCalled();
+    });
+
+    it('does not reuse cache across different vsCurrency values', async () => {
+      const { getSpotPricesSpy } = setupTest();
+      const { cache, store } = createMemoryCache();
+      const service = new PriceService({ cache, logger });
+      const usdPrice = minimalSpot(stellarClassicUsdc, 1);
+
+      store.set(cacheKeySpotPrice(stellarClassicUsdc, 'usd'), usdPrice);
+      getSpotPricesSpy.mockResolvedValueOnce({
+        [stellarClassicUsdc]: minimalSpot(stellarClassicUsdc, 0.9),
+      });
+
+      expect(
+        await service.getSpotPrices({
+          assetIds: [stellarClassicUsdc],
+          vsCurrency: 'eur',
+        }),
+      ).toStrictEqual({
+        [stellarClassicUsdc]: minimalSpot(stellarClassicUsdc, 0.9),
+      });
+
+      expect(getSpotPricesSpy).toHaveBeenCalledTimes(1);
+      expect(getSpotPricesSpy).toHaveBeenCalledWith(
+        [stellarClassicUsdc],
+        'eur',
+      );
+    });
   });
 
   describe('getFiatExchangeRates', () => {
     it('calls PriceApiClient and stores result in cache', async () => {
+      const { getFiatExchangeRatesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -174,6 +337,7 @@ describe('PriceService', () => {
     });
 
     it('returns cached fiat rates without calling PriceApiClient', async () => {
+      const { getFiatExchangeRatesSpy } = setupTest();
       const { cache, store } = createMemoryCache();
       const service = new PriceService({ cache, logger });
       const key = cacheKeyFiatExchangeRates();
@@ -188,6 +352,7 @@ describe('PriceService', () => {
     });
 
     it('calls PriceApiClient when refreshCache is true', async () => {
+      const { getFiatExchangeRatesSpy } = setupTest();
       const { cache, store } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -217,6 +382,7 @@ describe('PriceService', () => {
     };
 
     it('calls PriceApiClient and stores result in cache', async () => {
+      const { getHistoricalPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -236,6 +402,7 @@ describe('PriceService', () => {
     });
 
     it('returns cached historical prices without calling PriceApiClient', async () => {
+      const { getHistoricalPricesSpy } = setupTest();
       const { cache, store } = createMemoryCache();
       const service = new PriceService({ cache, logger });
       const key = cacheKeyHistoricalPrices(historicalRequestPayload);
@@ -250,6 +417,7 @@ describe('PriceService', () => {
     });
 
     it('calls PriceApiClient when refreshCache is true', async () => {
+      const { getHistoricalPricesSpy } = setupTest();
       const { cache, store } = createMemoryCache();
       const service = new PriceService({ cache, logger });
       const key = cacheKeyHistoricalPrices(historicalRequestPayload);
@@ -262,6 +430,7 @@ describe('PriceService', () => {
     });
 
     it('defaults vsCurrency and forwards zero from and to', async () => {
+      const { getHistoricalPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -284,6 +453,7 @@ describe('PriceService', () => {
 
   describe('getHistoricalPriceWithAllTimePeriods', () => {
     it('requests each configured time period with vsCurrency from quote asset', async () => {
+      const { getHistoricalPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -312,6 +482,7 @@ describe('PriceService', () => {
     });
 
     it('returns intervals keyed by ISO 8601 durations with stringified prices', async () => {
+      const { getHistoricalPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -350,6 +521,7 @@ describe('PriceService', () => {
     });
 
     it('sets updateTime and expirationTime using historical prices cache TTL', async () => {
+      const { getHistoricalPricesSpy } = setupTest();
       jest.useFakeTimers();
       jest.setSystemTime(new Date('2024-06-01T12:00:00.000Z'));
 
@@ -377,6 +549,7 @@ describe('PriceService', () => {
     });
 
     it('uses empty price series for a period when the historical request fails', async () => {
+      const { getHistoricalPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -415,6 +588,7 @@ describe('PriceService', () => {
 
   describe('getMultipleTokenConversions', () => {
     it('returns empty record when conversions list is empty', async () => {
+      setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -422,6 +596,7 @@ describe('PriceService', () => {
     });
 
     it('derives crypto to crypto rate from USD spot prices', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -446,6 +621,7 @@ describe('PriceService', () => {
     });
 
     it('returns null when a crypto leg has no usable USD price', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -461,6 +637,7 @@ describe('PriceService', () => {
     });
 
     it('derives fiat to fiat rate using inverted exchange rate values', async () => {
+      const { getSpotPricesSpy, getFiatExchangeRatesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -479,6 +656,7 @@ describe('PriceService', () => {
     });
 
     it('sets expirationTime from the shorter spot or fiat cache TTL', async () => {
+      const { getSpotPricesSpy } = setupTest();
       jest.useFakeTimers();
       jest.setSystemTime(new Date('2024-01-15T00:00:00.000Z'));
 
@@ -512,6 +690,7 @@ describe('PriceService', () => {
 
   describe('getMultipleTokensMarketData', () => {
     it('returns empty record when assets list is empty', async () => {
+      setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -519,6 +698,7 @@ describe('PriceService', () => {
     });
 
     it('omits rows when the base asset has no spot entry', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -532,6 +712,7 @@ describe('PriceService', () => {
     });
 
     it('omits rows when the unit has no usable conversion rate', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -547,6 +728,7 @@ describe('PriceService', () => {
     });
 
     it('scales USD monetary fields to the quote unit without converting circulating supply', async () => {
+      const { getSpotPricesSpy, getFiatExchangeRatesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -578,6 +760,7 @@ describe('PriceService', () => {
     });
 
     it('includes pricePercentChange when spot returns percent fields', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
@@ -603,6 +786,7 @@ describe('PriceService', () => {
     });
 
     it('uses string zero for circulating supply when spot omits, nulls, or sends zero', async () => {
+      const { getSpotPricesSpy } = setupTest();
       const { cache } = createMemoryCache();
       const service = new PriceService({ cache, logger });
 
