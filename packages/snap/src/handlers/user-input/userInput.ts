@@ -1,6 +1,7 @@
 import type { InterfaceContext, UserInputEvent } from '@metamask/snaps-sdk';
 
 import type { UserInputUiEventHandler } from './api';
+import { createEventHandlers as createSignAuthEntryEvents } from '../../ui/confirmation/views/ConfirmSignAuthEntry/events';
 import { createEventHandlers as createSignMessageEvents } from '../../ui/confirmation/views/ConfirmSignMessage/events';
 import { createEventHandlers as createSignTransactionEvents } from '../../ui/confirmation/views/ConfirmSignTransaction/events';
 import {
@@ -43,6 +44,7 @@ export class UserInputHandler {
     const uiEventHandlers: Record<string, UserInputUiEventHandler> = {
       ...createSignMessageEvents(),
       ...createSignTransactionEvents(),
+      ...createSignAuthEntryEvents(),
     };
 
     /**

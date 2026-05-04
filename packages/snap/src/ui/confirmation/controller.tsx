@@ -23,6 +23,10 @@ import {
 } from '../../utils';
 import { STELLAR_IMAGE } from '../images/icon';
 import {
+  ConfirmSignAuthEntry,
+  type ConfirmSignAuthEntryProps,
+} from './views/ConfirmSignAuthEntry/ConfirmSignAuthEntry';
+import {
   ConfirmSignMessage,
   type ConfirmSignMessageProps,
 } from './views/ConfirmSignMessage/ConfirmSignMessage';
@@ -245,6 +249,12 @@ export class ConfirmationUXController {
         );
       case ConfirmationInterfaceKey.SignMessage:
         return <ConfirmSignMessage {...(context as ConfirmSignMessageProps)} />;
+      case ConfirmationInterfaceKey.SignAuthEntry:
+        return (
+          <ConfirmSignAuthEntry
+            {...(context as unknown as ConfirmSignAuthEntryProps)}
+          />
+        );
       default: {
         const exhaustive: never = interfaceKey;
         throw new Error(`Unsupported interface key: ${String(exhaustive)}`);

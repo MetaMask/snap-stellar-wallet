@@ -10,6 +10,7 @@ import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
   MultichainMethod,
+  SignAuthEntryHandler,
   SignMessageHandler,
   SignTransactionHandler,
 } from './handlers/keyring';
@@ -117,10 +118,18 @@ const signMessageHandler = new SignMessageHandler({
   confirmationUIController,
 });
 
+const signAuthEntryHandler = new SignAuthEntryHandler({
+  logger,
+  accountService,
+  walletService,
+  confirmationUIController,
+});
+
 const keyringMethodHandlers: Record<MultichainMethod, IKeyringRequestHandler> =
   {
     [MultichainMethod.SignTransaction]: signTransactionHandler,
     [MultichainMethod.SignMessage]: signMessageHandler,
+    [MultichainMethod.SignAuthEntry]: signAuthEntryHandler,
   };
 
 const keyringHandler = new KeyringHandler({
@@ -176,5 +185,6 @@ export {
   userInputHandler,
   signTransactionHandler,
   signMessageHandler,
+  signAuthEntryHandler,
   confirmationUIController,
 };

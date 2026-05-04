@@ -16,6 +16,7 @@ import {
   userInputHandler,
   cronjobHandler,
   assetsHandler,
+  signAuthEntryHandler,
   signMessageHandler,
   signTransactionHandler,
 } from './context';
@@ -80,6 +81,8 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
       return signMessageHandler.handle(request.params as Json);
     case 'stellar_signTransaction':
       return signTransactionHandler.handle(request.params as Json);
+    case 'stellar_signAuthEntry':
+      return signAuthEntryHandler.handle(request.params as Json);
     default:
       throw new MethodNotFoundError() as Error;
   }

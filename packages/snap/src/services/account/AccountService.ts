@@ -337,7 +337,11 @@ export class AccountService {
         },
         exportable: true,
       },
-      methods: [MultichainMethod.SignMessage, MultichainMethod.SignTransaction],
+      methods: [
+        MultichainMethod.SignMessage,
+        MultichainMethod.SignTransaction,
+        MultichainMethod.SignAuthEntry,
+      ],
     };
   }
 }

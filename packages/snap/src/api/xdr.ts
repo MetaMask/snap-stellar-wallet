@@ -19,3 +19,28 @@ export const XdrStruct = refine(
     }
   },
 );
+
+/**
+ * Validation struct for a SEP-43 `signAuthEntry` payload: a base64-encoded
+ * `HashIdPreimage` whose discriminant is `envelopeTypeSorobanAuthorization`
+ * (i.e. a Soroban auth-entry preimage). Anything else is rejected at the
+ * struct level so the handler can return -3 InvalidRequest.
+ */
+export const HashIdPreimageXdrStruct = refine(
+  nonempty(base64(string())),
+  'valid_soroban_auth_preimage',
+  (value: string) => {
+    try {
+      const preimage = xdr.HashIdPreimage.fromXDR(value, 'base64');
+      if (
+        preimage.switch() !==
+        xdr.EnvelopeType.envelopeTypeSorobanAuthorization()
+      ) {
+        return 'HashIdPreimage is not a Soroban authorization preimage';
+      }
+      return true;
+    } catch {
+      return 'Invalid HashIdPreimage XDR';
+    }
+  },
+);

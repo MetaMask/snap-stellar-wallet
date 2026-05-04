@@ -74,6 +74,7 @@ describe('KeyringHandler', () => {
   let mockAccountId: string;
   let mockSignMessageHandler: IKeyringRequestHandler;
   let mockSignTransactionHandler: IKeyringRequestHandler;
+  let mockSignAuthEntryHandler: IKeyringRequestHandler;
 
   const toKeyringAccount = (account: StellarKeyringAccount): KeyringAccount => {
     const { id, address, type, options, methods, scopes } = account;
@@ -101,6 +102,7 @@ describe('KeyringHandler', () => {
 
     mockSignMessageHandler = { handle: jest.fn() };
     mockSignTransactionHandler = { handle: jest.fn() };
+    mockSignAuthEntryHandler = { handle: jest.fn() };
 
     const { accountService, onChainAccountService } =
       mockOnChainAccountService();
@@ -115,6 +117,7 @@ describe('KeyringHandler', () => {
       handlers: {
         [MultichainMethod.SignMessage]: mockSignMessageHandler,
         [MultichainMethod.SignTransaction]: mockSignTransactionHandler,
+        [MultichainMethod.SignAuthEntry]: mockSignAuthEntryHandler,
       },
     });
 
