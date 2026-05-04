@@ -54,20 +54,25 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
 };
 
 /**
- * Discriminated union: confirmations that have a fee (sign transaction)
+ * Discriminated union: confirmations that have a fee (example: sign transaction)
  * MUST provide one; fee-less confirmations (sign message, etc.) MUST NOT.
  * Prevents callers from forgetting `fee` for SignTransaction (would yield
  * `feeData: {}` and crash the view at `feeData.assetId`).
  */
 type RenderConfirmationDialogParams<Props extends ConfirmationViewProps> =
   | (RenderConfirmationDialogCommon<Props> & {
-      interfaceKey: ConfirmationInterfaceKey.SignTransaction;
+      interfaceKey:
+        | ConfirmationInterfaceKey.SignTransaction
+        | ConfirmationInterfaceKey.ChangeTrustlineOptIn
+        | ConfirmationInterfaceKey.ChangeTrustlineOptOut;
       fee: string;
     })
   | (RenderConfirmationDialogCommon<Props> & {
       interfaceKey: Exclude<
         ConfirmationInterfaceKey,
-        ConfirmationInterfaceKey.SignTransaction
+        | ConfirmationInterfaceKey.SignTransaction
+        | ConfirmationInterfaceKey.ChangeTrustlineOptIn
+        | ConfirmationInterfaceKey.ChangeTrustlineOptOut
       >;
       fee?: never;
     });
@@ -93,8 +98,7 @@ export class ConfirmationUXController {
    * @param params - The parameters for the render.
    * @param params.scope - The scope of the confirmation.
    * @param params.renderContext - The context for the render.
-   * @param params.interfaceKey - The key of the interface to render. When this is
-   * {@link ConfirmationInterfaceKey.SignTransaction}, `fee` is required.
+   * @param params.interfaceKey - The key of the interface to render.
    * @param params.fee - Fee in stroops, REQUIRED for SignTransaction, forbidden otherwise.
    * @param params.origin - [Optional] The origin of the confirmation. Defaults to 'metamask'.
    * @param params.renderOptions - [Optional] The options for the render. Defaults to {@link #defaultRenderOptions}.
