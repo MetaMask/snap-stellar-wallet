@@ -41,16 +41,12 @@ describe('normalizeAmount', () => {
 
 describe('toDisplayBalance', () => {
   it('avoids scientific notation for one stroop', () => {
-    expect(toDisplayBalance(new BigNumber(1), 7)).toBe(
-      '0.0000001',
-    );
+    expect(toDisplayBalance(new BigNumber(1), 7)).toBe('0.0000001');
     expect(normalizeAmount(new BigNumber(1), 7).toString()).toBe('1e-7');
   });
 
   it('trims trailing zeros while keeping significant fractional digits', () => {
-    expect(toDisplayBalance(new BigNumber(10), 7)).toBe(
-      '0.000001',
-    );
+    expect(toDisplayBalance(new BigNumber(10), 7)).toBe('0.000001');
   });
 });
 
