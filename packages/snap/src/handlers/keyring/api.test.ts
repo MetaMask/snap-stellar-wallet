@@ -59,26 +59,32 @@ describe('CreateAccountOptionsStruct', () => {
 
 describe('ResolveAccountAddressRequestStruct', () => {
   it.each([
-    // Test case: SignMessage are allowed
+    // Test case: SignMessage with opts.address
     {
       jsonrpc: '2.0',
       id: '1',
       method: MultichainMethod.SignMessage,
-      params: { address: account.address },
+      params: { opts: { address: account.address } },
     },
-    // Test case: SignTransaction are allowed
+    // Test case: SignTransaction with opts.address
     {
       jsonrpc: '2.0',
       id: '1',
       method: MultichainMethod.SignTransaction,
-      params: { address: account.address },
+      params: { opts: { address: account.address } },
     },
-    // Test case: Additional Params are allowed
+    // Test case: SEP-43 method-specific fields pass through (loose params/opts)
     {
       jsonrpc: '2.0',
       id: '1',
-      method: MultichainMethod.SignTransaction,
-      params: { address: account.address, message: 'Hello, world!' },
+      method: MultichainMethod.SignMessage,
+      params: {
+        message: 'Hello, world!',
+        opts: {
+          address: account.address,
+          networkPassphrase: 'Public Global Stellar Network ; September 2015',
+        },
+      },
     },
   ])(
     'accepts a valid resolveAccountAddressJsonRpcRequest request',
@@ -102,7 +108,7 @@ describe('ResolveAccountAddressRequestStruct', () => {
         jsonrpc: '2.0',
         id: '1',
         method: 'resolveAccountAddress',
-        params: { address: account.address },
+        params: { opts: { address: account.address } },
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
@@ -110,17 +116,37 @@ describe('ResolveAccountAddressRequestStruct', () => {
     {
       request: {
         method: MultichainMethod.SignMessage,
-        params: { address: account.address },
+        params: { opts: { address: account.address } },
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
-    // Test case: Invalid address
+    // Test case: Invalid address inside opts
     {
       request: {
         jsonrpc: '2.0',
         id: '1',
         method: MultichainMethod.SignMessage,
-        params: { address: 'invalid-address' },
+        params: { opts: { address: 'invalid-address' } },
+      },
+      scope: KnownCaip2ChainId.Mainnet,
+    },
+    // Test case: Address at the wrong path (top-level params, not opts)
+    {
+      request: {
+        jsonrpc: '2.0',
+        id: '1',
+        method: MultichainMethod.SignMessage,
+        params: { address: account.address },
+      },
+      scope: KnownCaip2ChainId.Mainnet,
+    },
+    // Test case: Missing opts entirely
+    {
+      request: {
+        jsonrpc: '2.0',
+        id: '1',
+        method: MultichainMethod.SignMessage,
+        params: { message: 'Hello' },
       },
       scope: KnownCaip2ChainId.Mainnet,
     },
@@ -195,6 +221,43 @@ describe('SignMessageRequestStruct', () => {
     ).not.toThrow();
   });
 
+  it('accepts a UTF-8 string message (SEP-43 allows either base64 or UTF-8)', () => {
+    expect(() =>
+      assert(
+        {
+          ...validSignMessageRequest,
+          request: {
+            method: MultichainMethod.SignMessage,
+            params: { message: 'Sign in to dapp' },
+          },
+        },
+        SignMessageRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
+  it('accepts an SEP-43 opts bag with address and networkPassphrase', () => {
+    expect(() =>
+      assert(
+        {
+          ...validSignMessageRequest,
+          request: {
+            method: MultichainMethod.SignMessage,
+            params: {
+              message: 'Hello, world!',
+              opts: {
+                address: account.address,
+                networkPassphrase:
+                  'Public Global Stellar Network ; September 2015',
+              },
+            },
+          },
+        },
+        SignMessageRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
   it.each([
     {
       ...validSignMessageRequest,
@@ -230,20 +293,39 @@ describe('SignMessageRequestStruct', () => {
 });
 
 describe('SignMessageResponseStruct', () => {
-  it('accepts a nonempty base64 signature', () => {
+  it('accepts a successful signMessage envelope', () => {
     expect(() =>
-      assert({ signature: btoa('signed') }, SignMessageResponseStruct),
+      assert(
+        {
+          signedMessage: btoa('signed'),
+          signerAddress: account.address,
+        },
+        SignMessageResponseStruct,
+      ),
     ).not.toThrow();
   });
 
-  it.each([{ signature: '' }, { signature: 'not!!!valid-base64' }])(
-    'rejects an invalid signMessage response',
-    (response) => {
-      expect(() => assert(response, SignMessageResponseStruct)).toThrow(
-        StructError,
-      );
-    },
-  );
+  it('accepts an error envelope with empty success fields', () => {
+    expect(() =>
+      assert(
+        {
+          signedMessage: '',
+          signerAddress: '',
+          error: { message: 'rejected', code: -4 },
+        },
+        SignMessageResponseStruct,
+      ),
+    ).not.toThrow();
+  });
+
+  it.each([
+    { signedMessage: 'not!!!valid-base64', signerAddress: account.address },
+    { signedMessage: btoa('signed'), signerAddress: 'invalid-address' },
+  ])('rejects an invalid signMessage response', (response) => {
+    expect(() => assert(response, SignMessageResponseStruct)).toThrow(
+      StructError,
+    );
+  });
 });
 
 describe('SignTransactionRequestStruct', () => {
@@ -254,7 +336,7 @@ describe('SignTransactionRequestStruct', () => {
     account: account.id,
     request: {
       method: MultichainMethod.SignTransaction,
-      params: { transaction: xdr },
+      params: { xdr },
     },
   };
 
@@ -264,19 +346,34 @@ describe('SignTransactionRequestStruct', () => {
     ).not.toThrow();
   });
 
+  it('accepts an SEP-43 opts bag with address', () => {
+    expect(() =>
+      assert(
+        {
+          ...validSignTransactionRequest,
+          request: {
+            method: MultichainMethod.SignTransaction,
+            params: { xdr, opts: { address: account.address } },
+          },
+        },
+        SignTransactionRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
   it.each([
     {
       ...validSignTransactionRequest,
       request: {
         method: MultichainMethod.SignMessage,
-        params: { transaction: xdr },
+        params: { xdr },
       },
     },
     {
       ...validSignTransactionRequest,
       request: {
         method: MultichainMethod.SignTransaction,
-        params: { transaction: 'not-valid-xdr' },
+        params: { xdr: 'not-valid-xdr' },
       },
     },
     {
@@ -291,20 +388,36 @@ describe('SignTransactionRequestStruct', () => {
 });
 
 describe('SignTransactionResponseStruct', () => {
-  it('accepts a signature that is valid transaction envelope XDR', () => {
+  it('accepts a successful signTransaction envelope', () => {
     expect(() =>
-      assert({ signature: xdr }, SignTransactionResponseStruct),
+      assert(
+        { signedTxXdr: xdr, signerAddress: account.address },
+        SignTransactionResponseStruct,
+      ),
     ).not.toThrow();
   });
 
-  it.each([{ signature: '' }, { signature: 'AAA=' }])(
-    'rejects an invalid signTransaction response',
-    (response) => {
-      expect(() => assert(response, SignTransactionResponseStruct)).toThrow(
-        StructError,
-      );
-    },
-  );
+  it('accepts an error envelope with empty success fields', () => {
+    expect(() =>
+      assert(
+        {
+          signedTxXdr: '',
+          signerAddress: '',
+          error: { message: 'invalid', code: -3 },
+        },
+        SignTransactionResponseStruct,
+      ),
+    ).not.toThrow();
+  });
+
+  it.each([
+    { signedTxXdr: 'AAA=', signerAddress: account.address },
+    { signedTxXdr: xdr, signerAddress: 'invalid-address' },
+  ])('rejects an invalid signTransaction response', (response) => {
+    expect(() => assert(response, SignTransactionResponseStruct)).toThrow(
+      StructError,
+    );
+  });
 });
 
 describe('ListAccountTransactionsRequestStruct', () => {

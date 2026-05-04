@@ -1253,77 +1253,147 @@ describe('TransactionSimulator', () => {
         }),
       ).toHaveLength(4);
     });
+  });
 
-    describe('sponsored trustlines and fee accounting', () => {
-      it('rejects at fee when spendable is too low even if later ops remove sponsored trustlines', () => {
-        const issuerA = Keypair.random().publicKey();
-        const issuerB = Keypair.random().publicKey();
-        const sourceKey = Keypair.random().publicKey();
-        const dest = Keypair.random().publicKey();
+  describe('fee validation', () => {
+    it('fails when spendable native is below the fee even if later ops would free reserve', () => {
+      const issuerA = Keypair.random().publicKey();
+      const issuerB = Keypair.random().publicKey();
+      const sourceKey = Keypair.random().publicKey();
+      const dest = Keypair.random().publicKey();
 
-        const loaded = onChainFromMockBalances(sourceKey, '1', {
-          nativeBalance: 1.5,
-          subentryCount: 2,
-          sponsoredCount: 1,
-          assets: [
-            {
-              assetType: 'credit_alphanum4',
-              assetCode: 'AAA',
-              assetIssuer: issuerA,
-              balance: 0,
-            },
-            {
-              assetType: 'credit_alphanum4',
-              assetCode: 'BBB',
-              assetIssuer: issuerB,
-              balance: 0,
-            },
-          ],
-        });
-
-        const tx = buildMockClassicTransaction(
-          [
-            {
-              type: 'changeTrust',
-              params: {
-                source: sourceKey,
-                asset: { code: 'AAA', issuer: issuerA },
-                limit: '0',
-              },
-            },
-            {
-              type: 'changeTrust',
-              params: {
-                source: sourceKey,
-                asset: { code: 'BBB', issuer: issuerB },
-                limit: '0',
-              },
-            },
-            {
-              type: 'payment',
-              params: {
-                source: sourceKey,
-                destination: dest,
-                asset: 'native',
-                amount: '0.4',
-              },
-            },
-          ],
-          mainnetSimulatorTxOptions(sourceKey, '1', {
-            baseFeePerOperation: '300',
-          }),
-        );
-
-        expect(() =>
-          simulator.simulate(tx, loaded, {
-            expectedOPTypes: [
-              SupportedOperations.ChangeTrust,
-              SupportedOperations.Payment,
-            ],
-            preloadedAccounts: [destOnChainAccount(dest)],
-          }),
-        ).toThrow(InsufficientBalanceToCoverFeeException);
+      const loaded = onChainFromMockBalances(sourceKey, '1', {
+        nativeBalance: 1.5,
+        subentryCount: 2,
+        sponsoredCount: 1,
+        assets: [
+          {
+            assetType: 'credit_alphanum4',
+            assetCode: 'AAA',
+            assetIssuer: issuerA,
+            balance: 0,
+          },
+          {
+            assetType: 'credit_alphanum4',
+            assetCode: 'BBB',
+            assetIssuer: issuerB,
+            balance: 0,
+          },
+        ],
       });
+
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'changeTrust',
+            params: {
+              source: sourceKey,
+              asset: { code: 'AAA', issuer: issuerA },
+              limit: '0',
+            },
+          },
+          {
+            type: 'changeTrust',
+            params: {
+              source: sourceKey,
+              asset: { code: 'BBB', issuer: issuerB },
+              limit: '0',
+            },
+          },
+          {
+            type: 'payment',
+            params: {
+              source: sourceKey,
+              destination: dest,
+              asset: 'native',
+              amount: '0.4',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(sourceKey, '1', {
+          baseFeePerOperation: '300',
+        }),
+      );
+
+      expect(() =>
+        simulator.simulate(tx, loaded, {
+          expectedOPTypes: [
+            SupportedOperations.ChangeTrust,
+            SupportedOperations.Payment,
+          ],
+          preloadedAccounts: [destOnChainAccount(dest)],
+        }),
+      ).toThrow(InsufficientBalanceToCoverFeeException);
+    });
+
+    it('succeeds when spendable native covers the envelope fee (same op sequence as failure case)', () => {
+      const issuerA = Keypair.random().publicKey();
+      const issuerB = Keypair.random().publicKey();
+      const sourceKey = Keypair.random().publicKey();
+      const dest = Keypair.random().publicKey();
+
+      const loaded = onChainFromMockBalances(sourceKey, '1', {
+        nativeBalance: 1.6,
+        subentryCount: 2,
+        sponsoredCount: 1,
+        assets: [
+          {
+            assetType: 'credit_alphanum4',
+            assetCode: 'AAA',
+            assetIssuer: issuerA,
+            balance: 0,
+          },
+          {
+            assetType: 'credit_alphanum4',
+            assetCode: 'BBB',
+            assetIssuer: issuerB,
+            balance: 0,
+          },
+        ],
+      });
+
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'changeTrust',
+            params: {
+              source: sourceKey,
+              asset: { code: 'AAA', issuer: issuerA },
+              limit: '0',
+            },
+          },
+          {
+            type: 'changeTrust',
+            params: {
+              source: sourceKey,
+              asset: { code: 'BBB', issuer: issuerB },
+              limit: '0',
+            },
+          },
+          {
+            type: 'payment',
+            params: {
+              source: sourceKey,
+              destination: dest,
+              asset: 'native',
+              amount: '0.4',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(sourceKey, '1', {
+          baseFeePerOperation: '300',
+        }),
+      );
+
+      expect(
+        simulator.simulate(tx, loaded, {
+          expectedOPTypes: [
+            SupportedOperations.ChangeTrust,
+            SupportedOperations.Payment,
+          ],
+          preloadedAccounts: [destOnChainAccount(dest)],
+        }),
+      ).toHaveLength(4);
     });
   });
 });

@@ -58,7 +58,7 @@ export const mockAccountService = () => {
     encrypted: false,
     defaultState: {
       keyringAccounts: {},
-      accountMetadata: {},
+      onChainAccounts: {},
     },
   });
   const accountService = new AccountService({

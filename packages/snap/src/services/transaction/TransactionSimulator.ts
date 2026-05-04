@@ -128,12 +128,13 @@ export class TransactionSimulator {
     const fee = transaction.totalFee;
     const { scope } = transaction;
 
-    // it is required to validate if the current balance is enough to cover the fee,
-    // even though later operations may "free" the base reserve.
-    // e.g
-    // a user has 1.5 xlm, 2 trustlines, 1 of those trustline is sponsored,
-    // when he executes a transaction to remove all trustlines and send 0.4 XLM to another
-    // account, it will still fail the fee validation.
+    // Validate that the current balance can cover the fee, even if later
+    // operations would free the base reserve.
+    //
+    // For example:
+    // - A account has 1.5 XLM total, two trust lines, one of them sponsored (`num_sponsored` = 1).
+    // - The Spendable balance = 1.5 XLM - 1 XLM (account base reserve) - 0.5 XLM (trust line base reserve) = 0 XLM
+    // - A transaction with 0.0000001 XLM fee will fail the fee validation.
     const feeState = this.#validateAndApplyFeeState({
       state: this.#cloneSimulationState(initialState),
       feeSource,

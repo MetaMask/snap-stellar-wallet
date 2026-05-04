@@ -1,7 +1,12 @@
-import type { OnChainAccount } from './OnChainAccount';
+import { OnChainAccount } from './OnChainAccount';
+import { OnChainAccountSynchronizeService } from './OnChainAccountSynchronizeService';
 import type { KnownCaip2ChainId } from '../../api';
+import type { ILogger } from '../../utils';
+import type { StellarKeyringAccount } from '../account';
 import { assertSameAddress } from '../account/utils';
-import type { NetworkService } from '../network';
+import { type NetworkService } from '../network';
+import type { OnChainAccountRepository } from './OnChainAccountRepository';
+import type { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
 
 /**
  * Stellar on-chain account operations: activation checks and loading {@link OnChainAccount}
@@ -10,8 +15,30 @@ import type { NetworkService } from '../network';
 export class OnChainAccountService {
   readonly #networkService: NetworkService;
 
-  constructor({ networkService }: { networkService: NetworkService }) {
+  readonly #onChainAccountSynchronizeService: OnChainAccountSynchronizeService;
+
+  readonly #onChainAccountRepository: OnChainAccountRepository;
+
+  constructor({
+    networkService,
+    onChainAccountRepository,
+    assetMetadataService,
+    logger,
+  }: {
+    networkService: NetworkService;
+    onChainAccountRepository: OnChainAccountRepository;
+    assetMetadataService: AssetMetadataService;
+    logger: ILogger;
+  }) {
     this.#networkService = networkService;
+    this.#onChainAccountSynchronizeService =
+      new OnChainAccountSynchronizeService({
+        networkService,
+        onChainAccountRepository,
+        assetMetadataService,
+        logger,
+      });
+    this.#onChainAccountRepository = onChainAccountRepository;
   }
 
   /**
@@ -53,5 +80,43 @@ export class OnChainAccountService {
     );
     assertSameAddress(accountAddress, loaded.accountId);
     return loaded;
+  }
+
+  /**
+   * Loads the on-chain account for the given keyring account id from the State.
+   *
+   * @param keyringAccountId - The keyring account id to load the on-chain account for.
+   * @param scope - The CAIP-2 chain id to load the on-chain account for.
+   * @returns The on-chain account, or `null` if not found.
+   */
+  async resolveOnChainAccountByKeyringAccountId(
+    keyringAccountId: string,
+    scope: KnownCaip2ChainId,
+  ): Promise<OnChainAccount | null> {
+    const onChainAccount =
+      await this.#onChainAccountRepository.findByKeyringAccountId(
+        keyringAccountId,
+        scope,
+      );
+    return onChainAccount
+      ? OnChainAccount.fromSerializable(onChainAccount)
+      : null;
+  }
+
+  /**
+   * Enriches accounts with SEP-41 balances, persists snapshots, then notifies the keyring when
+   * balances or the tracked asset set changed. Delegates to {@link OnChainAccountSynchronizeService}.
+   *
+   * @param keyringAccounts - Stellar keyring accounts to sync for `scope`.
+   * @param scope - CAIP-2 network.
+   */
+  async synchronize(
+    keyringAccounts: StellarKeyringAccount[],
+    scope: KnownCaip2ChainId,
+  ): Promise<void> {
+    await this.#onChainAccountSynchronizeService.synchronize(
+      keyringAccounts,
+      scope,
+    );
   }
 }

@@ -25,10 +25,13 @@ import {
   AssetMetadataRepository,
   AssetMetadataService,
 } from './services/asset-metadata';
-import { StateCache } from './services/cache';
+import { InMemoryCache, StateCache } from './services/cache';
 import { NetworkService } from './services/network';
-import type { OnChainAccountSnapshotState } from './services/on-chain-account';
-import { OnChainAccountService } from './services/on-chain-account';
+import type { OnChainAccountState } from './services/on-chain-account';
+import {
+  OnChainAccountRepository,
+  OnChainAccountService,
+} from './services/on-chain-account';
 import { PriceService } from './services/price';
 import { State } from './services/state';
 import {
@@ -38,7 +41,7 @@ import {
 } from './services/transaction';
 import { WalletService } from './services/wallet';
 import { ConfirmationUXController } from './ui/confirmation/controller';
-import { logger } from './utils';
+import { logger, noOpLogger } from './utils';
 
 assert(AppConfig, object());
 
@@ -49,7 +52,7 @@ const state = new State({
     assets: {},
     transactions: {},
     accountBalances: {} as AccountBalanceState['accountBalances'],
-    accountMetadata: {} as OnChainAccountSnapshotState['accountMetadata'],
+    onChainAccounts: {} as OnChainAccountState['onChainAccounts'],
   },
 });
 
@@ -59,6 +62,13 @@ const assetMetadataRepository = new AssetMetadataRepository(state);
 
 /** ------------------------------ Services  ------------------------------ */
 const networkService = new NetworkService({ logger });
+
+const assetMetadataService = new AssetMetadataService({
+  networkService,
+  assetMetadataRepository,
+  logger,
+});
+
 const transactionBuilder = new TransactionBuilder({
   logger,
 });
@@ -70,8 +80,13 @@ const accountService = new AccountService({
   walletService,
 });
 
+const onChainAccountRepository = new OnChainAccountRepository(state);
+
 const onChainAccountService = new OnChainAccountService({
+  logger,
   networkService,
+  onChainAccountRepository,
+  assetMetadataService,
 });
 
 const transactionService = new TransactionService({
@@ -83,7 +98,7 @@ const transactionService = new TransactionService({
 });
 
 const priceService = new PriceService({
-  cache: new StateCache(state, logger, '__cache__price'),
+  cache: new InMemoryCache(noOpLogger),
   logger,
 });
 
@@ -92,28 +107,21 @@ const confirmationUIController = new ConfirmationUXController({
   logger,
 });
 
-const assetMetadataService = new AssetMetadataService({
-  networkService,
-  assetMetadataRepository,
-  logger,
-});
-
 /** ------------------------------ Keyring Handler ------------------------------ */
 const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountService,
-  onChainAccountService,
   walletService,
   transactionBuilder,
   transactionService,
+  confirmationUIController,
 });
 
 const signMessageHandler = new SignMessageHandler({
   logger,
   accountService,
-  onChainAccountService,
-  confirmationUIController,
   walletService,
+  confirmationUIController,
 });
 
 const keyringMethodHandlers: Record<MultichainMethod, IKeyringRequestHandler> =

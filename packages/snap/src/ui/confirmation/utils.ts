@@ -3,15 +3,19 @@ import type { CaipAccountId } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import type { FeeData } from './api';
+import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
+import { parseOperationAssetReference } from '../../services/transaction/utils';
 import type { Locale } from '../../utils';
 import {
   FALLBACK_LANGUAGE,
   getPreferences,
   normalizeAmount,
+  parseClassicAssetCodeIssuer,
 } from '../../utils';
+import { xlmIcon } from '../images';
 
 const NetworkName = {
   [KnownCaip2ChainId.Mainnet]: 'Mainnet',
@@ -145,5 +149,57 @@ export function formatFeeData(
     symbol: nativeAssetMetadata.symbol,
     iconUrl: nativeAssetMetadata.iconUrl,
     amount: amountInLumen.toString(),
+  };
+}
+
+/**
+ * Display-friendly resolution of a Stellar operation `asset` reference.
+ * Used by the confirmation UI to render assets and to look up prices.
+ */
+export type ResolvedAssetDisplay = {
+  /** CAIP-19 id used to key into the prices map. */
+  assetId: KnownCaip19AssetIdOrSlip44Id;
+  /** Short ticker (e.g. `XLM`, `USD`). */
+  symbol: string;
+  /** Bundled icon when known (native XLM only today). */
+  iconUrl?: string;
+  /** Explorer link for classic assets. */
+  link?: string;
+};
+
+/**
+ * Resolves an `OperationMapper` asset reference into the data required to display it.
+ *
+ * @param scope - CAIP-2 chain of the transaction.
+ * @param assetReference - Either `'native'` or a classic `CODE-ISSUER` / `CODE:ISSUER` string.
+ * @returns The resolved display data, or `null` when the reference cannot be parsed
+ * (e.g. liquidity pool ids that arrive on `setTrustLineFlags` / `revokeSponsorship`).
+ */
+export function resolveAssetDisplay(
+  scope: KnownCaip2ChainId,
+  assetReference: string,
+): ResolvedAssetDisplay | null {
+  const assetId = parseOperationAssetReference(scope, assetReference);
+  if (assetId === null) {
+    return null;
+  }
+  if (assetReference === 'native') {
+    const native = getNativeAssetMetadata(scope);
+    return {
+      assetId,
+      symbol: native.symbol,
+      // Use the bundled SVG instead of the remote token-icon URL
+      iconUrl: xlmIcon,
+    };
+  }
+  // Safe: parseOperationAssetReference returned non-null for a non-native ref,
+  // so the reference is a parseable classic CODE-ISSUER pair.
+  const { assetCode } = parseClassicAssetCodeIssuer(assetReference);
+  // TODO: resolve classic-asset iconUrl via AssetMetadataService once
+  // integrated, instead of letting <AssetIcon> fall back to question-mark.
+  return {
+    assetId,
+    symbol: assetCode,
+    link: getClassicAssetExplorerUrl(assetReference),
   };
 }

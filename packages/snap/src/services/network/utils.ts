@@ -155,6 +155,27 @@ export function parseScValToNative(value: string | bigint | number): BigNumber {
 }
 
 /**
+ * Normalizes a single Stellar multicall `exec` result cell to a non-negative {@link BigNumber}.
+ *
+ * @param value - Native value from `scValToNative` for one invocation result.
+ * @returns Parsed balance, or `null` when the cell is missing or not a supported numeric shape.
+ */
+export function sep41MulticallCellToBalance(value: unknown): BigNumber | null {
+  if (
+    typeof value === 'bigint' ||
+    typeof value === 'number' ||
+    typeof value === 'string'
+  ) {
+    try {
+      return parseScValToNative(value);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
  * Detects the error shape thrown by Soroban RPC `getAccount` / `getAccountEntry` when the account
  * ledger entry is missing (`Error` with message `Account not found: <G… address>`).
  *

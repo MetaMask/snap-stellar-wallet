@@ -24,6 +24,7 @@ import { calculateSpendableBalance } from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
@@ -147,6 +148,19 @@ export class OnChainAccount {
       return undefined;
     }
     return { ...entry };
+  }
+
+  /**
+   * Sets the balance for a SEP-41 asset id.
+   *
+   * @param assetId - The SEP-41 asset id to set the balance for.
+   * @param balanceEntry - The balance entry to set.
+   */
+  setSep41Asset(
+    assetId: KnownCaip19Sep41AssetId,
+    balanceEntry: SpendableBalance,
+  ): void {
+    this.#balances.set(assetId, balanceEntry);
   }
 
   /**
@@ -314,6 +328,14 @@ export class OnChainAccount {
       sequenceNumber: this.sequenceNumber,
       scope: this.#scope,
     };
+  }
+
+  toSerializableFull(): OnChainAccountSerializableFull {
+    const serialized = this.toSerializable();
+    if (!OnChainAccountSerializableFullStruct.is(serialized)) {
+      throw new OnChainAccountException('Account is not fully hydrated');
+    }
+    return serialized;
   }
 
   /**

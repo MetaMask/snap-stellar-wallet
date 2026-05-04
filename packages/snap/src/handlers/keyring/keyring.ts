@@ -1,7 +1,10 @@
 import {
+  AccountCreationType,
+  assertCreateAccountOptionIsSupported,
   DiscoveredAccountType,
   KeyringEvent,
   type Balance,
+  type CreateAccountOptions as KeyringApiCreateAccountOptions,
   type DiscoveredAccount,
   type EntropySourceId,
   type Keyring,
@@ -60,6 +63,7 @@ import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
+import { AccountNotFoundException } from '../../services/account/exceptions';
 import type { AssetMetadataService } from '../../services/asset-metadata';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import { AccountNotActivatedException } from '../../services/network';
@@ -75,7 +79,7 @@ import {
   getSnapProvider,
   isSep41Id,
   isSlip44Id,
-  normalizeAmount,
+  toDisplayBalance,
   rethrowIfInstanceElseThrow,
   validateOrigin,
   validateRequest,
@@ -172,6 +176,53 @@ export class KeyringHandler implements Keyring {
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails(
         'Failed to create account',
+        ensureError(error).message,
+      );
+      throw new KeyringCreateAccountException();
+    }
+  }
+
+  /**
+   * Batch account creation for the Snap keyring v2 path (no `AccountCreated` events).
+   *
+   * @param options - BIP-44 derive-index or derive-index-range options from the keyring API.
+   * @returns Keyring accounts created or already present for each index.
+   */
+  async createAccounts(
+    options: KeyringApiCreateAccountOptions,
+  ): Promise<KeyringAccount[]> {
+    assertCreateAccountOptionIsSupported(options, [
+      `${AccountCreationType.Bip44DeriveIndex}`,
+      `${AccountCreationType.Bip44DeriveIndexRange}`,
+    ] as const);
+
+    try {
+      const accounts: KeyringAccount[] = [];
+
+      if (options.type === AccountCreationType.Bip44DeriveIndex) {
+        const account = await this.#accountService.create({
+          entropySource: options.entropySource,
+          index: options.groupIndex,
+        });
+        accounts.push(this.#toKeyringAccount(account));
+      } else {
+        for (
+          let groupIndex = options.range.from;
+          groupIndex <= options.range.to;
+          groupIndex += 1
+        ) {
+          const account = await this.#accountService.create({
+            entropySource: options.entropySource,
+            index: groupIndex,
+          });
+          accounts.push(this.#toKeyringAccount(account));
+        }
+      }
+
+      return accounts;
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails(
+        'Failed to create accounts',
         ensureError(error).message,
       );
       throw new KeyringCreateAccountException();
@@ -428,11 +479,7 @@ export class KeyringHandler implements Keyring {
         const decimal = assetMetadata.units[0].decimals;
         assetBalances[assetId] = {
           unit: asset.symbol ?? '',
-          amount: normalizeAmount(
-            asset.balance,
-            decimal,
-            // TODO: Handle decimal places overflow
-          ).toString(),
+          amount: toDisplayBalance(asset.balance, decimal),
         };
       }
       return assetBalances;
@@ -459,7 +506,7 @@ export class KeyringHandler implements Keyring {
   async resolveAccountAddress(
     scope: KnownCaip2ChainId,
     request: ResolveAccountAddressJsonRpcRequest,
-  ): Promise<ResolvedAccountAddress> {
+  ): Promise<ResolvedAccountAddress | null> {
     validateRequest(
       {
         request,
@@ -471,10 +518,16 @@ export class KeyringHandler implements Keyring {
     try {
       const { account } = await this.#accountService.resolveAccount({
         scope,
-        accountAddress: request.params.address,
+        accountAddress: request.params.opts.address,
       });
       return { address: `${scope}:${account.address}` };
     } catch (error: unknown) {
+      // Per the keyring API, returning `null` signals "this snap does not
+      // own the requested address" so MetaMask's routing layer will fallback to
+      // the current connected account.
+      if (error instanceof AccountNotFoundException) {
+        return null;
+      }
       this.#logger.logErrorWithDetails(
         'Failed to resolve account address',
         ensureError(error).message,
