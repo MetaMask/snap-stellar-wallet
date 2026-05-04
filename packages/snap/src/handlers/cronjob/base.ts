@@ -30,5 +30,5 @@ export abstract class CronjobBaseHandler<
     };
   }
 
-  abstract handleCronJobRequest(request: RequestType): Promise<void>;
+  protected abstract handleCronJobRequest(request: RequestType): Promise<void>;
 }

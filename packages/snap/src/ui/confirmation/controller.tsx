@@ -16,6 +16,7 @@ import type { ILogger, Locale } from '../../utils';
 import {
   createInterface,
   createPrefixedLogger,
+  Duration,
   getSlip44AssetId,
   scheduleBackgroundEvent,
   showDialog,
@@ -184,7 +185,7 @@ export class ConfirmationUXController {
         // Trigger immediate price fetch (1 second), then continue every 20 seconds
         await scheduleBackgroundEvent({
           method: BackgroundEventMethod.RefreshConfirmationPrices,
-          duration: 'PT1S', // Start immediately
+          duration: Duration.OneSecond, // Start immediately
           params: {
             scope,
             interfaceId: id,

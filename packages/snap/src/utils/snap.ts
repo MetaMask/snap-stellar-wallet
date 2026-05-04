@@ -14,6 +14,18 @@ import type {
 
 import { type Serializable, serialize, deserialize } from './serialization';
 
+export enum Duration {
+  OneSecond = 'PT1S',
+  FiveSeconds = 'PT5S',
+  TwentySeconds = 'PT20S',
+  ThirtySeconds = 'PT30S',
+  OneMinute = 'PT1M',
+  FiveMinutes = 'PT5M',
+  TenMinutes = 'PT10M',
+  ThirtyMinutes = 'PT30M',
+  OneHour = 'PT1H',
+}
+
 /**
  * Returns the Snap provider.
  *
@@ -194,7 +206,7 @@ export async function scheduleBackgroundEvent({
 }: {
   method: string;
   params?: Record<string, Json>;
-  duration: string;
+  duration: Duration;
 }): Promise<string> {
   return getSnapProvider().request({
     method: 'snap_scheduleBackgroundEvent',
