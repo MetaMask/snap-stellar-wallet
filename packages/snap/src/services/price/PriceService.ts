@@ -6,7 +6,7 @@ import type {
 import type { CaipAssetType } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
-import { mapKeys, pick } from 'lodash';
+import { pick } from 'lodash';
 
 import {
   createPrefixedLogger,
@@ -95,7 +95,7 @@ export class PriceService {
       vsCurrency?: VsCurrencyParam | string;
     },
     refreshCache: boolean = false,
-  ): Promise<SpotPrices> {
+  ): Promise<Partial<SpotPrices>> {
     return this.#getCachedSpotPrices(assetIds, vsCurrency, refreshCache);
   }
 
@@ -114,55 +114,39 @@ export class PriceService {
     tokenCaip19Types: CaipAssetType[],
     vsCurrency: VsCurrencyParam | string = 'usd',
     refreshCache: boolean = false,
-  ): Promise<SpotPrices> {
-    const uniqueTokenCaip19Types = [...new Set(tokenCaip19Types)];
+  ): Promise<Partial<SpotPrices>> {
+    const uniqueAssetTypes = [...new Set(tokenCaip19Types)];
 
     const cacheKeyPrefix = 'PriceApiClient:getSpotPrices';
 
-    // Shorthand method to generate the cache key
     const toCacheKey = (tokenCaipAssetType: CaipAssetType): string =>
       `${cacheKeyPrefix}:${tokenCaipAssetType}:${vsCurrency}`;
 
-    // Parses back the cache key
-    const parseCacheKey = (key: string): RegExpMatchArray => {
-      const regex = new RegExp(`^${cacheKeyPrefix}:(.+):(.+)$`, 'u');
-      const match = key.match(regex);
-
-      if (!match) {
-        throw new Error('Invalid cache key');
-      }
-
-      return match;
-    };
-
-    // Get the cached spot prices
     const cachedSpotPricesRecord = refreshCache
       ? {}
-      : await this.#cache.mget(uniqueTokenCaip19Types.map(toCacheKey));
+      : await this.#cache.mget(uniqueAssetTypes.map(toCacheKey));
 
-    // `mget` keys results by full cache keys (`PriceApiClient:getSpotPrices:…`), not by CAIP asset ID; map back to asset IDs.
-    const cachedSpotPricesRecordWithParsedKeys = mapKeys(
-      cachedSpotPricesRecord,
-      (_value, key) => parseCacheKey(key)[1],
-    );
-
-    // We still need to fetch the spot prices for the tokens that are not cached
-    const nonCachedTokenCaip19Types = uniqueTokenCaip19Types.filter(
-      (tokenCaip19Type) =>
-        cachedSpotPricesRecordWithParsedKeys[tokenCaip19Type] === undefined,
-    );
-
-    if (nonCachedTokenCaip19Types.length === 0) {
-      return cachedSpotPricesRecordWithParsedKeys as SpotPrices;
+    const cachedSpotPricesByAssetId: Partial<SpotPrices> = {};
+    for (const assetType of uniqueAssetTypes) {
+      const value = cachedSpotPricesRecord[toCacheKey(assetType)];
+      if (value !== undefined) {
+        cachedSpotPricesByAssetId[assetType] = value as SpotPrice | null;
+      }
     }
 
-    // Fetch the spot prices for the tokens that are not cached
+    const nonCachedAssetTypes = uniqueAssetTypes.filter(
+      (assetType) => cachedSpotPricesByAssetId[assetType] === undefined,
+    );
+
+    if (nonCachedAssetTypes.length === 0) {
+      return cachedSpotPricesByAssetId;
+    }
+
     const nonCachedSpotPrices = await this.#priceApiClient.getSpotPrices(
-      nonCachedTokenCaip19Types,
+      nonCachedAssetTypes,
       vsCurrency,
     );
 
-    // Cache the data
     await this.#cache.mset(
       Object.entries(nonCachedSpotPrices).map(
         ([tokenCaipAssetType, spotPrice]) => ({
@@ -174,7 +158,7 @@ export class PriceService {
     );
 
     return {
-      ...cachedSpotPricesRecordWithParsedKeys,
+      ...cachedSpotPricesByAssetId,
       ...nonCachedSpotPrices,
     };
   }
