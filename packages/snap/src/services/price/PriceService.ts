@@ -6,7 +6,7 @@ import type {
 import type { CaipAssetType } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
-import { pick } from 'lodash';
+import { mapKeys, pick } from 'lodash';
 
 import {
   createPrefixedLogger,
@@ -28,6 +28,7 @@ import type {
   VsCurrencyParam,
 } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
+import { parseCacheKey, toCacheKey } from './utils';
 import { AppConfig } from '../../config';
 
 /**
@@ -95,16 +96,80 @@ export class PriceService {
       vsCurrency?: VsCurrencyParam | string;
     },
     refreshCache: boolean = false,
-  ): Promise<Partial<SpotPrices>> {
-    return useCache(
-      this.#priceApiClient.getSpotPrices.bind(this.#priceApiClient),
-      this.#cache,
-      {
-        functionName: 'PriceService:getSpotPrices',
-        ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
-        refreshCache,
-      },
-    )(assetIds, vsCurrency);
+  ): Promise<SpotPrices> {
+    return this.#getCachedSpotPrices(assetIds, vsCurrency, refreshCache);
+  }
+
+  /**
+   * Internal caching for {@link PriceService.getSpotPrices}:
+   * - Uses `mget` / `mset` for batch reads and writes.
+   * - One cache entry per asset and quote currency.
+   * - On partial hits, fetches only assets missing from the cache.
+   *
+   * @param tokenCaip19Types - CAIP-19 asset IDs to quote.
+   * @param vsCurrency - Quote currency.
+   * @param refreshCache - When true, bypasses the cache for this call.
+   * @returns Spot prices keyed by asset ID.
+   */
+  async #getCachedSpotPrices(
+    tokenCaip19Types: CaipAssetType[],
+    vsCurrency: VsCurrencyParam | string = 'usd',
+    refreshCache: boolean = false,
+  ): Promise<SpotPrices> {
+    const uniqueTokenCaip19Types = [...new Set(tokenCaip19Types)];
+
+    const cacheKeyPrefix = 'PriceApiClient:getSpotPrices';
+
+    // Get the cached spot prices
+    const cachedSpotPricesRecord = refreshCache
+      ? {}
+      : await this.#cache.mget(
+          uniqueTokenCaip19Types.map((tokenCaip19Type: CaipAssetType) =>
+            toCacheKey(cacheKeyPrefix, tokenCaip19Type, vsCurrency),
+          ),
+        );
+
+    // `mget` keys results by full cache keys (`PriceApiClient:getSpotPrices:…`), not by CAIP asset ID; map back to asset IDs.
+    const cachedSpotPricesRecordWithParsedKeys = mapKeys(
+      cachedSpotPricesRecord,
+      (_value, key) => parseCacheKey(cacheKeyPrefix, key)[1],
+    );
+
+    // We still need to fetch the spot prices for the tokens that are not cached
+    const nonCachedTokenCaip19Types = uniqueTokenCaip19Types.filter(
+      (tokenCaip19Type) =>
+        cachedSpotPricesRecordWithParsedKeys[tokenCaip19Type] === undefined,
+    );
+
+    if (nonCachedTokenCaip19Types.length === 0) {
+      return cachedSpotPricesRecordWithParsedKeys as SpotPrices;
+    }
+
+    // Fetch the spot prices for the tokens that are not cached
+    const nonCachedSpotPrices = await this.#priceApiClient.getSpotPrices(
+      nonCachedTokenCaip19Types,
+      vsCurrency,
+    );
+
+    // Cache the data
+    await this.#cache.mset(
+      Object.entries(nonCachedSpotPrices).map(
+        ([tokenCaipAssetType, spotPrice]) => ({
+          key: toCacheKey(
+            cacheKeyPrefix,
+            tokenCaipAssetType as CaipAssetType,
+            vsCurrency,
+          ),
+          value: spotPrice,
+          ttlMilliseconds: AppConfig.cache.ttlMilliseconds.spotPrices,
+        }),
+      ),
+    );
+
+    return {
+      ...cachedSpotPricesRecordWithParsedKeys,
+      ...nonCachedSpotPrices,
+    };
   }
 
   /**
