@@ -2,22 +2,24 @@ import type {
   OnUserInputHandler,
   OnKeyringRequestHandler,
   OnRpcRequestHandler,
-  OnCronjobHandler,
-  OnAssetHistoricalPriceHandler,
   OnAssetsConversionHandler,
+  OnAssetHistoricalPriceHandler,
   OnAssetsLookupHandler,
   OnAssetsMarketDataHandler,
+  OnClientRequestHandler,
+  OnCronjobHandler,
 } from '@metamask/snaps-sdk';
 import { MethodNotFoundError } from '@metamask/snaps-sdk';
-import type { Json } from '@metamask/utils';
+import type { Json, JsonRpcRequest } from '@metamask/utils';
 
 import {
   keyringHandler,
   userInputHandler,
-  cronjobHandler,
-  assetsHandler,
-  signMessageHandler,
   signTransactionHandler,
+  assetsHandler,
+  clientRequestHandler,
+  cronjobHandler,
+  signMessageHandler,
 } from './context';
 
 export const onAssetHistoricalPrice: OnAssetHistoricalPriceHandler = async (
@@ -40,6 +42,9 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
 
 export const onUserInput: OnUserInputHandler = async (params) =>
   userInputHandler.handle(params);
+
+export const onClientRequest: OnClientRequestHandler = async ({ request }) =>
+  clientRequestHandler.handle(request);
 
 export const onCronjob: OnCronjobHandler = async ({ request }) =>
   cronjobHandler.handle(request);
@@ -80,6 +85,10 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
       return signMessageHandler.handle(request.params as Json);
     case 'stellar_signTransaction':
       return signTransactionHandler.handle(request.params as Json);
+    case 'stellar_changeTrustOpt':
+      return clientRequestHandler.handle(
+        request.params as unknown as JsonRpcRequest,
+      );
     default:
       throw new MethodNotFoundError() as Error;
   }

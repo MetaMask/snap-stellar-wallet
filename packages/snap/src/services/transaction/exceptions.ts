@@ -178,3 +178,12 @@ export class InvalidInvokeContractStructureException extends TransactionValidati
     super(`Invoke host function transaction must have exactly one operation`);
   }
 }
+/**
+ * Thrown when the keyring transaction builder fails to create a transaction.
+ */
+export class KeyringTransactionBuilderException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'KeyringTransactionBuilderException';
+  }
+}
