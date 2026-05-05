@@ -68,5 +68,7 @@ export class SyncAccountsHandler extends CronjobBaseHandler<SyncAccountJsonRpcRe
     }
 
     await this.#onChainAccountService.synchronize(accounts, scope);
+    // TODO:
+    // sync transaction history
   }
 }

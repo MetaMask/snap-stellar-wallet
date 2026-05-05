@@ -3,6 +3,7 @@ import type { JsonRpcRequest } from '@metamask/snaps-sdk';
 import type { BackgroundEventMethod, ICronjobRequestHandler } from './api';
 import { BackgroundEventMethodStruct } from './api';
 import { CronjobMethodNotFoundError } from './exceptions';
+import { withCatchAndThrowSnapError } from '../../utils';
 import { getClientStatus } from '../../utils/snap';
 
 export class CronjobHandler {
@@ -17,14 +18,16 @@ export class CronjobHandler {
   }
 
   async handle(request: JsonRpcRequest): Promise<void> {
-    const { active, locked } = await getClientStatus();
+    await withCatchAndThrowSnapError(async () => {
+      const { active, locked } = await getClientStatus();
 
-    // if the client is not active or locked, we dont execute the cronjob
-    if (!active || locked) {
-      return;
-    }
+      // if the client is not active or locked, we dont execute the cronjob
+      if (!active || locked) {
+        return;
+      }
 
-    await this.#handleRequest(request);
+      await this.#handleRequest(request);
+    });
   }
 
   async #handleRequest(request: JsonRpcRequest): Promise<void> {
