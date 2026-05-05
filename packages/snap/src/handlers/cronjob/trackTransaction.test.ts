@@ -49,8 +49,8 @@ describe('TrackTransactionHandler', () => {
       .spyOn(OnChainAccountService.prototype, 'synchronize')
       .mockResolvedValue(undefined);
 
-    const applyKeyringTransactionSettlement = jest
-      .spyOn(TransactionService.prototype, 'applyKeyringTransactionSettlement')
+    const updateKeyringTransactionStatus = jest
+      .spyOn(TransactionService.prototype, 'updateKeyringTransactionStatus')
       .mockResolvedValue(undefined);
 
     const { transactionService } = createMockTransactionService();
@@ -78,7 +78,7 @@ describe('TrackTransactionHandler', () => {
       findByIds,
       getHorizonTransactionInclusionStatus,
       synchronize,
-      applyKeyringTransactionSettlement,
+      updateKeyringTransactionStatus,
     };
   }
 
@@ -119,7 +119,7 @@ describe('TrackTransactionHandler', () => {
       account,
       getHorizonTransactionInclusionStatus,
       synchronize,
-      applyKeyringTransactionSettlement,
+      updateKeyringTransactionStatus,
     } = setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('success');
 
@@ -134,7 +134,7 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(applyKeyringTransactionSettlement).toHaveBeenCalledWith({
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
       txId,
       accountIds: [accountId],
       status: TransactionStatus.Confirmed,
@@ -149,7 +149,7 @@ describe('TrackTransactionHandler', () => {
       handler,
       getHorizonTransactionInclusionStatus,
       synchronize,
-      applyKeyringTransactionSettlement,
+      updateKeyringTransactionStatus,
     } = setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('failed');
 
@@ -164,7 +164,7 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(applyKeyringTransactionSettlement).toHaveBeenCalledWith({
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
       txId,
       accountIds: [accountId],
       status: TransactionStatus.Failed,
@@ -178,7 +178,7 @@ describe('TrackTransactionHandler', () => {
       handler,
       getHorizonTransactionInclusionStatus,
       synchronize,
-      applyKeyringTransactionSettlement,
+      updateKeyringTransactionStatus,
     } = setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('pending');
 
@@ -195,7 +195,7 @@ describe('TrackTransactionHandler', () => {
     });
 
     expect(getHorizonTransactionInclusionStatus).toHaveBeenCalledTimes(1);
-    expect(applyKeyringTransactionSettlement).not.toHaveBeenCalled();
+    expect(updateKeyringTransactionStatus).not.toHaveBeenCalled();
     expect(synchronize).toHaveBeenCalledTimes(1);
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
@@ -205,7 +205,7 @@ describe('TrackTransactionHandler', () => {
       handler,
       getHorizonTransactionInclusionStatus,
       synchronize,
-      applyKeyringTransactionSettlement,
+      updateKeyringTransactionStatus,
     } = setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('success');
 
@@ -221,7 +221,7 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(applyKeyringTransactionSettlement).toHaveBeenCalledWith({
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
       txId,
       accountIds: [accountId],
       status: TransactionStatus.Confirmed,

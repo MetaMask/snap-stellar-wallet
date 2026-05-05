@@ -9,7 +9,11 @@ import {
   TrackTransactionJsonRpcRequestStruct,
 } from './api';
 import { CronjobBaseHandler } from './base';
-import type { AccountService } from '../../services/account';
+import type { KnownCaip2ChainId } from '../../api';
+import type {
+  AccountService,
+  StellarKeyringAccount,
+} from '../../services/account';
 import type { NetworkService } from '../../services/network';
 import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction';
@@ -20,6 +24,13 @@ import { scheduleBackgroundEvent } from '../../utils/snap';
 /** Poll budget for Horizon inclusion after submit (matches Tron snap pattern). */
 const TRACK_TRANSACTION_MAX_ATTEMPTS = 15;
 
+/**
+ * Polls Horizon for transaction inclusion; on settlement or max attempts runs
+ * {@link OnChainAccountService.synchronize} so keyring asset/balance events emit.
+ *
+ * TODO: Revisit unifying this Horizon loop with {@link NetworkService.pollTransaction} (RPC),
+ * outcome mapping, and scheduling shape after cronjob-related work stabilizes.
+ */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static readonly duration = 'PT1S';
 
@@ -70,9 +81,6 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
   }
 
   /**
-   * Polls Horizon for transaction inclusion; on settlement or max attempts runs
-   * {@link OnChainAccountService.synchronize} so keyring asset/balance events emit.
-   *
    * @param request - Cron job JSON-RPC request carrying `txId`, `scope`, and `accountIds`.
    */
   async handleCronJobRequest(
@@ -81,7 +89,7 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     const { txId, scope, accountIds, attempt: attemptRaw } = request.params;
     const attempt = attemptRaw ?? 0;
 
-    this.logger.info('Tracking transaction', {
+    this.logger.debug('Tracking transaction', {
       txId,
       scope,
       attempt: attempt + 1,
@@ -96,20 +104,8 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       return;
     }
 
-    const synchronizeAccounts = async (): Promise<void> => {
-      await this.#onChainAccountService.synchronize(accounts, scope);
-    };
-
-    const settleKeyringRow = async (
-      keyringStatus: TransactionStatus.Confirmed | TransactionStatus.Failed,
-    ): Promise<void> => {
-      await this.#transactionService.applyKeyringTransactionSettlement({
-        txId,
-        accountIds,
-        status: keyringStatus,
-      });
-    };
-
+    // Not another scheduled retry: one-off Horizon read to classify the tx before sync
+    // after scheduled attempt budget is exhausted.
     if (attempt >= TRACK_TRANSACTION_MAX_ATTEMPTS) {
       this.logger.warn(
         'TrackTransaction: max attempts reached; synchronizing accounts',
@@ -122,9 +118,17 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
             scope,
           );
         if (lastStatus === 'success') {
-          await settleKeyringRow(TransactionStatus.Confirmed);
+          await this.#settleKeyringRow(
+            txId,
+            accountIds,
+            TransactionStatus.Confirmed,
+          );
         } else if (lastStatus === 'failed') {
-          await settleKeyringRow(TransactionStatus.Failed);
+          await this.#settleKeyringRow(
+            txId,
+            accountIds,
+            TransactionStatus.Failed,
+          );
         }
       } catch (error: unknown) {
         this.logger.logErrorWithDetails(
@@ -132,7 +136,7 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
           error,
         );
       }
-      await synchronizeAccounts();
+      await this.#synchronizeAccounts(accounts, scope);
       return;
     }
 
@@ -162,11 +166,19 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
         status,
       });
       if (status === 'success') {
-        await settleKeyringRow(TransactionStatus.Confirmed);
+        await this.#settleKeyringRow(
+          txId,
+          accountIds,
+          TransactionStatus.Confirmed,
+        );
       } else {
-        await settleKeyringRow(TransactionStatus.Failed);
+        await this.#settleKeyringRow(
+          txId,
+          accountIds,
+          TransactionStatus.Failed,
+        );
       }
-      await synchronizeAccounts();
+      await this.#synchronizeAccounts(accounts, scope);
     } catch (error: unknown) {
       this.logger.logErrorWithDetails(
         'TrackTransaction: Horizon poll error; will retry',
@@ -183,8 +195,27 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
           TrackTransactionHandler.duration,
         );
       } else {
-        await synchronizeAccounts();
+        await this.#synchronizeAccounts(accounts, scope);
       }
     }
+  }
+
+  async #synchronizeAccounts(
+    accounts: StellarKeyringAccount[],
+    scope: KnownCaip2ChainId,
+  ): Promise<void> {
+    await this.#onChainAccountService.synchronize(accounts, scope);
+  }
+
+  async #settleKeyringRow(
+    txId: string,
+    accountIds: readonly string[],
+    keyringStatus: TransactionStatus.Confirmed | TransactionStatus.Failed,
+  ): Promise<void> {
+    await this.#transactionService.updateKeyringTransactionStatus({
+      txId,
+      accountIds,
+      status: keyringStatus,
+    });
   }
 }

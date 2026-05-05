@@ -144,12 +144,12 @@ export class TransactionService {
    * {@link KeyringEvent.AccountTransactionsUpdated} so the extension Activity list can leave
    * the "pending" state after Horizon inclusion (or failure).
    *
-   * @param params - Settlement parameters.
+   * @param params - Status update parameters.
    * @param params.txId - Transaction hash (`Transaction.id`).
    * @param params.accountIds - Accounts that may hold the tx (from the track job).
    * @param params.status - {@link TransactionStatus.Confirmed} or {@link TransactionStatus.Failed}.
    */
-  async applyKeyringTransactionSettlement(params: {
+  async updateKeyringTransactionStatus(params: {
     txId: string;
     accountIds: readonly string[];
     status: TransactionStatus.Confirmed | TransactionStatus.Failed;
@@ -163,7 +163,7 @@ export class TransactionService {
 
     if (!existing) {
       this.#logger.debug(
-        'applyKeyringTransactionSettlement: no matching persisted transaction',
+        'updateKeyringTransactionStatus: no matching persisted transaction',
         { txId, accountIds },
       );
       return;

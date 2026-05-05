@@ -122,7 +122,7 @@ describe('TransactionService', () => {
     });
   });
 
-  describe('applyKeyringTransactionSettlement', () => {
+  describe('updateKeyringTransactionStatus', () => {
     let findByIdAmongAccountsSpy: jest.SpiedFunction<
       TransactionRepository['findByIdAmongAccounts']
     >;
@@ -157,7 +157,7 @@ describe('TransactionService', () => {
 
       jest.mocked(emitSnapKeyringEvent).mockClear();
 
-      await transactionService.applyKeyringTransactionSettlement({
+      await transactionService.updateKeyringTransactionStatus({
         txId,
         accountIds: [account.id],
         status: TransactionStatus.Confirmed,
@@ -195,7 +195,7 @@ describe('TransactionService', () => {
 
       jest.mocked(emitSnapKeyringEvent).mockClear();
 
-      await transactionService.applyKeyringTransactionSettlement({
+      await transactionService.updateKeyringTransactionStatus({
         txId: 'missing-hash',
         accountIds: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'],
         status: TransactionStatus.Confirmed,
@@ -233,7 +233,7 @@ describe('TransactionService', () => {
 
       jest.mocked(emitSnapKeyringEvent).mockClear();
 
-      await transactionService.applyKeyringTransactionSettlement({
+      await transactionService.updateKeyringTransactionStatus({
         txId,
         accountIds: [account.id],
         status: TransactionStatus.Confirmed,

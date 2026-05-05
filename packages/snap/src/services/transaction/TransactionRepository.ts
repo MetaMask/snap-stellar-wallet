@@ -44,8 +44,12 @@ export class TransactionRepository {
     txId: string,
     accountIds: readonly string[],
   ): Promise<KeyringTransaction | undefined> {
+    const transactionsByAccount = await this.#state.getKey<
+      TransactionStateValue['transactions']
+    >(this.#stateKey);
+
     for (const accountId of accountIds) {
-      const list = await this.findByAccountId(accountId);
+      const list = transactionsByAccount?.[accountId] ?? [];
       const found = list.find((t) => t.id === txId);
       if (found) {
         return found;
