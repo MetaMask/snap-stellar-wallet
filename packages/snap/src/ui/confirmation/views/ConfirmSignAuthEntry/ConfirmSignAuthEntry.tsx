@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Container,
+  Divider,
   Footer,
   Heading,
   Icon,
@@ -15,7 +16,11 @@ import {
 } from '@metamask/snaps-sdk/jsx';
 
 import { ConfirmSignAuthEntryFormNames } from './events';
-import type { ReadableAuthEntry } from '../../../../handlers/keyring/signAuthEntry';
+import type { KnownCaip2ChainId } from '../../../../api';
+import type {
+  ReadableAuthEntry,
+  ReadableInvocation,
+} from '../../../../handlers/keyring/signAuthEntry';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
@@ -29,6 +34,73 @@ export type ConfirmSignAuthEntryProps = Pick<
 > & {
   readableAuthEntry: ReadableAuthEntry;
   account: StellarKeyringAccount;
+};
+
+// Compact summary of one nested authorized invocation: contract, function,
+// decoded args, and a count of any deeper invocations beneath it. Rendered
+// only one level deep to keep the dialog scannable; deeper nesting is
+// surfaced as a count and is still bound by the user's signature.
+const SubInvocationSummary = ({
+  invocation,
+  scope,
+  translate,
+}: {
+  invocation: ReadableInvocation;
+  scope: KnownCaip2ChainId;
+  translate: ReturnType<typeof i18n>;
+}): ComponentOrElement => {
+  const { contractAddress, functionName, args, subInvocations } = invocation;
+
+  return (
+    <Box direction="vertical">
+      {contractAddress === null ? (
+        <Box alignment="space-between" direction="horizontal">
+          <SnapText fontWeight="medium" color="alternative">
+            {translate('confirmation.signAuthEntry.contract')}
+          </SnapText>
+          <SnapText>
+            {translate('confirmation.signAuthEntry.createContract')}
+          </SnapText>
+        </Box>
+      ) : (
+        <Box alignment="space-between" direction="horizontal">
+          <SnapText fontWeight="medium" color="alternative">
+            {translate('confirmation.signAuthEntry.contract')}
+          </SnapText>
+          <Address address={`${scope}:${contractAddress}`} truncate />
+        </Box>
+      )}
+
+      {functionName === null ? null : (
+        <Box alignment="space-between" direction="horizontal">
+          <SnapText fontWeight="medium" color="alternative">
+            {translate('confirmation.signAuthEntry.function')}
+          </SnapText>
+          <SnapText>{functionName}</SnapText>
+        </Box>
+      )}
+
+      {args.length > 0 ? (
+        <Box direction="vertical">
+          <SnapText fontWeight="medium" color="alternative">
+            {translate('confirmation.transaction.param.arguments')}
+          </SnapText>
+          {args.map((arg, index) => (
+            <SnapText key={`sub-arg-${index}`}>{arg}</SnapText>
+          ))}
+        </Box>
+      ) : null}
+
+      {subInvocations.length > 0 ? (
+        <Box alignment="space-between" direction="horizontal">
+          <SnapText fontWeight="medium" color="alternative">
+            {translate('confirmation.signAuthEntry.subInvocations')}
+          </SnapText>
+          <SnapText>{String(subInvocations.length)}</SnapText>
+        </Box>
+      ) : null}
+    </Box>
+  );
 };
 
 export const ConfirmSignAuthEntry = ({
@@ -46,9 +118,10 @@ export const ConfirmSignAuthEntry = ({
     functionType,
     contractAddress,
     functionName,
+    args,
     signatureExpirationLedger,
     nonce,
-    subInvocationsCount,
+    subInvocations,
   } = readableAuthEntry;
 
   return (
@@ -94,6 +167,17 @@ export const ConfirmSignAuthEntry = ({
             </Box>
           )}
 
+          {args.length > 0 ? (
+            <Box direction="vertical">
+              <SnapText fontWeight="medium" color="alternative">
+                {translate('confirmation.transaction.param.arguments')}
+              </SnapText>
+              {args.map((arg, index) => (
+                <SnapText key={`arg-${index}`}>{arg}</SnapText>
+              ))}
+            </Box>
+          ) : null}
+
           <Box alignment="space-between" direction="horizontal">
             <SnapText fontWeight="medium" color="alternative">
               {translate('confirmation.signAuthEntry.expiresAt')}
@@ -107,16 +191,25 @@ export const ConfirmSignAuthEntry = ({
             </SnapText>
             <SnapText>{nonce}</SnapText>
           </Box>
-
-          {subInvocationsCount > 0 ? (
-            <Box alignment="space-between" direction="horizontal">
-              <SnapText fontWeight="medium" color="alternative">
-                {translate('confirmation.signAuthEntry.subInvocations')}
-              </SnapText>
-              <SnapText>{String(subInvocationsCount)}</SnapText>
-            </Box>
-          ) : null}
         </Section>
+
+        {subInvocations.length > 0 ? (
+          <Section>
+            <SnapText fontWeight="medium" color="alternative">
+              {translate('confirmation.signAuthEntry.subInvocations')}
+            </SnapText>
+            {subInvocations.map((sub, index) => (
+              <Box key={`sub-${index}`} direction="vertical">
+                {index > 0 ? <Divider /> : null}
+                <SubInvocationSummary
+                  invocation={sub}
+                  scope={scope}
+                  translate={translate}
+                />
+              </Box>
+            ))}
+          </Section>
+        ) : null}
 
         <Section>
           {origin ? (

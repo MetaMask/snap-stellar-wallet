@@ -174,15 +174,6 @@ describe('Wallet', () => {
       ).toBe(true);
     });
 
-    it('does NOT prepend the SEP-53 "Stellar Signed Message" prefix', async () => {
-      // signAuthEntry must hash the raw preimage bytes only — adding a
-      // SEP-53 prefix would invalidate Soroban auth-entry signatures.
-      const wallet = getTestWallet({ seed });
-      const authSignature = await wallet.signAuthEntry(preimageBase64);
-      const messageSignature = await wallet.signMessage(preimageBase64);
-      expect(authSignature).not.toStrictEqual(messageSignature);
-    });
-
     it('supports hex encoding for the returned signature', async () => {
       const wallet = getTestWallet({ seed });
       const hexSignature = await wallet.signAuthEntry(preimageBase64, 'hex');

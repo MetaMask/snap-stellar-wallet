@@ -26,9 +26,7 @@ export const XdrStruct = refine(
 // doesn't re-hash on every validation. This is the value the network compares
 // against when verifying a Soroban authorization signature, so the embedded
 // `networkId` of any preimage we agree to sign must equal it.
-const MAINNET_NETWORK_ID_HEX = hash(
-  bufferToUint8Array(Networks.PUBLIC, 'utf8'),
-).toString('hex');
+const MAINNET_NETWORK_ID = hash(bufferToUint8Array(Networks.PUBLIC, 'utf8'));
 
 /**
  * Validation struct for a SEP-43 `signAuthEntry` payload: a base64-encoded
@@ -55,11 +53,8 @@ export const HashIdPreimageXdrStruct = refine(
       ) {
         return 'HashIdPreimage is not a Soroban authorization preimage';
       }
-      const embeddedNetworkId = preimage
-        .sorobanAuthorization()
-        .networkId()
-        .toString('hex');
-      if (embeddedNetworkId !== MAINNET_NETWORK_ID_HEX) {
+      const embeddedNetworkId = preimage.sorobanAuthorization().networkId();
+      if (!MAINNET_NETWORK_ID.equals(embeddedNetworkId)) {
         return 'HashIdPreimage networkId is not Stellar mainnet';
       }
       return true;

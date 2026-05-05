@@ -23,14 +23,25 @@ jest.mock('../../utils/logger');
  * arbitrary — we only need the XDR to round-trip through superstruct
  * validation and the handler's preimage decoder.
  *
- * @param networkPassphrase - Network passphrase to embed as `networkId`.
- * Defaults to mainnet so happy-path tests pass `HashIdPreimageXdrStruct`'s
- * mainnet-only check.
+ * @param options - Optional overrides for the generated preimage.
+ * @param options.networkPassphrase - Network passphrase to embed as
+ * `networkId`. Defaults to mainnet so happy-path tests pass
+ * `HashIdPreimageXdrStruct`'s mainnet-only check.
+ * @param options.args - `ScVal` arguments to attach to the contract function.
+ * Defaults to no arguments (matching a `transfer` with empty args list).
+ * @param options.subInvocations - Nested authorized invocations to attach.
+ * Defaults to an empty list.
  * @returns Base64 XDR of a Soroban authorization preimage.
  */
-function buildAuthEntryPreimageXdr(
-  networkPassphrase: string = Networks.PUBLIC,
-): string {
+function buildAuthEntryPreimageXdr({
+  networkPassphrase = Networks.PUBLIC,
+  args = [],
+  subInvocations = [],
+}: {
+  networkPassphrase?: string;
+  args?: xdr.ScVal[];
+  subInvocations?: xdr.SorobanAuthorizedInvocation[];
+} = {}): string {
   const contractIdBytes = new Uint8Array(32).fill(1);
   const contractAddress = Address.contract(
     bufferToUint8Array(contractIdBytes),
@@ -38,7 +49,7 @@ function buildAuthEntryPreimageXdr(
   const invokeContractArgs = new xdr.InvokeContractArgs({
     contractAddress,
     functionName: 'transfer',
-    args: [],
+    args,
   });
   const fn =
     xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
@@ -46,7 +57,7 @@ function buildAuthEntryPreimageXdr(
     );
   const invocation = new xdr.SorobanAuthorizedInvocation({
     function: fn,
-    subInvocations: [],
+    subInvocations,
   });
   const sorobanAuth = new xdr.HashIdPreimageSorobanAuthorization({
     networkId: hash(bufferToUint8Array(networkPassphrase, 'utf8')),
@@ -156,8 +167,66 @@ describe('SignAuthEntryHandler', () => {
             functionName: 'transfer',
             signatureExpirationLedger: 1_000_000,
             nonce: '123456789',
-            subInvocationsCount: 0,
+            args: [],
+            subInvocations: [],
             contractAddress: expect.stringMatching(/^C[A-Z2-7]+$/u),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('decodes function arguments and nested sub-invocations into the readable preimage', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+    renderConfirmationDialog.mockResolvedValue(true);
+
+    // transfer(to: G…, amount: 10) wrapped around a single nested call to
+    // verify both args decoding (address strkey + i128) and recursive
+    // sub-invocation decoding.
+    const recipient = Keypair.random().publicKey();
+    const args = [
+      xdr.ScVal.scvAddress(Address.fromString(recipient).toScAddress()),
+      xdr.ScVal.scvI128(
+        new xdr.Int128Parts({
+          hi: xdr.Int64.fromString('0'),
+          lo: xdr.Uint64.fromString('10'),
+        }),
+      ),
+    ];
+    const nestedInvocation = new xdr.SorobanAuthorizedInvocation({
+      function:
+        xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(
+          new xdr.InvokeContractArgs({
+            contractAddress: Address.contract(
+              bufferToUint8Array(new Uint8Array(32).fill(2)),
+            ).toScAddress(),
+            functionName: 'approve',
+            args: [],
+          }),
+        ),
+      subInvocations: [],
+    });
+    const authEntry = buildAuthEntryPreimageXdr({
+      args,
+      subInvocations: [nestedInvocation],
+    });
+
+    await handler.handle(buildRequest(mockAccount.id, { authEntry }));
+
+    expect(renderConfirmationDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        renderContext: expect.objectContaining({
+          readableAuthEntry: expect.objectContaining({
+            functionName: 'transfer',
+            args: [JSON.stringify(recipient), JSON.stringify('10')],
+            subInvocations: [
+              expect.objectContaining({
+                functionType: 'invoke',
+                functionName: 'approve',
+                args: [],
+                subInvocations: [],
+              }),
+            ],
           }),
         }),
       }),
@@ -252,7 +321,9 @@ describe('SignAuthEntryHandler', () => {
     // bound to testnet. The keyring `scope`/`opts.networkPassphrase` look
     // mainnet-y, so without the networkId check the snap would happily sign
     // a Soroban auth signature valid only against testnet.
-    const testnetAuthEntry = buildAuthEntryPreimageXdr(Networks.TESTNET);
+    const testnetAuthEntry = buildAuthEntryPreimageXdr({
+      networkPassphrase: Networks.TESTNET,
+    });
 
     const result = await handler.handle(
       buildRequest(mockAccount.id, { authEntry: testnetAuthEntry }),
