@@ -104,6 +104,25 @@ export function assertAccountInvolvesTransaction(
 }
 
 /**
+ * Ensures a CAIP asset identifier belongs to the caller-provided scope.
+ *
+ * @param assetId - CAIP-19 or slip44 asset id.
+ * @param expectedScope - CAIP-2 chain ID expected by caller.
+ * @throws {TransactionValidationException} When the asset chain id differs from `expectedScope`.
+ */
+export function assertAssetScopeMatch(
+  assetId: KnownCaip19AssetIdOrSlip44Id,
+  expectedScope: KnownCaip2ChainId,
+): void {
+  const { chainId } = parseCaipAssetType(assetId);
+  if (chainId !== String(expectedScope)) {
+    throw new TransactionValidationException(
+      `Asset ${assetId} scope does not match expected scope ${expectedScope}`,
+    );
+  }
+}
+
+/**
  * Maps an `OperationMapper` asset reference to its CAIP-19 id.
  *
  * @param scope - CAIP-2 chain of the transaction.
