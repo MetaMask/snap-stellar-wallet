@@ -15,7 +15,6 @@ import {
   SignTransactionHandler,
 } from './handlers/keyring';
 import { AccountService, AccountsRepository } from './services/account';
-import type { AccountBalanceState } from './services/account-balance';
 import {
   AssetMetadataRepository,
   AssetMetadataService,
@@ -46,7 +45,6 @@ const state = new State({
     keyringAccounts: {},
     assets: {},
     transactions: {},
-    accountBalances: {} as AccountBalanceState['accountBalances'],
     onChainAccounts: {} as OnChainAccountState['onChainAccounts'],
   },
 });
