@@ -3,6 +3,12 @@ import { assert, object } from '@metamask/superstruct';
 import { AppConfig } from './config';
 import { KeyringHandler, CronjobHandler, UserInputHandler } from './handlers';
 import { AssetsHandler } from './handlers/asset/assets';
+import type { IClientRequestHandler } from './handlers/clientRequest';
+import {
+  ChangeTrustOptHandler,
+  ClientRequestHandler,
+  ClientRequestMethod,
+} from './handlers/clientRequest';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
@@ -20,7 +26,7 @@ import {
   AssetMetadataRepository,
   AssetMetadataService,
 } from './services/asset-metadata';
-import { StateCache } from './services/cache';
+import { InMemoryCache, StateCache } from './services/cache';
 import { NetworkService } from './services/network';
 import type { OnChainAccountState } from './services/on-chain-account';
 import {
@@ -36,7 +42,7 @@ import {
 } from './services/transaction';
 import { WalletService } from './services/wallet';
 import { ConfirmationUXController } from './ui/confirmation/controller';
-import { logger } from './utils';
+import { logger, noOpLogger } from './utils';
 
 assert(AppConfig, object());
 
@@ -88,11 +94,12 @@ const transactionService = new TransactionService({
   logger,
   transactionRepository,
   networkService,
+  transactionBuilder,
   cache: new StateCache(state, logger, '__cache__transaction'),
 });
 
 const priceService = new PriceService({
-  cache: new StateCache(state, logger, '__cache__price'),
+  cache: new InMemoryCache(noOpLogger),
   logger,
 });
 
@@ -177,7 +184,32 @@ const assetsHandler = new AssetsHandler({
   priceService,
 });
 
+/** ------------------------------ Client Request Handlers ------------------------------ */
+const changeTrustOptHandler = new ChangeTrustOptHandler({
+  logger,
+  accountService,
+  assetMetadataService,
+  onChainAccountService,
+  walletService,
+  transactionService,
+  confirmationUIController,
+});
+
+const clientRequestMethodHandlers: Record<
+  ClientRequestMethod,
+  IClientRequestHandler
+> = {
+  [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
+};
+
+const clientRequestHandler = new ClientRequestHandler({
+  logger,
+  handlers: clientRequestMethodHandlers,
+});
+
+/** ------------------------------ Export Handlers ------------------------------ */
 export {
+  clientRequestHandler,
   cronjobHandler,
   assetsHandler,
   keyringHandler,

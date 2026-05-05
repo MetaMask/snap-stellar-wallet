@@ -39,6 +39,7 @@ export const createMockTransactionService = () => {
     ),
     cache: createMemoryCache().cache,
     networkService,
+    transactionBuilder,
   });
 
   const transactionRepositorySaveSpy = jest.spyOn(

@@ -1,7 +1,10 @@
 import {
+  AccountCreationType,
+  assertCreateAccountOptionIsSupported,
   DiscoveredAccountType,
   KeyringEvent,
   type Balance,
+  type CreateAccountOptions as KeyringApiCreateAccountOptions,
   type DiscoveredAccount,
   type EntropySourceId,
   type Keyring,
@@ -76,7 +79,7 @@ import {
   getSnapProvider,
   isSep41Id,
   isSlip44Id,
-  normalizeAmount,
+  toDisplayBalance,
   rethrowIfInstanceElseThrow,
   validateOrigin,
   validateRequest,
@@ -174,6 +177,53 @@ export class KeyringHandler implements Keyring {
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails(
         'Failed to create account',
+        ensureError(error).message,
+      );
+      throw new KeyringCreateAccountException();
+    }
+  }
+
+  /**
+   * Batch account creation for the Snap keyring v2 path (no `AccountCreated` events).
+   *
+   * @param options - BIP-44 derive-index or derive-index-range options from the keyring API.
+   * @returns Keyring accounts created or already present for each index.
+   */
+  async createAccounts(
+    options: KeyringApiCreateAccountOptions,
+  ): Promise<KeyringAccount[]> {
+    assertCreateAccountOptionIsSupported(options, [
+      `${AccountCreationType.Bip44DeriveIndex}`,
+      `${AccountCreationType.Bip44DeriveIndexRange}`,
+    ] as const);
+
+    try {
+      const accounts: KeyringAccount[] = [];
+
+      if (options.type === AccountCreationType.Bip44DeriveIndex) {
+        const account = await this.#accountService.create({
+          entropySource: options.entropySource,
+          index: options.groupIndex,
+        });
+        accounts.push(this.#toKeyringAccount(account));
+      } else {
+        for (
+          let groupIndex = options.range.from;
+          groupIndex <= options.range.to;
+          groupIndex += 1
+        ) {
+          const account = await this.#accountService.create({
+            entropySource: options.entropySource,
+            index: groupIndex,
+          });
+          accounts.push(this.#toKeyringAccount(account));
+        }
+      }
+
+      return accounts;
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails(
+        'Failed to create accounts',
         ensureError(error).message,
       );
       throw new KeyringCreateAccountException();
@@ -443,11 +493,7 @@ export class KeyringHandler implements Keyring {
         const decimal = assetMetadata.units[0].decimals;
         assetBalances[assetId] = {
           unit: asset.symbol ?? '',
-          amount: normalizeAmount(
-            asset.balance,
-            decimal,
-            // TODO: Handle decimal places overflow
-          ).toString(),
+          amount: toDisplayBalance(asset.balance, decimal),
         };
       }
       return assetBalances;

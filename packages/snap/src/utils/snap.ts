@@ -33,7 +33,7 @@ export enum Duration {
  */
 export function getSnapProvider(): SnapsProvider {
   // snap is a global variable provided by the Snap SDK
-  return snap;
+  return snap as unknown as SnapsProvider;
 }
 
 /**
