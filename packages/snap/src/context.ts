@@ -12,6 +12,7 @@ import {
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
+import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
@@ -160,6 +161,12 @@ const trackTransactionHandler = new TrackTransactionHandler({
   transactionService,
 });
 
+const syncAccountsHandler = new SyncAccountsHandler({
+  logger,
+  accountService,
+  onChainAccountService,
+});
+
 const cronjobMethodHandlers: Record<
   BackgroundEventMethod,
   ICronjobRequestHandler
@@ -167,6 +174,7 @@ const cronjobMethodHandlers: Record<
   [BackgroundEventMethod.RefreshConfirmationPrices]:
     refreshConfirmationPricesHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
+  [BackgroundEventMethod.SynchronizeAccounts]: syncAccountsHandler,
 };
 
 const cronjobHandler = new CronjobHandler({

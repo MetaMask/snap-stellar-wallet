@@ -19,7 +19,7 @@ import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
-import { scheduleBackgroundEvent } from '../../utils/snap';
+import { Duration, scheduleBackgroundEvent } from '../../utils/snap';
 
 /** Poll budget for Horizon inclusion after submit (matches Tron snap pattern). */
 const TRACK_TRANSACTION_MAX_ATTEMPTS = 15;
@@ -32,11 +32,9 @@ const TRACK_TRANSACTION_MAX_ATTEMPTS = 15;
  * outcome mapping, and scheduling shape after cronjob-related work stabilizes.
  */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
-  static readonly duration = 'PT1S';
-
   static async scheduleBackgroundEvent(
     params: TrackTransactionParams,
-    duration: string = TrackTransactionHandler.duration,
+    duration: Duration = Duration.OneSecond,
   ): Promise<void> {
     await scheduleBackgroundEvent({
       method: BackgroundEventMethod.TrackTransaction,
@@ -83,7 +81,7 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
   /**
    * @param request - Cron job JSON-RPC request carrying `txId`, `scope`, and `accountIds`.
    */
-  async handleCronJobRequest(
+  protected async handleCronJobRequest(
     request: TrackTransactionJsonRpcRequest,
   ): Promise<void> {
     const { txId, scope, accountIds, attempt: attemptRaw } = request.params;

@@ -14,10 +14,14 @@ export const listEntropySources = jest.fn();
 
 export const getDefaultEntropySource = jest.fn();
 
-export const { getState } = actual;
-export const { setState } = actual;
-export const { updateState } = actual;
-export const { createInterface } = actual;
-export const { showDialog } = actual;
-export const { getPreferences } = actual;
-export const { resolveInterface } = actual;
+export const {
+  getState,
+  setState,
+  updateState,
+  createInterface,
+  showDialog,
+  getPreferences,
+  resolveInterface,
+  scheduleBackgroundEvent,
+  Duration,
+} = actual;
