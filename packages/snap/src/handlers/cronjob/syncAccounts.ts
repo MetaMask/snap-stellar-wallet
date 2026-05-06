@@ -55,6 +55,11 @@ export class SyncAccountsHandler extends CronjobBaseHandler<SyncAccountJsonRpcRe
    * threw: "Cannot assign to read only property 'accountIds'…", while
    * `JSON.parse(JSON.stringify(jobs))` validated successfully (same logical shape).
    * Omitted params mean "selected accounts" here.
+<<<<<<< feat/chg-trust-refine
+=======
+   *
+   * @param request SyncAccountJsonRpcRequest
+>>>>>>> main
    */
   protected async handleCronJobRequest(
     request: SyncAccountJsonRpcRequest,

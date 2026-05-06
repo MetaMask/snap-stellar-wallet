@@ -170,10 +170,14 @@ const Index = () => {
   );
 
   const [signTxnText, setSignTxnText] = useState('');
+  const [signAuthEntryText, setSignAuthEntryText] = useState('');
   const [signMessageOutput, setSignMessageOutput] = useState<string | null>(
     null,
   );
   const [signTxnOutput, setSignTxnOutput] = useState<string | null>(null);
+  const [signAuthEntryOutput, setSignAuthEntryOutput] = useState<string | null>(
+    null,
+  );
 
   const [trustlineAssetId, setTrustlineAssetId] = useState(
     'stellar:testnet/asset:USDT-GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER',
@@ -287,6 +291,52 @@ const Index = () => {
     });
 
     setSignTxnOutput(JSON.stringify(response, null, 2));
+  };
+
+  const handleSignAuthEntryClick = async () => {
+    setSignAuthEntryOutput(null);
+    const trimmed = signAuthEntryText.trim();
+    if (!trimmed) {
+      setSignAuthEntryOutput(
+        'Enter a base64-encoded HashIdPreimage (Soroban auth entry) to sign.',
+      );
+      return;
+    }
+
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+    const account = accounts?.[0];
+    if (!account) {
+      setSignAuthEntryOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    const scope = account.scopes[0];
+    if (!scope) {
+      setSignAuthEntryOutput('Selected account has no chain scope.');
+      return;
+    }
+
+    const response = await invokeSnap({
+      method: 'stellar_signAuthEntry',
+      params: {
+        id: crypto.randomUUID(),
+        origin: 'http://localhost:3000',
+        scope,
+        account: account.id,
+        request: {
+          method: 'signAuthEntry',
+          params: {
+            authEntry: trimmed,
+          },
+        },
+      },
+    });
+
+    setSignAuthEntryOutput(JSON.stringify(response, null, 2));
   };
 
   const invokeChangeTrustOpt = async (action: 'add' | 'delete') => {
@@ -492,6 +542,36 @@ const Index = () => {
 
         <Card
           content={{
+            title: 'Sign auth entry',
+            description:
+              'Calls the dev-only stellar_signAuthEntry RPC alias (SEP-43). Paste a base64 HashIdPreimage (Soroban authorization preimage) — the wallet hashes it with SHA-256 and signs the digest.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="Auth entry preimage to sign"
+                  value={signAuthEntryText}
+                  onChange={({ target }) => setSignAuthEntryText(target.value)}
+                  disabled={!installedSnap}
+                />
+                {signAuthEntryOutput !== null && (
+                  <SignatureOutput>{signAuthEntryOutput}</SignatureOutput>
+                )}
+                <SignOpsButton
+                  type="button"
+                  onClick={handleSignAuthEntryClick}
+                  disabled={!installedSnap}
+                >
+                  Sign auth entry
+                </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+
+        <Card
+          content={{
             title: 'Change trust (test dapp RPC)',
             description:
               'Invokes stellar_changeTrustOpt (changeTrustOpt with action add or delete). Optional limit for add; for delete, limit must be 0. Uses the last keyring account.',
@@ -534,6 +614,7 @@ const Index = () => {
           disabled={!installedSnap}
           fullWidth
         />
+
         <Notice>
           <p>
             Please note that the <b>snap.manifest.json</b> and{' '}

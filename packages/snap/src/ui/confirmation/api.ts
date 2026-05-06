@@ -55,6 +55,7 @@ export enum ConfirmationInterfaceKey {
   ChangeTrustlineOptOut = 'ChangeTrustlineOptOut',
   SignMessage = 'SignMessage',
   SignTransaction = 'SignTransaction',
+  SignAuthEntry = 'SignAuthEntry',
 }
 
 export const ConfirmationInterfaceKeyStruct = enums(
