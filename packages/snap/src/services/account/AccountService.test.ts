@@ -37,6 +37,7 @@ describe('AccountService', () => {
   const getAccountsRepositorySpies = () => {
     return {
       saveSpy: jest.spyOn(AccountsRepository.prototype, 'save'),
+      saveManySpy: jest.spyOn(AccountsRepository.prototype, 'saveMany'),
       deleteSpy: jest.spyOn(AccountsRepository.prototype, 'delete'),
       getAllSpy: jest.spyOn(AccountsRepository.prototype, 'getAll'),
     };
@@ -80,7 +81,6 @@ describe('AccountService', () => {
             groupIndex: expectedIndex,
           },
           exportable: true,
-          groupIndex: expectedIndex,
         },
       });
     });
@@ -115,7 +115,6 @@ describe('AccountService', () => {
             groupIndex: 1,
           },
           exportable: true,
-          groupIndex: 1,
         },
       });
     });
@@ -157,7 +156,6 @@ describe('AccountService', () => {
             groupIndex: expectedIndex,
           },
           exportable: true,
-          groupIndex: expectedIndex,
         },
       });
     });
@@ -229,6 +227,84 @@ describe('AccountService', () => {
           callback,
         ),
       ).rejects.toThrow(AccountRollbackException);
+    });
+  });
+
+  describe('batchCreate', () => {
+    it('derives, persists in range order, and calls save once', async () => {
+      const entropySource = 'entropy-source-default';
+      const { deriveAddressSpy } = getWalletServiceSpies();
+      const { saveManySpy, getAllSpy } = getAccountsRepositorySpies();
+      getAllSpy.mockResolvedValue([]);
+      jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySource);
+
+      const result = await accountService.batchCreate({
+        entropySource,
+        fromIndex: 0,
+        toIndex: 1,
+      });
+
+      expect(saveManySpy).toHaveBeenCalledTimes(1);
+      expect(saveManySpy.mock.calls[0]?.[0]).toHaveLength(2);
+      expect(result.map((account) => account.index)).toStrictEqual([0, 1]);
+      expect(deriveAddressSpy).toHaveBeenCalledTimes(2);
+      expect(result[0]).toMatchObject({
+        entropySource,
+        index: 0,
+        options: {
+          entropy: expect.objectContaining({
+            groupIndex: 0,
+          }),
+        },
+      });
+      expect(result[1]).toMatchObject({
+        entropySource,
+        index: 1,
+        options: {
+          entropy: expect.objectContaining({
+            groupIndex: 1,
+          }),
+        },
+      });
+    });
+
+    it('reuses existing accounts in the range and passes the full list to saveMany', async () => {
+      const entropySource = 'entropy-source-batch';
+      const existing = generateMockStellarKeyringAccounts(3, entropySource);
+      const onlyMiddle = existing[1] as StellarKeyringAccount;
+      const { deriveAddressSpy } = getWalletServiceSpies();
+      const { saveManySpy, getAllSpy } = getAccountsRepositorySpies();
+      getAllSpy.mockResolvedValue([onlyMiddle]);
+
+      const result = await accountService.batchCreate({
+        entropySource,
+        fromIndex: 0,
+        toIndex: 2,
+      });
+
+      expect(deriveAddressSpy).toHaveBeenCalledTimes(2);
+      expect(saveManySpy).toHaveBeenCalledTimes(1);
+      expect(saveManySpy.mock.calls[0]?.[0]).toHaveLength(3);
+      expect(result[1]).toStrictEqual(onlyMiddle);
+      expect(result.map((a) => a.index)).toStrictEqual([0, 1, 2]);
+    });
+
+    it('derives a large inclusive range without throwing', async () => {
+      const entropySource = 'entropy-source-default';
+      const { deriveAddressSpy } = getWalletServiceSpies();
+      const { saveManySpy, getAllSpy } = getAccountsRepositorySpies();
+      getAllSpy.mockResolvedValue([]);
+      jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySource);
+
+      const result = await accountService.batchCreate({
+        entropySource,
+        fromIndex: 0,
+        toIndex: 15,
+      });
+
+      expect(result).toHaveLength(16);
+      expect(deriveAddressSpy).toHaveBeenCalledTimes(16);
+      expect(saveManySpy).toHaveBeenCalledTimes(1);
     });
   });
 

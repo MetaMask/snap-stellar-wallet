@@ -1,6 +1,8 @@
 import type { EntropySourceId } from '@metamask/keyring-api';
 import { getSelectedAccounts } from '@metamask/keyring-snap-sdk';
 import { ensureError } from '@metamask/utils';
+import type { MutexInterface } from 'async-mutex';
+import { Mutex } from 'async-mutex';
 
 import type { AccountsRepository } from './AccountsRepository';
 import type { StellarKeyringAccount, StellarDerivationPath } from './api';
@@ -16,12 +18,19 @@ import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import { MultichainMethod } from '../../handlers/keyring/api';
 import type { ILogger } from '../../utils';
 import {
+  batchesAll,
   createPrefixedLogger,
   getDefaultEntropySource,
   getLowestIndex,
   getSnapProvider,
 } from '../../utils';
 import { getDerivationPath, type WalletService } from '../wallet';
+
+/**
+ * Limits concurrent `#deriveAccount` work per batch chunk so large index ranges
+ * do not schedule unbounded parallel derivation in the Snap.
+ */
+const BATCH_CREATE_DERIVE_CHUNK_SIZE = 8;
 
 /**
  * Manages Stellar keyring accounts: creation, resolution from state, derivation checks, and persistence.
@@ -32,6 +41,8 @@ export class AccountService {
   readonly #walletService: WalletService;
 
   readonly #accountsRepository: AccountsRepository;
+
+  readonly #createAccountLock: MutexInterface;
 
   constructor({
     logger,
@@ -45,6 +56,7 @@ export class AccountService {
     this.#logger = createPrefixedLogger(logger, '[🔑 AccountService]');
     this.#walletService = walletService;
     this.#accountsRepository = accountsRepository;
+    this.#createAccountLock = new Mutex();
   }
 
   /**
@@ -134,72 +146,127 @@ export class AccountService {
     },
     callback?: (account: StellarKeyringAccount) => Promise<void>,
   ): Promise<StellarKeyringAccount> {
-    const accounts = await this.#accountsRepository.getAll();
+    return this.#createAccountLock.runExclusive(async () => {
+      const accounts = await this.#accountsRepository.getAll();
 
-    const entropySource =
-      options?.entropySource ?? (await getDefaultEntropySource());
+      const entropySource =
+        options?.entropySource ?? (await getDefaultEntropySource());
 
-    const derivationIndex =
-      options?.index ??
-      this.#getLowestUnusedIndex({
+      const derivationIndex =
+        options?.index ??
+        this.#getLowestUnusedIndex({
+          entropySource,
+          accounts,
+        });
+
+      /**
+       * Now that we have the `entropySource` and `index` ready,
+       * we need to make sure that they do not correspond to an existing account already.
+       */
+      const sameAccount = accounts.find(
+        (account) =>
+          account.index === derivationIndex &&
+          account.entropySource === entropySource,
+      );
+
+      if (sameAccount) {
+        this.#logger.warn(
+          'An account already exists with the same derivation path and entropy source. Skipping account creation.',
+        );
+        return sameAccount;
+      }
+
+      const account = await this.#deriveAccount({
         entropySource,
-        accounts,
+        index: derivationIndex,
       });
 
-    /**
-     * Now that we have the `entropySource` and `index` ready,
-     * we need to make sure that they do not correspond to an existing account already.
-     */
-    const sameAccount = accounts.find(
-      (account) =>
-        account.index === derivationIndex &&
-        account.entropySource === entropySource,
-    );
+      await this.#accountsRepository.save(account);
 
-    if (sameAccount) {
-      this.#logger.warn(
-        'An account already exists with the same derivation path and entropy source. Skipping account creation.',
-      );
-      return sameAccount;
-    }
-
-    const derivedAccount = await this.#deriveAccount({
-      entropySource,
-      index: derivationIndex,
-    });
-
-    const account = {
-      ...derivedAccount,
-      options: {
-        ...derivedAccount.options,
-        groupIndex: derivationIndex,
-      },
-    };
-
-    await this.#accountsRepository.save(account);
-
-    // If a callback is provided, call it with the account
-    // If the callback fails, delete the newly created account and re-throw the error
-    if (callback) {
-      try {
-        await callback(account);
-      } catch (error) {
-        // Rollback: if callback fails, delete the account
+      // If a callback is provided, call it with the account
+      // If the callback fails, delete the newly created account and re-throw the error
+      if (callback) {
         try {
-          await this.#accountsRepository.delete(account.id);
-        } catch (deleteError: unknown) {
-          this.#logger.logErrorWithDetails(
-            'Failed to rollback account creation',
-            ensureError(deleteError),
-          );
-          throw new AccountRollbackException(account.id, account.address);
+          await callback(account);
+        } catch (error) {
+          // Rollback: if callback fails, delete the account
+          try {
+            await this.#accountsRepository.delete(account.id);
+          } catch (deleteError: unknown) {
+            this.#logger.logErrorWithDetails(
+              'Failed to rollback account creation',
+              ensureError(deleteError),
+            );
+            throw new AccountRollbackException(account.id, account.address);
+          }
+          // Re-throw the error to be handled by the caller
+          throw error;
         }
-        // Re-throw the error to be handled by the caller
-        throw error;
       }
-    }
 
-    return account;
+      return account;
+    });
+  }
+
+  /**
+   * Batch creates Stellar accounts with the given options.
+   *
+   * @param options - The parameters for batch account creation.
+   * @param options.entropySource - [Optional] The entropy source to use for derivation.
+   * @param options.fromIndex - [Required] The starting index to use for derivation.
+   * @param options.toIndex - [Required] The ending index to use for derivation.
+   * @returns A Promise that resolves to the list of created accounts.
+   */
+  async batchCreate(options: {
+    entropySource?: EntropySourceId;
+    fromIndex: number;
+    toIndex: number;
+  }): Promise<StellarKeyringAccount[]> {
+    return this.#createAccountLock.runExclusive(async () => {
+      const accounts = await this.#accountsRepository.getAll();
+
+      const entropySource =
+        options?.entropySource ?? (await getDefaultEntropySource());
+
+      // 1. Get all existing accounts in the range
+      const existingAccounts = new Map<number, StellarKeyringAccount>();
+      for (const account of accounts) {
+        if (
+          account.entropySource === entropySource &&
+          account.index >= options.fromIndex &&
+          account.index <= options.toIndex
+        ) {
+          existingAccounts.set(account.index, account);
+        }
+      }
+
+      const indices: number[] = [];
+      for (let index = options.fromIndex; index <= options.toIndex; index++) {
+        indices.push(index);
+      }
+
+      // 2–3. Resolve each index (reuse existing or derive), batched to cap concurrency.
+      const createdAccounts = await batchesAll(
+        indices,
+        BATCH_CREATE_DERIVE_CHUNK_SIZE,
+        async (index) => {
+          const existingAccount = existingAccounts.get(index);
+          if (existingAccount === undefined) {
+            return this.#deriveAccount({
+              entropySource,
+              index,
+            });
+          }
+          return existingAccount;
+        },
+      );
+
+      // 4. Save all the created accounts to the repository
+      // it doesnt matter if some accounts are already exists, they will be overwritten.
+      await this.#accountsRepository.saveMany(createdAccounts);
+
+      return createdAccounts;
+    });
   }
 
   /**

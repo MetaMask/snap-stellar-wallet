@@ -1,8 +1,64 @@
 import {
+  batchesAll,
   batchesAllSettled,
   batchesAllSettledWithChunks,
+  batchesAllWithChunks,
   chunks,
 } from './async';
+
+describe('batchesAll', () => {
+  it('throws when batchSize is less than 1', async () => {
+    const run = async () => batchesAll([1], 0, async (value) => value);
+    await expect(run()).rejects.toThrow(RangeError);
+  });
+
+  it('returns empty array for empty items', async () => {
+    const result = await batchesAll([], 3, async () => 0);
+    expect(result).toStrictEqual([]);
+  });
+
+  it('preserves order and aligns results with items', async () => {
+    const items = ['a', 'b', 'c'];
+    const results = await batchesAll(items, 2, async (item) =>
+      item.toUpperCase(),
+    );
+
+    expect(results).toStrictEqual(['A', 'B', 'C']);
+  });
+
+  it('passes global index to mapper', async () => {
+    const results = await batchesAll(['x', 'y'], 5, async (_item, i) => i);
+    expect(results).toStrictEqual([0, 1]);
+  });
+
+  it('rejects when any mapper rejects', async () => {
+    const mapper = jest
+      .fn()
+      .mockResolvedValueOnce(10)
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce(30);
+
+    await expect(batchesAll([1, 2, 3], 2, mapper)).rejects.toThrow('boom');
+  });
+
+  it('limits concurrency to batchSize across waves', async () => {
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    const items = [1, 2, 3, 4, 5];
+
+    await batchesAll(items, 2, async () => {
+      concurrent += 1;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 5);
+      });
+      concurrent -= 1;
+      return 0;
+    });
+
+    expect(maxConcurrent).toBe(2);
+  });
+});
 
 describe('batchesAllSettled', () => {
   it('throws when batchSize is less than 1', async () => {
@@ -147,5 +203,37 @@ describe('batchesAllSettledWithChunks', () => {
       reason: expect.objectContaining({ message: 'chunk0 fail' }),
     });
     expect(settled[1]).toStrictEqual({ status: 'fulfilled', value: 7 });
+  });
+});
+
+describe('batchesAllWithChunks', () => {
+  it('returns empty array for empty items', async () => {
+    const result = await batchesAllWithChunks([], 2, 3, async () => 0);
+    expect(result).toStrictEqual([]);
+  });
+
+  it('maps each chunk and preserves chunk order', async () => {
+    const results = await batchesAllWithChunks(
+      ['a', 'b', 'c', 'd'],
+      2,
+      2,
+      async (chunk, chunkIndex) => ({ chunkIndex, joined: chunk.join('') }),
+    );
+
+    expect(results).toStrictEqual([
+      { chunkIndex: 0, joined: 'ab' },
+      { chunkIndex: 1, joined: 'cd' },
+    ]);
+  });
+
+  it('rejects when any chunk mapper rejects', async () => {
+    const mapper = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('chunk0 fail'))
+      .mockResolvedValueOnce(7);
+
+    await expect(
+      batchesAllWithChunks([1, 2, 3, 4], 2, 1, mapper),
+    ).rejects.toThrow('chunk0 fail');
   });
 });
