@@ -36,25 +36,41 @@ export type ConfirmSignAuthEntryProps = Pick<
   account: StellarKeyringAccount;
 };
 
-// Compact summary of one nested authorized invocation: contract, function,
-// decoded args, and a count of any deeper invocations beneath it. Rendered
-// only one level deep to keep the dialog scannable; deeper nesting is
-// surfaced as a count and is still bound by the user's signature.
-const SubInvocationSummary = ({
+// Vertical, full-width summary of one Soroban authorized invocation. Used both
+// for the root call the user is authorizing and recursively (one level deep)
+// for any nested calls. Layout follows Freighter: function name as a heading
+// at the top, then Contract ID, Function Name, Parameters stacked vertically
+// so long values (G/C addresses, i128 amounts) never get squeezed into a
+// right-aligned column and wrap badly.
+//
+// `showNestedCount` controls whether to render a "Nested authorizations: N"
+// row inside this card. Disabled for the root and direct sub-invocations
+// (whose children we expand into their own card right below) and enabled
+// only for deeper nesting where we don't recurse — there the count is the
+// only signal the user gets that more calls exist beneath.
+const InvocationSummary = ({
   invocation,
   scope,
   translate,
+  showHeading,
+  showNestedCount,
 }: {
   invocation: ReadableInvocation;
   scope: KnownCaip2ChainId;
   translate: ReturnType<typeof i18n>;
+  showHeading: boolean;
+  showNestedCount: boolean;
 }): ComponentOrElement => {
   const { contractAddress, functionName, args, subInvocations } = invocation;
 
   return (
     <Box direction="vertical">
+      {showHeading && functionName !== null ? (
+        <Heading size="md">{functionName}</Heading>
+      ) : null}
+
       {contractAddress === null ? (
-        <Box alignment="space-between" direction="horizontal">
+        <Box direction="vertical">
           <SnapText fontWeight="medium" color="alternative">
             {translate('confirmation.signAuthEntry.contract')}
           </SnapText>
@@ -63,7 +79,7 @@ const SubInvocationSummary = ({
           </SnapText>
         </Box>
       ) : (
-        <Box alignment="space-between" direction="horizontal">
+        <Box direction="vertical">
           <SnapText fontWeight="medium" color="alternative">
             {translate('confirmation.signAuthEntry.contract')}
           </SnapText>
@@ -72,7 +88,7 @@ const SubInvocationSummary = ({
       )}
 
       {functionName === null ? null : (
-        <Box alignment="space-between" direction="horizontal">
+        <Box direction="vertical">
           <SnapText fontWeight="medium" color="alternative">
             {translate('confirmation.signAuthEntry.function')}
           </SnapText>
@@ -83,16 +99,16 @@ const SubInvocationSummary = ({
       {args.length > 0 ? (
         <Box direction="vertical">
           <SnapText fontWeight="medium" color="alternative">
-            {translate('confirmation.transaction.param.arguments')}
+            {translate('confirmation.signAuthEntry.parameters')}
           </SnapText>
           {args.map((arg, index) => (
-            <SnapText key={`sub-arg-${index}`}>{arg}</SnapText>
+            <SnapText key={`arg-${index}`}>{arg}</SnapText>
           ))}
         </Box>
       ) : null}
 
-      {subInvocations.length > 0 ? (
-        <Box alignment="space-between" direction="horizontal">
+      {showNestedCount && subInvocations.length > 0 ? (
+        <Box direction="vertical">
           <SnapText fontWeight="medium" color="alternative">
             {translate('confirmation.signAuthEntry.subInvocations')}
           </SnapText>
@@ -114,15 +130,7 @@ export const ConfirmSignAuthEntry = ({
   const translate = i18n(locale as Locale);
   const { address } = account;
   const addressCaip10 = getAccountName(scope, address);
-  const {
-    functionType,
-    contractAddress,
-    functionName,
-    args,
-    signatureExpirationLedger,
-    nonce,
-    subInvocations,
-  } = readableAuthEntry;
+  const { subInvocations } = readableAuthEntry;
 
   return (
     <Container>
@@ -138,78 +146,6 @@ export const ConfirmSignAuthEntry = ({
         <Banner severity="warning" title="">
           <SnapText>{translate('confirmation.signAuthEntry.warning')}</SnapText>
         </Banner>
-
-        <Section>
-          {functionType === 'invoke' && contractAddress !== null ? (
-            <Box alignment="space-between" direction="horizontal">
-              <SnapText fontWeight="medium" color="alternative">
-                {translate('confirmation.signAuthEntry.contract')}
-              </SnapText>
-              <Address address={`${scope}:${contractAddress}`} truncate />
-            </Box>
-          ) : (
-            <Box alignment="space-between" direction="horizontal">
-              <SnapText fontWeight="medium" color="alternative">
-                {translate('confirmation.signAuthEntry.contract')}
-              </SnapText>
-              <SnapText>
-                {translate('confirmation.signAuthEntry.createContract')}
-              </SnapText>
-            </Box>
-          )}
-
-          {functionName === null ? null : (
-            <Box alignment="space-between" direction="horizontal">
-              <SnapText fontWeight="medium" color="alternative">
-                {translate('confirmation.signAuthEntry.function')}
-              </SnapText>
-              <SnapText>{functionName}</SnapText>
-            </Box>
-          )}
-
-          {args.length > 0 ? (
-            <Box direction="vertical">
-              <SnapText fontWeight="medium" color="alternative">
-                {translate('confirmation.transaction.param.arguments')}
-              </SnapText>
-              {args.map((arg, index) => (
-                <SnapText key={`arg-${index}`}>{arg}</SnapText>
-              ))}
-            </Box>
-          ) : null}
-
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {translate('confirmation.signAuthEntry.expiresAt')}
-            </SnapText>
-            <SnapText>{String(signatureExpirationLedger)}</SnapText>
-          </Box>
-
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {translate('confirmation.signAuthEntry.nonce')}
-            </SnapText>
-            <SnapText>{nonce}</SnapText>
-          </Box>
-        </Section>
-
-        {subInvocations.length > 0 ? (
-          <Section>
-            <SnapText fontWeight="medium" color="alternative">
-              {translate('confirmation.signAuthEntry.subInvocations')}
-            </SnapText>
-            {subInvocations.map((sub, index) => (
-              <Box key={`sub-${index}`} direction="vertical">
-                {index > 0 ? <Divider /> : null}
-                <SubInvocationSummary
-                  invocation={sub}
-                  scope={scope}
-                  translate={translate}
-                />
-              </Box>
-            ))}
-          </Section>
-        ) : null}
 
         <Section>
           {origin ? (
@@ -246,6 +182,33 @@ export const ConfirmSignAuthEntry = ({
             </Box>
           </Box>
         </Section>
+
+        <Section>
+          <InvocationSummary
+            invocation={readableAuthEntry}
+            scope={scope}
+            translate={translate}
+            showHeading
+            showNestedCount={false}
+          />
+        </Section>
+
+        {subInvocations.length > 0 ? (
+          <Section>
+            {subInvocations.map((sub, index) => (
+              <Box key={`sub-${index}`} direction="vertical">
+                {index > 0 ? <Divider /> : null}
+                <InvocationSummary
+                  invocation={sub}
+                  scope={scope}
+                  translate={translate}
+                  showHeading
+                  showNestedCount
+                />
+              </Box>
+            ))}
+          </Section>
+        ) : null}
       </Box>
       <Footer>
         <Button name={ConfirmSignAuthEntryFormNames.Cancel}>

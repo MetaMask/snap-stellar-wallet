@@ -59,10 +59,13 @@
       "message": "You are authorizing a smart contract to act on your behalf. Only approve if you trust this site."
     },
     "confirmation.signAuthEntry.contract": {
-      "message": "Contract"
+      "message": "Contract ID"
     },
     "confirmation.signAuthEntry.function": {
-      "message": "Function"
+      "message": "Function Name"
+    },
+    "confirmation.signAuthEntry.parameters": {
+      "message": "Parameters"
     },
     "confirmation.signAuthEntry.expiresAt": {
       "message": "Expires at ledger"
