@@ -35,13 +35,21 @@ export class Transaction {
     this.#participatingAccounts.add(this.feeSourceAccount);
 
     for (const operation of this.transactionOperations) {
-      this.#participatingAccounts.add(operation.source ?? this.sourceAccount);
+      const source = operation.source ?? this.sourceAccount;
+      // Source of the operation should count as invoked by the account
+      this.#invokedByAccounts.add(source);
+      this.#participatingAccounts.add(source);
+
+      // Destination of the operation should count as participating in the transaction.
+      // For now, we only support payment related operations
       if (operation.type === 'pathPaymentStrictSend') {
         this.#participatingAccounts.add(operation.destination);
-      }
-      if (operation.type === 'pathPaymentStrictReceive') {
+      } else if (operation.type === 'pathPaymentStrictReceive') {
+        this.#participatingAccounts.add(operation.destination);
+      } else if (operation.type === 'payment') {
         this.#participatingAccounts.add(operation.destination);
       }
+
       this.#operationTypes.add(operation.type);
     }
   }
@@ -182,7 +190,11 @@ export class Transaction {
   }
 
   /**
-   * Accounts that participate in the envelope: tx source, fee source, and each operation’s effective source.
+   * Accounts that participate in the envelope:
+   * - tx source,
+   * - fee source
+   * - each operation’s effective source
+   * - destination of the payment related operations
    *
    * @returns Participating account ids (`G…`).
    */
@@ -203,10 +215,10 @@ export class Transaction {
   }
 
   /**
-   * Whether the account is among {@link Transaction.hasParticipatingAccount} (source, fee source, or op source).
+   * Whether the account is among {@link Transaction.hasParticipatingAccount}.
    *
    * @param accountId - The account ID to check.
-   * @returns True if the account participates in the envelope.
+   * @returns True if the account participates in the envelope, false otherwise.
    */
   hasParticipatingAccount(accountId: string): boolean {
     return this.#participatingAccounts.has(accountId);

@@ -150,7 +150,7 @@ export class TransactionService {
       preloadedAccounts,
     });
 
-    return transaction;
+    return transactionWithFee;
   }
 
   async #getPreloadedAccounts(
@@ -170,7 +170,9 @@ export class TransactionService {
       transaction.scope,
     );
 
-    return preloadedAccounts.filter((account) => account !== null);
+    return preloadedAccounts.filter(
+      (account): account is OnChainAccount => account !== null,
+    );
   }
 
   /**
