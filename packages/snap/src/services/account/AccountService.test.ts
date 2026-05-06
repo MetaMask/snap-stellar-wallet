@@ -71,7 +71,7 @@ describe('AccountService', () => {
         type: KEYRING_ACCOUNT_TYPE,
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
-        methods: ['signMessage', 'signTransaction'],
+        methods: ['signMessage', 'signTransaction', 'signAuthEntry'],
         options: {
           entropy: {
             type: 'mnemonic',
@@ -106,6 +106,7 @@ describe('AccountService', () => {
         methods: [
           MultichainMethod.SignMessage,
           MultichainMethod.SignTransaction,
+          MultichainMethod.SignAuthEntry,
         ],
         options: {
           entropy: {
@@ -148,6 +149,7 @@ describe('AccountService', () => {
         methods: [
           MultichainMethod.SignMessage,
           MultichainMethod.SignTransaction,
+          MultichainMethod.SignAuthEntry,
         ],
         options: {
           entropy: {

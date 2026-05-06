@@ -52,6 +52,33 @@
     "confirmation.signMessage.message": {
       "message": "Message"
     },
+    "confirmation.signAuthEntry.title": {
+      "message": "Authorize smart contract"
+    },
+    "confirmation.signAuthEntry.warning": {
+      "message": "You are authorizing a smart contract to act on your behalf. Only approve if you trust this site."
+    },
+    "confirmation.signAuthEntry.contract": {
+      "message": "Contract ID"
+    },
+    "confirmation.signAuthEntry.function": {
+      "message": "Function Name"
+    },
+    "confirmation.signAuthEntry.parameters": {
+      "message": "Parameters"
+    },
+    "confirmation.signAuthEntry.expiresAt": {
+      "message": "Expires at ledger"
+    },
+    "confirmation.signAuthEntry.nonce": {
+      "message": "Nonce"
+    },
+    "confirmation.signAuthEntry.subInvocations": {
+      "message": "Nested authorizations"
+    },
+    "confirmation.signAuthEntry.createContract": {
+      "message": "Deploy contract"
+    },
     "confirmation.account": {
       "message": "Account"
     },

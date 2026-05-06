@@ -16,6 +16,7 @@ import { BigNumber } from 'bignumber.js';
 
 import {
   MultichainMethod,
+  SignAuthEntryResponseStruct,
   SignMessageResponseStruct,
   SignTransactionResponseStruct,
 } from './api';
@@ -79,6 +80,7 @@ describe('KeyringHandler', () => {
   let mockAccountId: string;
   let mockSignMessageHandler: IKeyringRequestHandler;
   let mockSignTransactionHandler: IKeyringRequestHandler;
+  let mockSignAuthEntryHandler: IKeyringRequestHandler;
 
   const toKeyringAccount = (account: StellarKeyringAccount): KeyringAccount => {
     const { id, address, type, options, methods, scopes } = account;
@@ -106,6 +108,7 @@ describe('KeyringHandler', () => {
 
     mockSignMessageHandler = { handle: jest.fn() };
     mockSignTransactionHandler = { handle: jest.fn() };
+    mockSignAuthEntryHandler = { handle: jest.fn() };
 
     const { accountService, onChainAccountService } =
       mockOnChainAccountService();
@@ -120,6 +123,7 @@ describe('KeyringHandler', () => {
       handlers: {
         [MultichainMethod.SignMessage]: mockSignMessageHandler,
         [MultichainMethod.SignTransaction]: mockSignTransactionHandler,
+        [MultichainMethod.SignAuthEntry]: mockSignAuthEntryHandler,
       },
     });
 
@@ -897,6 +901,46 @@ describe('KeyringHandler', () => {
         signTransactionPayload,
       );
       expect(mockSignMessageHandler.handle).not.toHaveBeenCalled();
+      expect(mockSignAuthEntryHandler.handle).not.toHaveBeenCalled();
+      expect(result).toStrictEqual({
+        pending: false,
+        result: expectedResult,
+      });
+    });
+
+    it('submits a sign auth entry request', async () => {
+      const authEntry = `AAAACXrDOZdUTjF10ma9AiQ5sizbFlCMARY/JuXLKj4QRal5AAAAAAdbzRUAD0JAAAAAAAAAAAECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAAh0cmFuc2ZlcgAAAAAAAAAA`;
+
+      const expectedResult = {
+        signedAuthEntry: bufferToUint8Array('signed', 'utf8').toString(
+          'base64',
+        ),
+        signerAddress: mockAccount.address,
+      };
+
+      jest
+        .mocked(mockSignAuthEntryHandler.handle)
+        .mockResolvedValue(expectedResult);
+
+      const signAuthEntryPayload = {
+        id: keyringRequestId,
+        origin: 'metamask',
+        request: {
+          method: MultichainMethod.SignAuthEntry,
+          params: { authEntry },
+        },
+        scope: KnownCaip2ChainId.Mainnet,
+        account: mockAccountId,
+      };
+
+      const result = await keyringHandler.submitRequest(signAuthEntryPayload);
+
+      expect(mockSignAuthEntryHandler.handle).toHaveBeenCalledTimes(1);
+      expect(mockSignAuthEntryHandler.handle).toHaveBeenCalledWith(
+        signAuthEntryPayload,
+      );
+      expect(mockSignMessageHandler.handle).not.toHaveBeenCalled();
+      expect(mockSignTransactionHandler.handle).not.toHaveBeenCalled();
       expect(result).toStrictEqual({
         pending: false,
         result: expectedResult,
@@ -919,6 +963,7 @@ describe('KeyringHandler', () => {
 
       expect(mockSignMessageHandler.handle).not.toHaveBeenCalled();
       expect(mockSignTransactionHandler.handle).not.toHaveBeenCalled();
+      expect(mockSignAuthEntryHandler.handle).not.toHaveBeenCalled();
     });
 
     it('exposes a submitRequest result that satisfies the SEP-43 response struct', async () => {
@@ -987,6 +1032,38 @@ describe('KeyringHandler', () => {
         create(
           (response as { pending: false; result: Json }).result,
           SignTransactionResponseStruct,
+        ),
+      ).not.toThrow();
+    });
+
+    it('exposes a sign-auth-entry submitRequest result that satisfies the SEP-43 response struct', async () => {
+      const authEntry = `AAAACXrDOZdUTjF10ma9AiQ5sizbFlCMARY/JuXLKj4QRal5AAAAAAdbzRUAD0JAAAAAAAAAAAECAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAAh0cmFuc2ZlcgAAAAAAAAAA`;
+      const expectedWithError = {
+        signedAuthEntry: '',
+        signerAddress: mockAccount.address,
+        error: { message: 'x', code: -3 },
+      };
+      jest
+        .mocked(mockSignAuthEntryHandler.handle)
+        .mockResolvedValue(expectedWithError);
+
+      const signAuthEntryPayload = {
+        id: keyringRequestId,
+        origin: 'metamask',
+        request: {
+          method: MultichainMethod.SignAuthEntry,
+          params: { authEntry },
+        },
+        scope: KnownCaip2ChainId.Mainnet,
+        account: mockAccountId,
+      };
+
+      const response = await keyringHandler.submitRequest(signAuthEntryPayload);
+      expect(response).toMatchObject({ pending: false });
+      expect(() =>
+        create(
+          (response as { pending: false; result: Json }).result,
+          SignAuthEntryResponseStruct,
         ),
       ).not.toThrow();
     });

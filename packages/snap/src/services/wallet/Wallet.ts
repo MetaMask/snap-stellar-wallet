@@ -2,6 +2,7 @@ import { sha256 } from '@metamask/utils';
 import type { Keypair } from '@stellar/stellar-sdk';
 
 import {
+  SignAuthEntryException,
   SignMessageException,
   SignTransactionException,
   VerifyMessageException,
@@ -99,6 +100,37 @@ export class Wallet {
       return verified;
     } catch {
       throw new VerifyMessageException();
+    }
+  }
+
+  /**
+   * Signs a SEP-43 Soroban auth entry preimage. The dapp passes the
+   * `HashIdPreimage` (envelopeTypeSorobanAuthorization) as base64 XDR — the
+   * wallet hashes the bytes with SHA-256 and signs the digest. No
+   * "Stellar Signed Message" prefix is applied: the network ID is already
+   * embedded inside the preimage.
+   *
+   * @param authEntry - The base64-encoded XDR `HashIdPreimage` to sign.
+   * @param encode - The encoding to use for the signature. Defaults to 'base64'.
+   * @returns A promise that resolves to the signature.
+   * @throws {SignAuthEntryException} If signing fails (details are not exposed).
+   * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
+   */
+  async signAuthEntry(
+    authEntry: string,
+    encode: 'hex' | 'base64' = 'base64',
+  ): Promise<string> {
+    try {
+      const preimageBuffer = bufferToUint8Array(authEntry, 'base64');
+      const preimageHash = await sha256(preimageBuffer);
+
+      const signature = this.#signer
+        .sign(bufferToUint8Array(preimageHash))
+        .toString(encode);
+
+      return signature;
+    } catch {
+      throw new SignAuthEntryException();
     }
   }
 

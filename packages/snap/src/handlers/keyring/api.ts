@@ -29,13 +29,14 @@ import { StellarAddressStruct } from '../../api/address';
 import { KnownCaip2ChainId, KnownCaip2ChainIdStruct } from '../../api/network';
 import { Utf8StringStruct } from '../../api/string';
 import { UuidStruct } from '../../api/uuid';
-import { XdrStruct } from '../../api/xdr';
+import { HashIdPreimageXdrStruct, XdrStruct } from '../../api/xdr';
 import { networkToCaip2ChainId } from '../../services/network/utils';
 
 /** JSON-RPC methods supported by this snap's multichain keyring. */
 export enum MultichainMethod {
   SignMessage = 'signMessage',
   SignTransaction = 'signTransaction',
+  SignAuthEntry = 'signAuthEntry',
 }
 
 /** Superstruct validator for {@link MultichainMethod} string values. */
@@ -258,6 +259,59 @@ export const SignTransactionResponseStruct = union([
 ]);
 
 /**
+ * Validation struct for the signAuthEntry request.
+ *
+ * Params follow the SEP-43 `SignAuthEntry` shape: a base64-encoded
+ * `HashIdPreimage` (Soroban authorization preimage) and the optional
+ * `opts` bag (`address`, `networkPassphrase`).
+ *
+ * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
+ */
+export const SignAuthEntryRequestStruct = assign(
+  KeyringRequestStruct,
+  object({
+    request: object({
+      method: literal(MultichainMethod.SignAuthEntry),
+      params: object({
+        authEntry: HashIdPreimageXdrStruct,
+        opts: optional(Sep43OptsStruct),
+      }),
+    }),
+    scope: literal(KnownCaip2ChainId.Mainnet),
+    account: UuidStruct,
+  }),
+);
+
+/**
+ * Error-shape of the signAuthEntry response: an `error` envelope is present.
+ * Success fields are kept loose to allow partial data alongside the error.
+ */
+export const SignAuthEntryResponseStructWithError = object({
+  signedAuthEntry: union([nonempty(base64(string())), literal('')]),
+  signerAddress: union([StellarAddressStruct, literal('')]),
+  error: Sep43ErrorEnvelopeStruct,
+});
+
+/**
+ * Success-shape of the signAuthEntry response: signature present, no `error`.
+ */
+export const SignAuthEntryResponseStructWithoutError = object({
+  signedAuthEntry: nonempty(base64(string())),
+  signerAddress: StellarAddressStruct,
+});
+
+/**
+ * Validation struct for the signAuthEntry response.
+ *
+ * Modeled as a discriminated union: a response either has an `error`
+ * envelope or the success fields — never neither.
+ */
+export const SignAuthEntryResponseStruct = union([
+  SignAuthEntryResponseStructWithError,
+  SignAuthEntryResponseStructWithoutError,
+]);
+
+/**
  * Validation struct for the getAccount request.
  */
 export const GetAccountRequestStruct = UuidStruct;
@@ -338,3 +392,13 @@ export type SignTransactionRequest = Infer<typeof SignTransactionRequestStruct>;
 export type SignTransactionResponse = Infer<
   typeof SignTransactionResponseStruct
 >;
+
+/**
+ * Type for the signAuthEntry request.
+ */
+export type SignAuthEntryRequest = Infer<typeof SignAuthEntryRequestStruct>;
+
+/**
+ * Type for the signAuthEntry response.
+ */
+export type SignAuthEntryResponse = Infer<typeof SignAuthEntryResponseStruct>;
