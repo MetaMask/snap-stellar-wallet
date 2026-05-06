@@ -41,10 +41,7 @@
         {
           "duration": "PT30S",
           "request": {
-            "method": "synchronizeAccounts",
-            "params": {
-              "accountIds": "selected"
-            }
+            "method": "synchronizeAccounts"
           }
         }
       ]

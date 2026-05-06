@@ -78,7 +78,9 @@ export const SyncAccountJsonRpcRequestStruct = assign(
   JsonRpcRequestStruct,
   object({
     method: literal(BackgroundEventMethod.SynchronizeAccounts),
-    params: SyncAccountParamsStruct,
+    // Omitted in declarative manifest cron jobs (matches Bitcoin wallet snap);
+    // runtime defaults to synchronizing selected accounts.
+    params: optional(SyncAccountParamsStruct),
   }),
 );
 
