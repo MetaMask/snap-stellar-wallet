@@ -44,7 +44,6 @@ import {
 } from '../../services/account/__mocks__/account.fixtures';
 import { AccountNotFoundException } from '../../services/account/exceptions';
 import { createMockAssetMetadataService } from '../../services/asset-metadata/__mocks__/assets.fixtures';
-import { AccountNotActivatedException } from '../../services/network';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import type { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
@@ -56,9 +55,11 @@ import {
   getSlip44AssetId,
   getDefaultEntropySource,
   getSnapProvider,
+  Duration,
 } from '../../utils';
 import { bufferToUint8Array } from '../../utils/buffer';
 import { logger } from '../../utils/logger';
+import { SyncAccountsHandler } from '../cronjob/syncAccounts';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
@@ -395,7 +396,10 @@ describe('KeyringHandler', () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       jest
-        .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
         .mockResolvedValue({
           assetIds: [slipId],
         } as unknown as OnChainAccount);
@@ -410,13 +414,11 @@ describe('KeyringHandler', () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       jest
-        .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
-        .mockRejectedValue(
-          new AccountNotActivatedException(
-            mockAccount.address,
-            KnownCaip2ChainId.Mainnet,
-          ),
-        );
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
+        .mockResolvedValue(null);
 
       const result = await keyringHandler.listAccountAssets(mockAccountId);
 
@@ -427,7 +429,10 @@ describe('KeyringHandler', () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       jest
-        .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
         .mockRejectedValue(new Error('Horizon unavailable'));
 
       await expect(
@@ -601,7 +606,10 @@ describe('KeyringHandler', () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       jest
-        .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
         .mockResolvedValue({
           assetIds: [slipId],
           getAsset: () => ({
@@ -624,13 +632,11 @@ describe('KeyringHandler', () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       jest
-        .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
-        .mockRejectedValue(
-          new AccountNotActivatedException(
-            mockAccount.address,
-            KnownCaip2ChainId.Mainnet,
-          ),
-        );
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
+        .mockResolvedValue(null);
 
       const result = await keyringHandler.getAccountBalances(mockAccountId, [
         slipId,
@@ -646,7 +652,10 @@ describe('KeyringHandler', () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       jest
-        .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
         .mockRejectedValue(new Error('Horizon unavailable'));
 
       await expect(
@@ -980,6 +989,30 @@ describe('KeyringHandler', () => {
           SignTransactionResponseStruct,
         ),
       ).not.toThrow();
+    });
+  });
+
+  describe('setSelectedAccounts', () => {
+    it('schedules a background event to synchronize the selected accounts', async () => {
+      const syncSpy = jest.spyOn(
+        SyncAccountsHandler,
+        'scheduleBackgroundEvent',
+      );
+
+      await keyringHandler.setSelectedAccounts([mockAccountId]);
+
+      expect(syncSpy).toHaveBeenCalledWith(
+        {
+          accountIds: [mockAccountId],
+        },
+        Duration.OneSecond,
+      );
+    });
+
+    it('throws an error if the account ids are invalid', async () => {
+      await expect(
+        keyringHandler.setSelectedAccounts(['invalid:account:id']),
+      ).rejects.toThrow(InvalidParamsError);
     });
   });
 });

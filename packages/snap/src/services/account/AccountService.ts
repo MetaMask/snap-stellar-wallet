@@ -1,4 +1,5 @@
 import type { EntropySourceId } from '@metamask/keyring-api';
+import { getSelectedAccounts } from '@metamask/keyring-snap-sdk';
 import { ensureError } from '@metamask/utils';
 
 import type { AccountsRepository } from './AccountsRepository';
@@ -18,6 +19,7 @@ import {
   createPrefixedLogger,
   getDefaultEntropySource,
   getLowestIndex,
+  getSnapProvider,
 } from '../../utils';
 import { getDerivationPath, type WalletService } from '../wallet';
 
@@ -220,6 +222,16 @@ export class AccountService {
   }
 
   /**
+   * Lists all Stellar accounts in the keyring by their IDs.
+   *
+   * @param ids - The IDs of the accounts to find.
+   * @returns A Promise that resolves to the list of accounts that match the given IDs.
+   */
+  async findByIds(ids: string[]): Promise<StellarKeyringAccount[]> {
+    return await this.#accountsRepository.findByIds(ids);
+  }
+
+  /**
    * Finds a Stellar account by ID.
    *
    * @param id - The ID of the account to find.
@@ -227,6 +239,33 @@ export class AccountService {
    */
   async findById(id: string): Promise<StellarKeyringAccount | undefined> {
     return (await this.#accountsRepository.findById(id)) ?? undefined;
+  }
+
+  /**
+   * Retrieves all selected Stellar accounts.
+   * Selected accounts are accounts that are selected by the user in the MetaMask Client.
+   *
+   * @returns A Promise that resolves to the list of all selected accounts.
+   */
+  async getAllSelected(): Promise<StellarKeyringAccount[]> {
+    const [allAccounts, selectedAccountIds] = await Promise.all([
+      this.#accountsRepository.getAll(),
+      getSelectedAccounts(getSnapProvider()),
+    ]);
+
+    this.#logger.debug(
+      'getAllSelected:',
+      'selectedAccountIds',
+      selectedAccountIds,
+      'allAccounts',
+      allAccounts.map((account) => account.id),
+    );
+
+    const selectedAccountIdsSet = new Set(selectedAccountIds);
+
+    return allAccounts.filter((account) =>
+      selectedAccountIdsSet.has(account.id),
+    );
   }
 
   async #resolveKeyringAccountByAddress({
