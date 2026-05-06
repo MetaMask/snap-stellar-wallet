@@ -71,8 +71,8 @@ describe('AccountService', () => {
         type: KEYRING_ACCOUNT_TYPE,
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
-        // methods: ['signMessage', 'signTransaction', 'signAuthEntry'], // TODO: use this once keyring-api supports it
         methods: ['signMessage', 'signTransaction'],
+        // methods: ['signMessage', 'signTransaction', 'signAuthEntry'], // TODO: Add this once keyring-api supports it
         options: {
           entropy: {
             type: 'mnemonic',
@@ -150,7 +150,7 @@ describe('AccountService', () => {
         methods: [
           MultichainMethod.SignMessage,
           MultichainMethod.SignTransaction,
-          // MultichainMethod.SignAuthEntry, // TODO: use this once keyring-api supports it
+          // MultichainMethod.SignAuthEntry, // TODO: Add this once keyring-api supports it
         ],
         options: {
           entropy: {
@@ -383,6 +383,11 @@ describe('AccountService', () => {
       expect(account).toStrictEqual({
         ...mockAccount,
         id: expect.any(String),
+        // TODO: Remove when keyring-api supports all methods
+        methods: [
+          MultichainMethod.SignMessage,
+          MultichainMethod.SignTransaction,
+        ],
       });
     });
   });
