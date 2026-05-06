@@ -20,17 +20,28 @@ export class Transaction {
 
   readonly #participatingAccounts: Set<string> = new Set<string>();
 
+  readonly #invokedByAccounts: Set<string> = new Set<string>();
+
   constructor(inner: StellarTransaction | FeeBumpTransaction) {
     this.#inner = inner;
     this.#initialize();
   }
 
   #initialize(): void {
+    this.#invokedByAccounts.add(this.sourceAccount);
+    this.#invokedByAccounts.add(this.feeSourceAccount);
+
     this.#participatingAccounts.add(this.sourceAccount);
     this.#participatingAccounts.add(this.feeSourceAccount);
 
     for (const operation of this.transactionOperations) {
       this.#participatingAccounts.add(operation.source ?? this.sourceAccount);
+      if (operation.type === 'pathPaymentStrictSend') {
+        this.#participatingAccounts.add(operation.destination);
+      }
+      if (operation.type === 'pathPaymentStrictReceive') {
+        this.#participatingAccounts.add(operation.destination);
+      }
       this.#operationTypes.add(operation.type);
     }
   }
@@ -199,6 +210,16 @@ export class Transaction {
    */
   hasParticipatingAccount(accountId: string): boolean {
     return this.#participatingAccounts.has(accountId);
+  }
+
+  /**
+   * Checks if the transaction is invoked by the given account.
+   *
+   * @param accountId - The account ID to check.
+   * @returns True if the transaction is invoked by the given account, false otherwise.
+   */
+  isInvokedByAccount(accountId: string): boolean {
+    return this.#invokedByAccounts.has(accountId);
   }
 
   /**

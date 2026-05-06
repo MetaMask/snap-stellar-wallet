@@ -118,6 +118,62 @@ export class TransactionService {
   }
 
   /**
+   * Creates a validated swap transaction from a Base64 encoded XDR.
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.xdr - The Base64 encoded XDR of the transaction.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async createValidatedSwapTransaction(params: {
+    onChainAccount: OnChainAccount;
+    scope: KnownCaip2ChainId;
+    xdr: string;
+  }): Promise<Transaction> {
+    const { onChainAccount, scope, xdr } = params;
+
+    const transaction = this.#transactionBuilder.deserialize({
+      xdr,
+      scope,
+    });
+
+    const transactionWithFee = await this.computingFee(transaction);
+
+    const preloadedAccounts = await this.#getPreloadedAccounts(
+      transactionWithFee,
+      onChainAccount,
+    );
+
+    this.validateTransaction(transactionWithFee, onChainAccount, {
+      expectedOPTypes: [SupportedOperations.InvokeHostFunction],
+      preloadedAccounts,
+    });
+
+    return transaction;
+  }
+
+  async #getPreloadedAccounts(
+    transaction: Transaction,
+    onChainAccount: OnChainAccount,
+  ): Promise<OnChainAccount[]> {
+    // get the participating accounts Id that are not the source account,
+    // as we already preloaded the source account
+    const participatingAccounts: string[] = transaction.hasInvokeHostFunction
+      ? []
+      : transaction.participatingAccounts.filter(
+          (accountId) => accountId !== onChainAccount.accountId,
+        );
+
+    const preloadedAccounts = await this.#networkService.loadOnChainAccounts(
+      participatingAccounts,
+      transaction.scope,
+    );
+
+    return preloadedAccounts.filter((account) => account !== null);
+  }
+
+  /**
    * Create and save a pending keyring transaction.
    *
    * @param request - The request {@link KeyringTransactionRequest} to create the pending transaction for.
