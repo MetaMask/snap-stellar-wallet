@@ -48,13 +48,24 @@ export class SyncAccountsHandler extends CronjobBaseHandler<SyncAccountJsonRpcRe
     this.#accountService = accountService;
   }
 
+  /**
+   * Omit declarative `request.params` for this cron job in `snap.manifest.json`.
+   * Grant-time validation uses superstruct `JsonStruct` on caveat values that can
+   * be frozen/Immer-sealed; with `params: { accountIds: 'selected' }` validation
+   * threw: "Cannot assign to read only property 'accountIds'…", while
+   * `JSON.parse(JSON.stringify(jobs))` validated successfully (same logical shape).
+   * Omitted params mean "selected accounts" here.
+   *
+   * @param request SyncAccountJsonRpcRequest
+   */
   protected async handleCronJobRequest(
     request: SyncAccountJsonRpcRequest,
   ): Promise<void> {
     const scope = AppConfig.selectedNetwork;
-    const {
-      params: { accountIds },
-    } = request;
+    const accountIds =
+      request.params === undefined
+        ? ('selected' as const)
+        : request.params.accountIds;
 
     let accounts: StellarKeyringAccount[] = [];
     if (accountIds === 'selected') {
