@@ -9,6 +9,8 @@ import {
   ClientRequestHandler,
   ClientRequestMethod,
 } from './handlers/clientRequest';
+import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
+import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
@@ -187,11 +189,29 @@ const changeTrustOptHandler = new ChangeTrustOptHandler({
   confirmationUIController,
 });
 
+const signAndSendTransactionHandler = new SignAndSendTransactionHandler({
+  logger,
+  accountService,
+  onChainAccountService,
+  walletService,
+  transactionService,
+});
+
+const computeFeeHandler = new ComputeFeeHandler({
+  logger,
+  accountService,
+  onChainAccountService,
+  walletService,
+  transactionService,
+});
+
 const clientRequestMethodHandlers: Record<
   ClientRequestMethod,
   IClientRequestHandler
 > = {
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
+  [ClientRequestMethod.SignAndSendTransaction]: signAndSendTransactionHandler,
+  [ClientRequestMethod.ComputeFee]: computeFeeHandler,
 };
 
 const clientRequestHandler = new ClientRequestHandler({
