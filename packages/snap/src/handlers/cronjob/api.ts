@@ -55,7 +55,10 @@ export const TrackTransactionParamsStruct = type({
 });
 
 export const SyncAccountParamsStruct = object({
-  accountIds: union([nonempty(array(UuidStruct)), literal('selected')]),
+  /** Omitted or undefined means “selected accounts” (declarative cron may send `{}`). */
+  accountIds: optional(
+    union([nonempty(array(UuidStruct)), literal('selected')]),
+  ),
 });
 
 export const RefreshConfirmationPricesJsonRpcRequestStruct = assign(
