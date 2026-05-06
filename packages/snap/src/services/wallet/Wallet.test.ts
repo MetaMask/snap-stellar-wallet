@@ -1,4 +1,4 @@
-import { hexToBytes } from '@metamask/utils';
+import { hexToBytes, sha256 } from '@metamask/utils';
 import { Keypair } from '@stellar/stellar-sdk';
 
 import { getTestWallet } from './__mocks__/wallet.fixtures';
@@ -144,6 +144,41 @@ describe('Wallet', () => {
       const full = await wallet.signMessage('hello');
       const truncated = full.slice(0, Math.max(1, full.length - 4));
       expect(await wallet.verifyMessage('hello', truncated)).toBe(false);
+    });
+  });
+
+  describe('signAuthEntry', () => {
+    // Arbitrary 56-byte buffer mimicking a HashIdPreimage XDR payload — we
+    // only care that signAuthEntry hashes the bytes and signs the digest.
+    const preimageBytes = bufferToUint8Array(
+      'AAAACQAAAAAAAAAAAAAAAQAAAAEAAAAAAAAAAQAAAAAAAAAAAAAAZAAAAAA=',
+      'base64',
+    );
+    const preimageBase64 = preimageBytes.toString('base64');
+
+    it('returns a base64-encoded signature', async () => {
+      const wallet = getTestWallet({ seed });
+      const signature = await wallet.signAuthEntry(preimageBase64);
+      expect(signature).toMatch(/^[A-Za-z0-9+/]+=*$/u);
+      expect(signature.length).toBeGreaterThan(0);
+    });
+
+    it('signs sha256(preimage bytes) — verifiable with the signer public key', async () => {
+      const wallet = getTestWallet({ seed });
+      const signature = await wallet.signAuthEntry(preimageBase64);
+
+      const digest = bufferToUint8Array(await sha256(preimageBytes));
+      const keypair = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
+      expect(
+        keypair.verify(digest, bufferToUint8Array(signature, 'base64')),
+      ).toBe(true);
+    });
+
+    it('supports hex encoding for the returned signature', async () => {
+      const wallet = getTestWallet({ seed });
+      const hexSignature = await wallet.signAuthEntry(preimageBase64, 'hex');
+      expect(hexSignature).toMatch(/^[0-9a-f]+$/u);
+      expect(hexSignature).toHaveLength(128);
     });
   });
 
