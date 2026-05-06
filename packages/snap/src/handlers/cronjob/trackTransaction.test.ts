@@ -10,13 +10,19 @@ import { OnChainAccountService } from '../../services/on-chain-account';
 import { TransactionService } from '../../services/transaction';
 import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
 import { logger } from '../../utils/logger';
-import { scheduleBackgroundEvent } from '../../utils/snap';
+import { Duration, scheduleBackgroundEvent } from '../../utils/snap';
 
 jest.mock('../../utils/logger');
-jest.mock('../../utils/snap', () => ({
-  scheduleBackgroundEvent: jest.fn().mockResolvedValue('scheduled'),
-  getClientStatus: jest.fn().mockResolvedValue({ active: true, locked: false }),
-}));
+jest.mock('../../utils/snap', () => {
+  const actual = jest.requireActual('../../utils/snap');
+  return {
+    ...actual,
+    scheduleBackgroundEvent: jest.fn().mockResolvedValue('scheduled'),
+    getClientStatus: jest
+      .fn()
+      .mockResolvedValue({ active: true, locked: false }),
+  };
+});
 
 describe('TrackTransactionHandler', () => {
   const txId = 'abc123';
@@ -87,7 +93,7 @@ describe('TrackTransactionHandler', () => {
       setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('pending');
 
-    await handler.handleCronJobRequest({
+    await handler.handle({
       jsonrpc: '2.0',
       id: 1,
       method: BackgroundEventMethod.TrackTransaction,
@@ -109,7 +115,7 @@ describe('TrackTransactionHandler', () => {
         accountIds: [accountId],
         attempt: 1,
       },
-      duration: TrackTransactionHandler.duration,
+      duration: Duration.OneSecond,
     });
   });
 
@@ -123,7 +129,7 @@ describe('TrackTransactionHandler', () => {
     } = setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('success');
 
-    await handler.handleCronJobRequest({
+    await handler.handle({
       jsonrpc: '2.0',
       id: 1,
       method: BackgroundEventMethod.TrackTransaction,
@@ -153,7 +159,7 @@ describe('TrackTransactionHandler', () => {
     } = setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('failed');
 
-    await handler.handleCronJobRequest({
+    await handler.handle({
       jsonrpc: '2.0',
       id: 1,
       method: BackgroundEventMethod.TrackTransaction,
@@ -182,7 +188,7 @@ describe('TrackTransactionHandler', () => {
     } = setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('pending');
 
-    await handler.handleCronJobRequest({
+    await handler.handle({
       jsonrpc: '2.0',
       id: 1,
       method: BackgroundEventMethod.TrackTransaction,
@@ -209,7 +215,7 @@ describe('TrackTransactionHandler', () => {
     } = setup();
     getHorizonTransactionInclusionStatus.mockResolvedValue('success');
 
-    await handler.handleCronJobRequest({
+    await handler.handle({
       jsonrpc: '2.0',
       id: 1,
       method: BackgroundEventMethod.TrackTransaction,
@@ -238,7 +244,7 @@ describe('TrackTransactionHandler', () => {
     } = setup();
     findByIds.mockResolvedValue([]);
 
-    await handler.handleCronJobRequest({
+    await handler.handle({
       jsonrpc: '2.0',
       id: 1,
       method: BackgroundEventMethod.TrackTransaction,

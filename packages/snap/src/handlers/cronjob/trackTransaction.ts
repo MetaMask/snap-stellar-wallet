@@ -153,7 +153,7 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
             accountIds,
             attempt: attempt + 1,
           },
-          TrackTransactionHandler.duration,
+          Duration.OneSecond,
         );
         return;
       }
@@ -190,7 +190,7 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
             accountIds,
             attempt: attempt + 1,
           },
-          TrackTransactionHandler.duration,
+          Duration.OneSecond,
         );
       } else {
         await this.#synchronizeAccounts(accounts, scope);
