@@ -383,6 +383,11 @@ describe('AccountService', () => {
       expect(account).toStrictEqual({
         ...mockAccount,
         id: expect.any(String),
+        // TODO: Remove when keyring-api supports all methods
+        methods: [
+          MultichainMethod.SignMessage,
+          MultichainMethod.SignTransaction,
+        ],
       });
     });
   });
