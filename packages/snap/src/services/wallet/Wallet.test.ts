@@ -1,5 +1,5 @@
-import { hexToBytes, sha256 } from '@metamask/utils';
-import { Keypair } from '@stellar/stellar-sdk';
+import { hexToBytes } from '@metamask/utils';
+import { hash, Keypair } from '@stellar/stellar-sdk';
 
 import { getTestWallet } from './__mocks__/wallet.fixtures';
 import { Wallet } from './Wallet';
@@ -27,18 +27,18 @@ describe('Wallet', () => {
   });
 
   describe('signMessage', () => {
-    it('returns a base64-encoded signature for a string message', async () => {
+    it('returns a base64-encoded signature for a string message', () => {
       const wallet = getTestWallet({ seed });
-      const signature = await wallet.signMessage('hello stellar');
+      const signature = wallet.signMessage('hello stellar');
       expect(signature).toMatch(/^[A-Za-z0-9+/]+=*$/u);
       expect(signature.length).toBeGreaterThan(0);
     });
 
-    it('matches string and UTF-8 bytes for the same logical message', async () => {
+    it('matches string and UTF-8 bytes for the same logical message', () => {
       const wallet = getTestWallet({ seed });
       const text = 'hello stellar';
-      const asString = await wallet.signMessage(text);
-      const asBytes = await wallet.signMessage(new TextEncoder().encode(text));
+      const asString = wallet.signMessage(text);
+      const asBytes = wallet.signMessage(new TextEncoder().encode(text));
       expect(asString).toStrictEqual(asBytes);
     });
 
@@ -85,7 +85,7 @@ describe('Wallet', () => {
         },
       ])(
         'verifies each reference case with verifyMessage',
-        async ({
+        ({
           message,
           signature,
         }: {
@@ -96,54 +96,48 @@ describe('Wallet', () => {
           const hexSignature = bufferToUint8Array(signature, 'base64').toString(
             'hex',
           );
-          expect(await sep0053Wallet.signMessage(message, 'hex')).toBe(
-            hexSignature,
-          );
+          expect(sep0053Wallet.signMessage(message, 'hex')).toBe(hexSignature);
           expect(
-            await sep0053Wallet.verifyMessage(message, hexSignature, 'hex'),
+            sep0053Wallet.verifyMessage(message, hexSignature, 'hex'),
           ).toBe(true);
           // verify base64 signature
-          expect(await sep0053Wallet.signMessage(message)).toStrictEqual(
-            signature,
-          );
-          expect(await sep0053Wallet.verifyMessage(message, signature)).toBe(
-            true,
-          );
+          expect(sep0053Wallet.signMessage(message)).toStrictEqual(signature);
+          expect(sep0053Wallet.verifyMessage(message, signature)).toBe(true);
         },
       );
     });
   });
 
   describe('verifyMessage', () => {
-    it('returns true when signature matches signMessage for the same message', async () => {
+    it('returns true when signature matches signMessage for the same message', () => {
       const wallet = getTestWallet({ seed });
       const message = 'hello stellar';
 
-      const signature = await wallet.signMessage(message);
-      expect(await wallet.verifyMessage(message, signature)).toBe(true);
+      const signature = wallet.signMessage(message);
+      expect(wallet.verifyMessage(message, signature)).toBe(true);
     });
 
-    it('returns false for a different message with the same signature', async () => {
+    it('returns false for a different message with the same signature', () => {
       const wallet = getTestWallet({ seed });
-      const signature = await wallet.signMessage('original');
+      const signature = wallet.signMessage('original');
 
-      expect(await wallet.verifyMessage('tampered', signature)).toBe(false);
+      expect(wallet.verifyMessage('tampered', signature)).toBe(false);
     });
 
-    it('returns false when the signature was produced by a different key', async () => {
+    it('returns false when the signature was produced by a different key', () => {
       const signer = getTestWallet({ seed });
       const other = getTestWallet({ seed: otherSeed });
 
-      const signature = await signer.signMessage('same text');
+      const signature = signer.signMessage('same text');
 
-      expect(await other.verifyMessage('same text', signature)).toBe(false);
+      expect(other.verifyMessage('same text', signature)).toBe(false);
     });
 
-    it('returns false when the signature is truncated', async () => {
+    it('returns false when the signature is truncated', () => {
       const wallet = getTestWallet({ seed });
-      const full = await wallet.signMessage('hello');
+      const full = wallet.signMessage('hello');
       const truncated = full.slice(0, Math.max(1, full.length - 4));
-      expect(await wallet.verifyMessage('hello', truncated)).toBe(false);
+      expect(wallet.verifyMessage('hello', truncated)).toBe(false);
     });
   });
 
@@ -156,27 +150,27 @@ describe('Wallet', () => {
     );
     const preimageBase64 = preimageBytes.toString('base64');
 
-    it('returns a base64-encoded signature', async () => {
+    it('returns a base64-encoded signature', () => {
       const wallet = getTestWallet({ seed });
-      const signature = await wallet.signAuthEntry(preimageBase64);
+      const signature = wallet.signAuthEntry(preimageBase64);
       expect(signature).toMatch(/^[A-Za-z0-9+/]+=*$/u);
       expect(signature.length).toBeGreaterThan(0);
     });
 
-    it('signs sha256(preimage bytes) — verifiable with the signer public key', async () => {
+    it('signs hash(preimage bytes) — verifiable with the signer public key', () => {
       const wallet = getTestWallet({ seed });
-      const signature = await wallet.signAuthEntry(preimageBase64);
+      const signature = wallet.signAuthEntry(preimageBase64);
 
-      const digest = bufferToUint8Array(await sha256(preimageBytes));
+      const digest = bufferToUint8Array(hash(preimageBytes));
       const keypair = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
       expect(
         keypair.verify(digest, bufferToUint8Array(signature, 'base64')),
       ).toBe(true);
     });
 
-    it('supports hex encoding for the returned signature', async () => {
+    it('supports hex encoding for the returned signature', () => {
       const wallet = getTestWallet({ seed });
-      const hexSignature = await wallet.signAuthEntry(preimageBase64, 'hex');
+      const hexSignature = wallet.signAuthEntry(preimageBase64, 'hex');
       expect(hexSignature).toMatch(/^[0-9a-f]+$/u);
       expect(hexSignature).toHaveLength(128);
     });

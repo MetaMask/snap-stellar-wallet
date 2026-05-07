@@ -101,7 +101,7 @@ export class SignAuthEntryHandler extends BaseSep43KeyringHandler<
       throw new UserRejectedRequestError() as unknown as Error;
     }
 
-    const signedAuthEntry = await wallet.signAuthEntry(authEntry);
+    const signedAuthEntry = wallet.signAuthEntry(authEntry);
 
     return {
       signedAuthEntry,

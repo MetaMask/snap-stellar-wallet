@@ -146,7 +146,7 @@ describe('SignAuthEntryHandler', () => {
 
     const result = await handler.handle(buildRequest(mockAccount.id));
 
-    const expected = await wallet.signAuthEntry(validAuthEntry);
+    const expected = wallet.signAuthEntry(validAuthEntry);
     expect(result).toStrictEqual({
       signedAuthEntry: expected,
       signerAddress: wallet.address,
@@ -379,7 +379,7 @@ describe('SignAuthEntryHandler', () => {
       buildRequest(mockAccount.id, { opts: { address: otherAddress } }),
     );
 
-    const expected = await wallet.signAuthEntry(validAuthEntry);
+    const expected = wallet.signAuthEntry(validAuthEntry);
     expect(result).toStrictEqual({
       signedAuthEntry: expected,
       signerAddress: wallet.address,
