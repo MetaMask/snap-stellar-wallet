@@ -1,5 +1,5 @@
 {
-  "version": "0.0.1-dev.165",
+  "version": "0.0.1-dev.170",
   "description": "Manage Stellar using MetaMask",
   "proposedName": "Stellar",
   "repository": {
@@ -7,7 +7,7 @@
     "url": "https://github.com/MetaMask/snap-stellar-wallet.git"
   },
   "source": {
-    "shasum": "q0M3wQqwqX/kJKPA5g1pbTxoe+5lXKAXj7ALvDM+rWU=",
+    "shasum": "APf+S9Ny7aoy0il5xTWsrwJUy3YtCQ1thVS/wjoKzl8=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",

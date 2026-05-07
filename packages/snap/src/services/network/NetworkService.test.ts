@@ -423,7 +423,11 @@ describe('NetworkService', () => {
 
       await expect(
         networkService.pollTransaction(testTransactionHash, scope),
-      ).rejects.toThrow(TransactionPollException);
+      ).rejects.toMatchObject({
+        transactionHash: testTransactionHash,
+        status: StellarRpc.Api.GetTransactionStatus.FAILED,
+        scope,
+      });
     });
 
     it('throws TransactionPollException when poll fails', async () => {
@@ -432,7 +436,11 @@ describe('NetworkService', () => {
 
       await expect(
         networkService.pollTransaction(testTransactionHash, scope),
-      ).rejects.toThrow(TransactionPollException);
+      ).rejects.toMatchObject({
+        transactionHash: testTransactionHash,
+        status: 'unknown',
+        scope,
+      });
     });
   });
 

@@ -6,11 +6,12 @@ import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import { NetworkService } from '../../services/network';
+import { TransactionPollException } from '../../services/network/exceptions';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { TransactionService } from '../../services/transaction';
 import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
 import { logger } from '../../utils/logger';
-import { Duration, scheduleBackgroundEvent } from '../../utils/snap';
+import { scheduleBackgroundEvent } from '../../utils/snap';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap', () => {
@@ -48,7 +49,7 @@ describe('TrackTransactionHandler', () => {
 
     const getHorizonTransactionInclusionStatus = jest.spyOn(
       NetworkService.prototype,
-      'getHorizonTransactionInclusionStatus',
+      'pollTransaction',
     );
 
     const synchronize = jest
@@ -82,52 +83,21 @@ describe('TrackTransactionHandler', () => {
       handler,
       account,
       findByIds,
-      getHorizonTransactionInclusionStatus,
+      pollTransaction: getHorizonTransactionInclusionStatus,
       synchronize,
       updateKeyringTransactionStatus,
     };
   }
 
-  it('reschedules when Horizon reports pending', async () => {
-    const { handler, getHorizonTransactionInclusionStatus, synchronize } =
-      setup();
-    getHorizonTransactionInclusionStatus.mockResolvedValue('pending');
-
-    await handler.handle({
-      jsonrpc: '2.0',
-      id: 1,
-      method: BackgroundEventMethod.TrackTransaction,
-      params: {
-        txId,
-        scope,
-        accountIds: [accountId],
-        attempt: 0,
-      },
-    });
-
-    expect(synchronize).not.toHaveBeenCalled();
-    expect(scheduleBackgroundEvent).toHaveBeenCalledTimes(1);
-    expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
-      method: BackgroundEventMethod.TrackTransaction,
-      params: {
-        txId,
-        scope,
-        accountIds: [accountId],
-        attempt: 1,
-      },
-      duration: Duration.OneSecond,
-    });
-  });
-
-  it('synchronizes when Horizon reports success', async () => {
+  it('settles keyring row as confirmed when RPC poll succeeds', async () => {
     const {
       handler,
       account,
-      getHorizonTransactionInclusionStatus,
+      pollTransaction,
       synchronize,
       updateKeyringTransactionStatus,
     } = setup();
-    getHorizonTransactionInclusionStatus.mockResolvedValue('success');
+    pollTransaction.mockResolvedValue(txId);
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -140,6 +110,7 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
+    expect(pollTransaction).toHaveBeenCalledWith(txId, scope);
     expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
       txId,
       accountIds: [accountId],
@@ -150,14 +121,16 @@ describe('TrackTransactionHandler', () => {
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
-  it('synchronizes when Horizon reports failed', async () => {
+  it('settles keyring row as failed for non-unknown poll status', async () => {
     const {
       handler,
-      getHorizonTransactionInclusionStatus,
+      pollTransaction,
       synchronize,
       updateKeyringTransactionStatus,
     } = setup();
-    getHorizonTransactionInclusionStatus.mockResolvedValue('failed');
+    pollTransaction.mockRejectedValue(
+      new TransactionPollException(txId, 'failed', scope),
+    );
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -179,14 +152,16 @@ describe('TrackTransactionHandler', () => {
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
-  it('synchronizes on max attempts without reschedule', async () => {
+  it('leaves pending when poll status is unknown and still synchronizes', async () => {
     const {
       handler,
-      getHorizonTransactionInclusionStatus,
+      pollTransaction,
       synchronize,
       updateKeyringTransactionStatus,
     } = setup();
-    getHorizonTransactionInclusionStatus.mockResolvedValue('pending');
+    pollTransaction.mockRejectedValue(
+      new TransactionPollException(txId, 'unknown', scope),
+    );
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -196,24 +171,22 @@ describe('TrackTransactionHandler', () => {
         txId,
         scope,
         accountIds: [accountId],
-        attempt: 15,
       },
     });
 
-    expect(getHorizonTransactionInclusionStatus).toHaveBeenCalledTimes(1);
     expect(updateKeyringTransactionStatus).not.toHaveBeenCalled();
     expect(synchronize).toHaveBeenCalledTimes(1);
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
-  it('settles keyring row on max attempts when final Horizon poll succeeds', async () => {
+  it('leaves pending on unexpected poll error and still synchronizes', async () => {
     const {
       handler,
-      getHorizonTransactionInclusionStatus,
+      pollTransaction,
       synchronize,
       updateKeyringTransactionStatus,
     } = setup();
-    getHorizonTransactionInclusionStatus.mockResolvedValue('success');
+    pollTransaction.mockRejectedValue(new Error('unexpected poll failure'));
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -223,25 +196,15 @@ describe('TrackTransactionHandler', () => {
         txId,
         scope,
         accountIds: [accountId],
-        attempt: 15,
       },
     });
 
-    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
-      txId,
-      accountIds: [accountId],
-      status: TransactionStatus.Confirmed,
-    });
+    expect(updateKeyringTransactionStatus).not.toHaveBeenCalled();
     expect(synchronize).toHaveBeenCalledTimes(1);
   });
 
   it('returns early when no accounts match', async () => {
-    const {
-      handler,
-      findByIds,
-      getHorizonTransactionInclusionStatus,
-      synchronize,
-    } = setup();
+    const { handler, findByIds, pollTransaction, synchronize } = setup();
     findByIds.mockResolvedValue([]);
 
     await handler.handle({
@@ -255,7 +218,7 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(getHorizonTransactionInclusionStatus).not.toHaveBeenCalled();
+    expect(pollTransaction).not.toHaveBeenCalled();
     expect(synchronize).not.toHaveBeenCalled();
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });

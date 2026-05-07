@@ -15,21 +15,16 @@ import type {
   StellarKeyringAccount,
 } from '../../services/account';
 import type { NetworkService } from '../../services/network';
+import { TransactionPollException } from '../../services/network/exceptions';
 import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import { Duration, scheduleBackgroundEvent } from '../../utils/snap';
 
-/** Poll budget for Horizon inclusion after submit (matches Tron snap pattern). */
-const TRACK_TRANSACTION_MAX_ATTEMPTS = 15;
-
 /**
- * Polls Horizon for transaction inclusion; on settlement or max attempts runs
+ * Polls Soroban RPC for transaction settlement; once complete, runs
  * {@link OnChainAccountService.synchronize} so keyring asset/balance events emit.
- *
- * TODO: Revisit unifying this Horizon loop with {@link NetworkService.pollTransaction} (RPC),
- * outcome mapping, and scheduling shape after cronjob-related work stabilizes.
  */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static async scheduleBackgroundEvent(
@@ -85,13 +80,11 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     request: TrackTransactionJsonRpcRequest,
   ): Promise<void> {
     const { txId, scope, accountIds, attempt: attemptRaw } = request.params;
-    const attempt = attemptRaw ?? 0;
 
     this.logger.debug('Tracking transaction', {
       txId,
       scope,
-      attempt: attempt + 1,
-      maxAttempts: TRACK_TRANSACTION_MAX_ATTEMPTS,
+      attempt: attemptRaw ?? 0,
     });
 
     const accounts = await this.#accountService.findByIds(accountIds);
@@ -102,100 +95,52 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       return;
     }
 
-    // Not another scheduled retry: one-off Horizon read to classify the tx before sync
-    // after scheduled attempt budget is exhausted.
-    if (attempt >= TRACK_TRANSACTION_MAX_ATTEMPTS) {
-      this.logger.warn(
-        'TrackTransaction: max attempts reached; synchronizing accounts',
-        { txId, scope },
-      );
-      try {
-        const lastStatus =
-          await this.#networkService.getHorizonTransactionInclusionStatus(
+    let keyringStatus:
+      | TransactionStatus.Confirmed
+      | TransactionStatus.Failed
+      | null = null;
+    try {
+      await this.#networkService.pollTransaction(txId, scope);
+      this.logger.info('TrackTransaction: RPC settled; synchronizing', {
+        txId,
+        scope,
+      });
+      keyringStatus = TransactionStatus.Confirmed;
+    } catch (error: unknown) {
+      if (error instanceof TransactionPollException) {
+        if (error.status === 'unknown') {
+          this.logger.warn(
+            'TrackTransaction: poll status unknown; leaving keyring transaction pending',
+            { txId, scope },
+          );
+        } else {
+          this.logger.warn('TrackTransaction: poll settled as failed', {
             txId,
             scope,
-          );
-        if (lastStatus === 'success') {
-          await this.#settleKeyringRow(
-            txId,
-            accountIds,
-            TransactionStatus.Confirmed,
-          );
-        } else if (lastStatus === 'failed') {
-          await this.#settleKeyringRow(
-            txId,
-            accountIds,
-            TransactionStatus.Failed,
-          );
+            status: error.status,
+          });
+          keyringStatus = TransactionStatus.Failed;
         }
-      } catch (error: unknown) {
+      } else {
         this.logger.logErrorWithDetails(
-          'TrackTransaction: final Horizon poll failed',
+          'TrackTransaction: unexpected poll error; leaving keyring transaction pending',
           error,
         );
       }
-      await this.#synchronizeAccounts(accounts, scope);
-      return;
     }
 
-    try {
-      const status =
-        await this.#networkService.getHorizonTransactionInclusionStatus(
-          txId,
-          scope,
+    if (keyringStatus) {
+      try {
+        await this.#settleKeyringRow(txId, accountIds, keyringStatus);
+      } catch (error: unknown) {
+        this.logger.logErrorWithDetails(
+          'TrackTransaction: failed to update keyring transaction status',
+          error,
         );
-
-      if (status === 'pending') {
-        await TrackTransactionHandler.scheduleBackgroundEvent(
-          {
-            txId,
-            scope,
-            accountIds,
-            attempt: attempt + 1,
-          },
-          Duration.OneSecond,
-        );
-        return;
-      }
-
-      this.logger.info('TrackTransaction: Horizon settled; synchronizing', {
-        txId,
-        scope,
-        status,
-      });
-      if (status === 'success') {
-        await this.#settleKeyringRow(
-          txId,
-          accountIds,
-          TransactionStatus.Confirmed,
-        );
-      } else {
-        await this.#settleKeyringRow(
-          txId,
-          accountIds,
-          TransactionStatus.Failed,
-        );
-      }
-      await this.#synchronizeAccounts(accounts, scope);
-    } catch (error: unknown) {
-      this.logger.logErrorWithDetails(
-        'TrackTransaction: Horizon poll error; will retry',
-        error,
-      );
-      if (attempt < TRACK_TRANSACTION_MAX_ATTEMPTS - 1) {
-        await TrackTransactionHandler.scheduleBackgroundEvent(
-          {
-            txId,
-            scope,
-            accountIds,
-            attempt: attempt + 1,
-          },
-          Duration.OneSecond,
-        );
-      } else {
-        await this.#synchronizeAccounts(accounts, scope);
       }
     }
+
+    await this.#synchronizeAccounts(accounts, scope);
   }
 
   async #synchronizeAccounts(
