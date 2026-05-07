@@ -1,8 +1,6 @@
 import type { EntropySourceId } from '@metamask/keyring-api';
 import { getSelectedAccounts } from '@metamask/keyring-snap-sdk';
 import { ensureError } from '@metamask/utils';
-import type { MutexInterface } from 'async-mutex';
-import { Mutex } from 'async-mutex';
 
 import type { AccountsRepository } from './AccountsRepository';
 import type { StellarKeyringAccount, StellarDerivationPath } from './api';
@@ -38,8 +36,6 @@ export class AccountService {
 
   readonly #accountsRepository: AccountsRepository;
 
-  readonly #createAccountLock: MutexInterface;
-
   constructor({
     logger,
     accountsRepository,
@@ -52,7 +48,6 @@ export class AccountService {
     this.#logger = createPrefixedLogger(logger, '[🔑 AccountService]');
     this.#walletService = walletService;
     this.#accountsRepository = accountsRepository;
-    this.#createAccountLock = new Mutex();
   }
 
   /**
@@ -142,66 +137,64 @@ export class AccountService {
     },
     callback?: (account: StellarKeyringAccount) => Promise<void>,
   ): Promise<StellarKeyringAccount> {
-    return this.#createAccountLock.runExclusive(async () => {
-      const accounts = await this.#accountsRepository.getAll();
+    const accounts = await this.#accountsRepository.getAll();
 
-      const entropySource =
-        options?.entropySource ?? (await getDefaultEntropySource());
+    const entropySource =
+      options?.entropySource ?? (await getDefaultEntropySource());
 
-      const derivationIndex =
-        options?.index ??
-        this.#getLowestUnusedIndex({
-          entropySource,
-          accounts,
-        });
-
-      /**
-       * Now that we have the `entropySource` and `index` ready,
-       * we need to make sure that they do not correspond to an existing account already.
-       */
-      const sameAccount = accounts.find(
-        (account) =>
-          account.index === derivationIndex &&
-          account.entropySource === entropySource,
-      );
-
-      if (sameAccount) {
-        this.#logger.warn(
-          'An account already exists with the same derivation path and entropy source. Skipping account creation.',
-        );
-        return sameAccount;
-      }
-
-      const account = await this.#deriveAccount({
+    const derivationIndex =
+      options?.index ??
+      this.#getLowestUnusedIndex({
         entropySource,
-        index: derivationIndex,
+        accounts,
       });
 
-      await this.#accountsRepository.save(account);
+    /**
+     * Now that we have the `entropySource` and `index` ready,
+     * we need to make sure that they do not correspond to an existing account already.
+     */
+    const sameAccount = accounts.find(
+      (account) =>
+        account.index === derivationIndex &&
+        account.entropySource === entropySource,
+    );
 
-      // If a callback is provided, call it with the account
-      // If the callback fails, delete the newly created account and re-throw the error
-      if (callback) {
-        try {
-          await callback(account);
-        } catch (error) {
-          // Rollback: if callback fails, delete the account
-          try {
-            await this.#accountsRepository.delete(account.id);
-          } catch (deleteError: unknown) {
-            this.#logger.logErrorWithDetails(
-              'Failed to rollback account creation',
-              ensureError(deleteError),
-            );
-            throw new AccountRollbackException(account.id, account.address);
-          }
-          // Re-throw the error to be handled by the caller
-          throw error;
-        }
-      }
+    if (sameAccount) {
+      this.#logger.warn(
+        'An account already exists with the same derivation path and entropy source. Skipping account creation.',
+      );
+      return sameAccount;
+    }
 
-      return account;
+    const account = await this.#deriveAccount({
+      entropySource,
+      index: derivationIndex,
     });
+
+    await this.#accountsRepository.save(account);
+
+    // If a callback is provided, call it with the account
+    // If the callback fails, delete the newly created account and re-throw the error
+    if (callback) {
+      try {
+        await callback(account);
+      } catch (error) {
+        // Rollback: if callback fails, delete the account
+        try {
+          await this.#accountsRepository.delete(account.id);
+        } catch (deleteError: unknown) {
+          this.#logger.logErrorWithDetails(
+            'Failed to rollback account creation',
+            ensureError(deleteError),
+          );
+          throw new AccountRollbackException(account.id, account.address);
+        }
+        // Re-throw the error to be handled by the caller
+        throw error;
+      }
+    }
+
+    return account;
   }
 
   /**
@@ -218,52 +211,52 @@ export class AccountService {
     fromIndex: number;
     toIndex: number;
   }): Promise<StellarKeyringAccount[]> {
-    return this.#createAccountLock.runExclusive(async () => {
-      const accounts = await this.#accountsRepository.getAll();
+    // MetaMask Client is the only caller of this method,
+    // We dont add mutex lock here, because the caller should ensure the requests are piped in order
+    const accounts = await this.#accountsRepository.getAll();
 
-      const entropySource =
-        options?.entropySource ?? (await getDefaultEntropySource());
+    const entropySource =
+      options?.entropySource ?? (await getDefaultEntropySource());
 
-      // 1. Get all existing accounts in the range
-      const existingAccounts = new Map<number, StellarKeyringAccount>();
-      for (const account of accounts) {
-        if (
-          account.entropySource === entropySource &&
-          account.index >= options.fromIndex &&
-          account.index <= options.toIndex
-        ) {
-          existingAccounts.set(account.index, account);
+    // 1. Get all existing accounts in the range
+    const existingAccounts = new Map<number, StellarKeyringAccount>();
+    for (const account of accounts) {
+      if (
+        account.entropySource === entropySource &&
+        account.index >= options.fromIndex &&
+        account.index <= options.toIndex
+      ) {
+        existingAccounts.set(account.index, account);
+      }
+    }
+
+    // 2. Resolve each index (reuse existing or derive), batched creating accounts.
+    const indices: number[] = [];
+    for (let index = options.fromIndex; index <= options.toIndex; index++) {
+      indices.push(index);
+    }
+    const createdAccounts = await batchesAll(
+      indices,
+      this.batchSizeOfAccountsCreation,
+      async (index) => {
+        const existingAccount = existingAccounts.get(index);
+        // If the account does not exist, derive it
+        if (existingAccount === undefined) {
+          return this.#deriveAccount({
+            entropySource,
+            index,
+          });
         }
-      }
+        // If the account exists, reuse it
+        return existingAccount;
+      },
+    );
 
-      // 2. Resolve each index (reuse existing or derive), batched creating accounts.
-      const indices: number[] = [];
-      for (let index = options.fromIndex; index <= options.toIndex; index++) {
-        indices.push(index);
-      }
-      const createdAccounts = await batchesAll(
-        indices,
-        this.batchSizeOfAccountsCreation,
-        async (index) => {
-          const existingAccount = existingAccounts.get(index);
-          // If the account does not exist, derive it
-          if (existingAccount === undefined) {
-            return this.#deriveAccount({
-              entropySource,
-              index,
-            });
-          }
-          // If the account exists, reuse it
-          return existingAccount;
-        },
-      );
+    // 3. Save all the created accounts to the repository
+    // it doesnt matter if some accounts are already exists, they will be overwritten.
+    await this.#accountsRepository.saveMany(createdAccounts);
 
-      // 3. Save all the created accounts to the repository
-      // it doesnt matter if some accounts are already exists, they will be overwritten.
-      await this.#accountsRepository.saveMany(createdAccounts);
-
-      return createdAccounts;
-    });
+    return createdAccounts;
   }
 
   /**
