@@ -226,7 +226,7 @@ export class AccountService {
         existingAccountsByIndex.set(account.index, account);
       }
     }
-  
+
     // 2. Derive the missing addresses, which is the most heavy operation.
     const indicesToDerive: number[] = [];
     for (let index = fromIndex; index <= toIndex; index++) {
