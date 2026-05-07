@@ -1,5 +1,4 @@
-import { sha256 } from '@metamask/utils';
-import type { Keypair } from '@stellar/stellar-sdk';
+import { hash, type Keypair } from '@stellar/stellar-sdk';
 
 import {
   SignAuthEntryException,
@@ -51,19 +50,17 @@ export class Wallet {
    *
    * @param message - The message to sign.
    * @param encode - The encoding to use for the signature. Defaults to 'base64'.
-   * @returns A promise that resolves to the signature as a base64 or hex string.
+   * @returns The signature as a base64 or hex string.
    */
-  async signMessage(
+  signMessage(
     message: string | Uint8Array,
     encode: 'hex' | 'base64' = 'base64',
-  ): Promise<string> {
+  ): string {
     try {
       const messageBuffer = this.#encodeMessage(message);
 
-      const messageHash = await sha256(messageBuffer);
-
       const signature = this.#signer
-        .sign(bufferToUint8Array(messageHash))
+        .sign(hash(bufferToUint8Array(messageBuffer)))
         .toString(encode);
 
       return signature;
@@ -82,18 +79,16 @@ export class Wallet {
    * @returns `true` if the signature is valid for this signer's public key, `false` if it is not.
    * @throws {VerifyMessageException} If verification cannot be completed (details are not exposed).
    */
-  async verifyMessage(
+  verifyMessage(
     message: string | Uint8Array,
     signature: string,
     encode: 'hex' | 'base64' = 'base64',
-  ): Promise<boolean> {
+  ): boolean {
     try {
       const messageBuffer = this.#encodeMessage(message);
 
-      const messageHash = await sha256(messageBuffer);
-
       const verified = this.#signer.verify(
-        bufferToUint8Array(messageHash),
+        hash(bufferToUint8Array(messageBuffer)),
         bufferToUint8Array(signature, encode),
       );
 
@@ -112,20 +107,19 @@ export class Wallet {
    *
    * @param authEntry - The base64-encoded XDR `HashIdPreimage` to sign.
    * @param encode - The encoding to use for the signature. Defaults to 'base64'.
-   * @returns A promise that resolves to the signature.
+   * @returns The signature.
    * @throws {SignAuthEntryException} If signing fails (details are not exposed).
    * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
    */
-  async signAuthEntry(
+  signAuthEntry(
     authEntry: string,
     encode: 'hex' | 'base64' = 'base64',
-  ): Promise<string> {
+  ): string {
     try {
       const preimageBuffer = bufferToUint8Array(authEntry, 'base64');
-      const preimageHash = await sha256(preimageBuffer);
 
       const signature = this.#signer
-        .sign(bufferToUint8Array(preimageHash))
+        .sign(hash(preimageBuffer))
         .toString(encode);
 
       return signature;
