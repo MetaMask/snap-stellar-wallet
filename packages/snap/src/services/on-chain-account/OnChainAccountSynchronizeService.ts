@@ -1,6 +1,7 @@
 import { KeyringEvent } from '@metamask/keyring-api';
 import type { KeyringEventPayload } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
+import { FungibleAssetMetadataStruct } from '@metamask/snaps-sdk';
 import { Mutex } from 'async-mutex';
 import { BigNumber } from 'bignumber.js';
 
@@ -18,8 +19,10 @@ import {
   getSlip44AssetId,
   getSnapProvider,
   isSep41Id,
+  toDisplayBalance,
 } from '../../utils';
 import type { StellarKeyringAccount } from '../account';
+import type { KeyringAssetMetadataByAssetId } from '../asset-metadata/api';
 import type { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
 import { AccountNotActivatedException, type NetworkService } from '../network';
 
@@ -200,7 +203,7 @@ export class OnChainAccountSynchronizeService {
         );
 
         const { balanceChanges, assetListChanges } =
-          this.#computeKeyringSyncDeltas(
+          await this.#computeKeyringSyncDeltas(
             stateSnapshotOnChainAccount,
             synchronizedOnChainAccount,
           );
@@ -440,24 +443,29 @@ export class OnChainAccountSynchronizeService {
    * @param synchronizedOnChainAccount - Same account after Horizon, SEP-41, and merge steps.
    * @returns `balanceChanges` and/or `assetListChanges`, each `null` when that side is unchanged.
    */
-  #computeKeyringSyncDeltas(
+  async #computeKeyringSyncDeltas(
     stateSnapshotOnChainAccount: OnChainAccount | null,
     synchronizedOnChainAccount: OnChainAccount,
-  ): {
+  ): Promise<{
     balanceChanges: Record<string, { unit: string; amount: string }> | null;
     assetListChanges: AccountAssetListDelta | null;
-  } {
+  }> {
     const nativeAssetId = getSlip44AssetId(synchronizedOnChainAccount.scope);
     const assetIds = new Set<KnownCaip19AssetIdOrSlip44Id>([
       ...(stateSnapshotOnChainAccount?.assetIds ?? []),
       ...synchronizedOnChainAccount.assetIds,
     ]);
+    const assetIdsList = Array.from(assetIds);
+    const assetsMetadata =
+      await this.#assetMetadataService.getAssetsMetadataByAssetIds(
+        assetIdsList,
+      );
 
     const balanceChanges: Record<string, { unit: string; amount: string }> = {};
     const addedAssets: AccountAssetListDelta['added'] = [];
     const removedAssets: AccountAssetListDelta['removed'] = [];
 
-    for (const assetId of assetIds) {
+    for (const assetId of assetIdsList) {
       const latestStateRow =
         stateSnapshotOnChainAccount === null
           ? undefined
@@ -466,9 +474,19 @@ export class OnChainAccountSynchronizeService {
       const latestStateBalance =
         latestStateRow === undefined
           ? undefined
-          : latestStateRow.balance.toString();
+          : this.#formatBalanceForEvent(
+              assetId,
+              latestStateRow.balance,
+              assetsMetadata,
+            );
       const currentBalance =
-        currentRow === undefined ? undefined : currentRow.balance.toString();
+        currentRow === undefined
+          ? undefined
+          : this.#formatBalanceForEvent(
+              assetId,
+              currentRow.balance,
+              assetsMetadata,
+            );
 
       if (latestStateBalance !== currentBalance) {
         balanceChanges[assetId as string] = {
@@ -505,6 +523,27 @@ export class OnChainAccountSynchronizeService {
             }
           : null,
     };
+  }
+
+  #formatBalanceForEvent(
+    assetId: KnownCaip19AssetIdOrSlip44Id,
+    amountInSmallestUnit: BigNumber,
+    assetsMetadata: KeyringAssetMetadataByAssetId,
+  ): string {
+    const assetMetadata = assetsMetadata[assetId];
+    if (
+      assetMetadata !== null &&
+      assetMetadata !== undefined &&
+      FungibleAssetMetadataStruct.is(assetMetadata) &&
+      assetMetadata.units[0]?.decimals !== undefined
+    ) {
+      return toDisplayBalance(
+        amountInSmallestUnit,
+        assetMetadata.units[0].decimals,
+      );
+    }
+
+    return amountInSmallestUnit.toString();
   }
 
   async #emitKeyringEvents(

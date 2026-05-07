@@ -256,7 +256,7 @@ describe('OnChainAccountSynchronizeService', () => {
       {
         balances: {
           [keyringAccount.id]: {
-            [sep41Id]: { unit: 'USDC', amount: '500' },
+            [sep41Id]: { unit: 'USDC', amount: '0.00005' },
           },
         },
       },
