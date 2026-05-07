@@ -117,7 +117,7 @@ export class PriceService {
   ): Promise<Partial<SpotPrices>> {
     const uniqueAssetTypes = [...new Set(tokenCaip19Types)];
 
-    const cacheKeyPrefix = 'PriceApiClient:getSpotPrices';
+    const cacheKeyPrefix = 'PriceService:getSpotPrices';
 
     const toCacheKey = (tokenCaipAssetType: CaipAssetType): string =>
       `${cacheKeyPrefix}:${tokenCaipAssetType}:${vsCurrency}`;

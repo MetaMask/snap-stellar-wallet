@@ -53,7 +53,7 @@ const minimalSpot = (id: string, price: number): SpotPrice => ({
   price,
 });
 
-const SPOT_PRICES_CACHE_KEY_PREFIX = 'PriceApiClient:getSpotPrices' as const;
+const SPOT_PRICES_CACHE_KEY_PREFIX = 'PriceService:getSpotPrices' as const;
 
 const cacheKeySpotPrice = (assetId: CaipAssetType, vsCurrency: string) =>
   `${SPOT_PRICES_CACHE_KEY_PREFIX}:${assetId}:${vsCurrency}`;
