@@ -379,7 +379,7 @@ export class AccountService {
       methods: [
         MultichainMethod.SignMessage,
         MultichainMethod.SignTransaction,
-        MultichainMethod.SignAuthEntry,
+        // MultichainMethod.SignAuthEntry, // TODO: Add this once keyring-api supports it
       ],
     };
   }
