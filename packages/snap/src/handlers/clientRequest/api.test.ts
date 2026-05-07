@@ -3,6 +3,8 @@ import { assert, StructError } from '@metamask/superstruct';
 import {
   ChangeTrustOptJsonRpcRequestStruct,
   ChangeTrustOptJsonRpcResponseStruct,
+  GetStellarAccountActivationStatusJsonRpcRequestStruct,
+  GetStellarAccountActivationStatusJsonRpcResponseStruct,
   JsonRpcRequestWithAccountStruct,
 } from './api';
 
@@ -218,4 +220,85 @@ describe('ChangeTrustOptJsonRpcRequestStruct', () => {
       StructError,
     );
   });
+});
+
+describe('GetStellarAccountActivationStatusJsonRpcRequestStruct', () => {
+  it('accepts a valid getStellarAccountActivationStatus JSON-RPC request', () => {
+    const request = {
+      jsonrpc: '2.0' as const,
+      id: 1,
+      method: 'getStellarAccountActivationStatus',
+      params: {
+        accountId,
+        scope,
+      },
+    };
+
+    expect(() =>
+      assert(request, GetStellarAccountActivationStatusJsonRpcRequestStruct),
+    ).not.toThrow();
+  });
+
+  it.each([
+    {
+      jsonrpc: '2.0' as const,
+      id: 1,
+      method: 'wrongMethod',
+      params: {
+        accountId,
+        scope,
+      },
+    },
+    {
+      jsonrpc: '2.0' as const,
+      id: 1,
+      method: 'getStellarAccountActivationStatus',
+      params: {
+        accountId,
+        scope: 'stellar:unknown',
+      },
+    },
+    {
+      jsonrpc: '2.0' as const,
+      id: 1,
+      method: 'getStellarAccountActivationStatus',
+      params: {
+        accountId: 'invalid-account-id',
+        scope,
+      },
+    },
+  ])(
+    'rejects an invalid getStellarAccountActivationStatus JSON-RPC request',
+    (request) => {
+      expect(() =>
+        assert(request, GetStellarAccountActivationStatusJsonRpcRequestStruct),
+      ).toThrow(StructError);
+    },
+  );
+});
+
+describe('GetStellarAccountActivationStatusJsonRpcResponseStruct', () => {
+  it.each([{ activated: true }, { activated: false }])(
+    'accepts a valid getStellarAccountActivationStatus JSON-RPC response',
+    (response) => {
+      expect(() =>
+        assert(
+          response,
+          GetStellarAccountActivationStatusJsonRpcResponseStruct,
+        ),
+      ).not.toThrow();
+    },
+  );
+
+  it.each([{ activated: 'true' }, {}, { status: true }])(
+    'rejects an invalid getStellarAccountActivationStatus JSON-RPC response',
+    (response) => {
+      expect(() =>
+        assert(
+          response,
+          GetStellarAccountActivationStatusJsonRpcResponseStruct,
+        ),
+      ).toThrow(StructError);
+    },
+  );
 });

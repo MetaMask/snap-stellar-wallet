@@ -8,6 +8,7 @@ import {
   ChangeTrustOptHandler,
   ClientRequestHandler,
   ClientRequestMethod,
+  GetStellarAccountActivationStatusHandler,
 } from './handlers/clientRequest';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
@@ -206,11 +207,20 @@ const changeTrustOptHandler = new ChangeTrustOptHandler({
   confirmationUIController,
 });
 
+const getStellarAccountActivationStatusHandler =
+  new GetStellarAccountActivationStatusHandler({
+    logger,
+    accountService,
+    networkService,
+  });
+
 const clientRequestMethodHandlers: Record<
   ClientRequestMethod,
   IClientRequestHandler
 > = {
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
+  [ClientRequestMethod.GetStellarAccountActivationStatus]:
+    getStellarAccountActivationStatusHandler,
 };
 
 const clientRequestHandler = new ClientRequestHandler({
