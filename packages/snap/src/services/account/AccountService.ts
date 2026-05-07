@@ -199,9 +199,10 @@ export class AccountService {
    *
    * @param options - The parameters for batch account creation.
    * @param options.entropySource - [Optional] The entropy source to use for derivation.
-   * @param options.fromIndex - [Required] The starting index to use for derivation.
-   * @param options.toIndex - [Required] The ending index to use for derivation.
-   * @returns A Promise that resolves to the list of created accounts.
+   * @param options.fromIndex - [Required] The starting derivation index (inclusive).
+   * @param options.toIndex - [Required] The ending derivation index (inclusive).
+   * @returns A Promise that resolves to accounts in index order for the full requested range.
+   * Existing accounts are reused and only missing accounts are created and persisted.
    */
   async batchCreate(options: {
     entropySource?: EntropySourceId;

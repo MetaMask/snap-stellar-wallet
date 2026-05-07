@@ -50,7 +50,7 @@ export class WalletService {
   }
 
   /**
-   * Derives Stellar addresses (public keys) from the given entropy source and derivation index range.
+   * Derives Stellar addresses (public keys) from the given entropy source and derivation indices.
    *
    * @param params - Options object.
    * @param params.indices - The derivation indices for the accounts.
