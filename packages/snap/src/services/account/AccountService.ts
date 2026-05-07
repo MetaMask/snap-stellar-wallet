@@ -27,16 +27,12 @@ import {
 import { getDerivationPath, type WalletService } from '../wallet';
 
 /**
- * Limits concurrent `#deriveAccount` work per batch chunk so large index ranges
- * do not schedule unbounded parallel derivation in the Snap.
- */
-const BATCH_CREATE_DERIVE_CHUNK_SIZE = 8;
-
-/**
  * Manages Stellar keyring accounts: creation, resolution from state, derivation checks, and persistence.
  */
 export class AccountService {
   readonly #logger: ILogger;
+
+  readonly batchSizeOfAccountsCreation = 15;
 
   readonly #walletService: WalletService;
 
@@ -240,28 +236,29 @@ export class AccountService {
         }
       }
 
+      // 2. Resolve each index (reuse existing or derive), batched creating accounts.
       const indices: number[] = [];
       for (let index = options.fromIndex; index <= options.toIndex; index++) {
         indices.push(index);
       }
-
-      // 2–3. Resolve each index (reuse existing or derive), batched to cap concurrency.
       const createdAccounts = await batchesAll(
         indices,
-        BATCH_CREATE_DERIVE_CHUNK_SIZE,
+        this.batchSizeOfAccountsCreation,
         async (index) => {
           const existingAccount = existingAccounts.get(index);
+          // If the account does not exist, derive it
           if (existingAccount === undefined) {
             return this.#deriveAccount({
               entropySource,
               index,
             });
           }
+          // If the account exists, reuse it
           return existingAccount;
         },
       );
 
-      // 4. Save all the created accounts to the repository
+      // 3. Save all the created accounts to the repository
       // it doesnt matter if some accounts are already exists, they will be overwritten.
       await this.#accountsRepository.saveMany(createdAccounts);
 
