@@ -174,6 +174,55 @@ describe('KeyringTransactionBuilder', () => {
     ]);
   });
 
+  it('creates a pending transaction as an unknown activity entry', () => {
+    const builder = new KeyringTransactionBuilder();
+
+    const transaction = builder.createTransaction({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: 'tx-pending-1',
+        account,
+        scope,
+        asset: nativeAsset,
+      },
+    });
+
+    expect(transaction).toStrictEqual({
+      type: TransactionType.Unknown,
+      id: 'tx-pending-1',
+      from: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      to: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      events: [
+        { status: TransactionStatus.Unconfirmed, timestamp: fixedTimestamp },
+      ],
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      account: account.id,
+      timestamp: fixedTimestamp,
+      fees: [],
+    });
+  });
+
   it('throws KeyringTransactionBuilderException for unsupported type', () => {
     const builder = new KeyringTransactionBuilder();
 

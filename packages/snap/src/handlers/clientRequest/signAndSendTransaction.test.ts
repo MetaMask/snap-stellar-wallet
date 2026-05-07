@@ -1,0 +1,253 @@
+import { Networks } from '@stellar/stellar-sdk';
+
+import {
+  ClientRequestMethod,
+  type SignAndSendTransactionJsonRpcRequest,
+} from './api';
+import { SignAndSendTransactionHandler } from './signAndSendTransaction';
+import { KnownCaip2ChainId } from '../../api';
+import { AccountService } from '../../services/account';
+import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
+import {
+  OnChainAccount,
+  OnChainAccountService,
+} from '../../services/on-chain-account';
+import {
+  createMockAccountWithBalances,
+  DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  horizonSource,
+  mockOnChainAccountService,
+} from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
+import { TransactionService } from '../../services/transaction';
+import {
+  buildMockInvokeHostFunctionTransaction,
+  createMockTransactionService,
+} from '../../services/transaction/__mocks__/transaction.fixtures';
+import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
+import { WalletService } from '../../services/wallet';
+import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
+import { logger } from '../../utils/logger';
+import { TrackTransactionHandler } from '../cronjob/trackTransaction';
+
+jest.mock('@metamask/keyring-snap-sdk', () => ({
+  emitSnapKeyringEvent: jest.fn(),
+}));
+jest.mock('../../config', () => ({
+  AppConfig: {
+    api: {
+      tokenApi: {
+        baseUrl: 'https://example.com',
+        chunkSize: 20,
+      },
+    },
+    selectedNetwork: 'stellar:pubnet',
+  },
+}));
+jest.mock('../../utils/logger');
+
+describe('SignAndSendTransactionHandler', () => {
+  const accountId = '11111111-1111-4111-8111-111111111111';
+  const scope = KnownCaip2ChainId.Mainnet;
+  const transactionId =
+    '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1';
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  function setup() {
+    const wallet = getTestWallet();
+    const account = generateStellarKeyringAccount(
+      accountId,
+      wallet.address,
+      'entropy-source-1',
+      0,
+    );
+    const mockRawAccount = createMockAccountWithBalances(wallet.address, '1', {
+      ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      nativeBalance: 10,
+      assets: [],
+    });
+    const onChainAccount = new OnChainAccount(
+      mockRawAccount,
+      scope,
+      horizonSource(mockRawAccount, scope),
+    );
+
+    const transaction = buildMockInvokeHostFunctionTransaction('swap', [], {
+      networkPassphrase: Networks.PUBLIC,
+      source: {
+        accountId: wallet.address,
+        sequence: onChainAccount.sequenceNumber,
+      },
+    });
+    const xdr = transaction.getRaw().toXDR();
+
+    const { accountService, onChainAccountService, walletService } =
+      mockOnChainAccountService();
+    const resolveAccountSpy = jest
+      .spyOn(AccountService.prototype, 'resolveAccount')
+      .mockResolvedValue({ account });
+    const resolveOnChainAccountSpy = jest
+      .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
+      .mockResolvedValue(onChainAccount);
+    const resolveWalletSpy = jest
+      .spyOn(WalletService.prototype, 'resolveWallet')
+      .mockResolvedValue(wallet);
+
+    const { transactionService } = createMockTransactionService();
+    const createValidatedSwapTransaction = jest
+      .spyOn(TransactionService.prototype, 'createValidatedSwapTransaction')
+      .mockResolvedValue(transaction);
+    const sendTransaction = jest
+      .spyOn(TransactionService.prototype, 'sendTransaction')
+      .mockResolvedValue(transactionId);
+    const savePendingKeyringTransaction = jest.spyOn(
+      TransactionService.prototype,
+      'savePendingKeyringTransaction',
+    );
+    const scheduleBackgroundEvent = jest
+      .spyOn(TrackTransactionHandler, 'scheduleBackgroundEvent')
+      .mockResolvedValue(undefined);
+    const signTransactionSpy = jest.spyOn(wallet, 'signTransaction');
+
+    const handler = new SignAndSendTransactionHandler({
+      logger,
+      accountService,
+      onChainAccountService,
+      walletService,
+      transactionService,
+    });
+
+    const request: SignAndSendTransactionJsonRpcRequest = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: ClientRequestMethod.SignAndSendTransaction,
+      params: {
+        accountId,
+        scope,
+        transaction: xdr,
+        options: {
+          type: 'swap',
+        },
+      },
+    };
+
+    return {
+      handler,
+      account,
+      onChainAccount,
+      wallet,
+      transaction,
+      xdr,
+      request,
+      resolveAccountSpy,
+      resolveOnChainAccountSpy,
+      resolveWalletSpy,
+      createValidatedSwapTransaction,
+      sendTransaction,
+      savePendingKeyringTransaction,
+      scheduleBackgroundEvent,
+      signTransactionSpy,
+    };
+  }
+
+  it('signs, sends, and schedules tracking for a swap transaction', async () => {
+    const {
+      handler,
+      account,
+      onChainAccount,
+      wallet,
+      transaction,
+      xdr,
+      request,
+      resolveAccountSpy,
+      resolveOnChainAccountSpy,
+      resolveWalletSpy,
+      createValidatedSwapTransaction,
+      sendTransaction,
+      savePendingKeyringTransaction,
+      scheduleBackgroundEvent,
+      signTransactionSpy,
+    } = setup();
+
+    const result = await handler.handle(request);
+
+    expect(result).toStrictEqual({ transactionId });
+    expect(resolveAccountSpy).toHaveBeenCalledWith({ accountId });
+    expect(resolveOnChainAccountSpy).toHaveBeenCalledWith(
+      account.address,
+      scope,
+    );
+    expect(resolveWalletSpy).toHaveBeenCalledWith(account);
+    expect(createValidatedSwapTransaction).toHaveBeenCalledWith({
+      xdr,
+      scope,
+      onChainAccount,
+    });
+    expect(signTransactionSpy).toHaveBeenCalledWith(transaction);
+    expect(sendTransaction).toHaveBeenCalledWith({
+      wallet,
+      onChainAccount,
+      scope,
+      transaction,
+      pollTransaction: false,
+    });
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        asset: {
+          type: 'stellar:pubnet/slip44:148',
+          symbol: 'XLM',
+        },
+      },
+    });
+    expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
+      scope,
+      txId: transactionId,
+      accountIds: [account.id],
+    });
+  });
+
+  it('saves pending activity when options.visible is false', async () => {
+    const {
+      handler,
+      account,
+      request,
+      savePendingKeyringTransaction,
+      scheduleBackgroundEvent,
+    } = setup();
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        options: {
+          ...request.params.options,
+          visible: false,
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        asset: {
+          type: 'stellar:pubnet/slip44:148',
+          symbol: 'XLM',
+        },
+      },
+    });
+    expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
+      scope,
+      txId: transactionId,
+      accountIds: [account.id],
+    });
+  });
+});

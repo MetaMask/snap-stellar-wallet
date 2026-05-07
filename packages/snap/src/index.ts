@@ -89,6 +89,10 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
       return clientRequestHandler.handle(
         request.params as unknown as JsonRpcRequest,
       );
+    case 'stellar_signAndSendTransaction':
+      return clientRequestHandler.handle(
+        request.params as unknown as JsonRpcRequest,
+      );
     default:
       throw new MethodNotFoundError() as Error;
   }

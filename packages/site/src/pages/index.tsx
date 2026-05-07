@@ -170,10 +170,14 @@ const Index = () => {
   );
 
   const [signTxnText, setSignTxnText] = useState('');
+  const [signAndSendTxnText, setSignAndSendTxnText] = useState('');
   const [signMessageOutput, setSignMessageOutput] = useState<string | null>(
     null,
   );
   const [signTxnOutput, setSignTxnOutput] = useState<string | null>(null);
+  const [signAndSendTxnOutput, setSignAndSendTxnOutput] = useState<
+    string | null
+  >(null);
 
   const [trustlineAssetId, setTrustlineAssetId] = useState(
     'stellar:testnet/asset:USDT-GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER',
@@ -287,6 +291,60 @@ const Index = () => {
     });
 
     setSignTxnOutput(JSON.stringify(response, null, 2));
+  };
+
+  const handleSignAndSendTxnClick = async () => {
+    setSignAndSendTxnOutput(null);
+    const trimmed = signAndSendTxnText.trim();
+    if (!trimmed) {
+      setSignAndSendTxnOutput(
+        'Enter a base64 encoded transaction to sign and send.',
+      );
+      return;
+    }
+
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+    const account = accounts?.[0];
+    if (!account) {
+      setSignAndSendTxnOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    const scope = account.scopes[0];
+    if (!scope) {
+      setSignAndSendTxnOutput('Selected account has no chain scope.');
+      return;
+    }
+
+    try {
+      const result = await invokeSnap({
+        method: 'stellar_signAndSendTransaction',
+        params: {
+          jsonrpc: '2.0',
+          id: crypto.randomUUID(),
+          method: 'signAndSendTransaction',
+          params: {
+            accountId: account.id,
+            scope,
+            transaction: trimmed,
+            options: {
+              type: 'swap',
+            },
+          },
+        },
+      });
+      setSignAndSendTxnOutput(JSON.stringify(result, null, 2));
+    } catch (signAndSendError: unknown) {
+      const message =
+        signAndSendError instanceof Error
+          ? signAndSendError.message
+          : String(signAndSendError);
+      setSignAndSendTxnOutput(message);
+    }
   };
 
   const invokeChangeTrustOpt = async (action: 'add' | 'delete') => {
@@ -482,6 +540,36 @@ const Index = () => {
                   disabled={!installedSnap}
                 >
                   Sign transaction
+                </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+
+        <Card
+          content={{
+            title: 'Sign and send transaction',
+            description:
+              'Calls the dev-only stellar_signAndSendTransaction RPC alias. Paste an unsigned swap/Soroban XDR whose source is the wallet account; the snap validates, signs, submits, and returns the transaction hash.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="Transaction to sign and send"
+                  value={signAndSendTxnText}
+                  onChange={({ target }) => setSignAndSendTxnText(target.value)}
+                  disabled={!installedSnap}
+                />
+                {signAndSendTxnOutput !== null && (
+                  <SignatureOutput>{signAndSendTxnOutput}</SignatureOutput>
+                )}
+                <SignOpsButton
+                  type="button"
+                  onClick={handleSignAndSendTxnClick}
+                  disabled={!installedSnap}
+                >
+                  Sign and send transaction
                 </SignOpsButton>
               </>
             ),

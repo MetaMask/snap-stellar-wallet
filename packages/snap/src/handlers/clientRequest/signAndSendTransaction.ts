@@ -6,14 +6,16 @@ import {
   SignAndSendTransactionJsonRpcRequestStruct,
   SignAndSendTransactionJsonRpcResponseStruct,
 } from './api';
-import type { KnownCaip2ChainId } from '../../api';
+import { KnownCaip19Slip44IdMap, type KnownCaip2ChainId } from '../../api';
 import type { ResolvedActivatedAccount } from '../base';
 import { WithClientRequestActiveAccountResolve } from './base';
+import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
 import type { OnChainAccountService } from '../../services/on-chain-account';
+import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
 import type { TransactionService } from '../../services/transaction/TransactionService';
 import type { WalletService } from '../../services/wallet';
 import { createPrefixedLogger } from '../../utils/logger';
@@ -122,13 +124,26 @@ export class SignAndSendTransactionHandler extends WithClientRequestActiveAccoun
     };
   }
 
-  async #savePendingTransaction(_params: {
+  async #savePendingTransaction(params: {
     transactionId: string;
     scope: KnownCaip2ChainId;
     account: StellarKeyringAccount;
   }): Promise<void> {
     try {
-      // TODO: save a SWAP transaction
+      const { transactionId, scope, account } = params;
+
+      await this.#transactionService.savePendingKeyringTransaction({
+        type: KeyringTransactionType.Pending,
+        request: {
+          txId: transactionId,
+          account,
+          scope,
+          asset: {
+            type: KnownCaip19Slip44IdMap[scope],
+            symbol: NATIVE_ASSET_SYMBOL,
+          },
+        },
+      });
     } catch (error: unknown) {
       this.logger.logErrorWithDetails(
         'Failed to save pending transaction',

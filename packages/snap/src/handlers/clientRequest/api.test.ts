@@ -1,15 +1,39 @@
 import { assert, StructError } from '@metamask/superstruct';
+import {
+  Account,
+  Contract,
+  Networks,
+  TransactionBuilder as StellarTransactionBuilder,
+} from '@stellar/stellar-sdk';
 
 import {
   ChangeTrustOptJsonRpcRequestStruct,
   ChangeTrustOptJsonRpcResponseStruct,
   JsonRpcRequestWithAccountStruct,
+  SignAndSendTransactionJsonRpcRequestStruct,
+  SignAndSendTransactionJsonRpcResponseStruct,
 } from './api';
 
 const accountId = '11111111-1111-4111-8111-111111111111';
 const scope = 'stellar:testnet';
 const assetId =
   'stellar:testnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+const sourceAddress =
+  'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO';
+
+const buildTestInvokeXdr = () => {
+  const contract = new Contract(
+    'CASUP2OPFVEHCWGP2XLBXOV7DQIQIT42AQISG4MXAZGNLVFFN63X7WRT',
+  );
+  return new StellarTransactionBuilder(new Account(sourceAddress, '1'), {
+    fee: '100',
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(contract.call('swap'))
+    .setTimeout(60)
+    .build()
+    .toXDR();
+};
 
 describe('JsonRpcRequestWithAccountStruct', () => {
   it.each([
@@ -82,6 +106,91 @@ describe('ChangeTrustOptJsonRpcResponseStruct', () => {
       StructError,
     );
   });
+});
+
+describe('SignAndSendTransactionJsonRpcResponseStruct', () => {
+  it.each([
+    {
+      transactionId:
+        '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
+    },
+    {
+      transactionId:
+        '7D4B0C5EF7498B223F45A10F461060FB64F53EB13CAF18E8DC7DE95A8CF9C0E1',
+    },
+  ])('accepts a valid signAndSendTransaction JSON-RPC response', (response) => {
+    expect(() =>
+      assert(response, SignAndSendTransactionJsonRpcResponseStruct),
+    ).not.toThrow();
+  });
+
+  it.each([
+    {},
+    { transactionId: '' },
+    { transactionId: 123 },
+    { transactionId: 'dGVzdA==' },
+    {
+      transactionId:
+        '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0',
+    },
+  ])(
+    'rejects an invalid signAndSendTransaction JSON-RPC response',
+    (response) => {
+      expect(() =>
+        assert(response, SignAndSendTransactionJsonRpcResponseStruct),
+      ).toThrow(StructError);
+    },
+  );
+});
+
+describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
+  const transaction = buildTestInvokeXdr();
+
+  it('accepts a valid signAndSendTransaction JSON-RPC request', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'signAndSendTransaction',
+          params: {
+            accountId,
+            scope,
+            transaction,
+            options: {
+              type: 'swap',
+            },
+          },
+        },
+        SignAndSendTransactionJsonRpcRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
+  it.each([
+    { transaction: 'not-xdr', options: { type: 'swap' } },
+    { transaction, options: { type: '' } },
+    { transaction, options: { type: 'swap', visible: 'yes' } },
+  ])(
+    'rejects an invalid signAndSendTransaction JSON-RPC request',
+    (overrides) => {
+      expect(() =>
+        assert(
+          {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'signAndSendTransaction',
+            params: {
+              accountId,
+              scope,
+              ...overrides,
+            },
+          },
+          SignAndSendTransactionJsonRpcRequestStruct,
+        ),
+      ).toThrow(StructError);
+    },
+  );
 });
 
 describe('ChangeTrustOptJsonRpcRequestStruct', () => {

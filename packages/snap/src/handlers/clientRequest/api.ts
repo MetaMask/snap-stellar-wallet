@@ -8,6 +8,7 @@ import {
   optional,
   boolean,
   string,
+  nonempty,
   type,
   union,
   refine,
@@ -16,7 +17,7 @@ import {
   array,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
-import { base64, parseCaipAssetType } from '@metamask/utils';
+import { base64, definePattern, parseCaipAssetType } from '@metamask/utils';
 
 import {
   JsonRpcRequestStruct,
@@ -126,23 +127,27 @@ export const SignAndSendTransactionJsonRpcRequestStruct = assign(
   object({
     method: literal(ClientRequestMethod.SignAndSendTransaction),
     params: object({
-      // TODO: try not to accept any XDR
       transaction: XdrStruct,
       accountId: UuidStruct,
       scope: KnownCaip2ChainIdStruct,
       options: object({
         visible: optional(boolean()),
-        type: string(),
+        type: nonempty(string()),
       }),
     }),
   }),
+);
+
+const StellarTransactionHashStruct = definePattern(
+  'StellarTransactionHash',
+  /^[0-9a-f]{64}$/iu,
 );
 
 /**
  * Validation struct for the sendTransaction JSON-RPC response.
  */
 export const SignAndSendTransactionJsonRpcResponseStruct = object({
-  transactionId: base64(string()),
+  transactionId: StellarTransactionHashStruct,
 });
 
 /**
@@ -153,13 +158,12 @@ export const ComputeFeeJsonRpcRequestStruct = assign(
   object({
     method: literal(ClientRequestMethod.ComputeFee),
     params: object({
-      // TODO: try not to accept any XDR
       transaction: XdrStruct,
       accountId: UuidStruct,
       scope: KnownCaip2ChainIdStruct,
       options: object({
         visible: optional(boolean()),
-        type: string(),
+        type: nonempty(string()),
         feeLimit: optional(min(integer(), 0)),
       }),
     }),
