@@ -16,7 +16,6 @@ import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import { MultichainMethod } from '../../handlers/keyring/api';
 import type { ILogger } from '../../utils';
 import {
-  batchesAll,
   createPrefixedLogger,
   getDefaultEntropySource,
   getLowestIndex,
@@ -29,8 +28,6 @@ import { getDerivationPath, type WalletService } from '../wallet';
  */
 export class AccountService {
   readonly #logger: ILogger;
-
-  readonly batchSizeOfAccountsCreation = 15;
 
   readonly #walletService: WalletService;
 
@@ -211,52 +208,90 @@ export class AccountService {
     fromIndex: number;
     toIndex: number;
   }): Promise<StellarKeyringAccount[]> {
+    const { fromIndex, toIndex } = options;
     // MetaMask Client is the only caller of this method,
     // We dont add mutex lock here, because the caller should ensure the requests are piped in order
     const accounts = await this.#accountsRepository.getAll();
-
     const entropySource =
-      options?.entropySource ?? (await getDefaultEntropySource());
+      options.entropySource ?? (await getDefaultEntropySource());
 
-    // 1. Get all existing accounts in the range
-    const existingAccounts = new Map<number, StellarKeyringAccount>();
+    // 1. Build the context {existingAccountsByIndex, indicesToDerive} for the batch create
+    const existingAccountsByIndex = new Map<number, StellarKeyringAccount>();
     for (const account of accounts) {
       if (
         account.entropySource === entropySource &&
-        account.index >= options.fromIndex &&
-        account.index <= options.toIndex
+        account.index >= fromIndex &&
+        account.index <= toIndex
       ) {
-        existingAccounts.set(account.index, account);
+        existingAccountsByIndex.set(account.index, account);
       }
     }
-
-    // 2. Resolve each index (reuse existing or derive), batched creating accounts.
-    const indices: number[] = [];
-    for (let index = options.fromIndex; index <= options.toIndex; index++) {
-      indices.push(index);
+  
+    // 2. Derive the missing addresses, which is the most heavy operation.
+    const indicesToDerive: number[] = [];
+    for (let index = fromIndex; index <= toIndex; index++) {
+      if (!existingAccountsByIndex.has(index)) {
+        indicesToDerive.push(index);
+      }
     }
-    const createdAccounts = await batchesAll(
-      indices,
-      this.batchSizeOfAccountsCreation,
-      async (index) => {
-        const existingAccount = existingAccounts.get(index);
-        // If the account does not exist, derive it
-        if (existingAccount === undefined) {
-          return this.#deriveAccount({
-            entropySource,
-            index,
-          });
-        }
-        // If the account exists, reuse it
-        return existingAccount;
-      },
-    );
+    const derivedAddresses = await this.#deriveAddressesByIndices({
+      entropySource,
+      indices: indicesToDerive,
+    });
 
-    // 3. Save all the created accounts to the repository
-    // it doesnt matter if some accounts are already exists, they will be overwritten.
+    // 3. Build the map {index -> derived address}
+    const derivedAddressesByIndex = new Map<number, string>();
+    for (const [position, index] of indicesToDerive.entries()) {
+      const address = derivedAddresses[position];
+      if (address === undefined) {
+        throw new Error(`Address not found for index ${index}`);
+      }
+      derivedAddressesByIndex.set(index, address);
+    }
+
+    // 4. Create the accounts
+    const createdAccounts: StellarKeyringAccount[] = [];
+    const returnAccounts: StellarKeyringAccount[] = [];
+    for (let index = fromIndex; index <= toIndex; index++) {
+      let account = existingAccountsByIndex.get(index);
+      if (account === undefined) {
+        const address = derivedAddressesByIndex.get(index);
+        if (address === undefined) {
+          throw new Error(`Address not found for index ${index}`);
+        }
+
+        account = this.#toStellarKeyringAccount({
+          entropySource,
+          derivationPath: getDerivationPath(index),
+          index,
+          address,
+        });
+        createdAccounts.push(account);
+      }
+
+      returnAccounts.push(account);
+    }
+
+    // 5. Save all the created accounts to the repository
     await this.#accountsRepository.saveMany(createdAccounts);
 
-    return createdAccounts;
+    return returnAccounts;
+  }
+
+  async #deriveAddressesByIndices({
+    entropySource,
+    indices,
+  }: {
+    entropySource: EntropySourceId;
+    indices: number[];
+  }): Promise<string[]> {
+    if (indices.length === 0) {
+      return [];
+    }
+    return await this.#walletService.deriveAddressesByIndices({
+      indices,
+      entropySource,
+    });
   }
 
   /**

@@ -1,3 +1,4 @@
+import { SLIP10Node } from '@metamask/key-tree';
 import { hexToBytes } from '@metamask/utils';
 import { Keypair } from '@stellar/stellar-sdk';
 
@@ -53,6 +54,61 @@ describe('WalletService', () => {
           entropySource: 'entropy-source-1',
         }),
       ).rejects.toThrow(WalletServiceException);
+    });
+  });
+
+  describe('deriveAddressesByIndices', () => {
+    it('returns addresses in the same order as indices', async () => {
+      const indices = [2, 5, 7];
+      const derivedPrivateKeys = [
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+      ];
+      const fromJSONSpy = jest.spyOn(SLIP10Node, 'fromJSON').mockResolvedValue({
+        derive: jest
+          .fn()
+          .mockResolvedValueOnce({
+            privateKey: derivedPrivateKeys[0],
+            publicKey:
+              '0x1111111111111111111111111111111111111111111111111111111111111111',
+          })
+          .mockResolvedValueOnce({
+            privateKey: derivedPrivateKeys[1],
+            publicKey:
+              '0x2222222222222222222222222222222222222222222222222222222222222222',
+          })
+          .mockResolvedValueOnce({
+            privateKey: derivedPrivateKeys[2],
+            publicKey:
+              '0x3333333333333333333333333333333333333333333333333333333333333333',
+          }),
+      } as unknown as SLIP10Node);
+
+      const result = await walletService.deriveAddressesByIndices({
+        indices,
+        entropySource: 'entropy-source-1',
+      });
+
+      const expected = derivedPrivateKeys.map((privateKey) =>
+        Keypair.fromRawEd25519Seed(
+          bufferToUint8Array(hexToBytes(privateKey)),
+        ).publicKey(),
+      );
+      expect(result).toStrictEqual(expected);
+      expect(fromJSONSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns an empty array for empty indices input', async () => {
+      const fromJSONSpy = jest.spyOn(SLIP10Node, 'fromJSON');
+
+      const result = await walletService.deriveAddressesByIndices({
+        indices: [],
+        entropySource: 'entropy-source-1',
+      });
+
+      expect(result).toStrictEqual([]);
+      expect(fromJSONSpy).not.toHaveBeenCalled();
     });
   });
 

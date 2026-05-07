@@ -45,6 +45,10 @@ describe('AccountService', () => {
 
   const getWalletServiceSpies = () => ({
     deriveAddressSpy: jest.spyOn(WalletService.prototype, 'deriveAddress'),
+    deriveAddressesByIndicesSpy: jest.spyOn(
+      WalletService.prototype,
+      'deriveAddressesByIndices',
+    ),
   });
 
   describe('create', () => {
@@ -233,10 +237,11 @@ describe('AccountService', () => {
   describe('batchCreate', () => {
     it('derives, persists in range order, and calls save once', async () => {
       const entropySource = 'entropy-source-default';
-      const { deriveAddressSpy } = getWalletServiceSpies();
+      const { deriveAddressesByIndicesSpy } = getWalletServiceSpies();
       const { saveManySpy, getAllSpy } = getAccountsRepositorySpies();
       getAllSpy.mockResolvedValue([]);
       jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySource);
+      deriveAddressesByIndicesSpy.mockResolvedValue(['address-0', 'address-1']);
 
       const result = await accountService.batchCreate({
         entropySource,
@@ -247,7 +252,11 @@ describe('AccountService', () => {
       expect(saveManySpy).toHaveBeenCalledTimes(1);
       expect(saveManySpy.mock.calls[0]?.[0]).toHaveLength(2);
       expect(result.map((account) => account.index)).toStrictEqual([0, 1]);
-      expect(deriveAddressSpy).toHaveBeenCalledTimes(2);
+      expect(deriveAddressesByIndicesSpy).toHaveBeenCalledTimes(1);
+      expect(deriveAddressesByIndicesSpy).toHaveBeenCalledWith({
+        entropySource,
+        indices: [0, 1],
+      });
       expect(result[0]).toMatchObject({
         entropySource,
         index: 0,
@@ -268,13 +277,14 @@ describe('AccountService', () => {
       });
     });
 
-    it('reuses existing accounts in the range and passes the full list to saveMany', async () => {
+    it('reuses existing accounts in the range and saves only missing accounts', async () => {
       const entropySource = 'entropy-source-batch';
       const existing = generateMockStellarKeyringAccounts(3, entropySource);
       const onlyMiddle = existing[1] as StellarKeyringAccount;
-      const { deriveAddressSpy } = getWalletServiceSpies();
+      const { deriveAddressesByIndicesSpy } = getWalletServiceSpies();
       const { saveManySpy, getAllSpy } = getAccountsRepositorySpies();
       getAllSpy.mockResolvedValue([onlyMiddle]);
+      deriveAddressesByIndicesSpy.mockResolvedValue(['address-0', 'address-2']);
 
       const result = await accountService.batchCreate({
         entropySource,
@@ -282,19 +292,26 @@ describe('AccountService', () => {
         toIndex: 2,
       });
 
-      expect(deriveAddressSpy).toHaveBeenCalledTimes(2);
+      expect(deriveAddressesByIndicesSpy).toHaveBeenCalledTimes(1);
+      expect(deriveAddressesByIndicesSpy).toHaveBeenCalledWith({
+        entropySource,
+        indices: [0, 2],
+      });
       expect(saveManySpy).toHaveBeenCalledTimes(1);
-      expect(saveManySpy.mock.calls[0]?.[0]).toHaveLength(3);
+      expect(saveManySpy.mock.calls[0]?.[0]).toHaveLength(2);
       expect(result[1]).toStrictEqual(onlyMiddle);
       expect(result.map((a) => a.index)).toStrictEqual([0, 1, 2]);
     });
 
     it('derives a large inclusive range without throwing', async () => {
       const entropySource = 'entropy-source-default';
-      const { deriveAddressSpy } = getWalletServiceSpies();
+      const { deriveAddressesByIndicesSpy } = getWalletServiceSpies();
       const { saveManySpy, getAllSpy } = getAccountsRepositorySpies();
       getAllSpy.mockResolvedValue([]);
       jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySource);
+      deriveAddressesByIndicesSpy.mockResolvedValue(
+        Array.from({ length: 16 }, (_, index) => `address-${index}`),
+      );
 
       const result = await accountService.batchCreate({
         entropySource,
@@ -303,7 +320,11 @@ describe('AccountService', () => {
       });
 
       expect(result).toHaveLength(16);
-      expect(deriveAddressSpy).toHaveBeenCalledTimes(16);
+      expect(deriveAddressesByIndicesSpy).toHaveBeenCalledTimes(1);
+      expect(deriveAddressesByIndicesSpy).toHaveBeenCalledWith({
+        entropySource,
+        indices: Array.from({ length: 16 }, (_, index) => index),
+      });
       expect(saveManySpy).toHaveBeenCalledTimes(1);
     });
   });

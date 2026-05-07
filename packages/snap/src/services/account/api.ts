@@ -5,7 +5,7 @@ export type KeyringAccountState = {
 };
 
 /** Stellar BIP44 derivation path (e.g. `m/44'/148'/0'`). */
-export type StellarDerivationPath = `m/44'/148'/${string}'`;
+export type StellarDerivationPath = `m/44'/148'/${string}'` | `m/44'/148'`;
 
 /** Keyring account extended with Stellar-specific derivation fields. */
 export type StellarKeyringAccount = KeyringAccount & {
