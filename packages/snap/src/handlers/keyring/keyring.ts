@@ -19,7 +19,11 @@ import {
   emitSnapKeyringEvent,
   handleKeyringRequest,
 } from '@metamask/keyring-snap-sdk';
-import { type Json, type JsonRpcRequest } from '@metamask/snaps-sdk';
+import {
+  InvalidParamsError,
+  type Json,
+  type JsonRpcRequest,
+} from '@metamask/snaps-sdk';
 import { FungibleAssetMetadataStruct } from '@metamask/snaps-sdk';
 import { ensureError, type CaipAssetTypeOrId } from '@metamask/utils';
 
@@ -578,14 +582,29 @@ export class KeyringHandler implements Keyring {
 
   async setSelectedAccounts(accountIds: string[]): Promise<void> {
     validateRequest(accountIds, SetSelectedAccountsRequestStruct);
+    const uniqueAccountIdsSet = new Set(accountIds);
+    const deduplicatedAccountIds = Array.from(uniqueAccountIdsSet);
 
-    await SyncAccountsHandler.scheduleBackgroundEvent(
-      {
-        accountIds,
-      },
-      // Start immediately
-      Duration.OneSecond,
+    const accounts = await this.#accountService.findByIds(
+      deduplicatedAccountIds,
     );
+
+    if (accounts.length !== deduplicatedAccountIds.length) {
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- InvalidParamsError is the JSON-RPC snap error surface
+      throw new InvalidParamsError(
+        'Account IDs were not part of existing accounts.',
+      );
+    }
+
+    if (deduplicatedAccountIds.length > 0) {
+      await SyncAccountsHandler.scheduleBackgroundEvent(
+        {
+          accountIds: deduplicatedAccountIds,
+        },
+        // Start immediately
+        Duration.OneSecond,
+      );
+    }
   }
 
   async submitRequest(request: KeyringRequest): Promise<KeyringResponse> {

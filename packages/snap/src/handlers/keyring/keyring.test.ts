@@ -100,6 +100,7 @@ describe('KeyringHandler', () => {
     deleteSpy: jest.spyOn(AccountService.prototype, 'delete'),
     resolveAccountSpy: jest.spyOn(AccountService.prototype, 'resolveAccount'),
     createAccountSpy: jest.spyOn(AccountService.prototype, 'create'),
+    findByIdsSpy: jest.spyOn(AccountService.prototype, 'findByIds'),
   });
 
   beforeEach(() => {
@@ -1071,6 +1072,9 @@ describe('KeyringHandler', () => {
 
   describe('setSelectedAccounts', () => {
     it('schedules a background event to synchronize the selected accounts', async () => {
+      const { findByIdsSpy } = getAccountServiceSpies();
+      findByIdsSpy.mockResolvedValue([mockAccount]);
+
       const syncSpy = jest.spyOn(
         SyncAccountsHandler,
         'scheduleBackgroundEvent',
@@ -1078,6 +1082,7 @@ describe('KeyringHandler', () => {
 
       await keyringHandler.setSelectedAccounts([mockAccountId]);
 
+      expect(findByIdsSpy).toHaveBeenCalledWith([mockAccountId]);
       expect(syncSpy).toHaveBeenCalledWith(
         {
           accountIds: [mockAccountId],
@@ -1086,10 +1091,108 @@ describe('KeyringHandler', () => {
       );
     });
 
-    it('throws an error if the account ids are invalid', async () => {
+    it('dedupes duplicate ids before lookup and before scheduling the background event', async () => {
+      const { findByIdsSpy } = getAccountServiceSpies();
+      findByIdsSpy.mockResolvedValue([mockAccount]);
+
+      const syncSpy = jest.spyOn(
+        SyncAccountsHandler,
+        'scheduleBackgroundEvent',
+      );
+
+      await keyringHandler.setSelectedAccounts([mockAccountId, mockAccountId]);
+
+      expect(findByIdsSpy).toHaveBeenCalledWith([mockAccountId]);
+      expect(syncSpy).toHaveBeenCalledWith(
+        {
+          accountIds: [mockAccountId],
+        },
+        Duration.OneSecond,
+      );
+    });
+
+    it('schedules synchronization for multiple known accounts', async () => {
+      const { findByIdsSpy } = getAccountServiceSpies();
+      const secondAccount = generateMockStellarKeyringAccounts(
+        1,
+        entropySourceId,
+      )[0] as StellarKeyringAccount;
+      findByIdsSpy.mockResolvedValue([mockAccount, secondAccount]);
+
+      const syncSpy = jest.spyOn(
+        SyncAccountsHandler,
+        'scheduleBackgroundEvent',
+      );
+
+      await keyringHandler.setSelectedAccounts([
+        mockAccountId,
+        secondAccount.id,
+      ]);
+
+      expect(findByIdsSpy).toHaveBeenCalledWith([
+        mockAccountId,
+        secondAccount.id,
+      ]);
+      expect(syncSpy).toHaveBeenCalledWith(
+        {
+          accountIds: [mockAccountId, secondAccount.id],
+        },
+        Duration.OneSecond,
+      );
+    });
+
+    it('validates empty selection against the repo but skips scheduling sync', async () => {
+      const { findByIdsSpy } = getAccountServiceSpies();
+      findByIdsSpy.mockResolvedValue([]);
+
+      const syncSpy = jest.spyOn(
+        SyncAccountsHandler,
+        'scheduleBackgroundEvent',
+      );
+
+      await keyringHandler.setSelectedAccounts([]);
+
+      expect(findByIdsSpy).toHaveBeenCalledWith([]);
+      expect(syncSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws InvalidParamsError when structured params are invalid', async () => {
+      const { findByIdsSpy } = getAccountServiceSpies();
+      await expect(
+        keyringHandler.setSelectedAccounts(
+          'not-an-array' as unknown as string[],
+        ),
+      ).rejects.toThrow(InvalidParamsError);
+
       await expect(
         keyringHandler.setSelectedAccounts(['invalid:account:id']),
       ).rejects.toThrow(InvalidParamsError);
+
+      expect(findByIdsSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws InvalidParamsError when a valid-looking id does not belong to this keyring', async () => {
+      const { findByIdsSpy } = getAccountServiceSpies();
+      const unknownId = globalThis.crypto.randomUUID();
+      findByIdsSpy.mockResolvedValue([]);
+
+      await expect(
+        keyringHandler.setSelectedAccounts([unknownId]),
+      ).rejects.toThrow(InvalidParamsError);
+
+      expect(findByIdsSpy).toHaveBeenCalledWith([unknownId]);
+    });
+
+    it('throws InvalidParamsError when only a subset of the ids exist', async () => {
+      const { findByIdsSpy } = getAccountServiceSpies();
+      const unknownId = globalThis.crypto.randomUUID();
+      findByIdsSpy.mockResolvedValue([mockAccount]);
+
+      await expect(
+        keyringHandler.setSelectedAccounts([mockAccountId, unknownId]),
+      ).rejects.toThrow(InvalidParamsError);
+
+      expect(findByIdsSpy).toHaveBeenCalledWith([mockAccountId, unknownId]);
     });
   });
 });
