@@ -28,6 +28,7 @@ import {
 export enum ClientRequestMethod {
   /** -------------------------------- Stellar Specific -------------------------------- */
   ChangeTrustOpt = 'changeTrustOpt',
+  GetStellarAccountActivationStatus = 'getStellarAccountActivationStatus',
 }
 
 /**
@@ -109,6 +110,29 @@ export const ChangeTrustOptJsonRpcResponseStruct = object({
   transactionId: optional(base64(string())),
 });
 
+const GetStellarAccountActivationStatusParamsStruct = object({
+  accountId: UuidStruct,
+  scope: KnownCaip2ChainIdStruct,
+});
+
+/**
+ * Validation struct for the getStellarAccountActivationStatus JSON-RPC request.
+ */
+export const GetStellarAccountActivationStatusJsonRpcRequestStruct = assign(
+  JsonRpcRequestStruct,
+  object({
+    method: literal(ClientRequestMethod.GetStellarAccountActivationStatus),
+    params: GetStellarAccountActivationStatusParamsStruct,
+  }),
+);
+
+/**
+ * Validation struct for the getStellarAccountActivationStatus JSON-RPC response.
+ */
+export const GetStellarAccountActivationStatusJsonRpcResponseStruct = object({
+  activated: boolean(),
+});
+
 /**
  * A JSON-RPC request with an account resolve parameter.
  */
@@ -129,4 +153,18 @@ export type ChangeTrustOptJsonRpcRequest = Infer<
  */
 export type ChangeTrustOptJsonRpcResponse = Infer<
   typeof ChangeTrustOptJsonRpcResponseStruct
+>;
+
+/**
+ * Type for the getStellarAccountActivationStatus JSON-RPC request.
+ */
+export type GetStellarAccountActivationStatusJsonRpcRequest = Infer<
+  typeof GetStellarAccountActivationStatusJsonRpcRequestStruct
+>;
+
+/**
+ * Type for the getStellarAccountActivationStatus JSON-RPC response.
+ */
+export type GetStellarAccountActivationStatusJsonRpcResponse = Infer<
+  typeof GetStellarAccountActivationStatusJsonRpcResponseStruct
 >;
