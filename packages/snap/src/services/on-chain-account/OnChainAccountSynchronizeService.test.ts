@@ -332,7 +332,7 @@ describe('OnChainAccountSynchronizeService', () => {
       KnownCaip2ChainId.Mainnet,
     );
 
-    expect(emitSnapKeyringEventSpy).toHaveBeenCalledTimes(2);
+    expect(emitSnapKeyringEventSpy).toHaveBeenCalledTimes(1);
     expect(emitSnapKeyringEventSpy).toHaveBeenNthCalledWith(
       1,
       expect.anything(),
@@ -345,15 +345,10 @@ describe('OnChainAccountSynchronizeService', () => {
         },
       }),
     );
-    expect(emitSnapKeyringEventSpy).toHaveBeenNthCalledWith(
-      2,
+    expect(emitSnapKeyringEventSpy).not.toHaveBeenCalledWith(
       expect.anything(),
       KeyringEvent.AccountAssetListUpdated,
-      {
-        assets: {
-          [keyringAccount.id]: { added: [], removed: [sep41Id] },
-        },
-      },
+      expect.anything(),
     );
     const saved = getSavedSnapshotFromFirstSave(saveManySpy, keyringAccount.id);
     const sep41Row = saved.balances.find((b) => b.assetId === sep41Id);
