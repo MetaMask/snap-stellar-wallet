@@ -64,7 +64,7 @@ export class SignMessageHandler extends BaseSep43KeyringHandler<
       throw new UserRejectedRequestError() as unknown as Error;
     }
 
-    const signedMessage = await wallet.signMessage(message);
+    const signedMessage = wallet.signMessage(message);
 
     return {
       signedMessage,

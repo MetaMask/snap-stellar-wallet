@@ -80,6 +80,18 @@ describe('Cronjob API structs', () => {
       });
     });
 
+    it('accepts synchronize accounts requests without params for declarative cron', () => {
+      const value = {
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.SynchronizeAccounts,
+      };
+      assert(value, SyncAccountJsonRpcRequestStruct);
+      expect(value).toStrictEqual({
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.SynchronizeAccounts,
+      });
+    });
+
     it('rejects wrong method for synchronize accounts request', () => {
       expect(() =>
         assert(

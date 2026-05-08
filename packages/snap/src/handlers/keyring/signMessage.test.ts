@@ -90,7 +90,7 @@ describe('SignMessageHandler', () => {
 
     const result = await handler.handle(buildRequest(mockAccount.id));
 
-    const expected = await wallet.signMessage(btoa('hello stellar'));
+    const expected = wallet.signMessage(btoa('hello stellar'));
     expect(result).toStrictEqual({
       signedMessage: expected,
       signerAddress: wallet.address,
@@ -175,7 +175,7 @@ describe('SignMessageHandler', () => {
       buildRequest(mockAccount.id, { message: utf8Message }),
     );
 
-    const expected = await wallet.signMessage(utf8Message);
+    const expected = wallet.signMessage(utf8Message);
     expect(result).toStrictEqual({
       signedMessage: expected,
       signerAddress: wallet.address,
@@ -195,7 +195,7 @@ describe('SignMessageHandler', () => {
       buildRequest(mockAccount.id, { opts: { address: otherAddress } }),
     );
 
-    const expected = await wallet.signMessage(btoa('hello stellar'));
+    const expected = wallet.signMessage(btoa('hello stellar'));
     expect(result).toStrictEqual({
       signedMessage: expected,
       signerAddress: wallet.address,

@@ -17,6 +17,7 @@ import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
   MultichainMethod,
+  SignAuthEntryHandler,
   SignMessageHandler,
   SignTransactionHandler,
 } from './handlers/keyring';
@@ -25,7 +26,7 @@ import {
   AssetMetadataRepository,
   AssetMetadataService,
 } from './services/asset-metadata';
-import { InMemoryCache, StateCache } from './services/cache';
+import { InMemoryCache } from './services/cache';
 import { NetworkService } from './services/network';
 import type { OnChainAccountState } from './services/on-chain-account';
 import {
@@ -93,7 +94,7 @@ const transactionService = new TransactionService({
   transactionRepository,
   networkService,
   transactionBuilder,
-  cache: new StateCache(state, logger, '__cache__transaction'),
+  cache: new InMemoryCache(noOpLogger),
 });
 
 const priceService = new PriceService({
@@ -123,10 +124,18 @@ const signMessageHandler = new SignMessageHandler({
   confirmationUIController,
 });
 
+const signAuthEntryHandler = new SignAuthEntryHandler({
+  logger,
+  accountService,
+  walletService,
+  confirmationUIController,
+});
+
 const keyringMethodHandlers: Record<MultichainMethod, IKeyringRequestHandler> =
   {
     [MultichainMethod.SignTransaction]: signTransactionHandler,
     [MultichainMethod.SignMessage]: signMessageHandler,
+    [MultichainMethod.SignAuthEntry]: signAuthEntryHandler,
   };
 
 const keyringHandler = new KeyringHandler({
@@ -214,5 +223,6 @@ export {
   userInputHandler,
   signTransactionHandler,
   signMessageHandler,
+  signAuthEntryHandler,
   confirmationUIController,
 };
