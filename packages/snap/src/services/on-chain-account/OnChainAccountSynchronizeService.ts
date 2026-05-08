@@ -394,8 +394,8 @@ export class OnChainAccountSynchronizeService {
         continue;
       }
 
-      // Set the balance for the SEP-41 asset even the balance is zero or failed to fetch.
-      // it allows us to persist all SEP-41 assets in the state.
+      // Persist the SEP-41 asset when a balance value was fetched, including a zero balance.
+      // Missing balances from fetch errors are handled above as unresolved for merge/backfill.
       onChainAccount.setSep41Asset(assetId, {
         balance,
         symbol,
@@ -532,8 +532,14 @@ export class OnChainAccountSynchronizeService {
       if (isCurrentVisible && !isLatestVisible) {
         addedAssets.push(assetId);
       }
+
       if (isLatestVisible && !isCurrentVisible) {
-        removedAssets.push(assetId);
+        // TBC: test to evaluate if we dont remove the asset will be best behaviour from client perspective
+        // as for now, we remove the asset if it cant found from the latest snapshot regardless it is trustline or SEP-41
+        // which means,
+        // if a trustline asset is removed, the client will remove the token from the home page (shall we remove?)
+        // For SEP-41, it is always in state, the client will not remove the token from the home page (same as non EVM)
+        // removedAssets.push(assetId);
       }
     }
 
