@@ -534,12 +534,11 @@ export class OnChainAccountSynchronizeService {
       }
 
       if (isLatestVisible && !isCurrentVisible) {
-        // TBC: test to evaluate if we dont remove the asset will be best behaviour from client perspective
-        // as for now, we remove the asset if it cant found from the latest snapshot regardless it is trustline or SEP-41
-        // which means,
-        // if a trustline asset is removed, the client will remove the token from the home page (shall we remove?)
-        // For SEP-41, it is always in state, the client will not remove the token from the home page (same as non EVM)
-        // removedAssets.push(assetId);
+        // Match Tron behavior for persisted token rows:
+        // only SEP-41 assets emit "removed" when they become invisible (zero balance).
+        if (isSep41Id(assetId)) {
+          removedAssets.push(assetId);
+        }
       }
     }
 
