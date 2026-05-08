@@ -16,6 +16,7 @@ import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import { MultichainMethod } from '../../handlers/keyring/api';
 import type { ILogger } from '../../utils';
 import {
+  batchesAll,
   createPrefixedLogger,
   getDefaultEntropySource,
   getLowestIndex,
@@ -216,7 +217,7 @@ export class AccountService {
     const entropySource =
       options.entropySource ?? (await getDefaultEntropySource());
 
-    // 1. Build the context {existingAccountsByIndex, indicesToDerive} for the batch create
+    // 1. Index existing accounts in range by derivation index
     const existingAccountsByIndex = new Map<number, StellarKeyringAccount>();
     for (const account of accounts) {
       if (
@@ -228,71 +229,44 @@ export class AccountService {
       }
     }
 
-    // 2. Derive the missing addresses, which is the most heavy operation.
-    const indicesToDerive: number[] = [];
-    for (let index = fromIndex; index <= toIndex; index++) {
-      if (!existingAccountsByIndex.has(index)) {
-        indicesToDerive.push(index);
-      }
-    }
-    const derivedAddresses = await this.#deriveAddressesByIndices({
-      entropySource,
-      indices: indicesToDerive,
-    });
+    // 2. Wallet resolver (single SLIP10 root — cheap repeated derivation per index)
+    const walletResolver =
+      await this.#walletService.getWalletResolver(entropySource);
 
-    // 3. Build the map {index -> derived address}
-    const derivedAddressesByIndex = new Map<number, string>();
-    for (const [position, index] of indicesToDerive.entries()) {
-      const address = derivedAddresses[position];
-      if (address === undefined) {
-        throw new Error(`Address not found for index ${index}`);
-      }
-      derivedAddressesByIndex.set(index, address);
-    }
+    // 3. Fill each index in range in derivation order; batchesAll preserves item order in its result.
+    const rangeLength = Math.max(0, toIndex - fromIndex + 1);
+    const rangeIndices = Array.from(
+      { length: rangeLength },
+      (_ignored, offset) => fromIndex + offset,
+    );
+    const BATCH_DERIVATION_SIZE = 15;
 
-    // 4. Create the accounts
-    const createdAccounts: StellarKeyringAccount[] = [];
-    const returnAccounts: StellarKeyringAccount[] = [];
-    for (let index = fromIndex; index <= toIndex; index++) {
-      let account = existingAccountsByIndex.get(index);
-      if (account === undefined) {
-        const address = derivedAddressesByIndex.get(index);
-        if (address === undefined) {
-          throw new Error(`Address not found for index ${index}`);
+    const returnAccounts = await batchesAll(
+      rangeIndices,
+      BATCH_DERIVATION_SIZE,
+      async (index) => {
+        let account = existingAccountsByIndex.get(index);
+        if (account === undefined) {
+          const wallet = await walletResolver(index);
+          account = this.#toStellarKeyringAccount({
+            entropySource,
+            derivationPath: getDerivationPath(index),
+            index,
+            address: wallet.address,
+          });
         }
+        return account;
+      },
+    );
 
-        account = this.#toStellarKeyringAccount({
-          entropySource,
-          derivationPath: getDerivationPath(index),
-          index,
-          address,
-        });
-        createdAccounts.push(account);
-      }
+    const createdAccounts = returnAccounts.filter(
+      (account) => !existingAccountsByIndex.has(account.index),
+    );
 
-      returnAccounts.push(account);
-    }
-
-    // 5. Save all the created accounts to the repository
+    // 4. Save all new accounts
     await this.#accountsRepository.saveMany(createdAccounts);
 
     return returnAccounts;
-  }
-
-  async #deriveAddressesByIndices({
-    entropySource,
-    indices,
-  }: {
-    entropySource: EntropySourceId;
-    indices: number[];
-  }): Promise<string[]> {
-    if (indices.length === 0) {
-      return [];
-    }
-    return await this.#walletService.deriveAddressesByIndices({
-      indices,
-      entropySource,
-    });
   }
 
   /**

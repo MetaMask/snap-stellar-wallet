@@ -57,8 +57,8 @@ describe('WalletService', () => {
     });
   });
 
-  describe('deriveAddressesByIndices', () => {
-    it('returns addresses in the same order as indices', async () => {
+  describe('getWalletResolver', () => {
+    it('returns a resolver whose wallets match derivation order for successive indices', async () => {
       const indices = [2, 5, 7];
       const derivedPrivateKeys = [
         '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -85,30 +85,39 @@ describe('WalletService', () => {
           }),
       } as unknown as SLIP10Node);
 
-      const result = await walletService.deriveAddressesByIndices({
-        indices,
-        entropySource: 'entropy-source-1',
-      });
+      const resolver =
+        await walletService.getWalletResolver('entropy-source-1');
+
+      const addresses = [];
+      for (const index of indices) {
+        const wallet = await resolver(index);
+        addresses.push(wallet.address);
+      }
 
       const expected = derivedPrivateKeys.map((privateKey) =>
         Keypair.fromRawEd25519Seed(
           bufferToUint8Array(hexToBytes(privateKey)),
         ).publicKey(),
       );
-      expect(result).toStrictEqual(expected);
+      expect(addresses).toStrictEqual(expected);
       expect(fromJSONSpy).toHaveBeenCalledTimes(1);
     });
 
-    it('returns an empty array for empty indices input', async () => {
-      const fromJSONSpy = jest.spyOn(SLIP10Node, 'fromJSON');
+    it('loads the SLIP10 coin-type node once per resolver', async () => {
+      const fromJSONSpy = jest.spyOn(SLIP10Node, 'fromJSON').mockResolvedValue({
+        derive: jest.fn().mockResolvedValue({
+          privateKey:
+            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          publicKey:
+            '0x2222222222222222222222222222222222222222222222222222222222222222',
+        }),
+      } as unknown as SLIP10Node);
 
-      const result = await walletService.deriveAddressesByIndices({
-        indices: [],
-        entropySource: 'entropy-source-1',
-      });
+      const resolver =
+        await walletService.getWalletResolver('entropy-source-1');
+      await resolver(0);
 
-      expect(result).toStrictEqual([]);
-      expect(fromJSONSpy).not.toHaveBeenCalled();
+      expect(fromJSONSpy).toHaveBeenCalledTimes(1);
     });
   });
 
