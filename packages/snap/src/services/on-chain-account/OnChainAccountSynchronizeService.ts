@@ -4,6 +4,7 @@ import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { Mutex } from 'async-mutex';
 import { BigNumber } from 'bignumber.js';
 
+import type { SpendableBalance } from './api';
 import { OnChainAccount } from './OnChainAccount';
 import type { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
@@ -132,13 +133,11 @@ export class OnChainAccountSynchronizeService {
       let sep41BalanceFetchResult: Sep41BalanceFetchResult | null = null;
       try {
         const sep41Assets = await this.#fetchSep41AssetOrSyncOnce(scope);
-        sep41BalanceFetchResult = await this.#synchronizeSep41AssetBalances(
-          {
-            stellarAccountIds,
-            scope,
-            sep41Assets,
-          }
-        );
+        sep41BalanceFetchResult = await this.#synchronizeSep41AssetBalances({
+          stellarAccountIds,
+          scope,
+          sep41Assets,
+        });
       } catch (error: unknown) {
         this.#logger.logErrorWithDetails(
           'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 token rows where needed',
@@ -289,21 +288,21 @@ export class OnChainAccountSynchronizeService {
   /**
    * Loads SEP-41 token balances from the network (no per-account mutation here).
    *
-   * @param stellarAccountIds - Stellar account ids to query in one batch call.
-   * @param scope - Network to query.
+   * @param params - Parameters for the SEP-41 balance fetch.
+   * @param params.stellarAccountIds - Stellar account ids to query in one batch call.
+   * @param params.scope - Network to query.
+   * @param params.sep41Assets - SEP-41 assets to query in one batch call.
    * @returns Shared SEP-41 inputs consumed in the main synchronize loop.
    */
-  async #synchronizeSep41AssetBalances(
-    {
-      stellarAccountIds,
-      scope,
-      sep41Assets,
-    }: {
-      stellarAccountIds: string[];
-      scope: KnownCaip2ChainId;
-      sep41Assets: StellarAssetMetadata[];
-    }
-  ): Promise<Sep41BalanceFetchResult> {
+  async #synchronizeSep41AssetBalances({
+    stellarAccountIds,
+    scope,
+    sep41Assets,
+  }: {
+    stellarAccountIds: string[];
+    scope: KnownCaip2ChainId;
+    sep41Assets: StellarAssetMetadata[];
+  }): Promise<Sep41BalanceFetchResult> {
     const assetIds: KnownCaip19Sep41AssetId[] = [];
     const assetMetadataByAssetId = sep41Assets.reduce<
       Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>
@@ -329,7 +328,9 @@ export class OnChainAccountSynchronizeService {
     };
   }
 
-  async #fetchSep41AssetOrSyncOnce(scope: KnownCaip2ChainId) {
+  async #fetchSep41AssetOrSyncOnce(
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarAssetMetadata[]> {
     // Get all SEP-41 assets for the given scope.
     const allAssets = await this.#assetMetadataService.getAllByScope(scope);
 
@@ -344,7 +345,7 @@ export class OnChainAccountSynchronizeService {
       await this.#assetMetadataService.getPersistedSep41AssetsMetadata(scope);
 
     this.#logger.debug('SEP-41 assets found in the state', {
-        noOfAssets: sep41Assets.length,
+      noOfAssets: sep41Assets.length,
     });
 
     return sep41Assets;
@@ -356,14 +357,6 @@ export class OnChainAccountSynchronizeService {
    * Returning `undefined` means the whole SEP-41 fetch step failed; merge will copy any missing
    * persisted SEP-41 rows. Returning a set means the fetch step succeeded and merge should only
    * restore rows for token ids still unresolved here.
-   *
-   * Trade-off note:
-   * - We persist fetched zero balances for SEP-41 so later sync events can replay `0` to clients.
-   * - We do NOT coerce unresolved (`null`/`undefined`) reads to `0`, because unresolved means
-   *   "unknown", not "zero". Coercing would make state look complete but can overwrite a real
-   *   non-zero balance with a false zero.
-   * - As a result, a SEP-41 token with unresolved balance and no prior snapshot row may be absent
-   *   from the persisted snapshot for that run.
    *
    * @param onChainAccount - In-memory account after classic Horizon load; receives SEP-41 rows including zero balances.
    * @param sep41BalanceFetchResult - Batch balance/symbol data from the SEP-41 step, or `null` if that step failed.
@@ -383,14 +376,15 @@ export class OnChainAccountSynchronizeService {
       {};
     for (const assetId of sep41BalanceFetchResult.assetIds) {
       const balance = sep41AssetBalances[assetId];
-      const assetMetadata = sep41BalanceFetchResult.assetMetadataByAssetId[assetId];
+      const assetMetadata =
+        sep41BalanceFetchResult.assetMetadataByAssetId[assetId];
 
       if (!assetMetadata) {
         continue;
       }
 
-      const decimals = assetMetadata.units[0].decimals;
-      const symbol = assetMetadata.symbol;
+      const { decimals } = assetMetadata.units[0];
+      const { symbol } = assetMetadata;
 
       // No balance value for this SEP-41 token,
       // it means some error occurred during the balance fetch (but not balance is zero).
@@ -399,7 +393,7 @@ export class OnChainAccountSynchronizeService {
         unresolvedSep41AssetIds.add(assetId);
         continue;
       }
-     
+
       // Set the balance for the SEP-41 asset even the balance is zero or failed to fetch.
       // it allows us to persist all SEP-41 assets in the state.
       onChainAccount.setSep41Asset(assetId, {
@@ -442,18 +436,17 @@ export class OnChainAccountSynchronizeService {
       return current;
     }
 
-    // try the best effort to backfill the SEP-41 assets from the last saved snapshot.
+    const shouldBackfillAll = unresolvedSep41AssetIds === undefined;
+
+    // Try best effort backfill for SEP-41 assets from the last saved snapshot.
     for (const assetId of persisted.assetIds) {
       if (!isSep41Id(assetId) || current.hasAsset(assetId)) {
         continue;
       }
 
-      // Whole SEP-41 step failed -> backfill all missing persisted SEP-41 rows from the previous snapshot.
+      // Whole SEP-41 step failed -> backfill all missing rows.
       // Partial failure -> backfill only unresolved ids.
-      if (
-        unresolvedSep41AssetIds !== undefined &&
-        !unresolvedSep41AssetIds.has(assetId)
-      ) {
+      if (!shouldBackfillAll && !unresolvedSep41AssetIds.has(assetId)) {
         continue;
       }
 
@@ -524,31 +517,17 @@ export class OnChainAccountSynchronizeService {
       // - Sync 4 (success): we still emit full balances for current + latest snapshot,
       //   so payload includes XLM=9, USDC=30, SOLBTC=0.
       //   (EURC stays removed because trustline rows are not persisted once removed.)
-      balanceChanges[assetId as string] = {
-        // When an asset was removed this sync, `currentRow` is missing.
-        // In that case, use the last known symbol from the persisted snapshot.
-        unit: currentRow?.symbol ?? latestStateRow?.symbol ?? '',
-        amount: toDisplayBalance(
-          currentRow?.balance ?? new BigNumber(0),
-          currentRow?.decimals ?? latestStateRow?.decimals
-        ),
-      };
+      balanceChanges[assetId as string] = this.#buildBalancePayloadRow(
+        currentRow,
+        latestStateRow,
+      );
 
       if (assetId === nativeAssetId) {
         continue;
       }
 
-      // if the asset present on the last saved snapshot on-chain account from state, 
-      // and it is not sep41 or it is sep41 and balance is not zero then it is visible.
-      const isLatestVisible =
-        latestStateRow !== undefined &&
-        (!isSep41Id(assetId) || !latestStateRow.balance.isZero());
-
-      // if the asset present on the current on-chain account, 
-      // and it is not sep41 or it is sep41 and balance is not zero then it is visible.
-      const isCurrentVisible =
-        currentRow !== undefined &&
-        (!isSep41Id(assetId) || !currentRow.balance.isZero());
+      const isLatestVisible = this.#isAssetVisible(assetId, latestStateRow);
+      const isCurrentVisible = this.#isAssetVisible(assetId, currentRow);
       // Add/remove is based on visibility transition between snapshots.
       if (isCurrentVisible && !isLatestVisible) {
         addedAssets.push(assetId);
@@ -568,6 +547,31 @@ export class OnChainAccountSynchronizeService {
             }
           : null,
     };
+  }
+
+  #buildBalancePayloadRow(
+    currentRow: SpendableBalance | undefined,
+    latestStateRow: SpendableBalance | undefined,
+  ): { unit: string; amount: string } {
+    return {
+      // When an asset was removed this sync, `currentRow` is missing.
+      // In that case, use the last known symbol from the persisted snapshot.
+      unit: currentRow?.symbol ?? latestStateRow?.symbol ?? '',
+      amount: toDisplayBalance(
+        currentRow?.balance ?? new BigNumber(0),
+        currentRow?.decimals ?? latestStateRow?.decimals,
+      ),
+    };
+  }
+
+  #isAssetVisible(
+    assetId: KnownCaip19AssetIdOrSlip44Id,
+    row: SpendableBalance | undefined,
+  ): boolean {
+    if (!row) {
+      return false;
+    }
+    return !isSep41Id(assetId) || !row.balance.isZero();
   }
 
   async #emitKeyringEvents(
