@@ -158,7 +158,8 @@ export class TransactionService {
    *
    * @param params - Status update parameters.
    * @param params.txId - Transaction hash (`Transaction.id`).
-   * @param params.accountIds - Accounts to search if the tx is not found by hash alone (track job).
+   * @param params.accountIds - When non-empty, only these keyring account buckets are searched
+   * (typical track job). When empty, all persisted account buckets are searched by hash.
    * @param params.status - {@link TransactionStatus.Confirmed} or {@link TransactionStatus.Failed}.
    */
   async updateKeyringTransactionStatus(params: {
@@ -169,11 +170,12 @@ export class TransactionService {
     const { txId, accountIds, status } = params;
 
     const existing =
-      (await this.#transactionRepository.findByTransactionId(txId)) ??
-      (await this.#transactionRepository.findByIdAmongAccounts(
-        txId,
-        accountIds,
-      ));
+      accountIds.length > 0
+        ? await this.#transactionRepository.findByIdAmongAccounts(
+            txId,
+            accountIds,
+          )
+        : await this.#transactionRepository.findByTransactionId(txId);
 
     if (!existing) {
       this.#logger.debug(

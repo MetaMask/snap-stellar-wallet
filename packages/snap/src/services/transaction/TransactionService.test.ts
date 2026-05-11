@@ -162,7 +162,6 @@ describe('TransactionService', () => {
         status: TransactionStatus.Unconfirmed,
       })[0] as KeyringTransaction;
 
-      findByTransactionIdSpy.mockResolvedValue(undefined);
       findByIdAmongAccountsSpy.mockResolvedValue(existing);
 
       jest.mocked(emitSnapKeyringEvent).mockClear();
@@ -173,6 +172,7 @@ describe('TransactionService', () => {
         status: TransactionStatus.Confirmed,
       });
 
+      expect(findByTransactionIdSpy).not.toHaveBeenCalled();
       expect(jest.mocked(emitSnapKeyringEvent)).toHaveBeenCalledTimes(1);
       expect(jest.mocked(emitSnapKeyringEvent)).toHaveBeenCalledWith(
         getSnapProvider(),
@@ -230,7 +230,6 @@ describe('TransactionService', () => {
     it('does nothing when no transaction matches txId', async () => {
       const { transactionService } = createMockTransactionService();
 
-      findByTransactionIdSpy.mockResolvedValue(undefined);
       findByIdAmongAccountsSpy.mockResolvedValue(undefined);
 
       jest.mocked(emitSnapKeyringEvent).mockClear();
@@ -241,6 +240,7 @@ describe('TransactionService', () => {
         status: TransactionStatus.Confirmed,
       });
 
+      expect(findByTransactionIdSpy).not.toHaveBeenCalled();
       expect(jest.mocked(emitSnapKeyringEvent)).not.toHaveBeenCalled();
     });
 
@@ -269,7 +269,6 @@ describe('TransactionService', () => {
         ],
       })[0] as KeyringTransaction;
 
-      findByTransactionIdSpy.mockResolvedValue(undefined);
       findByIdAmongAccountsSpy.mockResolvedValue(confirmed);
 
       jest.mocked(emitSnapKeyringEvent).mockClear();
@@ -280,6 +279,7 @@ describe('TransactionService', () => {
         status: TransactionStatus.Confirmed,
       });
 
+      expect(findByTransactionIdSpy).not.toHaveBeenCalled();
       expect(jest.mocked(emitSnapKeyringEvent)).not.toHaveBeenCalled();
     });
   });
