@@ -127,16 +127,6 @@ export class NetworkService {
   }
 
   /**
-   * Polls Soroban RPC until the transaction reaches a terminal status, then returns the hash on
-   * success or throws.
-   *
-   * @param transactionHash - Hash returned from `sendTransaction`.
-   * @param scope - The CAIP-2 chain ID.
-   * @returns The transaction hash when {@link rpc.Api.GetTransactionStatus.SUCCESS}.
-   * @throws {TransactionPollException} When the terminal status is not SUCCESS, or polling fails
-   * (uses {@link AppConfig.transaction.pollingAttempts} as the attempt budget).
-   */
-  /**
    * Whether a transaction has been ingested by Horizon and its ledger outcome.
    *
    * @param transactionHash - Transaction hash from submission (hex).
@@ -166,6 +156,46 @@ export class NetworkService {
     }
   }
 
+  /**
+   * Reads the classic source account (G-address) from an ingested Horizon transaction.
+   *
+   * @param transactionHash - Transaction hash from submission.
+   * @param scope - CAIP-2 chain id (Horizon endpoint).
+   * @returns Horizon `source_account`, or `null` when the transaction is not yet available (404).
+   */
+  async fetchHorizonTransactionSourceAccount(
+    transactionHash: string,
+    scope: KnownCaip2ChainId,
+  ): Promise<string | null> {
+    try {
+      const client = this.#getHorizonClient(scope);
+      const record = await client
+        .transactions()
+        .transaction(transactionHash)
+        .call();
+      return record.source_account;
+    } catch (error: unknown) {
+      if (error instanceof NotFoundError) {
+        return null;
+      }
+      this.#logger.logErrorWithDetails(
+        'Failed to load transaction source account from Horizon',
+        error,
+      );
+      throw ensureError(error);
+    }
+  }
+
+  /**
+   * Polls Soroban RPC until the transaction reaches a terminal status, then returns the hash on
+   * success or throws.
+   *
+   * @param transactionHash - Hash returned from `sendTransaction`.
+   * @param scope - The CAIP-2 chain ID.
+   * @returns The transaction hash when {@link rpc.Api.GetTransactionStatus.SUCCESS}.
+   * @throws {TransactionPollException} When the terminal status is not SUCCESS, or polling fails
+   * (uses {@link AppConfig.transaction.pollingAttempts} as the attempt budget).
+   */
   async pollTransaction(
     transactionHash: string,
     scope: KnownCaip2ChainId,

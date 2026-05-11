@@ -47,9 +47,14 @@ describe('TrackTransactionHandler', () => {
       .spyOn(AccountService.prototype, 'findByIds')
       .mockResolvedValue([account]);
 
-    const getHorizonTransactionInclusionStatus = jest.spyOn(
+    const pollTransaction = jest.spyOn(
       NetworkService.prototype,
       'pollTransaction',
+    );
+
+    const fetchHorizonTransactionSourceAccount = jest.spyOn(
+      NetworkService.prototype,
+      'fetchHorizonTransactionSourceAccount',
     );
 
     const synchronize = jest
@@ -83,11 +88,38 @@ describe('TrackTransactionHandler', () => {
       handler,
       account,
       findByIds,
-      pollTransaction: getHorizonTransactionInclusionStatus,
+      pollTransaction,
+      fetchHorizonTransactionSourceAccount,
       synchronize,
       updateKeyringTransactionStatus,
     };
   }
+
+  it('polls the transaction before loading keyring accounts by id', async () => {
+    const { handler, account, findByIds, pollTransaction } = setup();
+    const callOrder: string[] = [];
+    pollTransaction.mockImplementation(async () => {
+      callOrder.push('poll');
+      return txId;
+    });
+    findByIds.mockImplementation(async () => {
+      callOrder.push('findByIds');
+      return [account];
+    });
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+      },
+    });
+
+    expect(callOrder).toStrictEqual(['poll', 'findByIds']);
+  });
 
   it('settles keyring row as confirmed when RPC poll succeeds', async () => {
     const {
@@ -203,9 +235,18 @@ describe('TrackTransactionHandler', () => {
     expect(synchronize).toHaveBeenCalledTimes(1);
   });
 
-  it('returns early when no accounts match', async () => {
-    const { handler, findByIds, pollTransaction, synchronize } = setup();
+  it('polls when findByIds returns empty and skips sync if Horizon has no transaction yet', async () => {
+    const {
+      handler,
+      findByIds,
+      pollTransaction,
+      fetchHorizonTransactionSourceAccount,
+      synchronize,
+      updateKeyringTransactionStatus,
+    } = setup();
     findByIds.mockResolvedValue([]);
+    pollTransaction.mockResolvedValue(txId);
+    fetchHorizonTransactionSourceAccount.mockResolvedValue(null);
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -218,8 +259,60 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(pollTransaction).not.toHaveBeenCalled();
+    expect(pollTransaction).toHaveBeenCalledWith(txId, scope);
+    expect(fetchHorizonTransactionSourceAccount).toHaveBeenCalledWith(
+      txId,
+      scope,
+    );
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
+      txId,
+      accountIds: [accountId],
+      status: TransactionStatus.Confirmed,
+    });
     expect(synchronize).not.toHaveBeenCalled();
-    expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
+  });
+
+  it('resolves sync target from Horizon transaction source when findByIds returns empty', async () => {
+    const {
+      handler,
+      account,
+      findByIds,
+      pollTransaction,
+      fetchHorizonTransactionSourceAccount,
+      synchronize,
+      updateKeyringTransactionStatus,
+    } = setup();
+    const source = account.address;
+    findByIds.mockResolvedValue([]);
+    pollTransaction.mockResolvedValue(txId);
+    fetchHorizonTransactionSourceAccount.mockResolvedValue(source);
+    const resolveAccount = jest
+      .spyOn(AccountService.prototype, 'resolveAccount')
+      .mockResolvedValue({ account });
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+      },
+    });
+
+    expect(resolveAccount).toHaveBeenCalledWith({
+      accountAddress: source,
+      scope,
+    });
+    expect(synchronize).toHaveBeenCalledTimes(1);
+    expect(synchronize).toHaveBeenCalledWith([account], scope);
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
+      txId,
+      accountIds: [accountId],
+      status: TransactionStatus.Confirmed,
+    });
+
+    resolveAccount.mockRestore();
   });
 });
