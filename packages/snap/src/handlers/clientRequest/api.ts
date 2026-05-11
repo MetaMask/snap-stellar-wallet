@@ -21,7 +21,7 @@ import {
   KnownCaip2ChainIdStruct,
   KnownCaip19ClassicAssetStruct,
   UuidStruct,
-  NonZeroValidSetllarAmountStruct,
+  NonZeroValidStellarAmountStruct,
   KnownCaip19Sep41AssetStruct,
   KnownCaip19Slip44IdStruct,
   StellarAddressStruct,
@@ -87,7 +87,7 @@ const ChangeTrustAddStruct = assign(
   ChangeTrustBaseParamsStruct,
   object({
     action: literal(ChangeTrustOptAction.Add),
-    limit: optional(NonZeroValidSetllarAmountStruct),
+    limit: optional(NonZeroValidStellarAmountStruct),
   }),
 );
 

@@ -15,6 +15,7 @@ import { WithClientRequestActiveAccountResolve } from './base';
 import type { KnownCaip2ChainId } from '../../api';
 import type { AccountService } from '../../services/account';
 import type { AssetMetadataService } from '../../services/asset-metadata';
+import { AccountNotActivatedException } from '../../services/network/exceptions';
 import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction';
 import {
@@ -128,7 +129,10 @@ export class OnAmountInputHandler extends WithClientRequestActiveAccountResolve<
           ],
         };
       }
-      if (error instanceof TransactionValidationException) {
+      if (
+        error instanceof TransactionValidationException ||
+        error instanceof AccountNotActivatedException
+      ) {
         return {
           valid: false,
           errors: [{ code: MultiChainSendErrorCodes.Invalid }],

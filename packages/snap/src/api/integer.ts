@@ -58,7 +58,7 @@ export const ValidStellarAmountStruct = refine(
  * Non-empty string that parses to a finite, non-negative {@link BigNumber} and is not zero.
  * The amount is converted to the smallest unit of the asset and validated against the maximum int64.
  */
-export const NonZeroValidSetllarAmountStruct = refine(
+export const NonZeroValidStellarAmountStruct = refine(
   ValidStellarAmountStruct,
   'non_zero_valid_amount',
   (value: string) => {
@@ -70,7 +70,7 @@ export const NonZeroValidSetllarAmountStruct = refine(
   },
 );
 
-export type NonZeroValidAmount = Infer<typeof NonZeroValidSetllarAmountStruct>;
+export type NonZeroValidAmount = Infer<typeof NonZeroValidStellarAmountStruct>;
 
 export type ValidAmount = Infer<typeof ValidAmountStruct>;
 

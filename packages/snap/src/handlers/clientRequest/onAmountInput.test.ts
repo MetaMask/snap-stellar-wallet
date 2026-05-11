@@ -196,6 +196,18 @@ describe('OnAmountInputHandler', () => {
     });
   });
 
+  it('returns invalid when createValidatedSendTransaction throws AccountNotActivatedException', async () => {
+    const { handler, createValidatedSendTransaction, wallet } = setup();
+    createValidatedSendTransaction.mockRejectedValueOnce(
+      new AccountNotActivatedException(wallet.address, scope),
+    );
+
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+  });
+
   it('returns insufficient balance to cover fee when the account is not activated on chain', async () => {
     const { handler, resolveOnChainAccountSpy, wallet } = setup();
     resolveOnChainAccountSpy.mockRejectedValueOnce(

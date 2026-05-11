@@ -253,9 +253,13 @@ export class TransactionService {
 
   /**
    * Creates a validated classic asset transfer transaction.
-   * Classic asset is using the native asset of the chain to transfer assets,
-   * if the destination is not activated, a create account operation will be added to the transaction.
-   * if the destination is activated, a payment operation will be added to the transaction.
+   * Classic assets use the chain's native transfer mechanism.
+   * If the destination is not activated, a `createAccount` operation can only
+   * be added for slip44/native asset transfers. For non-slip44 classic assets,
+   * the destination account must already be activated or an
+   * `AccountNotActivatedException` will be thrown.
+   * If the destination is activated, a payment operation will be added to the
+   * transaction.
    *
    * @param params - The parameters for the transaction.
    * @param params.onChainAccount - The on-chain account.
@@ -290,7 +294,7 @@ export class TransactionService {
       throw new AccountNotActivatedException(destination, scope);
     }
 
-    const baseFee = await this.#networkService.getBaseFee(scope);
+    const baseFee = await this.getBaseFee(scope);
 
     const transaction = this.#transactionBuilder.transfer({
       onChainAccount,

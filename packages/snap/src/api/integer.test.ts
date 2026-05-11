@@ -1,7 +1,7 @@
 import { assert, StructError } from '@metamask/superstruct';
 
 import {
-  NonZeroValidSetllarAmountStruct,
+  NonZeroValidStellarAmountStruct,
   ValidStellarAmountStruct,
   ValidAmountStruct,
 } from './integer';
@@ -52,18 +52,18 @@ describe('ValidStellarAmountStruct', () => {
   });
 });
 
-describe('NonZeroValidSetllarAmountStruct', () => {
+describe('NonZeroValidStellarAmountStruct', () => {
   it('accepts a valid non-zero amount', () => {
     expect(() =>
-      assert('0.0000001', NonZeroValidSetllarAmountStruct),
+      assert('0.0000001', NonZeroValidStellarAmountStruct),
     ).not.toThrow();
   });
 
   it('rejects zero', () => {
-    expect(() => assert('0', NonZeroValidSetllarAmountStruct)).toThrow(
+    expect(() => assert('0', NonZeroValidStellarAmountStruct)).toThrow(
       StructError,
     );
-    expect(() => assert('0.0000000', NonZeroValidSetllarAmountStruct)).toThrow(
+    expect(() => assert('0.0000000', NonZeroValidStellarAmountStruct)).toThrow(
       StructError,
     );
   });
