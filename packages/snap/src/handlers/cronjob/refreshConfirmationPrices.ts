@@ -23,6 +23,7 @@ import type { ConfirmationUXController } from '../../ui/confirmation/controller'
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import {
+  Duration,
   getInterfaceContextIfExists,
   scheduleBackgroundEvent,
 } from '../../utils/snap';
@@ -30,12 +31,9 @@ import {
 export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<RefreshConfirmationPricesJsonRpcRequest> {
   readonly #priceService: PriceService;
 
-  // Refresh interval
-  static readonly duration = 'PT20S';
-
   static async scheduleBackgroundEvent(
     params: RefreshConfirmationPricesParams,
-    duration: string = RefreshConfirmationPricesHandler.duration,
+    duration: Duration = Duration.TwentySeconds,
   ): Promise<void> {
     await scheduleBackgroundEvent({
       method: BackgroundEventMethod.RefreshConfirmationPrices,
@@ -72,7 +70,7 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
    *
    * @param request - The refresh confirmation prices JSON-RPC request.
    */
-  async handleCronJobRequest(
+  protected async handleCronJobRequest(
     request: RefreshConfirmationPricesJsonRpcRequest,
   ): Promise<void> {
     this.logger.info('Refreshing confirmation prices...');
@@ -134,11 +132,14 @@ export class RefreshConfirmationPricesHandler extends CronjobBaseHandler<Refresh
       });
 
       // Schedule the next background event
-      await RefreshConfirmationPricesHandler.scheduleBackgroundEvent({
-        scope,
-        interfaceId,
-        interfaceKey,
-      });
+      await RefreshConfirmationPricesHandler.scheduleBackgroundEvent(
+        {
+          scope,
+          interfaceId,
+          interfaceKey,
+        },
+        Duration.TwentySeconds,
+      );
     } catch (error) {
       this.logger.error('Error refreshing confirmation prices:', error);
 

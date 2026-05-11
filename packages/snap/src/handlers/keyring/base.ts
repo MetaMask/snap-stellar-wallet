@@ -23,8 +23,8 @@ export type IKeyringRequestHandler = {
 };
 
 /**
- * Base class shared by the SEP-43 SignMessage and SignTransaction keyring
- * handlers.
+ * Base class shared by the SEP-43 SignMessage, SignTransaction, and
+ * SignAuthEntry keyring handlers.
  *
  * Extends {@link BaseHandler} for codebase consistency (inherits
  * `logger` / `requestStruct` / `responseStruct`) but overrides `handle()`:

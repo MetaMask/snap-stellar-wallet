@@ -7,8 +7,10 @@ import {
   literal,
   nonempty,
   object,
+  optional,
   string,
   type,
+  union,
 } from '@metamask/superstruct';
 import type { Json, JsonRpcRequest } from '@metamask/utils';
 
@@ -26,11 +28,8 @@ export type ICronjobRequestHandler = {
   handle: (request: JsonRpcRequest) => Promise<Json>;
 };
 
-export enum CronjobMethod {
-  SynchronizeAssets = 'synchronizeAssets',
-}
-
 export enum BackgroundEventMethod {
+  SynchronizeAccounts = 'synchronizeAccounts',
   RefreshConfirmationPrices = 'refreshConfirmationPrices',
   TrackTransaction = 'trackTransaction',
 }
@@ -51,6 +50,10 @@ export const TrackTransactionParamsStruct = type({
   accountIds: nonempty(array(UuidStruct)),
 });
 
+export const SyncAccountParamsStruct = object({
+  accountIds: union([nonempty(array(UuidStruct)), literal('selected')]),
+});
+
 export const RefreshConfirmationPricesJsonRpcRequestStruct = assign(
   JsonRpcRequestStruct,
   object({
@@ -64,6 +67,16 @@ export const TrackTransactionJsonRpcRequestStruct = assign(
   object({
     method: literal(BackgroundEventMethod.TrackTransaction),
     params: TrackTransactionParamsStruct,
+  }),
+);
+
+export const SyncAccountJsonRpcRequestStruct = assign(
+  JsonRpcRequestStruct,
+  object({
+    method: literal(BackgroundEventMethod.SynchronizeAccounts),
+    // Omitted in declarative manifest cron jobs (matches Bitcoin wallet snap);
+    // runtime defaults to synchronizing selected accounts.
+    params: optional(SyncAccountParamsStruct),
   }),
 );
 
@@ -86,3 +99,9 @@ export type TrackTransactionJsonRpcRequest = Infer<
 >;
 
 export type TrackTransactionParams = Infer<typeof TrackTransactionParamsStruct>;
+
+export type SyncAccountJsonRpcRequest = Infer<
+  typeof SyncAccountJsonRpcRequestStruct
+>;
+
+export type SyncAccountParams = Infer<typeof SyncAccountParamsStruct>;

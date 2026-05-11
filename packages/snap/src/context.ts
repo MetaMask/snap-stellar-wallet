@@ -14,20 +14,21 @@ import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndS
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
+import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
   MultichainMethod,
+  SignAuthEntryHandler,
   SignMessageHandler,
   SignTransactionHandler,
 } from './handlers/keyring';
 import { AccountService, AccountsRepository } from './services/account';
-import type { AccountBalanceState } from './services/account-balance';
 import {
   AssetMetadataRepository,
   AssetMetadataService,
 } from './services/asset-metadata';
-import { InMemoryCache, StateCache } from './services/cache';
+import { InMemoryCache } from './services/cache';
 import { NetworkService } from './services/network';
 import type { OnChainAccountState } from './services/on-chain-account';
 import {
@@ -53,7 +54,6 @@ const state = new State({
     keyringAccounts: {},
     assets: {},
     transactions: {},
-    accountBalances: {} as AccountBalanceState['accountBalances'],
     onChainAccounts: {} as OnChainAccountState['onChainAccounts'],
   },
 });
@@ -96,7 +96,7 @@ const transactionService = new TransactionService({
   transactionRepository,
   networkService,
   transactionBuilder,
-  cache: new StateCache(state, logger, '__cache__transaction'),
+  cache: new InMemoryCache(noOpLogger),
 });
 
 const priceService = new PriceService({
@@ -126,10 +126,18 @@ const signMessageHandler = new SignMessageHandler({
   confirmationUIController,
 });
 
+const signAuthEntryHandler = new SignAuthEntryHandler({
+  logger,
+  accountService,
+  walletService,
+  confirmationUIController,
+});
+
 const keyringMethodHandlers: Record<MultichainMethod, IKeyringRequestHandler> =
   {
     [MultichainMethod.SignTransaction]: signTransactionHandler,
     [MultichainMethod.SignMessage]: signMessageHandler,
+    [MultichainMethod.SignAuthEntry]: signAuthEntryHandler,
   };
 
 const keyringHandler = new KeyringHandler({
@@ -158,6 +166,12 @@ const trackTransactionHandler = new TrackTransactionHandler({
   logger,
 });
 
+const syncAccountsHandler = new SyncAccountsHandler({
+  logger,
+  accountService,
+  onChainAccountService,
+});
+
 const cronjobMethodHandlers: Record<
   BackgroundEventMethod,
   ICronjobRequestHandler
@@ -165,6 +179,7 @@ const cronjobMethodHandlers: Record<
   [BackgroundEventMethod.RefreshConfirmationPrices]:
     refreshConfirmationPricesHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
+  [BackgroundEventMethod.SynchronizeAccounts]: syncAccountsHandler,
 };
 
 const cronjobHandler = new CronjobHandler({
@@ -228,5 +243,6 @@ export {
   userInputHandler,
   signTransactionHandler,
   signMessageHandler,
+  signAuthEntryHandler,
   confirmationUIController,
 };

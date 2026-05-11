@@ -1,9 +1,9 @@
 import type { JsonRpcRequest } from '@metamask/snaps-sdk';
-import { ensureError } from '@metamask/utils';
 
 import type { BackgroundEventMethod, ICronjobRequestHandler } from './api';
 import { BackgroundEventMethodStruct } from './api';
 import { CronjobMethodNotFoundError } from './exceptions';
+import { withCatchAndThrowSnapError } from '../../utils';
 import { getClientStatus } from '../../utils/snap';
 
 export class CronjobHandler {
@@ -18,23 +18,25 @@ export class CronjobHandler {
   }
 
   async handle(request: JsonRpcRequest): Promise<void> {
-    const { active, locked } = await getClientStatus();
+    await withCatchAndThrowSnapError(async () => {
+      const { active, locked } = await getClientStatus();
 
-    // if the client is not active or locked, we dont execute the cronjob
-    if (!active || locked) {
-      return;
-    }
+      // if the client is not active or locked, we dont execute the cronjob
+      if (!active || locked) {
+        return;
+      }
 
-    await this.#handleClientRequest(request);
+      await this.#handleRequest(request);
+    });
   }
 
-  async #handleClientRequest(request: JsonRpcRequest): Promise<void> {
+  async #handleRequest(request: JsonRpcRequest): Promise<void> {
     const { method } = request;
 
     const [validateError, validatedMethod] =
       BackgroundEventMethodStruct.validate(method);
     if (validateError !== undefined) {
-      throw ensureError(new CronjobMethodNotFoundError(method));
+      throw new CronjobMethodNotFoundError(method);
     }
 
     const handler = this.#handlers[validatedMethod];

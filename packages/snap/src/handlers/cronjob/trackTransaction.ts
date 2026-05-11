@@ -9,14 +9,12 @@ import {
 import { CronjobBaseHandler } from './base';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
-import { scheduleBackgroundEvent } from '../../utils/snap';
+import { Duration, scheduleBackgroundEvent } from '../../utils/snap';
 
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
-  static readonly duration = 'PT1S';
-
   static async scheduleBackgroundEvent(
     params: TrackTransactionParams,
-    duration: string = TrackTransactionHandler.duration,
+    duration: Duration = Duration.OneSecond,
   ): Promise<void> {
     await scheduleBackgroundEvent({
       method: BackgroundEventMethod.TrackTransaction,
@@ -36,7 +34,7 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     });
   }
 
-  async handleCronJobRequest(
+  protected async handleCronJobRequest(
     _request: TrackTransactionJsonRpcRequest,
   ): Promise<void> {
     // TODO: Implement transaction tracking.

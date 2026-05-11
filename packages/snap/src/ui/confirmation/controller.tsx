@@ -16,12 +16,17 @@ import type { ILogger, Locale } from '../../utils';
 import {
   createInterface,
   createPrefixedLogger,
+  Duration,
   getSlip44AssetId,
   scheduleBackgroundEvent,
   showDialog,
   updateInterfaceIfExists,
 } from '../../utils';
 import { STELLAR_IMAGE } from '../images/icon';
+import {
+  ConfirmSignAuthEntry,
+  type ConfirmSignAuthEntryProps,
+} from './views/ConfirmSignAuthEntry/ConfirmSignAuthEntry';
 import type { ConfirmSignChangeTrustOptInProps } from './views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn';
 import { ConfirmSignChangeTrustOptIn } from './views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn';
 import type { ConfirmSignChangeTrustOptOutProps } from './views/ConfirmSignChangeTrustOptOut/ConfirmSignChangeTrustOptOut';
@@ -192,7 +197,7 @@ export class ConfirmationUXController {
         // Trigger immediate price fetch (1 second), then continue every 20 seconds
         await scheduleBackgroundEvent({
           method: BackgroundEventMethod.RefreshConfirmationPrices,
-          duration: 'PT1S', // Start immediately
+          duration: Duration.OneSecond, // Start immediately
           params: {
             scope,
             interfaceId: id,
@@ -261,6 +266,12 @@ export class ConfirmationUXController {
         );
       case ConfirmationInterfaceKey.SignMessage:
         return <ConfirmSignMessage {...(context as ConfirmSignMessageProps)} />;
+      case ConfirmationInterfaceKey.SignAuthEntry:
+        return (
+          <ConfirmSignAuthEntry
+            {...(context as unknown as ConfirmSignAuthEntryProps)}
+          />
+        );
       default: {
         const exhaustive: never = interfaceKey;
         throw new Error(`Unsupported interface key: ${String(exhaustive)}`);
