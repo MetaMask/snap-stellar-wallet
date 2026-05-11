@@ -261,27 +261,26 @@ const Index = () => {
   };
 
   useEffect(() => {
-    if (!installedSnap) {
-      applyKeyringAccountList([]);
-      return () => {};
-    }
-
     let cancelled = false;
 
-    const loadAccounts = async () => {
-      const accounts = (await invokeKeyringRef.current({
-        method: KeyringRpcMethod.ListAccounts,
-      })) as KeyringAccount[] | null;
-      if (cancelled) {
-        return;
-      }
-      const list = Array.isArray(accounts) ? accounts : [];
-      applyKeyringAccountList(list);
-    };
+    if (installedSnap) {
+      const loadAccounts = async () => {
+        const accounts = (await invokeKeyringRef.current({
+          method: KeyringRpcMethod.ListAccounts,
+        })) as KeyringAccount[] | null;
+        if (cancelled) {
+          return;
+        }
+        const list = Array.isArray(accounts) ? accounts : [];
+        applyKeyringAccountList(list);
+      };
 
-    loadAccounts().catch(() => {
-      /* ignore list failures; user can retry with Refresh */
-    });
+      loadAccounts().catch(() => {
+        /* ignore list failures; user can retry with Refresh */
+      });
+    } else {
+      applyKeyringAccountList([]);
+    }
 
     return () => {
       cancelled = true;
