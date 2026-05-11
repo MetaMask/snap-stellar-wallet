@@ -140,13 +140,25 @@ export class TransactionService {
   }
 
   /**
+   * Loads a persisted keyring transaction by Stellar transaction hash from snap state.
+   *
+   * @param txId - Transaction hash (`Transaction.id`).
+   * @returns The stored keyring transaction, or `undefined` when none exists.
+   */
+  async findKeyringTransactionByTransactionId(
+    txId: string,
+  ): Promise<KeyringTransaction | undefined> {
+    return await this.#transactionRepository.findByTransactionId(txId);
+  }
+
+  /**
    * Updates a persisted keyring transaction to a terminal status and emits
    * {@link KeyringEvent.AccountTransactionsUpdated} so the extension Activity list can leave
    * the "pending" state after Horizon inclusion (or failure).
    *
    * @param params - Status update parameters.
    * @param params.txId - Transaction hash (`Transaction.id`).
-   * @param params.accountIds - Accounts that may hold the tx (from the track job).
+   * @param params.accountIds - Accounts to search if the tx is not found by hash alone (track job).
    * @param params.status - {@link TransactionStatus.Confirmed} or {@link TransactionStatus.Failed}.
    */
   async updateKeyringTransactionStatus(params: {
@@ -156,10 +168,12 @@ export class TransactionService {
   }): Promise<void> {
     const { txId, accountIds, status } = params;
 
-    const existing = await this.#transactionRepository.findByIdAmongAccounts(
-      txId,
-      accountIds,
-    );
+    const existing =
+      (await this.#transactionRepository.findByTransactionId(txId)) ??
+      (await this.#transactionRepository.findByIdAmongAccounts(
+        txId,
+        accountIds,
+      ));
 
     if (!existing) {
       this.#logger.debug(

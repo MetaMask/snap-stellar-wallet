@@ -1,4 +1,8 @@
-import { TransactionStatus } from '@metamask/keyring-api';
+import {
+  TransactionStatus,
+  TransactionType,
+  type Transaction as KeyringTransaction,
+} from '@metamask/keyring-api';
 
 import { BackgroundEventMethod } from './api';
 import { TrackTransactionHandler } from './trackTransaction';
@@ -47,14 +51,18 @@ describe('TrackTransactionHandler', () => {
       .spyOn(AccountService.prototype, 'findByIds')
       .mockResolvedValue([account]);
 
+    const findById = jest
+      .spyOn(AccountService.prototype, 'findById')
+      .mockResolvedValue(account);
+
     const pollTransaction = jest.spyOn(
       NetworkService.prototype,
       'pollTransaction',
     );
 
-    const fetchHorizonTransactionSourceAccount = jest.spyOn(
-      NetworkService.prototype,
-      'fetchHorizonTransactionSourceAccount',
+    const findKeyringTransactionByTransactionId = jest.spyOn(
+      TransactionService.prototype,
+      'findKeyringTransactionByTransactionId',
     );
 
     const synchronize = jest
@@ -66,6 +74,8 @@ describe('TrackTransactionHandler', () => {
       .mockResolvedValue(undefined);
 
     const { transactionService } = createMockTransactionService();
+
+    findKeyringTransactionByTransactionId.mockResolvedValue(undefined);
 
     const handler = new TrackTransactionHandler({
       logger,
@@ -88,16 +98,27 @@ describe('TrackTransactionHandler', () => {
       handler,
       account,
       findByIds,
+      findById,
       pollTransaction,
-      fetchHorizonTransactionSourceAccount,
+      findKeyringTransactionByTransactionId,
       synchronize,
       updateKeyringTransactionStatus,
     };
   }
 
-  it('polls the transaction before loading keyring accounts by id', async () => {
-    const { handler, account, findByIds, pollTransaction } = setup();
+  it('loads persisted keyring transaction from state before Soroban poll', async () => {
+    const {
+      handler,
+      account,
+      findByIds,
+      pollTransaction,
+      findKeyringTransactionByTransactionId,
+    } = setup();
     const callOrder: string[] = [];
+    findKeyringTransactionByTransactionId.mockImplementation(async () => {
+      callOrder.push('findPersisted');
+      return undefined;
+    });
     pollTransaction.mockImplementation(async () => {
       callOrder.push('poll');
       return txId;
@@ -118,7 +139,7 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(callOrder).toStrictEqual(['poll', 'findByIds']);
+    expect(callOrder).toStrictEqual(['findPersisted', 'poll', 'findByIds']);
   });
 
   it('settles keyring row as confirmed when RPC poll succeeds', async () => {
@@ -235,18 +256,101 @@ describe('TrackTransactionHandler', () => {
     expect(synchronize).toHaveBeenCalledTimes(1);
   });
 
-  it('polls when findByIds returns empty and skips sync if Horizon has no transaction yet', async () => {
+  it('syncs from persisted keyring transaction account without findByIds', async () => {
     const {
       handler,
+      account,
       findByIds,
+      findById,
       pollTransaction,
-      fetchHorizonTransactionSourceAccount,
+      findKeyringTransactionByTransactionId,
       synchronize,
       updateKeyringTransactionStatus,
     } = setup();
+    const persisted: KeyringTransaction = {
+      type: TransactionType.Send,
+      id: txId,
+      account: accountId,
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      timestamp: 1,
+      from: [],
+      to: [],
+      events: [],
+      fees: [],
+    };
+    findKeyringTransactionByTransactionId.mockResolvedValue(persisted);
+    findByIds.mockResolvedValue([]);
+    findById.mockResolvedValue(account);
+    pollTransaction.mockResolvedValue(txId);
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+      },
+    });
+
+    expect(findById).toHaveBeenCalledWith(accountId);
+    expect(findByIds).not.toHaveBeenCalled();
+    expect(synchronize).toHaveBeenCalledWith([account], scope);
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
+      txId,
+      accountIds: [accountId],
+      status: TransactionStatus.Confirmed,
+    });
+  });
+
+  it('falls back to findByIds when persisted tx references missing account', async () => {
+    const {
+      handler,
+      account,
+      findByIds,
+      findById,
+      pollTransaction,
+      findKeyringTransactionByTransactionId,
+      synchronize,
+    } = setup();
+    const persisted: KeyringTransaction = {
+      type: TransactionType.Send,
+      id: txId,
+      account: 'deadbeef-dead-4ead-8ead-deadbeefdead',
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      timestamp: 1,
+      from: [],
+      to: [],
+      events: [],
+      fees: [],
+    };
+    findKeyringTransactionByTransactionId.mockResolvedValue(persisted);
+    findById.mockResolvedValue(undefined);
+    findByIds.mockResolvedValue([account]);
+    pollTransaction.mockResolvedValue(txId);
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+      },
+    });
+
+    expect(findByIds).toHaveBeenCalledWith([accountId]);
+    expect(synchronize).toHaveBeenCalledWith([account], scope);
+  });
+
+  it('skips sync when no persisted row and findByIds returns empty', async () => {
+    const { handler, findByIds, pollTransaction, synchronize } = setup();
     findByIds.mockResolvedValue([]);
     pollTransaction.mockResolvedValue(txId);
-    fetchHorizonTransactionSourceAccount.mockResolvedValue(null);
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -260,59 +364,6 @@ describe('TrackTransactionHandler', () => {
     });
 
     expect(pollTransaction).toHaveBeenCalledWith(txId, scope);
-    expect(fetchHorizonTransactionSourceAccount).toHaveBeenCalledWith(
-      txId,
-      scope,
-    );
-    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
-      txId,
-      accountIds: [accountId],
-      status: TransactionStatus.Confirmed,
-    });
     expect(synchronize).not.toHaveBeenCalled();
-  });
-
-  it('resolves sync target from Horizon transaction source when findByIds returns empty', async () => {
-    const {
-      handler,
-      account,
-      findByIds,
-      pollTransaction,
-      fetchHorizonTransactionSourceAccount,
-      synchronize,
-      updateKeyringTransactionStatus,
-    } = setup();
-    const source = account.address;
-    findByIds.mockResolvedValue([]);
-    pollTransaction.mockResolvedValue(txId);
-    fetchHorizonTransactionSourceAccount.mockResolvedValue(source);
-    const resolveAccount = jest
-      .spyOn(AccountService.prototype, 'resolveAccount')
-      .mockResolvedValue({ account });
-
-    await handler.handle({
-      jsonrpc: '2.0',
-      id: 1,
-      method: BackgroundEventMethod.TrackTransaction,
-      params: {
-        txId,
-        scope,
-        accountIds: [accountId],
-      },
-    });
-
-    expect(resolveAccount).toHaveBeenCalledWith({
-      accountAddress: source,
-      scope,
-    });
-    expect(synchronize).toHaveBeenCalledTimes(1);
-    expect(synchronize).toHaveBeenCalledWith([account], scope);
-    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
-      txId,
-      accountIds: [accountId],
-      status: TransactionStatus.Confirmed,
-    });
-
-    resolveAccount.mockRestore();
   });
 });

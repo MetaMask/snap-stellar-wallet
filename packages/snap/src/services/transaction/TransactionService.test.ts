@@ -127,15 +127,24 @@ describe('TransactionService', () => {
       TransactionRepository['findByIdAmongAccounts']
     >;
 
+    let findByTransactionIdSpy: jest.SpiedFunction<
+      TransactionRepository['findByTransactionId']
+    >;
+
     beforeEach(() => {
       findByIdAmongAccountsSpy = jest.spyOn(
         TransactionRepository.prototype,
         'findByIdAmongAccounts',
       );
+      findByTransactionIdSpy = jest.spyOn(
+        TransactionRepository.prototype,
+        'findByTransactionId',
+      );
     });
 
     afterEach(() => {
       findByIdAmongAccountsSpy.mockRestore();
+      findByTransactionIdSpy.mockRestore();
     });
 
     it('updates persisted transaction to confirmed and emits keyring event', async () => {
@@ -153,6 +162,7 @@ describe('TransactionService', () => {
         status: TransactionStatus.Unconfirmed,
       })[0] as KeyringTransaction;
 
+      findByTransactionIdSpy.mockResolvedValue(undefined);
       findByIdAmongAccountsSpy.mockResolvedValue(existing);
 
       jest.mocked(emitSnapKeyringEvent).mockClear();
@@ -188,9 +198,39 @@ describe('TransactionService', () => {
       );
     });
 
+    it('resolves transaction by hash alone without searching account id list', async () => {
+      const { transactionService } = createMockTransactionService();
+      const [account] = generateMockStellarKeyringAccounts(
+        1,
+        'settle-entropy-by-hash',
+      ) as [StellarKeyringAccount];
+
+      const txId = 'settle-tx-hash-by-id';
+      const existing = generateMockTransactions(1, {
+        id: txId,
+        account: account.id,
+        scope: KnownCaip2ChainId.Mainnet,
+        status: TransactionStatus.Unconfirmed,
+      })[0] as KeyringTransaction;
+
+      findByTransactionIdSpy.mockResolvedValue(existing);
+
+      jest.mocked(emitSnapKeyringEvent).mockClear();
+
+      await transactionService.updateKeyringTransactionStatus({
+        txId,
+        accountIds: [],
+        status: TransactionStatus.Confirmed,
+      });
+
+      expect(findByIdAmongAccountsSpy).not.toHaveBeenCalled();
+      expect(jest.mocked(emitSnapKeyringEvent)).toHaveBeenCalledTimes(1);
+    });
+
     it('does nothing when no transaction matches txId', async () => {
       const { transactionService } = createMockTransactionService();
 
+      findByTransactionIdSpy.mockResolvedValue(undefined);
       findByIdAmongAccountsSpy.mockResolvedValue(undefined);
 
       jest.mocked(emitSnapKeyringEvent).mockClear();
@@ -229,6 +269,7 @@ describe('TransactionService', () => {
         ],
       })[0] as KeyringTransaction;
 
+      findByTransactionIdSpy.mockResolvedValue(undefined);
       findByIdAmongAccountsSpy.mockResolvedValue(confirmed);
 
       jest.mocked(emitSnapKeyringEvent).mockClear();

@@ -501,52 +501,6 @@ describe('NetworkService', () => {
     });
   });
 
-  describe('fetchHorizonTransactionSourceAccount', () => {
-    it('returns null when Horizon returns NotFoundError', async () => {
-      const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          transaction: jest.fn().mockReturnValue({
-            call: jest
-              .fn()
-              .mockRejectedValue(new NotFoundError('not found', {})),
-          }),
-        } as never);
-
-      const result = await networkService.fetchHorizonTransactionSourceAccount(
-        testTransactionHash,
-        scope,
-      );
-
-      expect(result).toBeNull();
-      transactionsSpy.mockRestore();
-    });
-
-    it('returns source_account when Horizon returns a transaction record', async () => {
-      const source = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-      /* eslint-disable @typescript-eslint/naming-convention -- Horizon transaction JSON */
-      const call = jest.fn().mockResolvedValue({
-        successful: true,
-        source_account: source,
-      });
-      /* eslint-enable @typescript-eslint/naming-convention */
-      const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          transaction: jest.fn().mockReturnValue({ call }),
-        } as never);
-
-      const result = await networkService.fetchHorizonTransactionSourceAccount(
-        testTransactionHash,
-        scope,
-      );
-
-      expect(result).toStrictEqual(source);
-      expect(call).toHaveBeenCalledTimes(1);
-      transactionsSpy.mockRestore();
-    });
-  });
-
   describe('send', () => {
     it('returns transaction hash when pollTransaction is false', async () => {
       const { sendTransactionSpy, pollTransactionSpy } = getRpcServerSpies();

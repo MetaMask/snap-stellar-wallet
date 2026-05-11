@@ -34,6 +34,29 @@ export class TransactionRepository {
   }
 
   /**
+   * Finds a persisted keyring transaction by its id (Stellar transaction hash), searching all
+   * accounts in snap state.
+   *
+   * @param txId - Transaction hash (`Transaction.id`).
+   * @returns The matching transaction, or `undefined` when none is stored.
+   */
+  async findByTransactionId(
+    txId: string,
+  ): Promise<KeyringTransaction | undefined> {
+    const transactionsByAccount = await this.#state.getKey<
+      TransactionStateValue['transactions']
+    >(this.#stateKey);
+
+    for (const list of Object.values(transactionsByAccount ?? {})) {
+      const found = list.find((t) => t.id === txId);
+      if (found) {
+        return found;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Finds a persisted keyring transaction by hash among the given accounts.
    *
    * @param txId - Stellar transaction hash (keyring `Transaction.id`).
