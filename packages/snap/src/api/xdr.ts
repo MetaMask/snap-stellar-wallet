@@ -1,6 +1,12 @@
 import { nonempty, refine, string } from '@metamask/superstruct';
 import { base64 } from '@metamask/utils';
-import { Networks, hash, xdr } from '@stellar/stellar-sdk';
+import {
+  FeeBumpTransaction,
+  Networks,
+  TransactionBuilder as StellarSdkTransactionBuilder,
+  hash,
+  xdr,
+} from '@stellar/stellar-sdk';
 
 import { bufferToUint8Array } from '../utils/buffer';
 
@@ -18,6 +24,85 @@ export const XdrStruct = refine(
       return true;
     } catch {
       return 'Invalid XDR';
+    }
+  },
+);
+
+/**
+ * Gets operation types from a base64 transaction envelope XDR.
+ *
+ * @param value - The base64 transaction envelope XDR.
+ * @returns Operation type strings in envelope order.
+ */
+function getTransactionOperationTypes(value: string): string[] {
+  const transaction = StellarSdkTransactionBuilder.fromXDR(
+    value,
+    Networks.PUBLIC,
+  );
+  const operations =
+    transaction instanceof FeeBumpTransaction
+      ? transaction.innerTransaction.operations
+      : transaction.operations;
+
+  return operations.map((operation) => operation.type);
+}
+
+/**
+ * Checks if the operation type is one of the Stellar path payment variants.
+ *
+ * @param operationType - The Stellar SDK operation type string.
+ * @returns True when the operation is a path payment.
+ */
+function isPathPaymentOperation(operationType: string | undefined): boolean {
+  return (
+    operationType === 'pathPaymentStrictSend' ||
+    operationType === 'pathPaymentStrictReceive'
+  );
+}
+
+/**
+ * Validation struct for swap transaction XDRs accepted by the CrossChain flow.
+ *
+ * Supported operation shapes:
+ * - `invokeHostFunction`
+ * - `pathPayment*`, `payment`
+ * - `changeTrust`, `pathPayment*`, `payment`
+ */
+export const SwapTransactionXdrStruct = refine(
+  XdrStruct,
+  'valid_swap_transaction_xdr',
+  (value: string) => {
+    try {
+      const operationTypes = getTransactionOperationTypes(value);
+      const [firstOperation, secondOperation, thirdOperation] = operationTypes;
+
+      if (
+        operationTypes.length === 1 &&
+        firstOperation === 'invokeHostFunction'
+      ) {
+        return true;
+      }
+
+      if (
+        operationTypes.length === 2 &&
+        isPathPaymentOperation(firstOperation) &&
+        secondOperation === 'payment'
+      ) {
+        return true;
+      }
+
+      if (
+        operationTypes.length === 3 &&
+        firstOperation === 'changeTrust' &&
+        isPathPaymentOperation(secondOperation) &&
+        thirdOperation === 'payment'
+      ) {
+        return true;
+      }
+
+      return 'Unsupported swap transaction operation shape';
+    } catch {
+      return 'Invalid swap transaction XDR';
     }
   },
 );

@@ -8,7 +8,6 @@ import {
   optional,
   boolean,
   string,
-  nonempty,
   type,
   union,
   refine,
@@ -17,15 +16,16 @@ import {
   array,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
-import { base64, definePattern, parseCaipAssetType } from '@metamask/utils';
+import { parseCaipAssetType } from '@metamask/utils';
 
 import {
   JsonRpcRequestStruct,
   KnownCaip2ChainIdStruct,
   KnownCaip19ClassicAssetStruct,
+  StellarTransactionHashStruct,
   UuidStruct,
   NonZeroValidAmountStruct,
-  XdrStruct,
+  SwapTransactionXdrStruct,
 } from '../../api';
 
 /**
@@ -116,7 +116,7 @@ export const ChangeTrustOptJsonRpcRequestStruct = refine(
  */
 export const ChangeTrustOptJsonRpcResponseStruct = object({
   status: boolean(),
-  transactionId: optional(base64(string())),
+  transactionId: optional(StellarTransactionHashStruct),
 });
 
 /**
@@ -127,20 +127,15 @@ export const SignAndSendTransactionJsonRpcRequestStruct = assign(
   object({
     method: literal(ClientRequestMethod.SignAndSendTransaction),
     params: object({
-      transaction: XdrStruct,
+      transaction: SwapTransactionXdrStruct,
       accountId: UuidStruct,
       scope: KnownCaip2ChainIdStruct,
       options: object({
         visible: optional(boolean()),
-        type: nonempty(string()),
+        type: string(),
       }),
     }),
   }),
-);
-
-const StellarTransactionHashStruct = definePattern(
-  'StellarTransactionHash',
-  /^[0-9a-f]{64}$/iu,
 );
 
 /**
@@ -158,12 +153,12 @@ export const ComputeFeeJsonRpcRequestStruct = assign(
   object({
     method: literal(ClientRequestMethod.ComputeFee),
     params: object({
-      transaction: XdrStruct,
+      transaction: SwapTransactionXdrStruct,
       accountId: UuidStruct,
       scope: KnownCaip2ChainIdStruct,
       options: object({
         visible: optional(boolean()),
-        type: nonempty(string()),
+        type: string(),
         feeLimit: optional(min(integer(), 0)),
       }),
     }),

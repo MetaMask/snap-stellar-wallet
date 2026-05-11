@@ -9,6 +9,7 @@ import {
 import {
   ChangeTrustOptJsonRpcRequestStruct,
   ChangeTrustOptJsonRpcResponseStruct,
+  ComputeFeeJsonRpcRequestStruct,
   JsonRpcRequestWithAccountStruct,
   SignAndSendTransactionJsonRpcRequestStruct,
   SignAndSendTransactionJsonRpcResponseStruct,
@@ -90,22 +91,25 @@ describe('ChangeTrustOptJsonRpcResponseStruct', () => {
   it.each([
     { status: true },
     { status: false },
-    { status: true, transactionId: 'dGVzdA==' },
+    {
+      status: true,
+      transactionId:
+        '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
+    },
   ])('accepts a valid changeTrustOpt JSON-RPC response', (response) => {
     expect(() =>
       assert(response, ChangeTrustOptJsonRpcResponseStruct),
     ).not.toThrow();
   });
 
-  it.each([
-    {},
-    { status: 'yes' },
-    { status: true, transactionId: 'not-base64!!!' },
-  ])('rejects an invalid changeTrustOpt JSON-RPC response', (response) => {
-    expect(() => assert(response, ChangeTrustOptJsonRpcResponseStruct)).toThrow(
-      StructError,
-    );
-  });
+  it.each([{}, { status: 'yes' }, { status: true, transactionId: 'dGVzdA==' }])(
+    'rejects an invalid changeTrustOpt JSON-RPC response',
+    (response) => {
+      expect(() =>
+        assert(response, ChangeTrustOptJsonRpcResponseStruct),
+      ).toThrow(StructError);
+    },
+  );
 });
 
 describe('SignAndSendTransactionJsonRpcResponseStruct', () => {
@@ -167,9 +171,29 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
     ).not.toThrow();
   });
 
+  it('accepts an empty transaction type', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'signAndSendTransaction',
+          params: {
+            accountId,
+            scope,
+            transaction,
+            options: {
+              type: '',
+            },
+          },
+        },
+        SignAndSendTransactionJsonRpcRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
   it.each([
     { transaction: 'not-xdr', options: { type: 'swap' } },
-    { transaction, options: { type: '' } },
     { transaction, options: { type: 'swap', visible: 'yes' } },
   ])(
     'rejects an invalid signAndSendTransaction JSON-RPC request',
@@ -191,6 +215,31 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
       ).toThrow(StructError);
     },
   );
+});
+
+describe('ComputeFeeJsonRpcRequestStruct', () => {
+  const transaction = buildTestInvokeXdr();
+
+  it('accepts an empty transaction type', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'computeFee',
+          params: {
+            accountId,
+            scope,
+            transaction,
+            options: {
+              type: '',
+            },
+          },
+        },
+        ComputeFeeJsonRpcRequestStruct,
+      ),
+    ).not.toThrow();
+  });
 });
 
 describe('ChangeTrustOptJsonRpcRequestStruct', () => {

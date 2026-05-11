@@ -18,6 +18,7 @@ import {
   ChangeTrustOPSimulator,
   CreateAccountOPSimulator,
   InvokeHostFunctionOPSimulator,
+  PathPaymentOPSimulator,
   PaymentOPSimulator,
   getSpendableNative,
   getAccount,
@@ -41,6 +42,8 @@ import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
  */
 type SupportedOPType =
   | Operation.Payment
+  | Operation.PathPaymentStrictReceive
+  | Operation.PathPaymentStrictSend
   | Operation.CreateAccount
   | Operation.ChangeTrust
   | Operation.InvokeHostFunction;
@@ -50,6 +53,7 @@ type SupportedOPType =
  */
 export enum SupportedOperations {
   Payment = 'payment',
+  PathPayment = 'pathPayment',
   CreateAccount = 'createAccount',
   ChangeTrust = 'changeTrust',
   InvokeHostFunction = 'invokeHostFunction',
@@ -80,6 +84,7 @@ export class TransactionSimulator {
   constructor() {
     this.#operationSimulator = {
       payment: new PaymentOPSimulator(),
+      pathPayment: new PathPaymentOPSimulator(),
       createAccount: new CreateAccountOPSimulator(),
       changeTrust: new ChangeTrustOPSimulator(),
       invokeHostFunction: new InvokeHostFunctionOPSimulator(),
@@ -279,13 +284,18 @@ export class TransactionSimulator {
     op: Operation,
     supportedOPTypeSet: Set<string>,
   ): asserts op is SupportedOPType {
-    if (!supportedOPTypeSet.has(op.type)) {
+    const operationType = this.#supportedOperationType(op);
+    if (operationType === null || !supportedOPTypeSet.has(operationType)) {
       throw new UnsupportedOperationTypeException(op.type);
     }
   }
 
   #assertExpectedOP(op: Operation, types: Set<string>): void {
-    if (types.size > 0 && !types.has(op.type)) {
+    const operationType = this.#supportedOperationType(op);
+    if (operationType === null) {
+      throw new UnsupportedOperationTypeException(op.type);
+    }
+    if (types.size > 0 && !types.has(operationType)) {
       throw new TransactionValidationException(
         `Unexpected operation type ${op.type}, expected one of: ${Array.from(types).join(', ')}`,
       );
@@ -336,8 +346,9 @@ export class TransactionSimulator {
     operations: readonly Operation[];
   }): void {
     const { op, opIndex, state, txSource, scope, operations } = params;
+    const operationType = this.#getSupportedOperationType(op);
 
-    this.#operationSimulator[op.type].validate(
+    this.#operationSimulator[operationType].validate(
       {
         state,
         txSource,
@@ -357,8 +368,9 @@ export class TransactionSimulator {
     opIndex: number;
   }): SimulationState {
     const { op, state, txSource, scope, opIndex } = params;
+    const operationType = this.#getSupportedOperationType(op);
     // the state will pass by reference, so the changes will be reflected in the original state
-    this.#operationSimulator[op.type].apply(
+    this.#operationSimulator[operationType].apply(
       { state, txSource, scope, opIndex },
       op,
     );
@@ -405,5 +417,35 @@ export class TransactionSimulator {
       numSponsored,
       trustlines,
     };
+  }
+
+  #getSupportedOperationType(op: SupportedOPType): SupportedOperations {
+    const operationType = this.#supportedOperationType(op);
+    if (operationType === null) {
+      throw new UnsupportedOperationTypeException(op.type);
+    }
+    return operationType;
+  }
+
+  #supportedOperationType(op: Operation): SupportedOperations | null {
+    if (op.type === SupportedOperations.Payment) {
+      return SupportedOperations.Payment;
+    }
+    if (
+      op.type === 'pathPaymentStrictReceive' ||
+      op.type === 'pathPaymentStrictSend'
+    ) {
+      return SupportedOperations.PathPayment;
+    }
+    if (op.type === SupportedOperations.CreateAccount) {
+      return SupportedOperations.CreateAccount;
+    }
+    if (op.type === SupportedOperations.ChangeTrust) {
+      return SupportedOperations.ChangeTrust;
+    }
+    if (op.type === SupportedOperations.InvokeHostFunction) {
+      return SupportedOperations.InvokeHostFunction;
+    }
+    return null;
   }
 }
