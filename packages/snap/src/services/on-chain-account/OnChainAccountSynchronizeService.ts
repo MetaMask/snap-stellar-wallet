@@ -4,6 +4,7 @@ import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { Mutex } from 'async-mutex';
 import { BigNumber } from 'bignumber.js';
 
+import type { SpendableBalance } from './api';
 import { OnChainAccount } from './OnChainAccount';
 import type { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
@@ -18,8 +19,10 @@ import {
   getSlip44AssetId,
   getSnapProvider,
   isSep41Id,
+  toDisplayBalance,
 } from '../../utils';
 import type { StellarKeyringAccount } from '../account';
+import type { StellarAssetMetadata } from '../asset-metadata';
 import type { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
 import { AccountNotActivatedException, type NetworkService } from '../network';
 
@@ -33,7 +36,7 @@ type ActivatedAccountPair = {
 
 type Sep41BalanceFetchResult = {
   assetIds: KnownCaip19Sep41AssetId[];
-  symbolsByAssetId: Record<KnownCaip19Sep41AssetId, string>;
+  assetMetadataByAssetId: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>;
   balancesByAccountId: Record<
     string,
     Record<string, BigNumber | null | undefined>
@@ -129,10 +132,12 @@ export class OnChainAccountSynchronizeService {
       this.#logger.debug('Load SEP-41 token balances');
       let sep41BalanceFetchResult: Sep41BalanceFetchResult | null = null;
       try {
-        sep41BalanceFetchResult = await this.#synchronizeSep41AssetBalances(
+        const sep41Assets = await this.#fetchSep41AssetOrSyncOnce(scope);
+        sep41BalanceFetchResult = await this.#synchronizeSep41AssetBalances({
           stellarAccountIds,
           scope,
-        );
+          sep41Assets,
+        });
       } catch (error: unknown) {
         this.#logger.logErrorWithDetails(
           'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 token rows where needed',
@@ -195,7 +200,7 @@ export class OnChainAccountSynchronizeService {
         // - Any SEP-41 token that already has a row from step 2 is left unchanged here.
         this.#mergePersistedSep41Rows(
           synchronizedOnChainAccount,
-          latestStateSnapshotSerialized,
+          stateSnapshotOnChainAccount,
           unresolvedSep41AssetIds,
         );
 
@@ -205,17 +210,15 @@ export class OnChainAccountSynchronizeService {
             synchronizedOnChainAccount,
           );
 
-        if (balanceChanges !== null) {
-          balancesPayload ??= {};
-          balancesPayload[keyringAccountId] = balanceChanges;
-          this.#logger.debug(
-            'Differences in full snapshots for keyring account - balanceChanges',
-            {
-              keyringAccountId,
-              balanceChangesLength: Object.keys(balanceChanges).length,
-            },
-          );
-        }
+        balancesPayload ??= {};
+        balancesPayload[keyringAccountId] = balanceChanges;
+        this.#logger.debug(
+          'Prepared account balance payload for keyring account',
+          {
+            keyringAccountId,
+            balanceEntriesLength: Object.keys(balanceChanges).length,
+          },
+        );
         if (assetListChanges !== null) {
           assetsPayload ??= {};
           assetsPayload[keyringAccountId] = assetListChanges;
@@ -236,7 +239,7 @@ export class OnChainAccountSynchronizeService {
       this.#logger.debug('Save snapshots to the State');
       await this.#onChainAccountRepository.saveMany(snapshotsToSave);
 
-      // 6. Emit the keyring events if the balances or the non-native asset list changed.
+      // 6. Emit keyring events after persistence.
       this.#logger.debug('Emit keyring events');
       await this.#emitKeyringEvents(balancesPayload, assetsPayload);
     });
@@ -285,37 +288,27 @@ export class OnChainAccountSynchronizeService {
   /**
    * Loads SEP-41 token balances from the network (no per-account mutation here).
    *
-   * @param stellarAccountIds - Stellar account ids to query in one batch call.
-   * @param scope - Network to query.
+   * @param params - Parameters for the SEP-41 balance fetch.
+   * @param params.stellarAccountIds - Stellar account ids to query in one batch call.
+   * @param params.scope - Network to query.
+   * @param params.sep41Assets - SEP-41 assets to query in one batch call.
    * @returns Shared SEP-41 inputs consumed in the main synchronize loop.
    */
-  async #synchronizeSep41AssetBalances(
-    stellarAccountIds: string[],
-    scope: KnownCaip2ChainId,
-  ): Promise<Sep41BalanceFetchResult> {
-    // Get all SEP-41 assets for the given scope.
-    const allAssets = await this.#assetMetadataService.getAllByScope(scope);
-
-    if (allAssets.length === 0) {
-      this.#logger.debug('No assets found in the state, synchronizing assets');
-      // It is possible that the state is empty, due to the first sync.
-      // Hence, we synchronize the assets once.
-      await this.#assetMetadataService.synchronize(scope);
-    }
-
-    const sep41Assets =
-      await this.#assetMetadataService.getPersistedSep41AssetsMetadata(scope);
-
-    this.#logger.debug('SEP-41 assets to query balances for', {
-      noOfAssets: sep41Assets.length,
-    });
-
+  async #synchronizeSep41AssetBalances({
+    stellarAccountIds,
+    scope,
+    sep41Assets,
+  }: {
+    stellarAccountIds: string[];
+    scope: KnownCaip2ChainId;
+    sep41Assets: StellarAssetMetadata[];
+  }): Promise<Sep41BalanceFetchResult> {
     const assetIds: KnownCaip19Sep41AssetId[] = [];
-    const sep41AssetSymbols = sep41Assets.reduce<
-      Record<KnownCaip19Sep41AssetId, string>
+    const assetMetadataByAssetId = sep41Assets.reduce<
+      Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>
     >((acc, asset) => {
       const assetId = asset.assetId as KnownCaip19Sep41AssetId;
-      acc[assetId] = asset.symbol;
+      acc[assetId] = asset;
       assetIds.push(assetId);
       return acc;
     }, {});
@@ -330,9 +323,32 @@ export class OnChainAccountSynchronizeService {
 
     return {
       assetIds,
-      symbolsByAssetId: sep41AssetSymbols,
+      assetMetadataByAssetId,
       balancesByAccountId: sep41AssetBalancesByAccount,
     };
+  }
+
+  async #fetchSep41AssetOrSyncOnce(
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarAssetMetadata[]> {
+    // Get all SEP-41 assets for the given scope.
+    const allAssets = await this.#assetMetadataService.getAllByScope(scope);
+
+    if (allAssets.length === 0) {
+      this.#logger.debug('No assets found in the state, synchronizing assets');
+      // It is possible that the state is empty, due to the first sync.
+      // Hence, we synchronize the assets once.
+      await this.#assetMetadataService.synchronize(scope);
+    }
+
+    const sep41Assets =
+      await this.#assetMetadataService.getPersistedSep41AssetsMetadata(scope);
+
+    this.#logger.debug('SEP-41 assets found in the state', {
+      noOfAssets: sep41Assets.length,
+    });
+
+    return sep41Assets;
   }
 
   /**
@@ -342,7 +358,7 @@ export class OnChainAccountSynchronizeService {
    * persisted SEP-41 rows. Returning a set means the fetch step succeeded and merge should only
    * restore rows for token ids still unresolved here.
    *
-   * @param onChainAccount - In-memory account after classic Horizon load; receives nonzero SEP-41 rows.
+   * @param onChainAccount - In-memory account after classic Horizon load; receives SEP-41 rows including zero balances.
    * @param sep41BalanceFetchResult - Batch balance/symbol data from the SEP-41 step, or `null` if that step failed.
    * @returns Token ids that could not be resolved to a balance (for merge from last snapshot), or `undefined` if the fetch step did not run.
    */
@@ -360,21 +376,30 @@ export class OnChainAccountSynchronizeService {
       {};
     for (const assetId of sep41BalanceFetchResult.assetIds) {
       const balance = sep41AssetBalances[assetId];
-      if (!sep41BalanceFetchResult.symbolsByAssetId[assetId]) {
+      const assetMetadata =
+        sep41BalanceFetchResult.assetMetadataByAssetId[assetId];
+
+      if (!assetMetadata) {
         continue;
       }
-      // No balance value for this SEP-41 token — mark unresolved so the merge step can reuse the last snapshot row.
+
+      const { decimals } = assetMetadata.units[0];
+      const { symbol } = assetMetadata;
+
+      // No balance value for this SEP-41 token,
+      // it means some error occurred during the balance fetch (but not balance is zero).
+      // mark unresolved so the merge step can reuse the last snapshot row.
       if (balance === null || balance === undefined) {
         unresolvedSep41AssetIds.add(assetId);
         continue;
       }
-      // Balance is zero — user does not hold this SEP-41 token; do not add a row (merge will not revive it when the step succeeded).
-      if (balance.isZero()) {
-        continue;
-      }
+
+      // Persist the SEP-41 asset when a balance value was fetched, including a zero balance.
+      // Missing balances from fetch errors are handled above as unresolved for merge/backfill.
       onChainAccount.setSep41Asset(assetId, {
         balance,
-        symbol: sep41BalanceFetchResult.symbolsByAssetId[assetId],
+        symbol,
+        decimals,
       });
     }
 
@@ -404,29 +429,37 @@ export class OnChainAccountSynchronizeService {
    */
   #mergePersistedSep41Rows(
     current: OnChainAccount,
-    persisted: OnChainAccountSerializableFull | null,
+    persisted: OnChainAccount | null,
     unresolvedSep41AssetIds?: Set<KnownCaip19Sep41AssetId>,
   ): OnChainAccount {
     if (!persisted) {
       return current;
     }
 
-    for (const row of persisted.balances) {
-      const { assetId } = row;
+    const shouldBackfillAll = unresolvedSep41AssetIds === undefined;
+
+    // Try best effort backfill for SEP-41 assets from the last saved snapshot.
+    for (const assetId of persisted.assetIds) {
       if (!isSep41Id(assetId) || current.hasAsset(assetId)) {
         continue;
       }
 
-      // This SEP-41 token is still missing on `current` after the balance step — restore the last saved row when allowed above.
-      if (
-        unresolvedSep41AssetIds === undefined ||
-        unresolvedSep41AssetIds.has(assetId)
-      ) {
-        current.setSep41Asset(assetId, {
-          balance: new BigNumber(row.balance),
-          symbol: row.symbol,
-        });
+      // Whole SEP-41 step failed -> backfill all missing rows.
+      // Partial failure -> backfill only unresolved ids.
+      if (!shouldBackfillAll && !unresolvedSep41AssetIds.has(assetId)) {
+        continue;
       }
+
+      const assetBalance = persisted.getAsset(assetId);
+      if (assetBalance === undefined) {
+        continue;
+      }
+
+      current.setSep41Asset(assetId, {
+        balance: new BigNumber(assetBalance.balance),
+        symbol: assetBalance.symbol,
+        decimals: assetBalance.decimals,
+      });
     }
 
     return current;
@@ -434,17 +467,17 @@ export class OnChainAccountSynchronizeService {
 
   /**
    * Compares persisted on-chain state to the account after this sync and produces keyring
-   * event data: per-asset balance updates (all assets) and non-native token add/remove.
+   * event data: full per-asset balance payload and non-native token add/remove.
    *
    * @param stateSnapshotOnChainAccount - Last saved account from state, or `null` when none exists.
    * @param synchronizedOnChainAccount - Same account after Horizon, SEP-41, and merge steps.
-   * @returns `balanceChanges` and/or `assetListChanges`, each `null` when that side is unchanged.
+   * @returns `balanceChanges` for all known assets plus optional `assetListChanges`.
    */
   #computeKeyringSyncDeltas(
     stateSnapshotOnChainAccount: OnChainAccount | null,
     synchronizedOnChainAccount: OnChainAccount,
   ): {
-    balanceChanges: Record<string, { unit: string; amount: string }> | null;
+    balanceChanges: Record<string, { unit: string; amount: string }>;
     assetListChanges: AccountAssetListDelta | null;
   } {
     const nativeAssetId = getSlip44AssetId(synchronizedOnChainAccount.scope);
@@ -463,40 +496,50 @@ export class OnChainAccountSynchronizeService {
           ? undefined
           : stateSnapshotOnChainAccount.getAsset(assetId);
       const currentRow = synchronizedOnChainAccount.getAsset(assetId);
-      const latestStateBalance =
-        latestStateRow === undefined
-          ? undefined
-          : latestStateRow.balance.toString();
-      const currentBalance =
-        currentRow === undefined ? undefined : currentRow.balance.toString();
 
-      if (latestStateBalance !== currentBalance) {
-        balanceChanges[assetId as string] = {
-          unit: currentRow?.symbol ?? latestStateRow?.symbol ?? '',
-          amount: currentBalance ?? '0',
-        };
-      }
+      // Always send the full balance snapshot, even when values did not change.
+      // This lets the client recover if it missed a previous balances event.
+      // Example with 4 assets:
+      // - XLM (native), USDC classic trustline, EURC classic trustline, SOLBTC SEP-41.
+      // ------------------------- Sync 1 ------------------------------------------
+      // - Sync 1 (success): payload received by client:
+      //   XLM=10, USDC=25, EURC=0, SOLBTC=5.
+      // ------------------------- Sync 2 ------------------------------------------
+      // - Sync 2 (client misses event): chain updates to
+      //   XLM=11, USDC=30, EURC trustline removed (it was already zero), SOLBTC=0.
+      //   Payload for this sync would include EURC amount=0 and SOLBTC amount=0,
+      //   but client missed it.
+      // ------------------------- Sync 3 ------------------------------------------
+      // - Sync 3 (client misses event): chain updates to
+      //   XLM=9, USDC=30, SOLBTC still 0.
+      //   Because SEP-41 zero balances are persisted, payload still includes SOLBTC=0.
+      // ------------------------- Sync 4 ------------------------------------------
+      // - Sync 4 (success): we still emit full balances for current + latest snapshot,
+      //   so payload includes XLM=9, USDC=30, SOLBTC=0.
+      //   (EURC stays removed because trustline rows are not persisted once removed.)
+      balanceChanges[assetId as string] = this.#buildBalancePayloadRow(
+        currentRow,
+        latestStateRow,
+      );
 
       if (assetId === nativeAssetId) {
         continue;
       }
-      if (
-        synchronizedOnChainAccount.hasAsset(assetId) &&
-        !stateSnapshotOnChainAccount?.hasAsset(assetId)
-      ) {
+
+      const isVisibleFromState = this.#isAssetVisible(assetId, latestStateRow);
+      const isVisibleFromOnChain = this.#isAssetVisible(assetId, currentRow);
+      // Add/remove is based on visibility transition between snapshots.
+      if (isVisibleFromOnChain && !isVisibleFromState) {
         addedAssets.push(assetId);
       }
-      if (
-        stateSnapshotOnChainAccount?.hasAsset(assetId) &&
-        !synchronizedOnChainAccount.hasAsset(assetId)
-      ) {
+
+      if (isVisibleFromState && !isVisibleFromOnChain) {
         removedAssets.push(assetId);
       }
     }
 
     return {
-      balanceChanges:
-        Object.keys(balanceChanges).length > 0 ? balanceChanges : null,
+      balanceChanges,
       assetListChanges:
         addedAssets.length > 0 || removedAssets.length > 0
           ? {
@@ -505,6 +548,31 @@ export class OnChainAccountSynchronizeService {
             }
           : null,
     };
+  }
+
+  #buildBalancePayloadRow(
+    currentRow: SpendableBalance | undefined,
+    latestStateRow: SpendableBalance | undefined,
+  ): { unit: string; amount: string } {
+    return {
+      // When an asset was removed this sync, `currentRow` is missing.
+      // In that case, use the last known symbol from the persisted snapshot.
+      unit: currentRow?.symbol ?? latestStateRow?.symbol ?? '',
+      amount: toDisplayBalance(
+        currentRow?.balance ?? new BigNumber(0),
+        currentRow?.decimals ?? latestStateRow?.decimals,
+      ),
+    };
+  }
+
+  #isAssetVisible(
+    assetId: KnownCaip19AssetIdOrSlip44Id,
+    row: SpendableBalance | undefined,
+  ): boolean {
+    if (!row) {
+      return false;
+    }
+    return !isSep41Id(assetId) || !row.balance.isZero();
   }
 
   async #emitKeyringEvents(

@@ -293,11 +293,14 @@ export class OnChainAccount {
           }),
         );
       } else if (isSep41Id(assetId)) {
-        balances.push({
-          assetId,
-          balance: entry.balance.toString(),
-          symbol: entry.symbol,
-        });
+        balances.push(
+          SerializableSep41SpendableBalanceStruct.create({
+            assetId,
+            balance: entry.balance.toString(),
+            symbol: entry.symbol,
+            decimals: entry.decimals,
+          }),
+        );
       } else {
         throw new OnChainAccountException(`Asset id not supported: ${assetId}`);
       }
@@ -469,7 +472,6 @@ export class OnChainAccount {
         if (SerializableClassicSpendableBalanceStruct.is(row)) {
           const { balance, symbol, limit, address, authorized, sponsored } =
             row;
-
           this.#balances.set(row.assetId, {
             balance: new BigNumber(balance),
             symbol,
@@ -479,10 +481,12 @@ export class OnChainAccount {
             ...(sponsored === undefined ? {} : { sponsored }),
           });
         } else if (SerializableSep41SpendableBalanceStruct.is(row)) {
-          const { balance, symbol } = row;
+          const { balance, symbol, decimals } =
+            SerializableSep41SpendableBalanceStruct.create(row);
           this.#balances.set(row.assetId, {
             balance: new BigNumber(balance),
             symbol,
+            decimals,
           });
         } else {
           throw new OnChainAccountException(

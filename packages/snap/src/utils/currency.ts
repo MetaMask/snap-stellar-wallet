@@ -50,7 +50,7 @@ export function normalizeAmount(
  */
 export function toDisplayBalance(
   amountInSmallestUnit: BigNumber,
-  decimalPlaces: number,
+  decimalPlaces: number = STELLAR_DECIMAL_PLACES,
 ): string {
   const fixed = normalizeAmount(amountInSmallestUnit, decimalPlaces).toFixed(
     decimalPlaces,
