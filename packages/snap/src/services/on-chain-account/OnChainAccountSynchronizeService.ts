@@ -526,19 +526,15 @@ export class OnChainAccountSynchronizeService {
         continue;
       }
 
-      const isLatestVisible = this.#isAssetVisible(assetId, latestStateRow);
-      const isCurrentVisible = this.#isAssetVisible(assetId, currentRow);
+      const isVisibleFromState = this.#isAssetVisible(assetId, latestStateRow);
+      const isVisibleFromOnChain = this.#isAssetVisible(assetId, currentRow);
       // Add/remove is based on visibility transition between snapshots.
-      if (isCurrentVisible && !isLatestVisible) {
+      if (isVisibleFromOnChain && !isVisibleFromState) {
         addedAssets.push(assetId);
       }
 
-      if (isLatestVisible && !isCurrentVisible) {
-        // Match Tron behavior for persisted token rows:
-        // only SEP-41 assets emit "removed" when they become invisible (zero balance).
-        if (isSep41Id(assetId)) {
-          removedAssets.push(assetId);
-        }
+      if (isVisibleFromState && !isVisibleFromOnChain) {
+        removedAssets.push(assetId);
       }
     }
 
