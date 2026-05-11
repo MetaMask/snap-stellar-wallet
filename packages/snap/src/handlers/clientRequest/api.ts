@@ -10,6 +10,8 @@ import {
   type,
   union,
   refine,
+  array,
+  nonempty,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
 import { base64, parseCaipAssetType } from '@metamask/utils';
@@ -19,15 +21,32 @@ import {
   KnownCaip2ChainIdStruct,
   KnownCaip19ClassicAssetStruct,
   UuidStruct,
-  NonZeroValidAmountStruct,
+  NonZeroValidSetllarAmountStruct,
+  KnownCaip19Sep41AssetStruct,
+  KnownCaip19Slip44IdStruct,
+  StellarAddressStruct,
+  ValidAmountStruct,
+  ValidStellarAmountStruct,
 } from '../../api';
+import { isSep41Id } from '../../utils';
 
 /**
  * Enum for the client request method.
  */
 export enum ClientRequestMethod {
+  /** -------------------------------- Wallet Standard -------------------------------- */
+  OnAddressInput = 'onAddressInput',
+  OnAmountInput = 'onAmountInput',
   /** -------------------------------- Stellar Specific -------------------------------- */
   ChangeTrustOpt = 'changeTrustOpt',
+}
+
+export enum MultiChainSendErrorCodes {
+  // eslint-disable-next-line @typescript-eslint/no-shadow
+  Required = 'Required',
+  Invalid = 'Invalid',
+  InsufficientBalance = 'InsufficientBalance',
+  InsufficientBalanceToCoverFee = 'InsufficientBalanceToCoverFee',
 }
 
 /**
@@ -68,7 +87,7 @@ const ChangeTrustAddStruct = assign(
   ChangeTrustBaseParamsStruct,
   object({
     action: literal(ChangeTrustOptAction.Add),
-    limit: optional(NonZeroValidAmountStruct),
+    limit: optional(NonZeroValidSetllarAmountStruct),
   }),
 );
 
@@ -110,6 +129,75 @@ export const ChangeTrustOptJsonRpcResponseStruct = object({
 });
 
 /**
+ * Validation struct for the onAddressInput JSON-RPC request.
+ */
+export const OnAddressInputJsonRpcRequestStruct = assign(
+  JsonRpcRequestStruct,
+  object({
+    method: literal(ClientRequestMethod.OnAddressInput),
+    params: object({
+      value: StellarAddressStruct,
+    }),
+  }),
+);
+
+/**
+ * Validation struct for the onAddressInput JSON-RPC response.
+ */
+export const OnAddressInputJsonRpcResponseStruct = object({
+  valid: boolean(),
+  errors: array(
+    object({
+      code: string(),
+    }),
+  ),
+});
+
+/**
+ * Validation struct for the onAmountInput JSON-RPC request.
+ */
+export const OnAmountInputJsonRpcRequestStruct = refine(
+  assign(
+    JsonRpcRequestStruct,
+    object({
+      method: literal(ClientRequestMethod.OnAmountInput),
+      params: object({
+        accountId: UuidStruct,
+        assetId: union([
+          KnownCaip19ClassicAssetStruct,
+          KnownCaip19Sep41AssetStruct,
+          KnownCaip19Slip44IdStruct,
+        ]),
+        value: nonempty(string()),
+        to: optional(StellarAddressStruct),
+      }),
+    }),
+  ),
+  'on-amount-input-request',
+  ({ params }) => {
+    if (
+      (isSep41Id(params.assetId) && ValidAmountStruct.is(params.value)) ||
+      (!isSep41Id(params.assetId) && ValidStellarAmountStruct.is(params.value))
+    ) {
+      return true;
+    }
+    return 'Invalid amount';
+  },
+);
+
+/**
+ * Validation struct for the onAmountInput JSON-RPC response.
+ */
+export const OnAmountInputJsonRpcResponseStruct = object({
+  valid: boolean(),
+  errors: array(
+    object({
+      code: string(),
+    }),
+  ),
+});
+
+/**
  * A JSON-RPC request with an account resolve parameter.
  */
 export type JsonRpcRequestWithAccount = Infer<
@@ -129,4 +217,32 @@ export type ChangeTrustOptJsonRpcRequest = Infer<
  */
 export type ChangeTrustOptJsonRpcResponse = Infer<
   typeof ChangeTrustOptJsonRpcResponseStruct
+>;
+
+/**
+ * Type for the onAddressInput JSON-RPC request.
+ */
+export type OnAddressInputJsonRpcRequest = Infer<
+  typeof OnAddressInputJsonRpcRequestStruct
+>;
+
+/**
+ * Type for the onAddressInput JSON-RPC response.
+ */
+export type OnAddressInputJsonRpcResponse = Infer<
+  typeof OnAddressInputJsonRpcResponseStruct
+>;
+
+/**
+ * Type for the onAmountInput JSON-RPC request.
+ */
+export type OnAmountInputJsonRpcRequest = Infer<
+  typeof OnAmountInputJsonRpcRequestStruct
+>;
+
+/**
+ * Type for the onAmountInput JSON-RPC response.
+ */
+export type OnAmountInputJsonRpcResponse = Infer<
+  typeof OnAmountInputJsonRpcResponseStruct
 >;

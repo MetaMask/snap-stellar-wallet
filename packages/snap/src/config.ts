@@ -92,9 +92,16 @@ const ConfigStruct = object({
   }),
   cache: object({
     ttlMilliseconds: object({
+      // 1 hour
       spotPrices: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
+      // 1 hour
       fiatExchangeRates: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
+      // 1 hour
       historicalPrices: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
+      // 1 hour
+      baseFee: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
+      // 10 minutes
+      onChainAccount: parseIntegerStruct(1000, 10 * 60 * 1000 * 1),
     }),
   }),
 });

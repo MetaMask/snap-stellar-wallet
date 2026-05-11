@@ -9,6 +9,8 @@ import {
   ClientRequestHandler,
   ClientRequestMethod,
 } from './handlers/clientRequest';
+import { OnAddressInputHandler } from './handlers/clientRequest/onAddressInput';
+import { OnAmountInputHandler } from './handlers/clientRequest/onAmountInput';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
@@ -202,11 +204,26 @@ const changeTrustOptHandler = new ChangeTrustOptHandler({
   confirmationUIController,
 });
 
+const onAddressInputHandler = new OnAddressInputHandler({
+  logger,
+});
+
+const onAmountInputHandler = new OnAmountInputHandler({
+  logger,
+  accountService,
+  assetMetadataService,
+  onChainAccountService,
+  walletService,
+  transactionService,
+});
+
 const clientRequestMethodHandlers: Record<
   ClientRequestMethod,
   IClientRequestHandler
 > = {
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
+  [ClientRequestMethod.OnAddressInput]: onAddressInputHandler,
+  [ClientRequestMethod.OnAmountInput]: onAmountInputHandler,
 };
 
 const clientRequestHandler = new ClientRequestHandler({

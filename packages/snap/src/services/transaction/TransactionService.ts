@@ -8,14 +8,28 @@ import { groupBy } from 'lodash';
 import type { Transaction } from './Transaction';
 import type { TransactionBuilder } from './TransactionBuilder';
 import type { TransactionRepository } from './TransactionRepository';
-import type { KnownCaip19ClassicAssetId, KnownCaip2ChainId } from '../../api';
-import { BASE_FEE_CACHE_TTL_MILLISECONDS } from '../../constants';
-import { getSnapProvider, type Serializable } from '../../utils';
+import type {
+  KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
+  KnownCaip19Slip44Id,
+  KnownCaip2ChainId,
+} from '../../api';
+import { AppConfig } from '../../config';
+import {
+  getSnapProvider,
+  isSep41Id,
+  isSlip44Id,
+  type Serializable,
+} from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account/api';
 import type { NetworkService } from '../network';
-import { TransactionRetryableException } from '../network/exceptions';
+import {
+  AccountNotActivatedException,
+  TransactionRetryableException,
+} from '../network/exceptions';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import type { Wallet } from '../wallet';
 import {
@@ -65,7 +79,7 @@ export class TransactionService {
 
   /**
    * Gets the base fee for a transaction.
-   * Results are cached for {@link BASE_FEE_CACHE_TTL_MILLISECONDS}.
+   * Results are cached for {@link AppConfig.cache.ttlMilliseconds.baseFee}.
    *
    * @param scope - The CAIP-2 chain ID.
    * @returns A promise that resolves to the base fee.
@@ -76,7 +90,7 @@ export class TransactionService {
       this.#cache,
       {
         functionName: 'TransactionService:getBaseFee',
-        ttlMilliseconds: BASE_FEE_CACHE_TTL_MILLISECONDS,
+        ttlMilliseconds: AppConfig.cache.ttlMilliseconds.baseFee,
       },
     )(scope);
   }
@@ -112,6 +126,189 @@ export class TransactionService {
 
     this.validateTransaction(transaction, onChainAccount, {
       expectedOPTypes: [SupportedOperations.ChangeTrust],
+    });
+
+    return transaction;
+  }
+
+  /**
+   * Creates a validated send transaction.
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.amount - The amount to send.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.assetId - The CAIP-19 asset ID.
+   * @param params.destination - The destination address.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async createValidatedSendTransaction(params: {
+    onChainAccount: OnChainAccount;
+    amount: BigNumber;
+    scope: KnownCaip2ChainId;
+    assetId: KnownCaip19AssetIdOrSlip44Id;
+    destination: string;
+  }): Promise<Transaction> {
+    const { onChainAccount, scope, assetId, amount, destination } = params;
+
+    // Preload the destination account
+    const destinationAccount: OnChainAccount | null =
+      await this.#networkService.loadActivatedAccountOrNull(destination, scope);
+
+    const isSep41 = isSep41Id(assetId);
+
+    // If it is SEP-41, run SEP-41 transfer flow to build and validate the transaction
+    if (isSep41) {
+      return this.#createValidatedSep41Transfer({
+        onChainAccount,
+        scope,
+        assetId,
+        amount,
+        destination,
+        destinationAccount,
+      });
+    }
+
+    // If it is classic asset, run classic asset transfer flow to build and validate the transaction
+    return this.#createValidatedClassicAssetTransfer({
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination,
+      destinationAccount,
+    });
+  }
+
+  /**
+   * Creates a validated SEP-41 transfer transaction.
+   * SEP-41 is using smart contracts to transfer assets,
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.assetId - The CAIP-19 SEP-41 asset ID.
+   * @param params.amount - The amount to send.
+   * @param params.destination - The destination address.
+   * @param params.destinationAccount - The destination account.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async #createValidatedSep41Transfer(params: {
+    onChainAccount: OnChainAccount;
+    scope: KnownCaip2ChainId;
+    assetId: KnownCaip19Sep41AssetId;
+    amount: BigNumber;
+    destination: string;
+    destinationAccount: OnChainAccount | null;
+  }): Promise<Transaction> {
+    const {
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination,
+      destinationAccount,
+    } = params;
+
+    // fail early if the destination account is not activated
+    const isActivated = destinationAccount !== null;
+    if (!isActivated) {
+      throw new AccountNotActivatedException(destination, scope);
+    }
+
+    let transaction = this.#transactionBuilder.sep41Transfer({
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination,
+    });
+    // simulate the transaction to:
+    // - validate if it is a valid contract
+    // - estimate the fee
+    transaction = await this.#networkService.simulateTransaction(
+      transaction,
+      scope,
+    );
+
+    const onChainBalance = await this.#networkService.getSep41TokenBalance({
+      accountAddress: onChainAccount.accountId,
+      assetId,
+      scope,
+      sequenceNumber: onChainAccount.sequenceNumber,
+    });
+
+    this.validateTransaction(transaction, onChainAccount, {
+      expectedOPTypes: [SupportedOperations.InvokeHostFunction],
+      preloadedAccounts: destinationAccount ? [destinationAccount] : undefined,
+      preloadedTokenBalance: {
+        [onChainAccount.accountId]: {
+          [assetId]: onChainBalance,
+        },
+      },
+    });
+
+    return transaction;
+  }
+
+  /**
+   * Creates a validated classic asset transfer transaction.
+   * Classic asset is using the native asset of the chain to transfer assets,
+   * if the destination is not activated, a create account operation will be added to the transaction.
+   * if the destination is activated, a payment operation will be added to the transaction.
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.assetId - The CAIP-19 classic asset ID.
+   * @param params.amount - The amount to send.
+   * @param params.destination - The destination address.
+   * @param params.destinationAccount - The destination account.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async #createValidatedClassicAssetTransfer(params: {
+    onChainAccount: OnChainAccount;
+    scope: KnownCaip2ChainId;
+    assetId: KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
+    amount: BigNumber;
+    destination: string;
+    destinationAccount: OnChainAccount | null;
+  }): Promise<Transaction> {
+    const {
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destinationAccount,
+      destination,
+    } = params;
+
+    const isDestinationActivated = destinationAccount !== null;
+
+    // fail early if the destination account is not activated and the asset is not slip44
+    if (!isDestinationActivated && !isSlip44Id(assetId)) {
+      throw new AccountNotActivatedException(destination, scope);
+    }
+
+    const baseFee = await this.#networkService.getBaseFee(scope);
+
+    const transaction = this.#transactionBuilder.transfer({
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination: {
+        address: destination,
+        isActivated: isDestinationActivated,
+      },
+      baseFee,
+    });
+
+    this.validateTransaction(transaction, onChainAccount, {
+      expectedOPTypes: isDestinationActivated
+        ? [SupportedOperations.Payment]
+        : [SupportedOperations.CreateAccount],
+      preloadedAccounts: destinationAccount ? [destinationAccount] : undefined,
     });
 
     return transaction;
