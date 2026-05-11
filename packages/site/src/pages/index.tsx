@@ -1,5 +1,5 @@
 import { KeyringRpcMethod, type KeyringAccount } from '@metamask/keyring-api';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { styled } from 'styled-components';
 
 import {
@@ -159,12 +159,61 @@ const TrustlineButtonRow = styled.div`
   }
 `;
 
+const AccountSelect = styled.select`
+  width: 100%;
+  margin-top: 1.2rem;
+  margin-bottom: 1.2rem;
+  padding: 1.2rem;
+  border-radius: ${({ theme }) => theme.radii.default};
+  border: 1px solid ${({ theme }) => theme.colors.border?.default};
+  background-color: ${({ theme }) => theme.colors.background?.default};
+  color: ${({ theme }) => theme.colors.text?.default};
+  font-family: inherit;
+  font-size: ${({ theme }) => theme.fontSizes.text};
+  box-sizing: border-box;
+`;
+
+const AccountToolbar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  align-items: center;
+  margin-top: 0.4rem;
+  align-self: flex-start;
+  width: 100%;
+  ${({ theme }) => theme.mediaQueries.small} {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
+/**
+ * Builds a short label for a keyring account (address + id prefix).
+ *
+ * @param account - Keyring account from `ListAccounts`.
+ * @returns Human-readable option text for the account picker.
+ */
+function formatAccountOptionLabel(account: KeyringAccount): string {
+  const { address } = account;
+  const short =
+    address.length > 14
+      ? `${address.slice(0, 8)}…${address.slice(-6)}`
+      : address;
+  return `${short} · ${account.id.slice(0, 8)}…`;
+}
+
 const Index = () => {
   const { error } = useMetaMaskContext();
   const { isFlask, snapsDetected, installedSnap } = useMetaMask();
   const requestSnap = useRequestSnap();
   const invokeKeyring = useInvokeKeyring();
+  const invokeKeyringRef = useRef(invokeKeyring);
+  invokeKeyringRef.current = invokeKeyring;
   const invokeSnap = useInvokeSnap();
+  const [keyringAccounts, setKeyringAccounts] = useState<KeyringAccount[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+    null,
+  );
   const [signMessageText, setSignMessageText] = useState(
     'Hello from the Stellar wallet test dapp',
   );
@@ -189,6 +238,69 @@ const Index = () => {
     ? isFlask
     : snapsDetected;
 
+  const applyKeyringAccountList = (list: KeyringAccount[]) => {
+    setKeyringAccounts(list);
+    setSelectedAccountId((previousId) => {
+      if (list.length === 0) {
+        return null;
+      }
+      if (previousId && list.some((a) => a.id === previousId)) {
+        return previousId;
+      }
+      return list[0]?.id ?? null;
+    });
+  };
+
+  const refreshKeyringAccounts = async (): Promise<KeyringAccount[]> => {
+    const accounts = (await invokeKeyringRef.current({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+    const list = Array.isArray(accounts) ? accounts : [];
+    applyKeyringAccountList(list);
+    return list;
+  };
+
+  useEffect(() => {
+    if (!installedSnap) {
+      applyKeyringAccountList([]);
+      return () => {};
+    }
+
+    let cancelled = false;
+
+    const loadAccounts = async () => {
+      const accounts = (await invokeKeyringRef.current({
+        method: KeyringRpcMethod.ListAccounts,
+      })) as KeyringAccount[] | null;
+      if (cancelled) {
+        return;
+      }
+      const list = Array.isArray(accounts) ? accounts : [];
+      applyKeyringAccountList(list);
+    };
+
+    loadAccounts().catch(() => {
+      /* ignore list failures; user can retry with Refresh */
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [installedSnap]);
+
+  const resolveSelectedAccount = (): KeyringAccount | null => {
+    if (keyringAccounts.length === 0) {
+      return null;
+    }
+    if (selectedAccountId) {
+      const match = keyringAccounts.find((a) => a.id === selectedAccountId);
+      if (match) {
+        return match;
+      }
+    }
+    return keyringAccounts[0] ?? null;
+  };
+
   const handleAddStellarAccount = async () => {
     await invokeKeyring({
       method: KeyringRpcMethod.CreateAccount,
@@ -196,12 +308,7 @@ const Index = () => {
         options: {},
       },
     });
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-
-    const account = accounts?.[0];
-    console.log('account', account);
+    await refreshKeyringAccounts();
   };
 
   const handleSignMessageClick = async () => {
@@ -212,11 +319,7 @@ const Index = () => {
       return;
     }
 
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-
-    const account = accounts?.[0];
+    const account = resolveSelectedAccount();
     if (!account) {
       setSignMessageOutput(
         'No keyring accounts found. Add a Stellar account in MetaMask first.',
@@ -257,10 +360,7 @@ const Index = () => {
       return;
     }
 
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-    const account = accounts?.[0];
+    const account = resolveSelectedAccount();
     if (!account) {
       setSignTxnOutput(
         'No keyring accounts found. Add a Stellar account in MetaMask first.',
@@ -303,10 +403,7 @@ const Index = () => {
       return;
     }
 
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-    const account = accounts?.[0];
+    const account = resolveSelectedAccount();
     if (!account) {
       setSignAuthEntryOutput(
         'No keyring accounts found. Add a Stellar account in MetaMask first.',
@@ -351,11 +448,7 @@ const Index = () => {
 
     const trimmedLimit = trustlineLimit.trim();
 
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-
-    const account = accounts?.[0];
+    const account = resolveSelectedAccount();
     if (!account) {
       setTrustlineOutput(
         'No keyring accounts found. Add a Stellar account in MetaMask first.',
@@ -476,6 +569,50 @@ const Index = () => {
         />
         <Card
           content={{
+            title: 'Active keyring account',
+            description:
+              'Signing and trustline actions use the account you select here. Refresh after creating accounts elsewhere in MetaMask.',
+            button: (
+              <>
+                <AccountSelect
+                  aria-label="Keyring account for signing"
+                  value={selectedAccountId ?? ''}
+                  onChange={({ target }) =>
+                    setSelectedAccountId(target.value || null)
+                  }
+                  disabled={!installedSnap || keyringAccounts.length === 0}
+                >
+                  {keyringAccounts.length === 0 ? (
+                    <option value="">No accounts loaded</option>
+                  ) : (
+                    keyringAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {formatAccountOptionLabel(account)}
+                      </option>
+                    ))
+                  )}
+                </AccountSelect>
+                <AccountToolbar>
+                  <SignOpsButton
+                    type="button"
+                    onClick={() => {
+                      refreshKeyringAccounts().catch(() => {
+                        /* ignore */
+                      });
+                    }}
+                    disabled={!installedSnap}
+                  >
+                    Refresh account list
+                  </SignOpsButton>
+                </AccountToolbar>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+        <Card
+          content={{
             title: 'Sign message',
             description:
               'Calls the dev-only stellar_signMessage RPC alias (SEP-43-shaped params + response). In production, the same handler is reached via the multichain API.',
@@ -568,7 +705,7 @@ const Index = () => {
           content={{
             title: 'Change trust (test dapp RPC)',
             description:
-              'Invokes stellar_changeTrustOpt (changeTrustOpt with action add or delete). Optional limit for add; for delete, limit must be 0. Uses the last keyring account.',
+              'Invokes stellar_changeTrustOpt (changeTrustOpt with action add or delete). Optional limit for add; for delete, limit must be 0. Uses the active keyring account above.',
             button: (
               <>
                 <MessageField
