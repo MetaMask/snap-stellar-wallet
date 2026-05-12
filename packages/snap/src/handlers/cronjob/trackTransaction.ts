@@ -28,7 +28,7 @@ import { Duration, scheduleBackgroundEvent } from '../../utils/snap';
 /**
  * Polls Soroban RPC for transaction settlement first, then updates keyring status and runs
  * {@link OnChainAccountService.synchronize}. The persisted keyring transaction in snap state
- * (by hash) is the source of truth for which account to sync; cron `accountIds` are a fallback.
+ * (by hash) is the source of truth for which account to sync.
  */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static async scheduleBackgroundEvent(
@@ -91,6 +91,11 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       attempt: attemptRaw ?? 0,
     });
 
+    // When no row exists in snap state, we still poll (inclusion can still be observed) and
+    // `updateKeyringTransactionStatus` still runs via cron `accountIds` when the poll is
+    // terminal. Whether to short-circuit or reschedule in that case is unresolved.
+    // TODO: Revisit behavior when `findKeyringTransactionByTransactionId`
+    // returns undefined (e.g. early-exit poll, stronger logging, or reschedule policy).
     const persistedKeyringTransaction =
       await this.#transactionService.findKeyringTransactionByTransactionId(
         txId,
@@ -131,57 +136,52 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     }
 
     if (keyringStatus) {
-      try {
-        await this.#settleKeyringRow(txId, accountIds, keyringStatus);
-      } catch (error: unknown) {
-        this.logger.logErrorWithDetails(
-          'TrackTransaction: failed to update keyring transaction status',
-          error,
-        );
-      }
+      await this.#settleKeyringRow(txId, accountIds, keyringStatus);
     }
 
+    // TODO: Consider skipping synchronize when the keyring row stayed
+    // pending (no terminal poll result) to avoid redundant on-chain refreshes.
     const accountsToSync = await this.#resolveAccountsForSynchronize({
-      accountIds,
       persistedKeyringTransaction,
     });
     if (accountsToSync.length > 0) {
       await this.#synchronizeAccounts(accountsToSync, scope);
+    } else {
+      this.logger.warn(
+        'TrackTransaction: account not found when tracking the transaction, unable to sync',
+        {
+          txId,
+          scope,
+          persistedAccountId: persistedKeyringTransaction?.account,
+        },
+      );
     }
   }
 
   /**
-   * Resolves keyring accounts to sync: prefers the account id on the persisted keyring
-   * transaction; otherwise uses `accountIds` from the cron request.
+   * Resolves keyring accounts to sync from the persisted keyring transaction only.
    *
    * @param params - Resolution inputs.
    * @param params.persistedKeyringTransaction - Pending row from snap state, if any.
-   * @param params.accountIds - Keyring account ids from the track request (fallback).
    * @returns Accounts to pass to {@link OnChainAccountService.synchronize}.
    */
   async #resolveAccountsForSynchronize(params: {
     persistedKeyringTransaction: KeyringTransaction | undefined;
-    accountIds: readonly string[];
   }): Promise<StellarKeyringAccount[]> {
-    const { accountIds, persistedKeyringTransaction } = params;
+    const { persistedKeyringTransaction } = params;
 
-    if (persistedKeyringTransaction) {
-      const account = await this.#accountService.findById(
-        persistedKeyringTransaction.account,
-      );
-      if (account) {
-        return [account];
-      }
-      this.logger.warn(
-        'TrackTransaction: persisted transaction references missing keyring account; falling back to accountIds',
-        {
-          txId: persistedKeyringTransaction.id,
-          accountId: persistedKeyringTransaction.account,
-        },
-      );
+    if (!persistedKeyringTransaction) {
+      return [];
     }
 
-    return await this.#accountService.findByIds([...accountIds]);
+    const account = await this.#accountService.findById(
+      persistedKeyringTransaction.account,
+    );
+    if (account) {
+      return [account];
+    }
+
+    return [];
   }
 
   async #synchronizeAccounts(
@@ -196,10 +196,17 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     accountIds: readonly string[],
     keyringStatus: TransactionStatus.Confirmed | TransactionStatus.Failed,
   ): Promise<void> {
-    await this.#transactionService.updateKeyringTransactionStatus({
-      txId,
-      accountIds,
-      status: keyringStatus,
-    });
+    try {
+      await this.#transactionService.updateKeyringTransactionStatus({
+        txId,
+        accountIds,
+        status: keyringStatus,
+      });
+    } catch (error: unknown) {
+      this.logger.logErrorWithDetails(
+        'TrackTransaction: failed to update keyring transaction status',
+        error,
+      );
+    }
   }
 }

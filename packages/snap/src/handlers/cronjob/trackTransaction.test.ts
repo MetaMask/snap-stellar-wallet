@@ -39,6 +39,23 @@ describe('TrackTransactionHandler', () => {
     jest.mocked(scheduleBackgroundEvent).mockResolvedValue('scheduled');
   });
 
+  function createPersistedKeyringTransaction(
+    account: string = accountId,
+  ): KeyringTransaction {
+    return {
+      type: TransactionType.Send,
+      id: txId,
+      account,
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      timestamp: 1,
+      from: [],
+      to: [],
+      events: [],
+      fees: [],
+    };
+  }
+
   function setup() {
     const account = generateStellarKeyringAccount(
       accountId,
@@ -107,13 +124,8 @@ describe('TrackTransactionHandler', () => {
   }
 
   it('loads persisted keyring transaction from state before Soroban poll', async () => {
-    const {
-      handler,
-      account,
-      findByIds,
-      pollTransaction,
-      findKeyringTransactionByTransactionId,
-    } = setup();
+    const { handler, pollTransaction, findKeyringTransactionByTransactionId } =
+      setup();
     const callOrder: string[] = [];
     findKeyringTransactionByTransactionId.mockImplementation(async () => {
       callOrder.push('findPersisted');
@@ -122,10 +134,6 @@ describe('TrackTransactionHandler', () => {
     pollTransaction.mockImplementation(async () => {
       callOrder.push('poll');
       return txId;
-    });
-    findByIds.mockImplementation(async () => {
-      callOrder.push('findByIds');
-      return [account];
     });
 
     await handler.handle({
@@ -139,7 +147,7 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(callOrder).toStrictEqual(['findPersisted', 'poll', 'findByIds']);
+    expect(callOrder).toStrictEqual(['findPersisted', 'poll']);
   });
 
   it('settles keyring row as confirmed when RPC poll succeeds', async () => {
@@ -149,7 +157,11 @@ describe('TrackTransactionHandler', () => {
       pollTransaction,
       synchronize,
       updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
     } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
     pollTransaction.mockResolvedValue(txId);
 
     await handler.handle({
@@ -180,7 +192,11 @@ describe('TrackTransactionHandler', () => {
       pollTransaction,
       synchronize,
       updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
     } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
     pollTransaction.mockRejectedValue(
       new TransactionPollException(txId, 'failed', scope),
     );
@@ -211,7 +227,11 @@ describe('TrackTransactionHandler', () => {
       pollTransaction,
       synchronize,
       updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
     } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
     pollTransaction.mockRejectedValue(
       new TransactionPollException(txId, 'unknown', scope),
     );
@@ -238,7 +258,11 @@ describe('TrackTransactionHandler', () => {
       pollTransaction,
       synchronize,
       updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
     } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
     pollTransaction.mockRejectedValue(new Error('unexpected poll failure'));
 
     await handler.handle({
@@ -267,18 +291,7 @@ describe('TrackTransactionHandler', () => {
       synchronize,
       updateKeyringTransactionStatus,
     } = setup();
-    const persisted: KeyringTransaction = {
-      type: TransactionType.Send,
-      id: txId,
-      account: accountId,
-      chain: scope,
-      status: TransactionStatus.Unconfirmed,
-      timestamp: 1,
-      from: [],
-      to: [],
-      events: [],
-      fees: [],
-    };
+    const persisted = createPersistedKeyringTransaction();
     findKeyringTransactionByTransactionId.mockResolvedValue(persisted);
     findByIds.mockResolvedValue([]);
     findById.mockResolvedValue(account);
@@ -305,31 +318,19 @@ describe('TrackTransactionHandler', () => {
     });
   });
 
-  it('falls back to findByIds when persisted tx references missing account', async () => {
+  it('does not synchronize when persisted tx references missing keyring account', async () => {
     const {
       handler,
-      account,
       findByIds,
       findById,
       pollTransaction,
       findKeyringTransactionByTransactionId,
       synchronize,
     } = setup();
-    const persisted: KeyringTransaction = {
-      type: TransactionType.Send,
-      id: txId,
-      account: 'deadbeef-dead-4ead-8ead-deadbeefdead',
-      chain: scope,
-      status: TransactionStatus.Unconfirmed,
-      timestamp: 1,
-      from: [],
-      to: [],
-      events: [],
-      fees: [],
-    };
-    findKeyringTransactionByTransactionId.mockResolvedValue(persisted);
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction('deadbeef-dead-4ead-8ead-deadbeefdead'),
+    );
     findById.mockResolvedValue(undefined);
-    findByIds.mockResolvedValue([account]);
     pollTransaction.mockResolvedValue(txId);
 
     await handler.handle({
@@ -343,13 +344,12 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(findByIds).toHaveBeenCalledWith([accountId]);
-    expect(synchronize).toHaveBeenCalledWith([account], scope);
+    expect(findByIds).not.toHaveBeenCalled();
+    expect(synchronize).not.toHaveBeenCalled();
   });
 
-  it('skips sync when no persisted row and findByIds returns empty', async () => {
-    const { handler, findByIds, pollTransaction, synchronize } = setup();
-    findByIds.mockResolvedValue([]);
+  it('skips sync when no persisted row exists', async () => {
+    const { handler, pollTransaction, synchronize } = setup();
     pollTransaction.mockResolvedValue(txId);
 
     await handler.handle({
