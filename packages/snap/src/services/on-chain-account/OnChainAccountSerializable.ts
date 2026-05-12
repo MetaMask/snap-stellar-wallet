@@ -3,6 +3,7 @@ import {
   array,
   assign,
   boolean,
+  defaulted,
   number,
   object,
   optional,
@@ -16,6 +17,7 @@ import {
   KnownCaip19Slip44IdStruct,
   KnownCaip2ChainIdStruct,
 } from '../../api';
+import { STELLAR_DECIMAL_PLACES } from '../../constants';
 
 /** Header-only binding: RPC-style account (id + sequence + network), no balances or ledger meta. */
 export const OnChainAccountMinimalSerializableStruct = object({
@@ -46,6 +48,7 @@ export const SerializableSep41SpendableBalanceStruct = object({
   assetId: KnownCaip19Sep41AssetStruct,
   balance: string(),
   symbol: string(),
+  decimals: defaulted(number(), STELLAR_DECIMAL_PLACES),
 });
 
 export type SerializableSep41SpendableBalance = Infer<
