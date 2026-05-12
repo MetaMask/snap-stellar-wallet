@@ -41,6 +41,7 @@ import type { WalletService } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { createPrefixedLogger, type ILogger } from '../../utils/logger';
+import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve<
   ChangeTrustOptJsonRpcRequest,
@@ -162,6 +163,12 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
       account,
       assetMetadata,
       action,
+    });
+
+    await TrackTransactionHandler.scheduleBackgroundEvent({
+      txId: transactionId,
+      scope,
+      accountIds: [account.id],
     });
 
     return {
