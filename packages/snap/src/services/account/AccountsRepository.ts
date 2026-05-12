@@ -1,3 +1,5 @@
+import { cloneDeep } from 'lodash';
+
 import type { KeyringAccountState, StellarKeyringAccount } from './api';
 import type { KnownCaip2ChainId } from '../../api';
 import { isSameStr } from '../../utils/assert';
@@ -92,6 +94,30 @@ export class AccountsRepository {
    */
   async save(account: StellarKeyringAccount): Promise<void> {
     await this.#state.setKey(`${this.#storageKey}.${account.id}`, account);
+  }
+
+  /**
+   * Persists multiple accounts in keyring state.
+   *
+   * @param accounts - The accounts to create.
+   * @returns A Promise that resolves when the accounts have been written.
+   */
+  async saveMany(accounts: StellarKeyringAccount[]): Promise<void> {
+    if (accounts.length === 0) {
+      return;
+    }
+
+    await this.#state.update((state) => {
+      const newState = cloneDeep(state);
+      if (!newState[this.#storageKey]) {
+        newState[this.#storageKey] =
+          {} as KeyringAccountState['keyringAccounts'];
+      }
+      for (const account of accounts) {
+        newState[this.#storageKey][account.id] = account;
+      }
+      return newState;
+    });
   }
 
   /**

@@ -7,6 +7,9 @@ import { STELLAR_DERIVATION_PATH_PREFIX } from '../../constants';
  * @param index - The derivation index (account number).
  * @returns The derivation path string.
  */
-export function getDerivationPath(index: number): StellarDerivationPath {
+export function getDerivationPath(index?: number): StellarDerivationPath {
+  if (index === undefined) {
+    return `${STELLAR_DERIVATION_PATH_PREFIX}`;
+  }
   return `${STELLAR_DERIVATION_PATH_PREFIX}/${index}'`;
 }

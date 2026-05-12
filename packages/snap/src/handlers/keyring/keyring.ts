@@ -202,7 +202,7 @@ export class KeyringHandler implements Keyring {
     ] as const);
 
     try {
-      const accounts: KeyringAccount[] = [];
+      let accounts: KeyringAccount[] = [];
 
       if (options.type === AccountCreationType.Bip44DeriveIndex) {
         const account = await this.#accountService.create({
@@ -211,17 +211,14 @@ export class KeyringHandler implements Keyring {
         });
         accounts.push(this.#toKeyringAccount(account));
       } else {
-        for (
-          let groupIndex = options.range.from;
-          groupIndex <= options.range.to;
-          groupIndex += 1
-        ) {
-          const account = await this.#accountService.create({
-            entropySource: options.entropySource,
-            index: groupIndex,
-          });
-          accounts.push(this.#toKeyringAccount(account));
-        }
+        const createdAccounts = await this.#accountService.batchCreate({
+          entropySource: options.entropySource,
+          fromIndex: options.range.from,
+          toIndex: options.range.to,
+        });
+        accounts = createdAccounts.map((account) =>
+          this.#toKeyringAccount(account),
+        );
       }
 
       return accounts;
