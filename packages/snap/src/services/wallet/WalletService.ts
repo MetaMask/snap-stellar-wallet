@@ -1,3 +1,4 @@
+import { SLIP10Node } from '@metamask/key-tree';
 import { hexToBytes } from '@metamask/utils';
 import { Keypair as StellarKeypair } from '@stellar/stellar-sdk';
 
@@ -61,6 +62,22 @@ export class WalletService {
     return new Wallet(keypair);
   }
 
+  /**
+   * Gets a wallet resolver function that resolves to a Wallet for the given index.
+   *
+   * @param entropySource - The entropy source to use for derivation.
+   * @returns A function that resolves to a Wallet for the given index.
+   */
+  async getWalletResolver(
+    entropySource: string,
+  ): Promise<(index: number) => Promise<Wallet>> {
+    const coinTypeNode = await this.#getRootNode(entropySource);
+    return async (index: number) => {
+      const keypair = await this.#deriveKeypairByNode(coinTypeNode, index);
+      return new Wallet(keypair);
+    };
+  }
+
   async #deriveKeypair({
     index,
     entropySource,
@@ -95,6 +112,43 @@ export class WalletService {
       this.#logger.logErrorWithDetails('Error getting seed', error);
 
       throw sanitizeSensitiveError(error as Error);
+    }
+  }
+
+  async #getRootNode(entropySource: string): Promise<SLIP10Node> {
+    try {
+      const derivationPath = getDerivationPath();
+      const path = derivationPath.split('/');
+      const jsonNode = await getBip32Entropy({
+        entropySource,
+        path,
+        curve: STELLAR_CURVE,
+      });
+      const coinTypeNode = await SLIP10Node.fromJSON(jsonNode);
+      return coinTypeNode;
+    } catch (error) {
+      this.#logger.logErrorWithDetails('Error getting root node', error);
+
+      throw sanitizeSensitiveError(error as Error);
+    }
+  }
+
+  async #deriveKeypairByNode(
+    node: SLIP10Node,
+    index: number,
+  ): Promise<StellarKeypair> {
+    try {
+      const derived = await node.derive([`slip10:${index}'`]);
+      if (!derived.privateKey || !derived.publicKey) {
+        throw new Error('Unable to derive private key or public key');
+      }
+      const privateKeyBytes = hexToBytes(derived.privateKey);
+      return StellarKeypair.fromRawEd25519Seed(
+        bufferToUint8Array(privateKeyBytes),
+      );
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails('Error deriving keypair', error);
+      throw new WalletServiceException('Failed to derive keypair');
     }
   }
 }
