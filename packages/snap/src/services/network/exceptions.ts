@@ -20,6 +20,12 @@ export class BaseFeeFetchException extends NetworkServiceException {
 
 /** Thrown when transaction polling does not result in SUCCESS (e.g. failed or unknown status). */
 export class TransactionPollException extends NetworkServiceException {
+  readonly transactionHash: string;
+
+  readonly status: string;
+
+  readonly scope: KnownCaip2ChainId;
+
   constructor(
     transactionHash: string,
     status: string,
@@ -28,6 +34,9 @@ export class TransactionPollException extends NetworkServiceException {
     super(
       `Failed to poll transaction: ${transactionHash} with status: ${status} for scope: ${scope}`,
     );
+    this.transactionHash = transactionHash;
+    this.status = status;
+    this.scope = scope;
   }
 }
 

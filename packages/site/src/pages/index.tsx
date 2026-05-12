@@ -446,10 +446,6 @@ const Index = () => {
     }
 
     const trimmedLimit = trustlineLimit.trim();
-    if (action === 'delete' && !trimmedLimit) {
-      setTrustlineOutput('For remove trustline, enter limit 0.');
-      return;
-    }
 
     const account = resolveSelectedAccount();
     if (!account) {
@@ -473,8 +469,6 @@ const Index = () => {
     };
     if (action === 'add' && trimmedLimit) {
       params.limit = trimmedLimit;
-    } else if (action === 'delete') {
-      params.limit = '0';
     }
 
     try {

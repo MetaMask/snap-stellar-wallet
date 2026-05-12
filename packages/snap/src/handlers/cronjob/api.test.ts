@@ -49,6 +49,12 @@ describe('Cronjob API structs', () => {
       expect(value).toStrictEqual({ accountIds: [id] });
     });
 
+    it('accepts empty object when accountIds is omitted', () => {
+      const value = {};
+      assert(value, SyncAccountParamsStruct);
+      expect(value).toStrictEqual({});
+    });
+
     it('rejects empty account id arrays', () => {
       expect(() => assert({ accountIds: [] }, SyncAccountParamsStruct)).toThrow(
         StructError,
@@ -89,6 +95,20 @@ describe('Cronjob API structs', () => {
       expect(value).toStrictEqual({
         ...jsonRpcBase,
         method: BackgroundEventMethod.SynchronizeAccounts,
+      });
+    });
+
+    it('accepts synchronize accounts requests with empty params object', () => {
+      const value = {
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.SynchronizeAccounts,
+        params: {},
+      };
+      assert(value, SyncAccountJsonRpcRequestStruct);
+      expect(value).toStrictEqual({
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.SynchronizeAccounts,
+        params: {},
       });
     });
 

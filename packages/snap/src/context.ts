@@ -162,6 +162,10 @@ const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
 
 const trackTransactionHandler = new TrackTransactionHandler({
   logger,
+  networkService,
+  onChainAccountService,
+  accountService,
+  transactionService,
 });
 
 const syncAccountsHandler = new SyncAccountsHandler({

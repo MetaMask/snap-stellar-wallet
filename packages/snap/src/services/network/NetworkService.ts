@@ -1,4 +1,4 @@
-import { parseCaipAssetType } from '@metamask/utils';
+import { ensureError, parseCaipAssetType } from '@metamask/utils';
 import {
   Account as StellarAccount,
   Address,
@@ -123,6 +123,36 @@ export class NetworkService {
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to fetch base fee', error);
       throw new BaseFeeFetchException(scope);
+    }
+  }
+
+  /**
+   * Whether a transaction has been ingested by Horizon and its ledger outcome.
+   *
+   * @param transactionHash - Transaction hash from submission (hex).
+   * @param scope - CAIP-2 chain id (Horizon endpoint).
+   * @returns `pending` when the tx is not yet available (404); `success` / `failed` when present.
+   */
+  async getHorizonTransactionInclusionStatus(
+    transactionHash: string,
+    scope: KnownCaip2ChainId,
+  ): Promise<'pending' | 'success' | 'failed'> {
+    try {
+      const client = this.#getHorizonClient(scope);
+      const record = await client
+        .transactions()
+        .transaction(transactionHash)
+        .call();
+      return record.successful ? 'success' : 'failed';
+    } catch (error: unknown) {
+      if (error instanceof NotFoundError) {
+        return 'pending';
+      }
+      this.#logger.logErrorWithDetails(
+        'Failed to load transaction from Horizon',
+        error,
+      );
+      throw ensureError(error);
     }
   }
 
