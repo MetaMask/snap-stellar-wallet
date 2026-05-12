@@ -165,9 +165,9 @@ export class OnChainAccount {
   }
 
   /**
-   * Classic Stellar trustline asset ids (CAIP-19) that have a balance row with a limit.
+   * Classic Stellar trustline asset ids (CAIP-19) that have a balance row with a limit greater than 0.
    *
-   * @returns Asset ids for which {@link getAsset} includes `limit` (classic trustlines only).
+   * @returns Asset ids for classic trustlines.
    */
   get classicTrustlineAssetIds(): KnownCaip19ClassicAssetId[] {
     const ids: KnownCaip19ClassicAssetId[] = [];
