@@ -16,6 +16,7 @@ import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import { MultichainMethod } from '../../handlers/keyring/api';
 import type { ILogger } from '../../utils';
 import {
+  batchesAll,
   createPrefixedLogger,
   getDefaultEntropySource,
   getLowestIndex,
@@ -163,18 +164,10 @@ export class AccountService {
       return sameAccount;
     }
 
-    const derivedAccount = await this.#deriveAccount({
+    const account = await this.#deriveAccount({
       entropySource,
       index: derivationIndex,
     });
-
-    const account = {
-      ...derivedAccount,
-      options: {
-        ...derivedAccount.options,
-        groupIndex: derivationIndex,
-      },
-    };
 
     await this.#accountsRepository.save(account);
 
@@ -200,6 +193,80 @@ export class AccountService {
     }
 
     return account;
+  }
+
+  /**
+   * Batch creates Stellar accounts with the given options.
+   *
+   * @param options - The parameters for batch account creation.
+   * @param options.entropySource - [Optional] The entropy source to use for derivation.
+   * @param options.fromIndex - [Required] The starting derivation index (inclusive).
+   * @param options.toIndex - [Required] The ending derivation index (inclusive).
+   * @returns A Promise that resolves to accounts in index order for the full requested range.
+   * Existing accounts are reused and only missing accounts are created and persisted.
+   */
+  async batchCreate(options: {
+    entropySource?: EntropySourceId;
+    fromIndex: number;
+    toIndex: number;
+  }): Promise<StellarKeyringAccount[]> {
+    const { fromIndex, toIndex } = options;
+    // MetaMask Client is the only caller of this method,
+    // We dont add mutex lock here, because the caller should ensure the requests are piped in order
+    const accounts = await this.#accountsRepository.getAll();
+    const entropySource =
+      options.entropySource ?? (await getDefaultEntropySource());
+
+    // 1. Index existing accounts in range by derivation index
+    const existingAccountsByIndex = new Map<number, StellarKeyringAccount>();
+    for (const account of accounts) {
+      if (
+        account.entropySource === entropySource &&
+        account.index >= fromIndex &&
+        account.index <= toIndex
+      ) {
+        existingAccountsByIndex.set(account.index, account);
+      }
+    }
+
+    // 2. Wallet resolver (single SLIP10 root — cheap repeated derivation per index)
+    const walletResolver =
+      await this.#walletService.getWalletResolver(entropySource);
+
+    // 3. Fill each index in range in derivation order; batchesAll preserves item order in its result.
+    const rangeLength = Math.max(0, toIndex - fromIndex + 1);
+    const rangeIndices = Array.from(
+      { length: rangeLength },
+      (_ignored, offset) => fromIndex + offset,
+    );
+    const BATCH_DERIVATION_SIZE = 15;
+
+    const returnAccounts = await batchesAll(
+      rangeIndices,
+      BATCH_DERIVATION_SIZE,
+      async (index) => {
+        let account = existingAccountsByIndex.get(index);
+        if (account === undefined) {
+          const wallet = await walletResolver(index);
+          account = this.#toStellarKeyringAccount({
+            entropySource,
+            derivationPath: getDerivationPath(index),
+            index,
+            address: wallet.address,
+          });
+        }
+        return account;
+      },
+    );
+
+    const createdAccounts = returnAccounts.filter(
+      (account) => !existingAccountsByIndex.has(account.index),
+    );
+
+    // 4. Save all new accounts
+    await this.#accountsRepository.saveMany(createdAccounts);
+
+    return returnAccounts;
   }
 
   /**

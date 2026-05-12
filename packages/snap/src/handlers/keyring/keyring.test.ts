@@ -100,6 +100,7 @@ describe('KeyringHandler', () => {
     deleteSpy: jest.spyOn(AccountService.prototype, 'delete'),
     resolveAccountSpy: jest.spyOn(AccountService.prototype, 'resolveAccount'),
     createAccountSpy: jest.spyOn(AccountService.prototype, 'create'),
+    batchCreateAccountSpy: jest.spyOn(AccountService.prototype, 'batchCreate'),
     findByIdsSpy: jest.spyOn(AccountService.prototype, 'findByIds'),
   });
 
@@ -315,7 +316,7 @@ describe('KeyringHandler', () => {
     });
 
     it('creates accounts for each index in bip44:derive-index-range', async () => {
-      const { createAccountSpy } = getAccountServiceSpies();
+      const { batchCreateAccountSpy } = getAccountServiceSpies();
       const accountAt1 = generateStellarKeyringAccount(
         'id-1',
         mockAccount.address,
@@ -334,10 +335,11 @@ describe('KeyringHandler', () => {
         entropySourceId,
         3,
       );
-      createAccountSpy
-        .mockResolvedValueOnce(accountAt1)
-        .mockResolvedValueOnce(accountAt2)
-        .mockResolvedValueOnce(accountAt3);
+      batchCreateAccountSpy.mockResolvedValue([
+        accountAt1,
+        accountAt2,
+        accountAt3,
+      ]);
 
       const result = await keyringHandler.createAccounts({
         type: AccountCreationType.Bip44DeriveIndexRange,
@@ -345,18 +347,11 @@ describe('KeyringHandler', () => {
         range: { from: 1, to: 3 },
       });
 
-      expect(createAccountSpy).toHaveBeenCalledTimes(3);
-      expect(createAccountSpy).toHaveBeenNthCalledWith(1, {
+      expect(batchCreateAccountSpy).toHaveBeenCalledTimes(1);
+      expect(batchCreateAccountSpy).toHaveBeenCalledWith({
         entropySource: entropySourceId,
-        index: 1,
-      });
-      expect(createAccountSpy).toHaveBeenNthCalledWith(2, {
-        entropySource: entropySourceId,
-        index: 2,
-      });
-      expect(createAccountSpy).toHaveBeenNthCalledWith(3, {
-        entropySource: entropySourceId,
-        index: 3,
+        fromIndex: 1,
+        toIndex: 3,
       });
       expect(result).toHaveLength(3);
       expect(result[0]?.options).toMatchObject({
@@ -372,14 +367,24 @@ describe('KeyringHandler', () => {
     });
 
     it('throws KeyringCreateAccountException when account creation fails', async () => {
-      const { createAccountSpy } = getAccountServiceSpies();
+      const { createAccountSpy, batchCreateAccountSpy } =
+        getAccountServiceSpies();
       createAccountSpy.mockRejectedValue(new Error('Batch create failed'));
+      batchCreateAccountSpy.mockRejectedValue(new Error('Batch create failed'));
 
       await expect(
         keyringHandler.createAccounts({
           type: AccountCreationType.Bip44DeriveIndex,
           entropySource: entropySourceId,
           groupIndex: 0,
+        }),
+      ).rejects.toThrow(KeyringCreateAccountException);
+
+      await expect(
+        keyringHandler.createAccounts({
+          type: AccountCreationType.Bip44DeriveIndexRange,
+          entropySource: entropySourceId,
+          range: { from: 0, to: 2 },
         }),
       ).rejects.toThrow(KeyringCreateAccountException);
     });
