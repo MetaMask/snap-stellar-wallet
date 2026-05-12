@@ -57,6 +57,8 @@ describe('ChangeTrustOptHandler', () => {
   const accountId = '11111111-1111-4111-8111-111111111111';
   const scope = KnownCaip2ChainId.Mainnet;
   const assetId = USDC_CLASSIC as KnownCaip19ClassicAssetId;
+  const transactionHash =
+    '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1';
   const trustlineAsset = {
     assetType: 'credit_alphanum4',
     assetCode: 'USDC',
@@ -131,7 +133,7 @@ describe('ChangeTrustOptHandler', () => {
       .mockResolvedValue(new BigNumber(100));
     const networkSendSpy = jest
       .spyOn(NetworkService.prototype, 'send')
-      .mockResolvedValue('dGVzdC10eC1pZA==');
+      .mockResolvedValue(transactionHash);
     const createValidatedChangeTrustTransaction = jest.spyOn(
       TransactionService.prototype,
       'createValidatedChangeTrustTransaction',
@@ -210,7 +212,7 @@ describe('ChangeTrustOptHandler', () => {
 
     expect(result).toStrictEqual({
       status: true,
-      transactionId: 'dGVzdC10eC1pZA==',
+      transactionId: transactionHash,
     });
 
     expect(resolve).toHaveBeenCalledWith(assetId);
@@ -242,7 +244,7 @@ describe('ChangeTrustOptHandler', () => {
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
       type: KeyringTransactionType.ChangeTrustOptIn,
       request: {
-        txId: 'dGVzdC10eC1pZA==',
+        txId: transactionHash,
         account,
         scope,
         asset: {
@@ -254,7 +256,7 @@ describe('ChangeTrustOptHandler', () => {
     expect(
       TrackTransactionHandler.scheduleBackgroundEvent,
     ).toHaveBeenCalledWith({
-      txId: 'dGVzdC10eC1pZA==',
+      txId: '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
       scope,
       accountIds: [account.id],
     });
@@ -323,7 +325,7 @@ describe('ChangeTrustOptHandler', () => {
 
     expect(result).toStrictEqual({
       status: true,
-      transactionId: 'dGVzdC10eC1pZA==',
+      transactionId: transactionHash,
     });
     expect(createValidatedChangeTrustTransaction).toHaveBeenCalledWith({
       onChainAccount,
@@ -341,7 +343,7 @@ describe('ChangeTrustOptHandler', () => {
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
       type: KeyringTransactionType.ChangeTrustOptOut,
       request: {
-        txId: 'dGVzdC10eC1pZA==',
+        txId: transactionHash,
         account,
         scope,
         asset: {
@@ -353,7 +355,7 @@ describe('ChangeTrustOptHandler', () => {
     expect(
       TrackTransactionHandler.scheduleBackgroundEvent,
     ).toHaveBeenCalledWith({
-      txId: 'dGVzdC10eC1pZA==',
+      txId: '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
       scope,
       accountIds: [account.id],
     });
@@ -394,7 +396,7 @@ describe('ChangeTrustOptHandler', () => {
 
     expect(result).toStrictEqual({
       status: true,
-      transactionId: 'dGVzdC10eC1pZA==',
+      transactionId: transactionHash,
     });
     expect(sendTransaction).toHaveBeenCalledTimes(1);
     expect(TrackTransactionHandler.scheduleBackgroundEvent).toHaveBeenCalled();

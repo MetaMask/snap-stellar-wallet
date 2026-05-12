@@ -1,6 +1,12 @@
 import { nonempty, refine, string } from '@metamask/superstruct';
 import { base64 } from '@metamask/utils';
-import { Networks, hash, xdr } from '@stellar/stellar-sdk';
+import {
+  FeeBumpTransaction,
+  Networks,
+  TransactionBuilder as StellarSdkTransactionBuilder,
+  hash,
+  xdr,
+} from '@stellar/stellar-sdk';
 
 import { bufferToUint8Array } from '../utils/buffer';
 
@@ -18,6 +24,96 @@ export const XdrStruct = refine(
       return true;
     } catch {
       return 'Invalid XDR';
+    }
+  },
+);
+
+/**
+ * Gets operation types from a base64 transaction envelope XDR.
+ *
+ * @param value - The base64 transaction envelope XDR.
+ * @returns Operation type strings in envelope order.
+ */
+function getTransactionOperationTypes(value: string): string[] {
+  const transaction = StellarSdkTransactionBuilder.fromXDR(
+    value,
+    Networks.PUBLIC,
+  );
+  const operations =
+    transaction instanceof FeeBumpTransaction
+      ? transaction.innerTransaction.operations
+      : transaction.operations;
+
+  return operations.map((operation) => operation.type);
+}
+
+/**
+ * Checks if the operation type is one of the Stellar path payment variants.
+ *
+ * @param operationType - The Stellar SDK operation type string.
+ * @returns True when the operation is a path payment.
+ */
+function isPathPaymentOperation(operationType: string | undefined): boolean {
+  return (
+    operationType === 'pathPaymentStrictSend' ||
+    operationType === 'pathPaymentStrictReceive'
+  );
+}
+
+/**
+ * Validation struct for swap transaction XDRs accepted by the CrossChain flow.
+ *
+ * Supported operation shapes:
+ * - `invokeHostFunction`: Soroban swaps are assembled as a single contract
+ * invocation; resource fee and authorization checks happen later in the
+ * transaction flow.
+ * - `pathPayment*`, `payment`: classic swaps use the path payment for the
+ * asset exchange, followed by the fee-send payment appended to the route.
+ * - `changeTrust`, `pathPayment*`, `payment`: same classic swap shape, with a
+ * leading trustline setup for destination assets the wallet cannot receive yet.
+ *
+ * This struct intentionally validates only operation order and operation kind.
+ * Account, balance, trustline, and Soroban simulation checks are handled by the
+ * transaction service and simulator after the request shape is accepted.
+ */
+export const SwapTransactionXdrStruct = refine(
+  XdrStruct,
+  'valid_swap_transaction_xdr',
+  (value: string) => {
+    try {
+      const operationTypes = getTransactionOperationTypes(value);
+      const [firstOperation, secondOperation, thirdOperation] = operationTypes;
+
+      // Soroban route: the swap is represented by one contract invocation.
+      if (
+        operationTypes.length === 1 &&
+        firstOperation === 'invokeHostFunction'
+      ) {
+        return true;
+      }
+
+      // Classic route: path payment performs the swap, then payment sends the route fee.
+      if (
+        operationTypes.length === 2 &&
+        isPathPaymentOperation(firstOperation) &&
+        secondOperation === 'payment'
+      ) {
+        return true;
+      }
+
+      // Classic route requiring a new destination-asset trustline first.
+      if (
+        operationTypes.length === 3 &&
+        firstOperation === 'changeTrust' &&
+        isPathPaymentOperation(secondOperation) &&
+        thirdOperation === 'payment'
+      ) {
+        return true;
+      }
+
+      return 'Unsupported swap transaction operation shape';
+    } catch {
+      return 'Invalid swap transaction XDR';
     }
   },
 );

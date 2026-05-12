@@ -13,6 +13,7 @@ export enum KeyringTransactionType {
   ChangeTrustOptIn = 'changeTrustOptIn',
   ChangeTrustOptOut = 'changeTrustOptOut',
   Send = 'send',
+  Pending = 'pending',
 }
 
 export type SendTransactionRequest = {
@@ -39,6 +40,26 @@ export type ChangeTrustTransactionRequest = {
   status?: TransactionStatus;
 };
 
+export type PendingTransactionRequest = {
+  txId: string;
+  account: StellarKeyringAccount;
+  scope: KnownCaip2ChainId;
+  status?: TransactionStatus;
+} & (
+  | {
+      asset: {
+        type: KnownCaip19AssetIdOrSlip44Id;
+        symbol: string;
+      };
+    }
+  | {
+      transactionType: TransactionType;
+      from: KeyringTransaction['from'];
+      to: KeyringTransaction['to'];
+      fees?: KeyringTransaction['fees'];
+    }
+);
+
 export type KeyringTransactionRequest =
   | {
       type: KeyringTransactionType.ChangeTrustOptIn;
@@ -51,6 +72,10 @@ export type KeyringTransactionRequest =
   | {
       type: KeyringTransactionType.Send;
       request: SendTransactionRequest;
+    }
+  | {
+      type: KeyringTransactionType.Pending;
+      request: PendingTransactionRequest;
     };
 
 export class KeyringTransactionBuilder {
@@ -64,6 +89,8 @@ export class KeyringTransactionBuilder {
         );
       case KeyringTransactionType.Send:
         return this.#createSendTransaction(request.request);
+      case KeyringTransactionType.Pending:
+        return this.#createPendingTransaction(request.request);
       default:
         throw new KeyringTransactionBuilderException(
           `Invalid transaction type`,
@@ -114,6 +141,74 @@ export class KeyringTransactionBuilder {
       ],
       chain: scope,
       status: request.status ?? TransactionStatus.Unconfirmed,
+      account: account.id,
+      timestamp,
+      fees: [],
+    };
+  }
+
+  #createPendingTransaction(
+    request: PendingTransactionRequest,
+  ): KeyringTransaction {
+    const timestamp = this.#getCreateTime();
+    const { txId, account, scope } = request;
+    const status = request.status ?? TransactionStatus.Unconfirmed;
+
+    // if the request has from and to, it is a pending classic swap transaction
+    if ('from' in request) {
+      return {
+        type: request.transactionType,
+        id: txId,
+        from: request.from,
+        to: request.to,
+        events: [
+          {
+            status,
+            timestamp,
+          },
+        ],
+        chain: scope,
+        status,
+        account: account.id,
+        timestamp,
+        fees: request.fees ?? [],
+      };
+    }
+
+    const { asset } = request;
+    return {
+      type: TransactionType.Unknown,
+      id: txId,
+      from: [
+        {
+          address: account.address,
+          asset: {
+            unit: asset.symbol,
+            type: asset.type,
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      to: [
+        {
+          address: account.address,
+          asset: {
+            unit: asset.symbol,
+            type: asset.type,
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      events: [
+        {
+          status,
+          timestamp,
+        },
+      ],
+      chain: scope,
+      status,
       account: account.id,
       timestamp,
       fees: [],

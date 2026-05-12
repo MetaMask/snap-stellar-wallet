@@ -119,6 +119,69 @@ export class TransactionService {
   }
 
   /**
+   * Creates a validated swap transaction from a Base64 encoded XDR.
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.xdr - The Base64 encoded XDR of the transaction.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async createValidatedSwapTransaction(params: {
+    onChainAccount: OnChainAccount;
+    scope: KnownCaip2ChainId;
+    xdr: string;
+  }): Promise<Transaction> {
+    const { onChainAccount, scope, xdr } = params;
+
+    const transaction = this.#transactionBuilder.deserialize({
+      xdr,
+      scope,
+    });
+
+    const transactionWithFee = await this.computingFee(transaction);
+
+    const preloadedAccounts = await this.#getPreloadedAccounts(
+      transactionWithFee,
+      onChainAccount,
+    );
+
+    this.validateTransaction(transactionWithFee, onChainAccount, {
+      expectedOPTypes: [
+        SupportedOperations.Payment,
+        SupportedOperations.PathPayment,
+        SupportedOperations.InvokeHostFunction,
+        SupportedOperations.ChangeTrust,
+      ],
+      preloadedAccounts,
+    });
+
+    return transactionWithFee;
+  }
+
+  async #getPreloadedAccounts(
+    transaction: Transaction,
+    onChainAccount: OnChainAccount,
+  ): Promise<OnChainAccount[]> {
+    // get the participating accounts Id that are not the source account,
+    // as we already preloaded the source account
+    const participatingAccounts: string[] = transaction.hasInvokeHostFunction
+      ? []
+      : transaction.participatingAccounts.filter(
+          (accountId) => accountId !== onChainAccount.accountId,
+        );
+
+    const preloadedAccounts = await this.#networkService.loadOnChainAccounts(
+      participatingAccounts,
+      transaction.scope,
+    );
+
+    return preloadedAccounts.filter(
+      (account): account is OnChainAccount => account !== null,
+    );
+  }
+
+  /**
    * Create and save a pending keyring transaction.
    *
    * @param request - The request {@link KeyringTransactionRequest} to create the pending transaction for.
@@ -242,7 +305,10 @@ export class TransactionService {
   /**
    * Submits a signed transaction.
    * When the transaction fails with `txBadSeq`, reloads the account sequence, rebuilds, re-signs once, and retries
-   * **only when** the transaction source matches the resolved {@link OnChainAccount}'s `accountId` (this account consumes sequence).
+   * **only when** the transaction source matches the resolved {@link OnChainAccount}'s `accountId` (this account consumes sequence)
+   * **and** the envelope is **not** a Soroban `invokeHostFunction` transaction. Soroban envelopes carry `sorobanData` that a
+   * sequence-only rebuild does not preserve; on `txBadSeq` for those txs this method logs, rethrows, and the caller must
+   * re-simulate / re-assemble (for example after a fresh quote).
    * If the source is another account, `txBadSeq` is rethrown: sequence must be fixed on their side and the envelope re-signed.
    *
    * @param params - Options object.
@@ -253,7 +319,7 @@ export class TransactionService {
    * @param params.pollTransaction - If true, wait for RPC terminal status after submit.
    * @returns A promise that resolves to the transaction hash.
    * @throws {TransactionScopeNotMatchException} When `scope` does not match {@link Transaction.scope} (from {@link assertTransactionScope} before submit).
-   * @throws {TransactionRetryableException} When RPC returns `txBadSeq` for the signing account (one rebuild+retry is attempted when the tx source matches `onChainAccount`).
+   * @throws {TransactionRetryableException} When RPC returns `txBadSeq` (one rebuild+retry for classic txs when the tx source matches `onChainAccount`; Soroban invoke txs are not auto-retried).
    * @throws {TransactionSendException} When submission fails for other RPC reasons.
    * @throws {TransactionPollException} When `pollTransaction` is true and polling does not end in SUCCESS.
    */

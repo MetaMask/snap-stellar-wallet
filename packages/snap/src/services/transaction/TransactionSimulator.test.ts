@@ -596,6 +596,204 @@ describe('TransactionSimulator', () => {
     });
   });
 
+  describe('pathPayment', () => {
+    it('succeeds for strict send when source pays native and destination receives a credit asset', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+      const dest = Keypair.random().publicKey();
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'pathPaymentStrictSend',
+            params: {
+              source: wallet.address,
+              sendAsset: 'native',
+              sendAmount: '10',
+              destination: dest,
+              destAsset: MOCK_USDC_ASSET,
+              destMin: '5',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.PathPayment],
+          preloadedAccounts: [destOnChainAccount(dest)],
+        }),
+      ).toHaveLength(2);
+    });
+
+    it('allows changeTrust before a strict send path payment in the same transaction', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'changeTrust',
+            params: {
+              source: wallet.address,
+              asset: MOCK_USDC_ASSET,
+              limit: MAX_TRUST_LIMIT,
+            },
+          },
+          {
+            type: 'pathPaymentStrictSend',
+            params: {
+              source: wallet.address,
+              sendAsset: 'native',
+              sendAmount: '10',
+              destination: wallet.address,
+              destAsset: MOCK_USDC_ASSET,
+              destMin: '5',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [
+            SupportedOperations.ChangeTrust,
+            SupportedOperations.PathPayment,
+          ],
+        }),
+      ).toHaveLength(3);
+    });
+
+    it('succeeds for strict receive when source pays a credit asset and destination receives native', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 1,
+        assets: [
+          {
+            assetType: 'credit_alphanum4',
+            assetCode: 'USDC',
+            assetIssuer: USDC_ISSUER,
+            balance: 100,
+          },
+        ],
+      });
+      const dest = Keypair.random().publicKey();
+      const loadedDestAccount = onChainFromMockBalances(dest, '1', {
+        nativeBalance: 50,
+        subentryCount: 0,
+        assets: [],
+      });
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'pathPaymentStrictReceive',
+            params: {
+              source: wallet.address,
+              sendAsset: MOCK_USDC_ASSET,
+              sendMax: '20',
+              destination: dest,
+              destAsset: 'native',
+              destAmount: '10',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.PathPayment],
+          preloadedAccounts: [loadedDestAccount],
+        }),
+      ).toHaveLength(2);
+    });
+
+    it('throws when source lacks the path payment send asset trustline', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+      const dest = Keypair.random().publicKey();
+      const loadedDestAccount = onChainFromMockBalances(dest, '1', {
+        nativeBalance: 50,
+        subentryCount: 0,
+        assets: [],
+      });
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'pathPaymentStrictReceive',
+            params: {
+              source: wallet.address,
+              sendAsset: MOCK_USDC_ASSET,
+              sendMax: '20',
+              destination: dest,
+              destAsset: 'native',
+              destAmount: '10',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(() =>
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.PathPayment],
+          preloadedAccounts: [loadedDestAccount],
+        }),
+      ).toThrow(TrustlineNotFoundException);
+    });
+
+    it('throws when destination lacks the path payment destination asset trustline', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+      const dest = Keypair.random().publicKey();
+      const loadedDestAccount = onChainFromMockBalances(dest, '1', {
+        nativeBalance: 50,
+        subentryCount: 0,
+        assets: [],
+      });
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'pathPaymentStrictSend',
+            params: {
+              source: wallet.address,
+              sendAsset: 'native',
+              sendAmount: '10',
+              destination: dest,
+              destAsset: MOCK_USDC_ASSET,
+              destMin: '5',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(() =>
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.PathPayment],
+          preloadedAccounts: [loadedDestAccount],
+        }),
+      ).toThrow(TrustlineNotFoundException);
+    });
+  });
+
   describe('createAccount', () => {
     it('succeeds when funder has enough XLM and destination is absent from state', () => {
       const wallet = getTestWallet();

@@ -157,6 +157,30 @@ export type MockClassicOperation =
       };
     }
   | {
+      type: 'pathPaymentStrictReceive';
+      params: {
+        sendAsset: MockClassicAssetParam;
+        sendMax: string;
+        destination: string;
+        destAsset: MockClassicAssetParam;
+        destAmount: string;
+        path?: MockClassicAssetParam[];
+        source?: string;
+      };
+    }
+  | {
+      type: 'pathPaymentStrictSend';
+      params: {
+        sendAsset: MockClassicAssetParam;
+        sendAmount: string;
+        destination: string;
+        destAsset: MockClassicAssetParam;
+        destMin: string;
+        path?: MockClassicAssetParam[];
+        source?: string;
+      };
+    }
+  | {
       type: 'changeTrust';
       params: {
         asset: MockClassicAssetParam;
@@ -262,6 +286,52 @@ function addClassicOperationToBuilder(
           destination,
           asset: mockAssetToSdk(asset),
           amount,
+        }),
+      );
+      break;
+    }
+    case 'pathPaymentStrictReceive': {
+      const {
+        sendAsset,
+        sendMax,
+        destination,
+        destAsset,
+        destAmount,
+        path,
+        source,
+      } = op.params;
+      builder.addOperation(
+        Operation.pathPaymentStrictReceive({
+          ...(source === undefined ? {} : { source }),
+          sendAsset: mockAssetToSdk(sendAsset),
+          sendMax,
+          destination,
+          destAsset: mockAssetToSdk(destAsset),
+          destAmount,
+          path: path?.map(mockAssetToSdk) ?? [],
+        }),
+      );
+      break;
+    }
+    case 'pathPaymentStrictSend': {
+      const {
+        sendAsset,
+        sendAmount,
+        destination,
+        destAsset,
+        destMin,
+        path,
+        source,
+      } = op.params;
+      builder.addOperation(
+        Operation.pathPaymentStrictSend({
+          ...(source === undefined ? {} : { source }),
+          sendAsset: mockAssetToSdk(sendAsset),
+          sendAmount,
+          destination,
+          destAsset: mockAssetToSdk(destAsset),
+          destMin,
+          path: path?.map(mockAssetToSdk) ?? [],
         }),
       );
       break;

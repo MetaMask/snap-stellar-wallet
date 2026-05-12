@@ -168,6 +168,90 @@ describe('NetworkService', () => {
     });
   });
 
+  describe('loadOnChainAccounts', () => {
+    const addrA = generateStellarAddress();
+    const addrB = generateStellarAddress();
+
+    it('returns empty array without calling Horizon when addresses is empty', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+
+      const result = await networkService.loadOnChainAccounts([], scope);
+
+      expect(result).toStrictEqual([]);
+      expect(loadAccountSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns loaded accounts in the same order as the input addresses', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+      loadAccountSpy
+        .mockResolvedValueOnce(
+          createMockAccountWithBalances(addrA, '10', {
+            nativeBalance: 1,
+            assets: [],
+          }) as unknown as StellarHorizon.AccountResponse,
+        )
+        .mockResolvedValueOnce(
+          createMockAccountWithBalances(addrB, '20', {
+            nativeBalance: 1,
+            assets: [],
+          }) as unknown as StellarHorizon.AccountResponse,
+        );
+
+      const result = await networkService.loadOnChainAccounts(
+        [addrA, addrB],
+        scope,
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBeInstanceOf(OnChainAccount);
+      expect(result[1]).toBeInstanceOf(OnChainAccount);
+      expect(result[0]?.accountId).toStrictEqual(addrA);
+      expect(result[0]?.sequenceNumber).toBe('10');
+      expect(result[1]?.accountId).toStrictEqual(addrB);
+      expect(result[1]?.sequenceNumber).toBe('20');
+      expect(loadAccountSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('maps failures to null, preserves order, and logs a warning', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+      loadAccountSpy
+        .mockRejectedValueOnce(new NotFoundError('not found', {}))
+        .mockResolvedValueOnce(
+          createMockAccountWithBalances(addrA, '1', {
+            nativeBalance: 1,
+            assets: [],
+          }) as unknown as StellarHorizon.AccountResponse,
+        );
+
+      const result = await networkService.loadOnChainAccounts(
+        [addrB, addrA],
+        scope,
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBeNull();
+      expect(result[1]).toBeInstanceOf(OnChainAccount);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.any(String),
+        'Failed to preload participating account',
+        expect.objectContaining({
+          accountId: addrB,
+          error: expect.any(AccountNotActivatedException),
+        }),
+      );
+    });
+
+    it('throws NetworkServiceException when batchSize is less than one', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+
+      await expect(
+        networkService.loadOnChainAccounts([addrA], scope, 0),
+      ).rejects.toThrow(NetworkServiceException);
+
+      expect(loadAccountSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('loadActivatedAccountOrNull', () => {
     const testAddress =
       'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';

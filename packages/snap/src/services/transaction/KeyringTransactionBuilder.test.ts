@@ -1,4 +1,8 @@
-import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
+import {
+  FeeType,
+  TransactionStatus,
+  TransactionType,
+} from '@metamask/keyring-api';
 
 import { KeyringTransactionBuilderException } from './exceptions';
 import {
@@ -172,6 +176,147 @@ describe('KeyringTransactionBuilder', () => {
         },
       },
     ]);
+  });
+
+  it('creates a pending transaction as an unknown activity entry', () => {
+    const builder = new KeyringTransactionBuilder();
+
+    const transaction = builder.createTransaction({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: 'tx-pending-1',
+        account,
+        scope,
+        asset: nativeAsset,
+      },
+    });
+
+    expect(transaction).toStrictEqual({
+      type: TransactionType.Unknown,
+      id: 'tx-pending-1',
+      from: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      to: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      events: [
+        { status: TransactionStatus.Unconfirmed, timestamp: fixedTimestamp },
+      ],
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      account: account.id,
+      timestamp: fixedTimestamp,
+      fees: [],
+    });
+  });
+
+  it('creates a detailed pending transaction when transaction details are available', () => {
+    const builder = new KeyringTransactionBuilder();
+
+    const transaction = builder.createTransaction({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: 'tx-pending-swap-1',
+        account,
+        scope,
+        transactionType: TransactionType.Swap,
+        from: [
+          {
+            address: account.address,
+            asset: {
+              unit: 'XLM',
+              type: 'stellar:pubnet/slip44:148',
+              amount: '10',
+              fungible: true,
+            },
+          },
+        ],
+        to: [
+          {
+            address: account.address,
+            asset: {
+              unit: 'USDC',
+              type: 'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+              amount: '5',
+              fungible: true,
+            },
+          },
+        ],
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: 'stellar:pubnet/slip44:148',
+              amount: '0.00002',
+              fungible: true,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(transaction).toStrictEqual({
+      type: TransactionType.Swap,
+      id: 'tx-pending-swap-1',
+      from: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '10',
+            fungible: true,
+          },
+        },
+      ],
+      to: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'USDC',
+            type: 'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            amount: '5',
+            fungible: true,
+          },
+        },
+      ],
+      events: [
+        { status: TransactionStatus.Unconfirmed, timestamp: fixedTimestamp },
+      ],
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      account: account.id,
+      timestamp: fixedTimestamp,
+      fees: [
+        {
+          type: FeeType.Base,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0.00002',
+            fungible: true,
+          },
+        },
+      ],
+    });
   });
 
   it('throws KeyringTransactionBuilderException for unsupported type', () => {

@@ -54,6 +54,7 @@ import {
   toCaip19ClassicAssetId,
   toCaip19Sep41AssetId,
   rethrowIfInstanceElseThrow,
+  batchesAllSettled,
 } from '../../utils';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
@@ -214,6 +215,44 @@ export class NetworkService {
         throw new AccountNotActivatedException(accountAddress, scope);
       }
       throw new AccountLoadException(accountAddress, scope);
+    }
+  }
+
+  async loadOnChainAccounts(
+    accountAddress: string[],
+    scope: KnownCaip2ChainId,
+    // Hardcoded to 5 to avoid overwhelming the network
+    batchSize: number = 5,
+  ): Promise<(OnChainAccount | null)[]> {
+    try {
+      const settled = await batchesAllSettled(
+        accountAddress,
+        batchSize,
+        async (accountId) => this.loadOnChainAccount(accountId, scope), // Assume the onChainAccount scope is the same as the transaction scope
+      );
+
+      const onChainAccounts: (OnChainAccount | null)[] = [];
+      let idx = 0;
+      for (const result of settled) {
+        if (result.status === 'fulfilled') {
+          onChainAccounts.push(result.value);
+        } else {
+          this.#logger.warn('Failed to preload participating account', {
+            accountId: accountAddress[idx],
+            error: result.reason,
+          });
+          onChainAccounts.push(null);
+        }
+        idx += 1;
+      }
+
+      return onChainAccounts;
+    } catch (error: unknown) {
+      return rethrowIfInstanceElseThrow(
+        error,
+        [AccountLoadException, AccountNotActivatedException],
+        new NetworkServiceException('Failed to load accounts'),
+      );
     }
   }
 

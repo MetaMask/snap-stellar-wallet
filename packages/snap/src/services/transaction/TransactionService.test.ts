@@ -6,13 +6,17 @@ import {
 } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { hexToBytes } from '@metamask/utils';
+import { Networks } from '@stellar/stellar-sdk';
 
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
+import type { Transaction } from './Transaction';
 import { TransactionBuilder } from './TransactionBuilder';
 import type { KnownCaip19ClassicAssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { getSlip44AssetId, getSnapProvider } from '../../utils';
 import {
+  buildMockClassicTransaction,
+  buildMockInvokeHostFunctionTransaction,
   createMockTransactionService,
   generateMockTransactions,
 } from './__mocks__/transaction.fixtures';
@@ -119,6 +123,128 @@ describe('TransactionService', () => {
           },
         },
       );
+    });
+  });
+
+  describe('createValidatedSwapTransaction', () => {
+    const seed = hexToBytes(
+      '1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+    );
+    const scope = KnownCaip2ChainId.Mainnet;
+    let testWalletWithSigner: Wallet;
+    let testOnChainAccount: OnChainAccount;
+
+    const buildFundedOnChainAccount = (
+      accountId: string,
+      sequenceNumber: string,
+    ) => {
+      const account = createMockAccountWithBalances(accountId, sequenceNumber, {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 500,
+      });
+
+      return new OnChainAccount(account, scope, horizonSource(account, scope));
+    };
+
+    beforeEach(() => {
+      testWalletWithSigner = getTestWallet({ seed });
+      testOnChainAccount = buildFundedOnChainAccount(
+        testWalletWithSigner.address,
+        '1',
+      );
+    });
+
+    it('validates a classic path payment swap transaction with trustline setup', async () => {
+      const { transactionService } = createMockTransactionService();
+      const trustlineAsset = {
+        code: 'USDC',
+        issuer: getTestWallet().address,
+      } as const;
+      const loadOnChainAccountsSpy = jest.spyOn(
+        NetworkService.prototype,
+        'loadOnChainAccounts',
+      );
+      loadOnChainAccountsSpy.mockResolvedValue([]);
+      const simulateTransactionSpy = jest.spyOn(
+        NetworkService.prototype,
+        'simulateTransaction',
+      );
+      const transaction = buildMockClassicTransaction(
+        [
+          {
+            type: 'changeTrust',
+            params: {
+              asset: trustlineAsset,
+              limit: '1000',
+            },
+          },
+          {
+            type: 'pathPaymentStrictSend',
+            params: {
+              sendAsset: 'native',
+              sendAmount: '10',
+              destination: testWalletWithSigner.address,
+              destAsset: trustlineAsset,
+              destMin: '5',
+            },
+          },
+        ],
+        {
+          networkPassphrase: Networks.PUBLIC,
+          source: {
+            accountId: testWalletWithSigner.address,
+            sequence: testOnChainAccount.sequenceNumber,
+          },
+        },
+      );
+
+      const result = await transactionService.createValidatedSwapTransaction({
+        onChainAccount: testOnChainAccount,
+        scope,
+        xdr: transaction.getRaw().toXDR(),
+      });
+
+      expect(result.getRaw().toXDR()).toBe(transaction.getRaw().toXDR());
+      expect(simulateTransactionSpy).not.toHaveBeenCalled();
+      expect(loadOnChainAccountsSpy).toHaveBeenCalledWith([], scope);
+    });
+
+    it('validates a Soroban invoke swap transaction', async () => {
+      const { transactionService } = createMockTransactionService();
+      const loadOnChainAccountsSpy = jest.spyOn(
+        NetworkService.prototype,
+        'loadOnChainAccounts',
+      );
+      loadOnChainAccountsSpy.mockResolvedValue([]);
+      const simulateTransactionSpy = jest.spyOn(
+        NetworkService.prototype,
+        'simulateTransaction',
+      );
+      const transaction = buildMockInvokeHostFunctionTransaction('swap', [], {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: testWalletWithSigner.address,
+          sequence: testOnChainAccount.sequenceNumber,
+        },
+      });
+      simulateTransactionSpy.mockResolvedValue(transaction);
+
+      const result = await transactionService.createValidatedSwapTransaction({
+        onChainAccount: testOnChainAccount,
+        scope,
+        xdr: transaction.getRaw().toXDR(),
+      });
+
+      expect(simulateTransactionSpy).toHaveBeenCalledTimes(1);
+      const [simulatedTransaction, simulatedScope] = simulateTransactionSpy.mock
+        .calls[0] as [Transaction, KnownCaip2ChainId];
+
+      expect(result).toBe(transaction);
+      expect(simulatedTransaction.getRaw().toXDR()).toBe(
+        transaction.getRaw().toXDR(),
+      );
+      expect(simulatedScope).toBe(scope);
+      expect(loadOnChainAccountsSpy).toHaveBeenCalledWith([], scope);
     });
   });
 
