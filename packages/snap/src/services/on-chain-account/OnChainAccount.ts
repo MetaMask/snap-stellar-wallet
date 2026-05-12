@@ -151,13 +151,14 @@ export class OnChainAccount {
   }
 
   /**
-   * Sets the balance for a SEP-41 asset id.
+   * Sets or replaces a non-native balance row: SEP-41 contract token or classic trustline
+   * (including internal removal tombstones with `limit` 0).
    *
-   * @param assetId - The SEP-41 asset id to set the balance for.
-   * @param balanceEntry - The balance entry to set.
+   * @param assetId - SEP-41 or classic CAIP-19 id (not slip44 native).
+   * @param balanceEntry - Row stored in the in-memory balance map.
    */
-  setSep41Asset(
-    assetId: KnownCaip19Sep41AssetId,
+  setAsset(
+    assetId: KnownCaip19Sep41AssetId | KnownCaip19ClassicAssetId,
     balanceEntry: SpendableBalance,
   ): void {
     this.#balances.set(assetId, balanceEntry);
@@ -171,7 +172,7 @@ export class OnChainAccount {
   get classicTrustlineAssetIds(): KnownCaip19ClassicAssetId[] {
     const ids: KnownCaip19ClassicAssetId[] = [];
     for (const [assetId, row] of this.#balances) {
-      if (isClassicAssetId(assetId) && row.limit !== undefined) {
+      if (isClassicAssetId(assetId) && row.limit?.gt(0) === true) {
         ids.push(assetId);
       }
     }
