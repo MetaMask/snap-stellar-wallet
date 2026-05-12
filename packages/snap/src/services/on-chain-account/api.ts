@@ -9,6 +9,7 @@ export type SpendableBalance = {
   address?: string;
   authorized?: boolean;
   sponsored?: boolean;
+  decimals?: number;
 };
 
 type KeyringAccountId = string;
