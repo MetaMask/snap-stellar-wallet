@@ -88,9 +88,9 @@ export class ComputeFeeHandler extends WithClientRequestActiveAccountResolve<
       {
         type: FeeType.Base,
         asset: {
-          unit: 'Stroop',
-          type: KnownCaip19Slip44IdMap[scope],
-          amount: transaction.totalFee.toString(),
+          unit: NATIVE_ASSET_SYMBOL
+          type: getSlip44AssetId(scope),
+          amount: toDisplayBalance(transaction.totalFee)
           fungible: true as const,
         },
       },
