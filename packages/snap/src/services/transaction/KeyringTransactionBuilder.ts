@@ -44,12 +44,21 @@ export type PendingTransactionRequest = {
   txId: string;
   account: StellarKeyringAccount;
   scope: KnownCaip2ChainId;
-  asset: {
-    type: KnownCaip19AssetIdOrSlip44Id;
-    symbol: string;
-  };
   status?: TransactionStatus;
-};
+} & (
+  | {
+      asset: {
+        type: KnownCaip19AssetIdOrSlip44Id;
+        symbol: string;
+      };
+    }
+  | {
+      transactionType: TransactionType;
+      from: KeyringTransaction['from'];
+      to: KeyringTransaction['to'];
+      fees?: KeyringTransaction['fees'];
+    }
+);
 
 export type KeyringTransactionRequest =
   | {
@@ -142,9 +151,31 @@ export class KeyringTransactionBuilder {
     request: PendingTransactionRequest,
   ): KeyringTransaction {
     const timestamp = this.#getCreateTime();
-    const { txId, account, scope, asset } = request;
+    const { txId, account, scope } = request;
     const status = request.status ?? TransactionStatus.Unconfirmed;
 
+    // if the request has from and to, it is a pending classic swap transaction
+    if ('from' in request) {
+      return {
+        type: request.transactionType,
+        id: txId,
+        from: request.from,
+        to: request.to,
+        events: [
+          {
+            status,
+            timestamp,
+          },
+        ],
+        chain: scope,
+        status,
+        account: account.id,
+        timestamp,
+        fees: request.fees ?? [],
+      };
+    }
+
+    const { asset } = request;
     return {
       type: TransactionType.Unknown,
       id: txId,

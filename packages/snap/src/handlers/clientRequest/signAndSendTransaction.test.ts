@@ -1,3 +1,4 @@
+import { FeeType, TransactionType } from '@metamask/keyring-api';
 import { Networks } from '@stellar/stellar-sdk';
 
 import {
@@ -5,7 +6,7 @@ import {
   type SignAndSendTransactionJsonRpcRequest,
 } from './api';
 import { SignAndSendTransactionHandler } from './signAndSendTransaction';
-import { KnownCaip2ChainId } from '../../api';
+import { KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import {
@@ -20,12 +21,14 @@ import {
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { TransactionService } from '../../services/transaction';
 import {
+  buildMockClassicTransaction,
   buildMockInvokeHostFunctionTransaction,
   createMockTransactionService,
 } from '../../services/transaction/__mocks__/transaction.fixtures';
 import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
+import { toCaip19ClassicAssetId, toDisplayBalance } from '../../utils';
 import { logger } from '../../utils/logger';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
@@ -248,6 +251,113 @@ describe('SignAndSendTransactionHandler', () => {
       scope,
       txId: transactionId,
       accountIds: [account.id],
+    });
+  });
+
+  it('saves detailed pending activity for a classic path payment swap', async () => {
+    const {
+      handler,
+      account,
+      wallet,
+      onChainAccount,
+      request,
+      createValidatedSwapTransaction,
+      savePendingKeyringTransaction,
+    } = setup();
+    const destinationAsset = {
+      code: 'USDC',
+      issuer: getTestWallet().address,
+    } as const;
+    const destinationAssetId = toCaip19ClassicAssetId(
+      scope,
+      destinationAsset.code,
+      destinationAsset.issuer,
+    );
+    const feeDestination = getTestWallet({
+      seed: new Uint8Array(32).fill(1),
+    }).address;
+    const transaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'pathPaymentStrictSend',
+          params: {
+            sendAsset: 'native',
+            sendAmount: '10',
+            destination: wallet.address,
+            destAsset: destinationAsset,
+            destMin: '5',
+          },
+        },
+        {
+          type: 'payment',
+          params: {
+            destination: feeDestination,
+            asset: 'native',
+            amount: '0.1',
+          },
+        },
+      ],
+      {
+        baseFeePerOperation: '100',
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: onChainAccount.sequenceNumber,
+        },
+      },
+    );
+    const xdr = transaction.getRaw().toXDR();
+    createValidatedSwapTransaction.mockResolvedValueOnce(transaction);
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        transaction: xdr,
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        transactionType: TransactionType.Swap,
+        from: [
+          {
+            address: wallet.address,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: '10',
+              fungible: true,
+            },
+          },
+        ],
+        to: [
+          {
+            address: wallet.address,
+            asset: {
+              unit: 'USDC',
+              type: destinationAssetId,
+              amount: '5',
+              fungible: true,
+            },
+          },
+        ],
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(transaction.totalFee),
+              fungible: true,
+            },
+          },
+        ],
+      },
     });
   });
 });

@@ -11,10 +11,12 @@ import {
 import type { ResolvedActivatedAccount } from '../base';
 import { WithClientRequestActiveAccountResolve } from './base';
 import { KnownCaip19Slip44IdMap } from '../../api';
+import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import type { AccountService } from '../../services/account';
 import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction/TransactionService';
 import type { WalletService } from '../../services/wallet';
+import { toDisplayBalance } from '../../utils/currency';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
 
@@ -88,9 +90,9 @@ export class ComputeFeeHandler extends WithClientRequestActiveAccountResolve<
       {
         type: FeeType.Base,
         asset: {
-          unit: NATIVE_ASSET_SYMBOL
-          type: getSlip44AssetId(scope),
-          amount: toDisplayBalance(transaction.totalFee)
+          unit: NATIVE_ASSET_SYMBOL,
+          type: KnownCaip19Slip44IdMap[scope],
+          amount: toDisplayBalance(transaction.totalFee),
           fungible: true as const,
         },
       },

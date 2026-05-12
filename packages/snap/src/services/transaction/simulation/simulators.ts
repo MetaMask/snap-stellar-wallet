@@ -90,6 +90,7 @@ function validateDebit(params: {
     return;
   }
 
+  // verify if the source account has trustline and the spending amount not exceed the trustline balance
   const line = account.trustlines.get(assetId);
   if (line === undefined) {
     throw new TrustlineNotFoundException(assetId, accountId);
@@ -134,6 +135,7 @@ function validateCredit(params: {
     return;
   }
 
+  // verify if the destination account has trustline and the receiving amount not exceed the trustline limit
   const line = account.trustlines.get(assetId);
   if (line === undefined) {
     throw new TrustlineNotFoundException(assetId, accountId);

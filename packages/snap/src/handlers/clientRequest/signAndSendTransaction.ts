@@ -1,3 +1,11 @@
+import {
+  FeeType,
+  TransactionType,
+  type Transaction as KeyringTransaction,
+} from '@metamask/keyring-api';
+import type { Asset } from '@stellar/stellar-sdk';
+import { BigNumber } from 'bignumber.js';
+
 import type {
   SignAndSendTransactionJsonRpcRequest,
   SignAndSendTransactionJsonRpcResponse,
@@ -15,12 +23,25 @@ import type {
   StellarKeyringAccount,
 } from '../../services/account';
 import type { OnChainAccountService } from '../../services/on-chain-account';
-import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
+import {
+  KeyringTransactionType,
+  type PendingTransactionRequest,
+} from '../../services/transaction/KeyringTransactionBuilder';
+import type { Transaction } from '../../services/transaction/Transaction';
 import type { TransactionService } from '../../services/transaction/TransactionService';
+import { parseOperationAssetReference } from '../../services/transaction/utils';
 import type { WalletService } from '../../services/wallet';
+import { toDisplayBalance } from '../../utils/currency';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
+
+type PendingSwapDetails = {
+  transactionType: TransactionType;
+  from: KeyringTransaction['from'];
+  to: KeyringTransaction['to'];
+  fees: KeyringTransaction['fees'];
+};
 
 export class SignAndSendTransactionHandler extends WithClientRequestActiveAccountResolve<
   SignAndSendTransactionJsonRpcRequest,
@@ -110,6 +131,7 @@ export class SignAndSendTransactionHandler extends WithClientRequestActiveAccoun
       transactionId: transactionHash,
       account,
       scope,
+      transaction,
     });
 
     // Track the transaction after a transaction
@@ -128,21 +150,20 @@ export class SignAndSendTransactionHandler extends WithClientRequestActiveAccoun
     transactionId: string;
     scope: KnownCaip2ChainId;
     account: StellarKeyringAccount;
+    transaction: Transaction;
   }): Promise<void> {
     try {
-      const { transactionId, scope, account } = params;
+      const { transactionId, scope, account, transaction } = params;
+      const request = this.#createPendingTransactionRequest({
+        transactionId,
+        scope,
+        account,
+        transaction,
+      });
 
       await this.#transactionService.savePendingKeyringTransaction({
         type: KeyringTransactionType.Pending,
-        request: {
-          txId: transactionId,
-          account,
-          scope,
-          asset: {
-            type: KnownCaip19Slip44IdMap[scope],
-            symbol: NATIVE_ASSET_SYMBOL,
-          },
-        },
+        request,
       });
     } catch (error: unknown) {
       this.logger.logErrorWithDetails(
@@ -151,5 +172,131 @@ export class SignAndSendTransactionHandler extends WithClientRequestActiveAccoun
       );
       // we should not throw error here, as we want to continue the flow even if the pending transaction is not saved
     }
+  }
+
+  #createPendingTransactionRequest(params: {
+    transactionId: string;
+    scope: KnownCaip2ChainId;
+    account: StellarKeyringAccount;
+    transaction: Transaction;
+  }): PendingTransactionRequest {
+    const { transactionId, scope, account, transaction } = params;
+    const swapDetails = this.#createPendingSwapDetails(transaction, scope);
+
+    if (swapDetails !== null) {
+      return {
+        txId: transactionId,
+        account,
+        scope,
+        ...swapDetails,
+      };
+    }
+
+    return {
+      txId: transactionId,
+      account,
+      scope,
+      asset: {
+        type: KnownCaip19Slip44IdMap[scope],
+        symbol: NATIVE_ASSET_SYMBOL,
+      },
+    };
+  }
+
+  #createPendingSwapDetails(
+    transaction: Transaction,
+    scope: KnownCaip2ChainId,
+  ): PendingSwapDetails | null {
+    const pathPaymentOperation = transaction.transactionOperations.find(
+      (operation) =>
+        operation.type === 'pathPaymentStrictSend' ||
+        operation.type === 'pathPaymentStrictReceive',
+    );
+
+    if (pathPaymentOperation === undefined) {
+      return null;
+    }
+
+    const sourceAddress =
+      pathPaymentOperation.source ?? transaction.sourceAccount;
+    const send =
+      pathPaymentOperation.type === 'pathPaymentStrictSend'
+        ? {
+            asset: pathPaymentOperation.sendAsset,
+            amount: pathPaymentOperation.sendAmount,
+          }
+        : {
+            asset: pathPaymentOperation.sendAsset,
+            amount: pathPaymentOperation.sendMax,
+          };
+    const receive =
+      pathPaymentOperation.type === 'pathPaymentStrictSend'
+        ? {
+            asset: pathPaymentOperation.destAsset,
+            amount: pathPaymentOperation.destMin,
+          }
+        : {
+            asset: pathPaymentOperation.destAsset,
+            amount: pathPaymentOperation.destAmount,
+          };
+    const fromAsset = this.#createKeyringAsset(scope, send.asset, send.amount);
+    const toAsset = this.#createKeyringAsset(
+      scope,
+      receive.asset,
+      receive.amount,
+    );
+
+    if (fromAsset === null || toAsset === null) {
+      return null;
+    }
+
+    return {
+      transactionType: TransactionType.Swap,
+      from: [
+        {
+          address: sourceAddress,
+          asset: fromAsset,
+        },
+      ],
+      to: [
+        {
+          address: pathPaymentOperation.destination,
+          asset: toAsset,
+        },
+      ],
+      fees: [
+        {
+          type: FeeType.Base,
+          asset: {
+            unit: NATIVE_ASSET_SYMBOL,
+            type: KnownCaip19Slip44IdMap[scope],
+            amount: toDisplayBalance(transaction.totalFee),
+            fungible: true,
+          },
+        },
+      ],
+    };
+  }
+
+  #createKeyringAsset(
+    scope: KnownCaip2ChainId,
+    asset: Asset,
+    amount: string,
+  ): KeyringTransaction['from'][number]['asset'] | null {
+    const type = parseOperationAssetReference(scope, asset.toString());
+    if (type === null) {
+      return null;
+    }
+
+    return {
+      unit: this.#getAssetSymbol(asset),
+      type,
+      amount: new BigNumber(amount).toFixed(),
+      fungible: true,
+    };
+  }
+
+  #getAssetSymbol(asset: Asset): string {
+    return asset.isNative() ? NATIVE_ASSET_SYMBOL : asset.getCode();
   }
 }
