@@ -9,8 +9,10 @@ import {
   ClientRequestHandler,
   ClientRequestMethod,
 } from './handlers/clientRequest';
+import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
 import { OnAddressInputHandler } from './handlers/clientRequest/onAddressInput';
 import { OnAmountInputHandler } from './handlers/clientRequest/onAmountInput';
+import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
@@ -164,6 +166,10 @@ const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
 
 const trackTransactionHandler = new TrackTransactionHandler({
   logger,
+  networkService,
+  onChainAccountService,
+  accountService,
+  transactionService,
 });
 
 const syncAccountsHandler = new SyncAccountsHandler({
@@ -211,7 +217,23 @@ const onAddressInputHandler = new OnAddressInputHandler({
 const onAmountInputHandler = new OnAmountInputHandler({
   logger,
   accountService,
+  onChainAccountService,
+  walletService,
   assetMetadataService,
+  transactionService,
+});
+
+const signAndSendTransactionHandler = new SignAndSendTransactionHandler({
+  logger,
+  accountService,
+  onChainAccountService,
+  walletService,
+  transactionService,
+});
+
+const computeFeeHandler = new ComputeFeeHandler({
+  logger,
+  accountService,
   onChainAccountService,
   walletService,
   transactionService,
@@ -224,6 +246,8 @@ const clientRequestMethodHandlers: Record<
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
   [ClientRequestMethod.OnAddressInput]: onAddressInputHandler,
   [ClientRequestMethod.OnAmountInput]: onAmountInputHandler,
+  [ClientRequestMethod.SignAndSendTransaction]: signAndSendTransactionHandler,
+  [ClientRequestMethod.ComputeFee]: computeFeeHandler,
 };
 
 const clientRequestHandler = new ClientRequestHandler({

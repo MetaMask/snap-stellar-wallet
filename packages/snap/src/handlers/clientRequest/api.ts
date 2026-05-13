@@ -1,3 +1,4 @@
+import { AssetStruct, FeeType } from '@metamask/keyring-api';
 import type { Infer } from '@metamask/superstruct';
 import {
   enums,
@@ -12,14 +13,17 @@ import {
   refine,
   array,
   nonempty,
+  integer,
+  min,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
-import { base64, parseCaipAssetType } from '@metamask/utils';
+import { parseCaipAssetType } from '@metamask/utils';
 
 import {
   JsonRpcRequestStruct,
   KnownCaip2ChainIdStruct,
   KnownCaip19ClassicAssetStruct,
+  StellarTransactionHashStruct,
   UuidStruct,
   NonZeroValidStellarAmountStruct,
   KnownCaip19Sep41AssetStruct,
@@ -27,6 +31,7 @@ import {
   StellarAddressStruct,
   ValidAmountStruct,
   ValidStellarAmountStruct,
+  SwapTransactionXdrStruct,
 } from '../../api';
 import { isSep41Id } from '../../utils';
 
@@ -37,6 +42,9 @@ export enum ClientRequestMethod {
   /** -------------------------------- Wallet Standard -------------------------------- */
   OnAddressInput = 'onAddressInput',
   OnAmountInput = 'onAmountInput',
+  // Standard multichain workflow for bridge
+  SignAndSendTransaction = 'signAndSendTransaction',
+  ComputeFee = 'computeFee',
   /** -------------------------------- Stellar Specific -------------------------------- */
   ChangeTrustOpt = 'changeTrustOpt',
 }
@@ -125,10 +133,36 @@ export const ChangeTrustOptJsonRpcRequestStruct = refine(
  */
 export const ChangeTrustOptJsonRpcResponseStruct = object({
   status: boolean(),
-  transactionId: optional(base64(string())),
+  transactionId: optional(StellarTransactionHashStruct),
 });
 
 /**
+ * Validation struct for the sendTransaction JSON-RPC request.
+ */
+export const SignAndSendTransactionJsonRpcRequestStruct = assign(
+  JsonRpcRequestStruct,
+  object({
+    method: literal(ClientRequestMethod.SignAndSendTransaction),
+    params: object({
+      transaction: SwapTransactionXdrStruct,
+      accountId: UuidStruct,
+      scope: KnownCaip2ChainIdStruct,
+      options: object({
+        visible: optional(boolean()),
+        type: string(),
+      }),
+    }),
+  }),
+);
+
+/**
+ * Validation struct for the sendTransaction JSON-RPC response.
+ */
+export const SignAndSendTransactionJsonRpcResponseStruct = object({
+  transactionId: StellarTransactionHashStruct,
+});
+
+/*
  * Validation struct for the onAddressInput JSON-RPC request.
  */
 export const OnAddressInputJsonRpcRequestStruct = assign(
@@ -198,6 +232,36 @@ export const OnAmountInputJsonRpcResponseStruct = object({
 });
 
 /**
+ * Validation struct for the computeFee JSON-RPC request.
+ */
+export const ComputeFeeJsonRpcRequestStruct = assign(
+  JsonRpcRequestStruct,
+  object({
+    method: literal(ClientRequestMethod.ComputeFee),
+    params: object({
+      transaction: SwapTransactionXdrStruct,
+      accountId: UuidStruct,
+      scope: KnownCaip2ChainIdStruct,
+      options: object({
+        visible: optional(boolean()),
+        type: string(),
+        feeLimit: optional(min(integer(), 0)),
+      }),
+    }),
+  }),
+);
+
+/**
+ * Validation struct for the computeFee JSON-RPC response.
+ */
+export const ComputeFeeJsonRpcResponseStruct = array(
+  object({
+    type: enums(Object.values(FeeType)),
+    asset: AssetStruct,
+  }),
+);
+
+/**
  * A JSON-RPC request with an account resolve parameter.
  */
 export type JsonRpcRequestWithAccount = Infer<
@@ -245,4 +309,32 @@ export type OnAmountInputJsonRpcRequest = Infer<
  */
 export type OnAmountInputJsonRpcResponse = Infer<
   typeof OnAmountInputJsonRpcResponseStruct
+>;
+
+/**
+ * Type for the sendTransaction JSON-RPC request.
+ */
+export type SignAndSendTransactionJsonRpcRequest = Infer<
+  typeof SignAndSendTransactionJsonRpcRequestStruct
+>;
+
+/**
+ * Type for the sendTransaction JSON-RPC response.
+ */
+export type SignAndSendTransactionJsonRpcResponse = Infer<
+  typeof SignAndSendTransactionJsonRpcResponseStruct
+>;
+
+/**
+ * Type for the computeFee JSON-RPC request.
+ */
+export type ComputeFeeJsonRpcRequest = Infer<
+  typeof ComputeFeeJsonRpcRequestStruct
+>;
+
+/**
+ * Type for the computeFee JSON-RPC response.
+ */
+export type ComputeFeeJsonRpcResponse = Infer<
+  typeof ComputeFeeJsonRpcResponseStruct
 >;

@@ -38,6 +38,7 @@ import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
+import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 jest.mock('../../utils/logger');
 jest.mock('@metamask/keyring-snap-sdk', () => ({
@@ -48,11 +49,16 @@ describe('ChangeTrustOptHandler', () => {
   beforeEach(() => {
     jest.mocked(emitSnapKeyringEvent).mockReset();
     jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
+    jest
+      .spyOn(TrackTransactionHandler, 'scheduleBackgroundEvent')
+      .mockResolvedValue(undefined);
   });
 
   const accountId = '11111111-1111-4111-8111-111111111111';
   const scope = KnownCaip2ChainId.Mainnet;
   const assetId = USDC_CLASSIC as KnownCaip19ClassicAssetId;
+  const transactionHash =
+    '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1';
   const trustlineAsset = {
     assetType: 'credit_alphanum4',
     assetCode: 'USDC',
@@ -127,7 +133,7 @@ describe('ChangeTrustOptHandler', () => {
       .mockResolvedValue(new BigNumber(100));
     const networkSendSpy = jest
       .spyOn(NetworkService.prototype, 'send')
-      .mockResolvedValue('dGVzdC10eC1pZA==');
+      .mockResolvedValue(transactionHash);
     const createValidatedChangeTrustTransaction = jest.spyOn(
       TransactionService.prototype,
       'createValidatedChangeTrustTransaction',
@@ -206,7 +212,7 @@ describe('ChangeTrustOptHandler', () => {
 
     expect(result).toStrictEqual({
       status: true,
-      transactionId: 'dGVzdC10eC1pZA==',
+      transactionId: transactionHash,
     });
 
     expect(resolve).toHaveBeenCalledWith(assetId);
@@ -238,7 +244,7 @@ describe('ChangeTrustOptHandler', () => {
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
       type: KeyringTransactionType.ChangeTrustOptIn,
       request: {
-        txId: 'dGVzdC10eC1pZA==',
+        txId: transactionHash,
         account,
         scope,
         asset: {
@@ -246,6 +252,13 @@ describe('ChangeTrustOptHandler', () => {
           symbol: 'USDC',
         },
       },
+    });
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).toHaveBeenCalledWith({
+      txId: '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
+      scope,
+      accountIds: [account.id],
     });
   });
 
@@ -269,6 +282,9 @@ describe('ChangeTrustOptHandler', () => {
     expect(signTransactionSpy).not.toHaveBeenCalled();
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).not.toHaveBeenCalled();
   });
 
   it('throws TrustlineNotFoundException for opt-out when trustline does not exist', async () => {
@@ -309,7 +325,7 @@ describe('ChangeTrustOptHandler', () => {
 
     expect(result).toStrictEqual({
       status: true,
-      transactionId: 'dGVzdC10eC1pZA==',
+      transactionId: transactionHash,
     });
     expect(createValidatedChangeTrustTransaction).toHaveBeenCalledWith({
       onChainAccount,
@@ -327,7 +343,7 @@ describe('ChangeTrustOptHandler', () => {
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
       type: KeyringTransactionType.ChangeTrustOptOut,
       request: {
-        txId: 'dGVzdC10eC1pZA==',
+        txId: transactionHash,
         account,
         scope,
         asset: {
@@ -335,6 +351,13 @@ describe('ChangeTrustOptHandler', () => {
           symbol: assetMetadata.symbol,
         },
       },
+    });
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).toHaveBeenCalledWith({
+      txId: '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
+      scope,
+      accountIds: [account.id],
     });
   });
 
@@ -357,6 +380,9 @@ describe('ChangeTrustOptHandler', () => {
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(networkSendSpy).not.toHaveBeenCalled();
     expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).not.toHaveBeenCalled();
   });
 
   it('continues successfully when saving pending transaction fails', async () => {
@@ -370,8 +396,9 @@ describe('ChangeTrustOptHandler', () => {
 
     expect(result).toStrictEqual({
       status: true,
-      transactionId: 'dGVzdC10eC1pZA==',
+      transactionId: transactionHash,
     });
     expect(sendTransaction).toHaveBeenCalledTimes(1);
+    expect(TrackTransactionHandler.scheduleBackgroundEvent).toHaveBeenCalled();
   });
 });

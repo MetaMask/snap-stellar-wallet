@@ -18,6 +18,7 @@ import {
   createPrefixedLogger,
   getSlip44AssetId,
   getSnapProvider,
+  isClassicAssetId,
   isSep41Id,
   toDisplayBalance,
 } from '../../utils';
@@ -44,7 +45,7 @@ type Sep41BalanceFetchResult = {
 };
 
 /**
- * Persists on-chain account snapshots and emits keyring balance / asset-list events after a sync.
+ * Persists on-chain account snapshots (source of truth) before emitting keyring balance / asset-list events.
  *
  * {@link synchronize} uses a mutex so overlapping syncs cannot interleave read–merge–write across
  * `findByKeyringAccountIds` and `saveMany`. Each `saveMany` call is still one atomic `IStateManager.update`.
@@ -82,8 +83,10 @@ export class OnChainAccountSynchronizeService {
   }
 
   /**
-   * Enriches accounts with SEP-41 balances, persists snapshots, then notifies the keyring when
-   * balances or the non-native tracked asset set changed.
+   * Enriches accounts with SEP-41 balances, merges classic removal tombstones, persists snapshots,
+   * then notifies the keyring. State is written first so client handlers that round-trip into the
+   * snap for balances always see the new source of truth. Classic tombstones (`limit` 0) keep
+   * removals reconcilable if a keyring emit fails.
    *
    * @param keyringAccounts - Stellar keyring accounts to sync for `scope`.
    * @param scope - CAIP-2 network.
@@ -97,20 +100,23 @@ export class OnChainAccountSynchronizeService {
       return;
     }
 
-    // Adding a mutex to prevent multiple syncs from running simultaneously,
-    // And ensure the read and write consistency in state.
-    // Trade off of the mutex: Synchronize request may send every second, due to user switch accounts, we will block the next request until the current request is finished.
+    // Mutex: prevent overlapping sync runs and keep read–merge–write consistent with state.
+    // Trade-off: sync requests may arrive frequently (e.g. when users switch accounts); the next
+    // request waits until the in-flight one finishes.
     await this.#synchronizeMutex.runExclusive(async () => {
-      this.#logger.debug('Load on-chain accounts - no of accounts to load', {
-        noOfAccounts: keyringAccounts.length,
-      });
+      this.#logger.debug(
+        'Load on-chain accounts - number of accounts to load',
+        {
+          noOfAccounts: keyringAccounts.length,
+        },
+      );
       // 1. Horizon: funded accounts only (unfunded / errors skipped in #loadActivatedPairs).
       const activatedAccountPairs = await this.#loadActivatedPairs(
         keyringAccounts,
         scope,
       );
       this.#logger.debug(
-        'Loaded activated account pairs - no of accounts loaded',
+        'Loaded activated account pairs - number of accounts loaded',
         {
           noOfAccounts: activatedAccountPairs.length,
         },
@@ -152,11 +158,11 @@ export class OnChainAccountSynchronizeService {
           keyringAccountIds,
           scope,
         );
-      const lengthOfSnapshot = Object.keys(
+      const lengthOfSnapshot = Object.values(
         latestSerializedAccountSnapshotByKeyringId,
       ).filter((snapshot) => snapshot !== null).length;
       this.#logger.debug(
-        'Loaded latest state snapshots for on-chain accounts - no of accounts loaded',
+        'Loaded latest state snapshots for on-chain accounts - number of accounts loaded',
         {
           noOfAccounts: lengthOfSnapshot,
           newActivatedAccountPairs:
@@ -165,7 +171,7 @@ export class OnChainAccountSynchronizeService {
       );
       // 4. Per activated account:
       // - apply fetched SEP-41 balances (if the fetch step succeeded),
-      // - restore unresolved SEP-41 rows from the latest state snapshot,
+      // - merge persisted snapshot gaps (SEP-41 backfill + classic removal tombstones),
       // - compute keyring event deltas,
       // - prepare the serialized snapshot payload for one batched save.
       const snapshotsToSave: Record<string, OnChainAccountSerializableFull> =
@@ -194,11 +200,11 @@ export class OnChainAccountSynchronizeService {
           sep41BalanceFetchResult,
         );
 
-        // fill gaps for SEP-41 tokens using the last saved snapshot from State:
-        // - If step 2 failed completely, copy every SEP-41 token row from the snapshot that is still missing on `synchronizedOnChainAccount`.
-        // - If step 2 ran but some token ids failed, copy only those ids from the snapshot when they are still missing.
-        // - Any SEP-41 token that already has a row from step 2 is left unchanged here.
-        this.#mergePersistedSep41Rows(
+        // Fill gaps from the last saved snapshot: SEP-41 backfill + classic removal tombstones.
+        // SEP-41: if step 2 failed completely, copy every missing SEP-41 row; if step 2 ran,
+        // copy only rows for token ids still unresolved. Classic: re-inject tombstone rows when
+        // Horizon dropped a trustline that persisted state still had (or limit 0 tombstone).
+        this.#mergePersistedRowsIntoOnChainAccount(
           synchronizedOnChainAccount,
           stateSnapshotOnChainAccount,
           unresolvedSep41AssetIds,
@@ -235,7 +241,9 @@ export class OnChainAccountSynchronizeService {
           synchronizedOnChainAccount.toSerializableFull();
       }
 
-      // 5. Save the snapshots to the State.
+      // 5. Save the snapshots to the State first.
+      // The client may request balances from the snap as soon as it handles the keyring event,
+      // so persisted state must already reflect the new snapshot.
       this.#logger.debug('Save snapshots to the State');
       await this.#onChainAccountRepository.saveMany(snapshotsToSave);
 
@@ -386,9 +394,8 @@ export class OnChainAccountSynchronizeService {
       const { decimals } = assetMetadata.units[0];
       const { symbol } = assetMetadata;
 
-      // No balance value for this SEP-41 token,
-      // it means some error occurred during the balance fetch (but not balance is zero).
-      // mark unresolved so the merge step can reuse the last snapshot row.
+      // No balance value for this SEP-41 token: treat as a fetch error (not the same as balance zero).
+      // Mark unresolved so the merge step can reuse the last snapshot row.
       if (balance === null || balance === undefined) {
         unresolvedSep41AssetIds.add(assetId);
         continue;
@@ -396,7 +403,7 @@ export class OnChainAccountSynchronizeService {
 
       // Persist the SEP-41 asset when a balance value was fetched, including a zero balance.
       // Missing balances from fetch errors are handled above as unresolved for merge/backfill.
-      onChainAccount.setSep41Asset(assetId, {
+      onChainAccount.setAsset(assetId, {
         balance,
         symbol,
         decimals,
@@ -414,55 +421,80 @@ export class OnChainAccountSynchronizeService {
   }
 
   /**
-   * Fills missing **SEP-41 token** rows on `current` using the **last saved snap snapshot** (`persisted`).
-   * This is normal persisted JSON state, not a temporary cache.
+   * Copies selected rows from the last saved snapshot onto `onChainAccount` when that in-memory
+   * on-chain view is missing them after Horizon + SEP-41 fetch.
    *
-   * Behaviour:
-   * - Only rows for SEP-41 tokens; skip tokens already on `current`.
-   * - If `unresolvedSep41AssetIds` is omitted (whole SEP-41 balance step failed): copy every matching persisted row still missing on `current`.
-   * - If it is a set (step ran): copy only persisted rows whose token id is in the set and still missing on `current`.
+   * **SEP-41:** If `unresolvedSep41AssetIds` is omitted (whole SEP-41 step failed), backfill every
+   * missing SEP-41 row from `persisted`. If it is a set (step ran), backfill only ids still in the
+   * set and missing on `onChainAccount`. Rows already on `onChainAccount` are unchanged.
    *
-   * @param current - In-memory account after classic load + any SEP-41 token balances from this run.
+   * **Classic:** When Horizon omits a trustline still present in `persisted` (or a stored
+   * tombstone with `limit` 0), re-inject a tombstone row so state and keyring payloads stay aligned.
+   *
+   * @param onChainAccount - In-memory account after Horizon load and SEP-41 application for this run.
    * @param persisted - Same account’s snapshot from before this sync (`null` if none).
-   * @param unresolvedSep41AssetIds - See “Behaviour” above.
-   * @returns `current` with allowed gaps filled from `persisted`.
+   * @param unresolvedSep41AssetIds - When omitted, backfill all missing SEP-41 from snapshot; when a set, only those token ids when still missing on `onChainAccount`.
+   * @returns The same `onChainAccount` instance (mutated).
    */
-  #mergePersistedSep41Rows(
-    current: OnChainAccount,
+  #mergePersistedRowsIntoOnChainAccount(
+    onChainAccount: OnChainAccount,
     persisted: OnChainAccount | null,
     unresolvedSep41AssetIds?: Set<KnownCaip19Sep41AssetId>,
   ): OnChainAccount {
     if (!persisted) {
-      return current;
+      return onChainAccount;
     }
 
-    const shouldBackfillAll = unresolvedSep41AssetIds === undefined;
+    const shouldBackfillAllSep41 = unresolvedSep41AssetIds === undefined;
 
-    // Try best effort backfill for SEP-41 assets from the last saved snapshot.
     for (const assetId of persisted.assetIds) {
-      if (!isSep41Id(assetId) || current.hasAsset(assetId)) {
+      if (onChainAccount.hasAsset(assetId)) {
         continue;
       }
 
-      // Whole SEP-41 step failed -> backfill all missing rows.
-      // Partial failure -> backfill only unresolved ids.
-      if (!shouldBackfillAll && !unresolvedSep41AssetIds.has(assetId)) {
+      if (isSep41Id(assetId)) {
+        if (
+          !shouldBackfillAllSep41 &&
+          unresolvedSep41AssetIds !== undefined &&
+          !unresolvedSep41AssetIds.has(assetId)
+        ) {
+          continue;
+        }
+
+        const assetBalance = persisted.getAsset(assetId);
+        if (assetBalance === undefined) {
+          continue;
+        }
+
+        onChainAccount.setAsset(assetId, {
+          balance: new BigNumber(assetBalance.balance),
+          symbol: assetBalance.symbol,
+          decimals: assetBalance.decimals,
+        });
         continue;
       }
 
-      const assetBalance = persisted.getAsset(assetId);
-      if (assetBalance === undefined) {
+      if (!isClassicAssetId(assetId)) {
         continue;
       }
 
-      current.setSep41Asset(assetId, {
-        balance: new BigNumber(assetBalance.balance),
-        symbol: assetBalance.symbol,
-        decimals: assetBalance.decimals,
+      const row = persisted.getAsset(assetId);
+      if (row?.limit === undefined || row.address === undefined) {
+        continue;
+      }
+
+      const authorized = row.authorized ?? true;
+      onChainAccount.setAsset(assetId, {
+        balance: new BigNumber(0),
+        symbol: row.symbol,
+        limit: new BigNumber(0),
+        address: row.address,
+        authorized,
+        ...(row.sponsored === undefined ? {} : { sponsored: row.sponsored }),
       });
     }
 
-    return current;
+    return onChainAccount;
   }
 
   /**
@@ -495,7 +527,7 @@ export class OnChainAccountSynchronizeService {
         stateSnapshotOnChainAccount === null
           ? undefined
           : stateSnapshotOnChainAccount.getAsset(assetId);
-      const currentRow = synchronizedOnChainAccount.getAsset(assetId);
+      const onChainRow = synchronizedOnChainAccount.getAsset(assetId);
 
       // Always send the full balance snapshot, even when values did not change.
       // This lets the client recover if it missed a previous balances event.
@@ -514,11 +546,12 @@ export class OnChainAccountSynchronizeService {
       //   XLM=9, USDC=30, SOLBTC still 0.
       //   Because SEP-41 zero balances are persisted, payload still includes SOLBTC=0.
       // ------------------------- Sync 4 ------------------------------------------
-      // - Sync 4 (success): we still emit full balances for current + latest snapshot,
+      // - Sync 4 (success): we still emit full balances for on-chain view + latest snapshot,
       //   so payload includes XLM=9, USDC=30, SOLBTC=0.
-      //   (EURC stays removed because trustline rows are not persisted once removed.)
+      //   Classic trustlines removed on chain are persisted as internal tombstones (`limit` 0),
+      //   so sync 4 can still send balance `0` for those asset ids if the client missed earlier events.
       balanceChanges[assetId as string] = this.#buildBalancePayloadRow(
-        currentRow,
+        onChainRow,
         latestStateRow,
       );
 
@@ -527,7 +560,7 @@ export class OnChainAccountSynchronizeService {
       }
 
       const isVisibleFromState = this.#isAssetVisible(assetId, latestStateRow);
-      const isVisibleFromOnChain = this.#isAssetVisible(assetId, currentRow);
+      const isVisibleFromOnChain = this.#isAssetVisible(assetId, onChainRow);
       // Add/remove is based on visibility transition between snapshots.
       if (isVisibleFromOnChain && !isVisibleFromState) {
         addedAssets.push(assetId);
@@ -551,16 +584,16 @@ export class OnChainAccountSynchronizeService {
   }
 
   #buildBalancePayloadRow(
-    currentRow: SpendableBalance | undefined,
+    onChainRow: SpendableBalance | undefined,
     latestStateRow: SpendableBalance | undefined,
   ): { unit: string; amount: string } {
     return {
-      // When an asset was removed this sync, `currentRow` is missing.
-      // In that case, use the last known symbol from the persisted snapshot.
-      unit: currentRow?.symbol ?? latestStateRow?.symbol ?? '',
+      // When an asset was removed this sync, `onChainRow` may be missing or be a classic tombstone
+      // (`limit` 0). Use the last known symbol from the persisted snapshot when needed.
+      unit: onChainRow?.symbol ?? latestStateRow?.symbol ?? '',
       amount: toDisplayBalance(
-        currentRow?.balance ?? new BigNumber(0),
-        currentRow?.decimals ?? latestStateRow?.decimals,
+        onChainRow?.balance ?? new BigNumber(0),
+        onChainRow?.decimals ?? latestStateRow?.decimals,
       ),
     };
   }
@@ -572,7 +605,16 @@ export class OnChainAccountSynchronizeService {
     if (!row) {
       return false;
     }
-    return !isSep41Id(assetId) || !row.balance.isZero();
+    if (isSep41Id(assetId)) {
+      return !row.balance.isZero();
+    }
+    if (isClassicAssetId(assetId)) {
+      if (row.limit === undefined) {
+        return false;
+      }
+      return row.limit.gt(0);
+    }
+    return true;
   }
 
   async #emitKeyringEvents(

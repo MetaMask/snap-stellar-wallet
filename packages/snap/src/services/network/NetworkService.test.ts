@@ -168,6 +168,90 @@ describe('NetworkService', () => {
     });
   });
 
+  describe('loadOnChainAccounts', () => {
+    const addrA = generateStellarAddress();
+    const addrB = generateStellarAddress();
+
+    it('returns empty array without calling Horizon when addresses is empty', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+
+      const result = await networkService.loadOnChainAccounts([], scope);
+
+      expect(result).toStrictEqual([]);
+      expect(loadAccountSpy).not.toHaveBeenCalled();
+    });
+
+    it('returns loaded accounts in the same order as the input addresses', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+      loadAccountSpy
+        .mockResolvedValueOnce(
+          createMockAccountWithBalances(addrA, '10', {
+            nativeBalance: 1,
+            assets: [],
+          }) as unknown as StellarHorizon.AccountResponse,
+        )
+        .mockResolvedValueOnce(
+          createMockAccountWithBalances(addrB, '20', {
+            nativeBalance: 1,
+            assets: [],
+          }) as unknown as StellarHorizon.AccountResponse,
+        );
+
+      const result = await networkService.loadOnChainAccounts(
+        [addrA, addrB],
+        scope,
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBeInstanceOf(OnChainAccount);
+      expect(result[1]).toBeInstanceOf(OnChainAccount);
+      expect(result[0]?.accountId).toStrictEqual(addrA);
+      expect(result[0]?.sequenceNumber).toBe('10');
+      expect(result[1]?.accountId).toStrictEqual(addrB);
+      expect(result[1]?.sequenceNumber).toBe('20');
+      expect(loadAccountSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('maps failures to null, preserves order, and logs a warning', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+      loadAccountSpy
+        .mockRejectedValueOnce(new NotFoundError('not found', {}))
+        .mockResolvedValueOnce(
+          createMockAccountWithBalances(addrA, '1', {
+            nativeBalance: 1,
+            assets: [],
+          }) as unknown as StellarHorizon.AccountResponse,
+        );
+
+      const result = await networkService.loadOnChainAccounts(
+        [addrB, addrA],
+        scope,
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBeNull();
+      expect(result[1]).toBeInstanceOf(OnChainAccount);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.any(String),
+        'Failed to preload participating account',
+        expect.objectContaining({
+          accountId: addrB,
+          error: expect.any(AccountNotActivatedException),
+        }),
+      );
+    });
+
+    it('throws NetworkServiceException when batchSize is less than one', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+
+      await expect(
+        networkService.loadOnChainAccounts([addrA], scope, 0),
+      ).rejects.toThrow(NetworkServiceException);
+
+      expect(loadAccountSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('loadActivatedAccountOrNull', () => {
     const testAddress =
       'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';
@@ -423,7 +507,11 @@ describe('NetworkService', () => {
 
       await expect(
         networkService.pollTransaction(testTransactionHash, scope),
-      ).rejects.toThrow(TransactionPollException);
+      ).rejects.toMatchObject({
+        transactionHash: testTransactionHash,
+        status: StellarRpc.Api.GetTransactionStatus.FAILED,
+        scope,
+      });
     });
 
     it('throws TransactionPollException when poll fails', async () => {
@@ -432,7 +520,68 @@ describe('NetworkService', () => {
 
       await expect(
         networkService.pollTransaction(testTransactionHash, scope),
-      ).rejects.toThrow(TransactionPollException);
+      ).rejects.toMatchObject({
+        transactionHash: testTransactionHash,
+        status: 'unknown',
+        scope,
+      });
+    });
+  });
+
+  describe('getHorizonTransactionInclusionStatus', () => {
+    it('returns pending when Horizon returns NotFoundError', async () => {
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({
+            call: jest
+              .fn()
+              .mockRejectedValue(new NotFoundError('not found', {})),
+          }),
+        } as never);
+
+      const result = await networkService.getHorizonTransactionInclusionStatus(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('pending');
+      transactionsSpy.mockRestore();
+    });
+
+    it('returns success when Horizon record is successful', async () => {
+      const call = jest.fn().mockResolvedValue({ successful: true });
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
+
+      const result = await networkService.getHorizonTransactionInclusionStatus(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('success');
+      expect(call).toHaveBeenCalledTimes(1);
+      transactionsSpy.mockRestore();
+    });
+
+    it('returns failed when Horizon record is not successful', async () => {
+      const call = jest.fn().mockResolvedValue({ successful: false });
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
+
+      const result = await networkService.getHorizonTransactionInclusionStatus(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('failed');
+      transactionsSpy.mockRestore();
     });
   });
 

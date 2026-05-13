@@ -34,6 +34,177 @@ import {
   UpdateTrustlineException,
 } from '../exceptions';
 
+type ClassicAssetId = KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
+
+type PathPaymentOP =
+  | Operation.PathPaymentStrictReceive
+  | Operation.PathPaymentStrictSend;
+
+/**
+ * Converts a Stellar SDK native or classic asset to this Snap's CAIP asset id form.
+ *
+ * @param asset - The SDK asset value from the operation.
+ * @param scope - The CAIP-2 chain id for the transaction.
+ * @returns The corresponding native or classic CAIP asset id.
+ */
+function classicAssetToId(
+  asset: unknown,
+  scope: KnownCaip2ChainId,
+): ClassicAssetId {
+  if (asset instanceof Asset) {
+    if (asset.isNative()) {
+      return getSlip44AssetId(scope);
+    }
+    return toCaip19ClassicAssetId(scope, asset.getCode(), asset.getIssuer());
+  }
+  throw new TransactionValidationException(
+    'Only native or alphanum Asset payments are supported for sequential validation',
+  );
+}
+
+/**
+ * Validates that an account can spend a native or classic asset amount.
+ *
+ * @param params - Validation parameters.
+ * @param params.account - Source account state.
+ * @param params.accountId - Source account id for error reporting.
+ * @param params.assetId - Asset being debited.
+ * @param params.amount - Amount in smallest units.
+ */
+function validateDebit(params: {
+  account: AccountState;
+  accountId: string;
+  assetId: ClassicAssetId;
+  amount: BigNumber;
+}): void {
+  const { account, accountId, assetId, amount } = params;
+
+  if (isSlip44Id(assetId)) {
+    const spendable = getSpendableNative(account);
+    if (spendable.isLessThan(amount)) {
+      throw new InsufficientBalanceException(
+        spendable.toString(),
+        amount.toString(),
+      );
+    }
+    return;
+  }
+
+  // verify if the source account has trustline and the spending amount not exceed the trustline balance
+  const line = account.trustlines.get(assetId);
+  if (line === undefined) {
+    throw new TrustlineNotFoundException(assetId, accountId);
+  }
+
+  if (!line.authorized) {
+    throw new TrustlineNotAuthorizedException(assetId, accountId);
+  }
+
+  if (line.balance.isLessThan(amount)) {
+    throw new InsufficientBalanceException(
+      line.balance.toString(),
+      amount.toString(),
+    );
+  }
+}
+
+/**
+ * Validates that an account can receive a native or classic asset amount.
+ *
+ * @param params - Validation parameters.
+ * @param params.account - Destination account state.
+ * @param params.accountId - Destination account id for error reporting.
+ * @param params.assetId - Asset being credited.
+ * @param params.amount - Amount in smallest units.
+ */
+function validateCredit(params: {
+  account: AccountState;
+  accountId: string;
+  assetId: ClassicAssetId;
+  amount: BigNumber;
+}): void {
+  const { account, accountId, assetId, amount } = params;
+
+  if (isSlip44Id(assetId)) {
+    const newNativeBalance = account.nativeRawBalance.plus(amount);
+    if (newNativeBalance.isGreaterThan(new BigNumber(MAX_INT64))) {
+      throw new TransactionValidationException(
+        'Payment would exceed maximum int64 balance for destination',
+      );
+    }
+    return;
+  }
+
+  // verify if the destination account has trustline and the receiving amount not exceed the trustline limit
+  const line = account.trustlines.get(assetId);
+  if (line === undefined) {
+    throw new TrustlineNotFoundException(assetId, accountId);
+  }
+
+  if (!line.authorized) {
+    throw new TrustlineNotAuthorizedException(assetId, accountId);
+  }
+
+  const newBalance = line.balance.plus(amount);
+  if (newBalance.isGreaterThan(line.limit)) {
+    throw new TransactionValidationException(
+      `Payment would exceed trustline limit for asset ${assetId} on destination`,
+    );
+  }
+}
+
+/**
+ * Applies a debit for a native or classic asset amount.
+ *
+ * @param params - Debit parameters.
+ * @param params.account - Account state to mutate.
+ * @param params.assetId - Asset being debited.
+ * @param params.amount - Amount in smallest units.
+ */
+function applyDebit(params: {
+  account: AccountState;
+  assetId: ClassicAssetId;
+  amount: BigNumber;
+}): void {
+  const { account, assetId, amount } = params;
+
+  if (isSlip44Id(assetId)) {
+    account.nativeRawBalance = account.nativeRawBalance.minus(amount);
+    return;
+  }
+
+  const line = account.trustlines.get(assetId);
+  if (line !== undefined) {
+    line.balance = line.balance.minus(amount);
+  }
+}
+
+/**
+ * Applies a credit for a native or classic asset amount.
+ *
+ * @param params - Credit parameters.
+ * @param params.account - Account state to mutate.
+ * @param params.assetId - Asset being credited.
+ * @param params.amount - Amount in smallest units.
+ */
+function applyCredit(params: {
+  account: AccountState;
+  assetId: ClassicAssetId;
+  amount: BigNumber;
+}): void {
+  const { account, assetId, amount } = params;
+
+  if (isSlip44Id(assetId)) {
+    account.nativeRawBalance = account.nativeRawBalance.plus(amount);
+    return;
+  }
+
+  const line = account.trustlines.get(assetId);
+  if (line !== undefined) {
+    line.balance = line.balance.plus(amount);
+  }
+}
+
 export class PaymentOPSimulator implements OperationSimulator {
   validate(ctx: Context, op: Operation.Payment): void {
     const payment = op;
@@ -47,76 +218,25 @@ export class PaymentOPSimulator implements OperationSimulator {
       );
     }
 
-    // verify if the asset is a native asset and if the source has enough balance
-    if (isSlip44Id(assetId)) {
-      const spendable = getSpendableNative(source);
-      if (spendable.isLessThan(payAmt)) {
-        throw new InsufficientBalanceException(
-          spendable.toString(),
-          payAmt.toString(),
-        );
-      }
-      const newDestNative = dest.nativeRawBalance.plus(payAmt);
-      if (newDestNative.isGreaterThan(new BigNumber(MAX_INT64))) {
-        throw new TransactionValidationException(
-          'Payment would exceed maximum int64 balance for destination',
-        );
-      }
-      return;
-    }
-
-    // verify if the trustline exists and if the source has enough balance
-    const line = source.trustlines.get(assetId);
-    if (line === undefined) {
-      throw new TrustlineNotFoundException(assetId, sourceId);
-    }
-
-    if (!line.authorized) {
-      throw new TrustlineNotAuthorizedException(assetId, sourceId);
-    }
-
-    if (line.balance.isLessThan(payAmt)) {
-      throw new InsufficientBalanceException(
-        line.balance.toString(),
-        payAmt.toString(),
-      );
-    }
-
-    // verify if the destination has trustline and the receiving amount not exceed the trustline limit
-    const destLine = dest.trustlines.get(assetId);
-    if (destLine === undefined) {
-      throw new TrustlineNotFoundException(assetId, destId);
-    }
-
-    if (!destLine.authorized) {
-      throw new TrustlineNotAuthorizedException(assetId, destId);
-    }
-
-    const newBalance = destLine.balance.plus(payAmt);
-    if (newBalance.isGreaterThan(destLine.limit)) {
-      throw new TransactionValidationException(
-        `Payment would exceed trustline limit for asset ${assetId} on destination`,
-      );
-    }
+    validateDebit({
+      account: source,
+      accountId: sourceId,
+      assetId,
+      amount: payAmt,
+    });
+    validateCredit({
+      account: dest,
+      accountId: destId,
+      assetId,
+      amount: payAmt,
+    });
   }
 
   apply(ctx: Context, op: Operation.Payment): void {
     const { assetId, payAmt, source, dest } = this.#getContextData(ctx, op);
 
-    if (isSlip44Id(assetId)) {
-      source.nativeRawBalance = source.nativeRawBalance.minus(payAmt);
-      dest.nativeRawBalance = dest.nativeRawBalance.plus(payAmt);
-      return;
-    }
-
-    const srcLine = source.trustlines.get(assetId);
-    const destLine = dest.trustlines.get(assetId);
-    if (srcLine !== undefined) {
-      srcLine.balance = srcLine.balance.minus(payAmt);
-    }
-    if (destLine !== undefined) {
-      destLine.balance = destLine.balance.plus(payAmt);
-    }
+    applyDebit({ account: source, assetId, amount: payAmt });
+    applyCredit({ account: dest, assetId, amount: payAmt });
   }
 
   #getContextData(
@@ -126,7 +246,7 @@ export class PaymentOPSimulator implements OperationSimulator {
     sourceId: string;
     destId: string;
     payAmt: BigNumber;
-    assetId: KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
+    assetId: ClassicAssetId;
     source: AccountState;
     dest: AccountState;
   } {
@@ -135,26 +255,10 @@ export class PaymentOPSimulator implements OperationSimulator {
     const sourceId = effectiveSource(payment, txSource);
     const destId = this.#paymentDestinationAccountId(payment);
     const payAmt = toSmallestUnit(new BigNumber(payment.amount));
-    const assetId = this.#paymentAssetToId(payment, scope);
+    const assetId = classicAssetToId(payment.asset, scope);
     const source = getAccount(state, sourceId);
     const dest = getAccount(state, destId);
     return { sourceId, destId, payAmt, assetId, source, dest };
-  }
-
-  #paymentAssetToId(
-    op: Operation.Payment,
-    scope: KnownCaip2ChainId,
-  ): KnownCaip19ClassicAssetId | KnownCaip19Slip44Id {
-    const { asset } = op;
-    if (asset instanceof Asset) {
-      if (asset.isNative()) {
-        return getSlip44AssetId(scope);
-      }
-      return toCaip19ClassicAssetId(scope, asset.getCode(), asset.getIssuer());
-    }
-    throw new TransactionValidationException(
-      'Only native or alphanum Asset payments are supported for sequential validation',
-    );
   }
 
   #paymentDestinationAccountId(op: Operation.Payment): string {
@@ -165,6 +269,96 @@ export class PaymentOPSimulator implements OperationSimulator {
     throw new TransactionValidationException(
       'Unsupported payment destination type',
     );
+  }
+}
+
+export class PathPaymentOPSimulator implements OperationSimulator {
+  validate(ctx: Context, op: PathPaymentOP): void {
+    const { source, sourceId, sendAssetId, sendAmount } = this.#sourceData(
+      ctx,
+      op,
+    );
+    const { dest, destId, destAssetId, destAmount } = this.#destinationData(
+      ctx,
+      op,
+    );
+
+    validateDebit({
+      account: source,
+      accountId: sourceId,
+      assetId: sendAssetId,
+      amount: sendAmount,
+    });
+    validateCredit({
+      account: dest,
+      accountId: destId,
+      assetId: destAssetId,
+      amount: destAmount,
+    });
+  }
+
+  apply(ctx: Context, op: PathPaymentOP): void {
+    const { source, sendAssetId, sendAmount } = this.#sourceData(ctx, op);
+    const { dest, destAssetId, destAmount } = this.#destinationData(ctx, op);
+
+    applyDebit({
+      account: source,
+      assetId: sendAssetId,
+      amount: sendAmount,
+    });
+    applyCredit({
+      account: dest,
+      assetId: destAssetId,
+      amount: destAmount,
+    });
+  }
+
+  #sourceData(
+    ctx: Context,
+    op: PathPaymentOP,
+  ): {
+    source: AccountState;
+    sourceId: string;
+    sendAssetId: ClassicAssetId;
+    sendAmount: BigNumber;
+  } {
+    const { txSource, scope, state } = ctx;
+    const sourceId = effectiveSource(op, txSource);
+    const source = getAccount(state, sourceId);
+    const sendAssetId = classicAssetToId(op.sendAsset, scope);
+    const sendAmount =
+      op.type === 'pathPaymentStrictSend' ? op.sendAmount : op.sendMax;
+
+    return {
+      source,
+      sourceId,
+      sendAssetId,
+      sendAmount: toSmallestUnit(new BigNumber(sendAmount)),
+    };
+  }
+
+  #destinationData(
+    ctx: Context,
+    op: PathPaymentOP,
+  ): {
+    dest: AccountState;
+    destId: string;
+    destAssetId: ClassicAssetId;
+    destAmount: BigNumber;
+  } {
+    const { scope, state } = ctx;
+    const { destination } = op;
+    const dest = getAccount(state, destination);
+    const destAssetId = classicAssetToId(op.destAsset, scope);
+    const destAmount =
+      op.type === 'pathPaymentStrictSend' ? op.destMin : op.destAmount;
+
+    return {
+      dest,
+      destId: destination,
+      destAssetId,
+      destAmount: toSmallestUnit(new BigNumber(destAmount)),
+    };
   }
 }
 

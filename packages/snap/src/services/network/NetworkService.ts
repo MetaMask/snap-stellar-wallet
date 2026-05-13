@@ -1,4 +1,4 @@
-import { parseCaipAssetType } from '@metamask/utils';
+import { ensureError, parseCaipAssetType } from '@metamask/utils';
 import {
   Account as StellarAccount,
   Address,
@@ -54,6 +54,7 @@ import {
   toCaip19ClassicAssetId,
   toCaip19Sep41AssetId,
   rethrowIfInstanceElseThrow,
+  batchesAllSettled,
 } from '../../utils';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
@@ -127,6 +128,36 @@ export class NetworkService {
   }
 
   /**
+   * Whether a transaction has been ingested by Horizon and its ledger outcome.
+   *
+   * @param transactionHash - Transaction hash from submission (hex).
+   * @param scope - CAIP-2 chain id (Horizon endpoint).
+   * @returns `pending` when the tx is not yet available (404); `success` / `failed` when present.
+   */
+  async getHorizonTransactionInclusionStatus(
+    transactionHash: string,
+    scope: KnownCaip2ChainId,
+  ): Promise<'pending' | 'success' | 'failed'> {
+    try {
+      const client = this.#getHorizonClient(scope);
+      const record = await client
+        .transactions()
+        .transaction(transactionHash)
+        .call();
+      return record.successful ? 'success' : 'failed';
+    } catch (error: unknown) {
+      if (error instanceof NotFoundError) {
+        return 'pending';
+      }
+      this.#logger.logErrorWithDetails(
+        'Failed to load transaction from Horizon',
+        error,
+      );
+      throw ensureError(error);
+    }
+  }
+
+  /**
    * Polls Soroban RPC until the transaction reaches a terminal status, then returns the hash on
    * success or throws.
    *
@@ -184,6 +215,44 @@ export class NetworkService {
         throw new AccountNotActivatedException(accountAddress, scope);
       }
       throw new AccountLoadException(accountAddress, scope);
+    }
+  }
+
+  async loadOnChainAccounts(
+    accountAddress: string[],
+    scope: KnownCaip2ChainId,
+    // Hardcoded to 5 to avoid overwhelming the network
+    batchSize: number = 5,
+  ): Promise<(OnChainAccount | null)[]> {
+    try {
+      const settled = await batchesAllSettled(
+        accountAddress,
+        batchSize,
+        async (accountId) => this.loadOnChainAccount(accountId, scope), // Assume the onChainAccount scope is the same as the transaction scope
+      );
+
+      const onChainAccounts: (OnChainAccount | null)[] = [];
+      let idx = 0;
+      for (const result of settled) {
+        if (result.status === 'fulfilled') {
+          onChainAccounts.push(result.value);
+        } else {
+          this.#logger.warn('Failed to preload participating account', {
+            accountId: accountAddress[idx],
+            error: result.reason,
+          });
+          onChainAccounts.push(null);
+        }
+        idx += 1;
+      }
+
+      return onChainAccounts;
+    } catch (error: unknown) {
+      return rethrowIfInstanceElseThrow(
+        error,
+        [AccountLoadException, AccountNotActivatedException],
+        new NetworkServiceException('Failed to load accounts'),
+      );
     }
   }
 

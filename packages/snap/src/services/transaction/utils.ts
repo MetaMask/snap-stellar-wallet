@@ -95,7 +95,7 @@ export function assertAccountInvolvesTransaction(
   transaction: Transaction,
   accountId: string,
 ): void {
-  if (transaction.hasParticipatingAccount(accountId)) {
+  if (transaction.isInvokedByAccount(accountId)) {
     return;
   }
   throw new TransactionValidationException(

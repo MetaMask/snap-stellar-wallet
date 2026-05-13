@@ -56,16 +56,13 @@ export class SyncAccountsHandler extends CronjobBaseHandler<SyncAccountJsonRpcRe
    * `JSON.parse(JSON.stringify(jobs))` validated successfully (same logical shape).
    * Omitted params mean "selected accounts" here.
    *
-   * @param request SyncAccountJsonRpcRequest
+   * @param request - Cron JSON-RPC request (params may be omitted or `{}`).
    */
   protected async handleCronJobRequest(
     request: SyncAccountJsonRpcRequest,
   ): Promise<void> {
     const scope = AppConfig.selectedNetwork;
-    const accountIds =
-      request.params === undefined
-        ? ('selected' as const)
-        : request.params.accountIds;
+    const accountIds = request.params?.accountIds ?? ('selected' as const);
 
     let accounts: StellarKeyringAccount[] = [];
     if (accountIds === 'selected') {

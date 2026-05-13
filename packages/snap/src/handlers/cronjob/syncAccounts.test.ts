@@ -110,6 +110,27 @@ describe('SyncAccountsHandler', () => {
     );
   });
 
+  it('treats empty params object like selected accounts', async () => {
+    const { handler, accountService, onChainAccountService } = setupTest();
+    const selectedAccounts = [firstAccount];
+    accountService.getAllSelected.mockResolvedValue(selectedAccounts);
+
+    const request = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.SynchronizeAccounts,
+      params: {},
+    };
+
+    await handler.handle(request);
+
+    expect(accountService.getAllSelected).toHaveBeenCalledTimes(1);
+    expect(onChainAccountService.synchronize).toHaveBeenCalledWith(
+      selectedAccounts,
+      AppConfig.selectedNetwork,
+    );
+  });
+
   it('synchronizes accounts fetched by ids when accountIds is an array of account ids', async () => {
     const { handler, accountService, onChainAccountService } = setupTest();
     const accountIds = [firstAccount.id, secondAccount.id];
