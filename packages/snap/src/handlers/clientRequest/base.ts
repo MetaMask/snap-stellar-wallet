@@ -2,6 +2,7 @@ import type { Struct } from '@metamask/superstruct';
 import type { Json, JsonRpcRequest } from '@metamask/utils';
 
 import type { JsonRpcRequestWithAccount } from './api';
+import type { KnownCaip2ChainId } from '../../api';
 import { AccountNotActivatedException } from '../../services/network';
 import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
 import type { ILogger } from '../../utils/logger';
@@ -39,6 +40,16 @@ export abstract class BaseClientRequestHandler<
    */
   protected getAccountId(request: RequestType): string {
     return request.params.accountId;
+  }
+
+  /**
+   * Get the scope from the JSON-RPC request.
+   *
+   * @param request - The JSON-RPC request to get the scope from.
+   * @returns The scope or undefined if not provided.
+   */
+  protected getScope(request: RequestType): KnownCaip2ChainId | undefined {
+    return (request.params as { scope?: KnownCaip2ChainId }).scope;
   }
 
   readonly #accountResolver: AccountResolver;
@@ -87,6 +98,7 @@ export abstract class BaseClientRequestHandler<
     try {
       return await this.#accountResolver.resolveAccount({
         accountId: this.getAccountId(request),
+        scope: this.getScope(request),
         options: this.#resolveAccountOptions,
       });
     } catch (error: unknown) {

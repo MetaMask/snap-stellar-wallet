@@ -6,7 +6,10 @@ import {
   RESOLVE_ACCOUNT_KEYRING_AND_WALLET,
   ResolveAccountSource,
 } from './accountResolver';
-import { AccountService } from '../services/account';
+import {
+  AccountService,
+  DerivedAccountAddressMismatchException,
+} from '../services/account';
 import { generateStellarKeyringAccount } from '../services/account/__mocks__/account.fixtures';
 import { AccountNotActivatedException } from '../services/network';
 import {
@@ -20,7 +23,10 @@ import {
   mockOnChainAccountService,
 } from '../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { WalletService } from '../services/wallet';
-import { getTestWallet } from '../services/wallet/__mocks__/wallet.fixtures';
+import {
+  generateStellarAddress,
+  getTestWallet,
+} from '../services/wallet/__mocks__/wallet.fixtures';
 
 jest.mock('../utils/logger');
 
@@ -187,6 +193,34 @@ describe('AccountResolver', () => {
         options: RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE,
       }),
     ).rejects.toThrow(AccountNotActivatedException);
+  });
+
+  it('throws DerivedAccountAddressMismatchException when state snapshot address differs from keyring', async () => {
+    const { accountResolver, resolveOnChainAccountByKeyringAccountIdSpy } =
+      setup();
+
+    const otherAddress = generateStellarAddress();
+    const mockRawAccount = createMockAccountWithBalances(
+      otherAddress,
+      '1',
+      DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+    );
+    const mismatchedOnChainAccount = new OnChainAccount(
+      mockRawAccount,
+      scope,
+      horizonSource(mockRawAccount, scope),
+    );
+    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValue(
+      mismatchedOnChainAccount,
+    );
+
+    await expect(
+      accountResolver.resolveAccount({
+        accountId: keyringAccountId,
+        scope,
+        options: RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE,
+      }),
+    ).rejects.toThrow(DerivedAccountAddressMismatchException);
   });
 
   it('omits wallet when wallet load is disabled', async () => {
