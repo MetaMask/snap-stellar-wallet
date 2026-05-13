@@ -5,14 +5,14 @@ import type { Sep43ErrorEnvelope, Sep43Opts } from './api';
 import type { Sep43Error } from './exceptions';
 import { toSep43Error } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';
-import type {
-  AccountService,
-  StellarKeyringAccount,
-} from '../../services/account';
-import type { Wallet, WalletService } from '../../services/wallet';
 import type { ILogger } from '../../utils';
 import { createPrefixedLogger } from '../../utils';
 import { validateRequest, validateResponse } from '../../utils/requestResponse';
+import type {
+  AccountResolver,
+  ResolvedKeyringAndWalletOnly,
+} from '../accountResolver';
+import { RESOLVE_ACCOUNT_KEYRING_AND_WALLET } from '../accountResolver';
 import { BaseHandler } from '../base';
 
 /**
@@ -56,21 +56,17 @@ export abstract class BaseSep43KeyringHandler<
   extends BaseHandler<Request, Response>
   implements IKeyringRequestHandler
 {
-  protected readonly accountService: AccountService;
-
-  protected readonly walletService: WalletService;
+  readonly #accountResolver: AccountResolver;
 
   constructor({
     logger,
-    accountService,
-    walletService,
+    accountResolver,
     loggerPrefix,
     requestStruct,
     responseStruct,
   }: {
     logger: ILogger;
-    accountService: AccountService;
-    walletService: WalletService;
+    accountResolver: AccountResolver;
     loggerPrefix: string;
     requestStruct: Struct<Request>;
     responseStruct: Struct<Response>;
@@ -80,8 +76,7 @@ export abstract class BaseSep43KeyringHandler<
       requestStruct,
       responseStruct,
     });
-    this.accountService = accountService;
-    this.walletService = walletService;
+    this.#accountResolver = accountResolver;
   }
 
   /**
@@ -134,7 +129,7 @@ export abstract class BaseSep43KeyringHandler<
    */
   protected abstract execute(
     request: Request,
-    resolved: { account: StellarKeyringAccount; wallet: Wallet },
+    resolved: ResolvedKeyringAndWalletOnly,
   ): Promise<Response>;
 
   /**
@@ -162,10 +157,11 @@ export abstract class BaseSep43KeyringHandler<
    */
   protected async resolveAccount(
     request: Request,
-  ): Promise<{ account: StellarKeyringAccount; wallet: Wallet }> {
+  ): Promise<ResolvedKeyringAndWalletOnly> {
     const { account: accountId } = request;
-    const { account } = await this.accountService.resolveAccount({ accountId });
-    const wallet = await this.walletService.resolveWallet(account);
-    return { account, wallet };
+    return await this.#accountResolver.resolveAccount({
+      accountId,
+      options: RESOLVE_ACCOUNT_KEYRING_AND_WALLET,
+    });
   }
 }
