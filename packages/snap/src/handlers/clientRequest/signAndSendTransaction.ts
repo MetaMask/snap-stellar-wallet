@@ -15,14 +15,13 @@ import {
   SignAndSendTransactionJsonRpcResponseStruct,
 } from './api';
 import { KnownCaip19Slip44IdMap, type KnownCaip2ChainId } from '../../api';
-import type { ResolvedActivatedAccount } from '../base';
-import { WithClientRequestActiveAccountResolve } from './base';
+import {
+  type AccountResolver,
+  type ResolvedActivatedAccount,
+} from '../accountResolver';
+import { BaseClientRequestHandler } from './base';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
-import type {
-  AccountService,
-  StellarKeyringAccount,
-} from '../../services/account';
-import type { OnChainAccountService } from '../../services/on-chain-account';
+import type { StellarKeyringAccount } from '../../services/account';
 import {
   KeyringTransactionType,
   type PendingTransactionRequest,
@@ -30,7 +29,6 @@ import {
 import type { Transaction } from '../../services/transaction/Transaction';
 import type { TransactionService } from '../../services/transaction/TransactionService';
 import { parseOperationAssetReference } from '../../services/transaction/utils';
-import type { WalletService } from '../../services/wallet';
 import { toDisplayBalance } from '../../utils/currency';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
@@ -43,7 +41,7 @@ type PendingSwapDetails = {
   fees: KeyringTransaction['fees'];
 };
 
-export class SignAndSendTransactionHandler extends WithClientRequestActiveAccountResolve<
+export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
   SignAndSendTransactionJsonRpcRequest,
   SignAndSendTransactionJsonRpcResponse
 > {
@@ -51,15 +49,11 @@ export class SignAndSendTransactionHandler extends WithClientRequestActiveAccoun
 
   constructor({
     logger,
-    accountService,
-    onChainAccountService,
-    walletService,
+    accountResolver,
     transactionService,
   }: {
     logger: ILogger;
-    accountService: AccountService;
-    onChainAccountService: OnChainAccountService;
-    walletService: WalletService;
+    accountResolver: AccountResolver;
     transactionService: TransactionService;
   }) {
     const prefixedLogger = createPrefixedLogger(
@@ -67,9 +61,7 @@ export class SignAndSendTransactionHandler extends WithClientRequestActiveAccoun
       '[👋 SignAndSendTransactionHandler]',
     );
     super({
-      accountService,
-      onChainAccountService,
-      walletService,
+      accountResolver,
       logger: prefixedLogger,
       requestStruct: SignAndSendTransactionJsonRpcRequestStruct,
       responseStruct: SignAndSendTransactionJsonRpcResponseStruct,
@@ -103,7 +95,7 @@ export class SignAndSendTransactionHandler extends WithClientRequestActiveAccoun
    * @param request.params.scope - The CAIP-2 chain ID.
    * @returns A promise that resolves to the JSON-RPC response ({@link SignAndSendTransactionJsonRpcResponse}).
    */
-  async _handle(
+  protected async execute(
     resolved: ResolvedActivatedAccount,
     request: SignAndSendTransactionJsonRpcRequest,
   ): Promise<SignAndSendTransactionJsonRpcResponse> {

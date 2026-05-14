@@ -5,11 +5,9 @@ import { Sep43ErrorCode } from './exceptions';
 import { SignTransactionHandler } from './signTransaction';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
-import {
-  generateStellarKeyringAccount,
-  mockAccountService,
-} from '../../services/account/__mocks__/account.fixtures';
+import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import { SimulationException } from '../../services/network/exceptions';
+import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import type { Transaction } from '../../services/transaction';
 import { TransactionService } from '../../services/transaction';
 import {
@@ -20,6 +18,7 @@ import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
+import { AccountResolver } from '../accountResolver';
 
 jest.mock('../../utils/logger');
 
@@ -41,9 +40,15 @@ describe('SignTransactionHandler', () => {
 
     const { transactionBuilder, transactionService } =
       createMockTransactionService();
-    const { accountService, walletService } = mockAccountService();
+    const { accountService, onChainAccountService, walletService } =
+      mockOnChainAccountService();
+    const accountResolver = new AccountResolver({
+      accountService,
+      onChainAccountService,
+      walletService,
+    });
 
-    const resolveAccountSpy = jest
+    jest
       .spyOn(AccountService.prototype, 'resolveAccount')
       .mockResolvedValue({ account: mockAccount });
 
@@ -66,8 +71,7 @@ describe('SignTransactionHandler', () => {
 
     const handler = new SignTransactionHandler({
       logger,
-      accountService,
-      walletService,
+      accountResolver,
       transactionBuilder,
       transactionService,
       confirmationUIController,
@@ -80,7 +84,6 @@ describe('SignTransactionHandler', () => {
       transactionBuilder,
       transactionService,
       renderConfirmationDialog,
-      resolveAccountSpy,
     };
   }
 

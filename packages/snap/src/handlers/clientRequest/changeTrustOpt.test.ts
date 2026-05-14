@@ -38,6 +38,7 @@ import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
+import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 jest.mock('../../utils/logger');
@@ -111,6 +112,11 @@ describe('ChangeTrustOptHandler', () => {
 
     const { accountService, onChainAccountService, walletService } =
       mockOnChainAccountService();
+    const accountResolver = new AccountResolver({
+      accountService,
+      onChainAccountService,
+      walletService,
+    });
     const resolveAccountSpy = jest
       .spyOn(AccountService.prototype, 'resolveAccount')
       .mockResolvedValue({ account });
@@ -163,9 +169,7 @@ describe('ChangeTrustOptHandler', () => {
 
     const handler = new ChangeTrustOptHandler({
       logger,
-      accountService,
-      onChainAccountService,
-      walletService,
+      accountResolver,
       transactionService,
       assetMetadataService,
       confirmationUIController,

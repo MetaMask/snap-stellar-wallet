@@ -30,6 +30,7 @@ import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { toCaip19ClassicAssetId, toDisplayBalance } from '../../utils';
 import { logger } from '../../utils/logger';
+import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 jest.mock('@metamask/keyring-snap-sdk', () => ({
@@ -88,6 +89,11 @@ describe('SignAndSendTransactionHandler', () => {
 
     const { accountService, onChainAccountService, walletService } =
       mockOnChainAccountService();
+    const accountResolver = new AccountResolver({
+      accountService,
+      onChainAccountService,
+      walletService,
+    });
     const resolveAccountSpy = jest
       .spyOn(AccountService.prototype, 'resolveAccount')
       .mockResolvedValue({ account });
@@ -116,9 +122,7 @@ describe('SignAndSendTransactionHandler', () => {
 
     const handler = new SignAndSendTransactionHandler({
       logger,
-      accountService,
-      onChainAccountService,
-      walletService,
+      accountResolver,
       transactionService,
     });
 
