@@ -25,6 +25,7 @@ import {
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { logger } from '../../utils/logger';
+import { AccountResolver } from '../accountResolver';
 
 jest.mock('../../config', () => ({
   AppConfig: {
@@ -78,6 +79,11 @@ describe('ComputeFeeHandler', () => {
 
     const { accountService, onChainAccountService, walletService } =
       mockOnChainAccountService();
+    const accountResolver = new AccountResolver({
+      accountService,
+      onChainAccountService,
+      walletService,
+    });
     const resolveAccountSpy = jest
       .spyOn(AccountService.prototype, 'resolveAccount')
       .mockResolvedValue({ account });
@@ -99,9 +105,7 @@ describe('ComputeFeeHandler', () => {
 
     const handler = new ComputeFeeHandler({
       logger,
-      accountService,
-      onChainAccountService,
-      walletService,
+      accountResolver,
       transactionService,
     });
 

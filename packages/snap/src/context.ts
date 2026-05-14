@@ -2,6 +2,7 @@ import { assert, object } from '@metamask/superstruct';
 
 import { AppConfig } from './config';
 import { KeyringHandler, CronjobHandler, UserInputHandler } from './handlers';
+import { AccountResolver } from './handlers/accountResolver';
 import { AssetsHandler } from './handlers/asset/assets';
 import type { IClientRequestHandler } from './handlers/clientRequest';
 import {
@@ -111,11 +112,17 @@ const confirmationUIController = new ConfirmationUXController({
   logger,
 });
 
+/** ------------------------------ Account Resolver ------------------------------ */
+const accountResolver = new AccountResolver({
+  accountService,
+  onChainAccountService,
+  walletService,
+});
+
 /** ------------------------------ Keyring Handler ------------------------------ */
 const signTransactionHandler = new SignTransactionHandler({
   logger,
-  accountService,
-  walletService,
+  accountResolver,
   transactionBuilder,
   transactionService,
   confirmationUIController,
@@ -123,15 +130,13 @@ const signTransactionHandler = new SignTransactionHandler({
 
 const signMessageHandler = new SignMessageHandler({
   logger,
-  accountService,
-  walletService,
+  accountResolver,
   confirmationUIController,
 });
 
 const signAuthEntryHandler = new SignAuthEntryHandler({
   logger,
-  accountService,
-  walletService,
+  accountResolver,
   confirmationUIController,
 });
 
@@ -202,10 +207,8 @@ const assetsHandler = new AssetsHandler({
 /** ------------------------------ Client Request Handlers ------------------------------ */
 const changeTrustOptHandler = new ChangeTrustOptHandler({
   logger,
-  accountService,
+  accountResolver,
   assetMetadataService,
-  onChainAccountService,
-  walletService,
   transactionService,
   confirmationUIController,
 });
@@ -225,17 +228,13 @@ const onAmountInputHandler = new OnAmountInputHandler({
 
 const signAndSendTransactionHandler = new SignAndSendTransactionHandler({
   logger,
-  accountService,
-  onChainAccountService,
-  walletService,
+  accountResolver,
   transactionService,
 });
 
 const computeFeeHandler = new ComputeFeeHandler({
   logger,
-  accountService,
-  onChainAccountService,
-  walletService,
+  accountResolver,
   transactionService,
 });
 

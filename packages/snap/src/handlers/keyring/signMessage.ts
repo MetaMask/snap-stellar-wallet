@@ -2,13 +2,11 @@ import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 
 import type { SignMessageRequest, SignMessageResponse } from './api';
 import { SignMessageRequestStruct, SignMessageResponseStruct } from './api';
+import type { AccountResolver } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
-import type {
-  AccountService,
-  StellarKeyringAccount,
-} from '../../services/account';
-import type { Wallet, WalletService } from '../../services/wallet';
+import type { StellarKeyringAccount } from '../../services/account';
+import type { Wallet } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
@@ -33,19 +31,16 @@ export class SignMessageHandler extends BaseSep43KeyringHandler<
 
   constructor({
     logger,
-    accountService,
-    walletService,
+    accountResolver,
     confirmationUIController,
   }: {
     logger: ILogger;
-    accountService: AccountService;
-    walletService: WalletService;
+    accountResolver: AccountResolver;
     confirmationUIController: ConfirmationUXController;
   }) {
     super({
       logger,
-      accountService,
-      walletService,
+      accountResolver,
       loggerPrefix: '[✉️ SignMessageHandler]',
       requestStruct: SignMessageRequestStruct,
       responseStruct: SignMessageResponseStruct,

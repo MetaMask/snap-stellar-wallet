@@ -10,24 +10,21 @@ import {
   ChangeTrustOptJsonRpcRequestStruct,
   ChangeTrustOptJsonRpcResponseStruct,
 } from './api';
-import type { ResolvedActivatedAccount } from '../base';
-import { WithClientRequestActiveAccountResolve } from './base';
+import {
+  type AccountResolver,
+  type ResolvedActivatedAccount,
+} from '../accountResolver';
+import { BaseClientRequestHandler } from './base';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
 } from '../../api';
-import type {
-  AccountService,
-  StellarKeyringAccount,
-} from '../../services/account';
+import type { StellarKeyringAccount } from '../../services/account';
 import type {
   AssetMetadataService,
   StellarAssetMetadata,
 } from '../../services/asset-metadata';
-import type {
-  OnChainAccount,
-  OnChainAccountService,
-} from '../../services/on-chain-account';
+import type { OnChainAccount } from '../../services/on-chain-account';
 import {
   TrustlineNotFoundException,
   KeyringTransactionType,
@@ -37,13 +34,12 @@ import type {
   Transaction,
   TransactionService,
 } from '../../services/transaction';
-import type { WalletService } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { createPrefixedLogger, type ILogger } from '../../utils/logger';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
-export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve<
+export class ChangeTrustOptHandler extends BaseClientRequestHandler<
   ChangeTrustOptJsonRpcRequest,
   ChangeTrustOptJsonRpcResponse
 > {
@@ -55,18 +51,14 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
 
   constructor({
     logger,
-    accountService,
-    onChainAccountService,
-    walletService,
+    accountResolver,
     transactionService,
     assetMetadataService,
     confirmationUIController,
   }: {
     logger: ILogger;
-    accountService: AccountService;
+    accountResolver: AccountResolver;
     assetMetadataService: AssetMetadataService;
-    onChainAccountService: OnChainAccountService;
-    walletService: WalletService;
     transactionService: TransactionService;
     confirmationUIController: ConfirmationUXController;
   }) {
@@ -75,9 +67,7 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
       '[💼 ChangeTrustOptHandler]',
     );
     super({
-      accountService,
-      onChainAccountService,
-      walletService,
+      accountResolver,
       logger: prefixedLogger,
       requestStruct: ChangeTrustOptJsonRpcRequestStruct,
       responseStruct: ChangeTrustOptJsonRpcResponseStruct,
@@ -98,7 +88,7 @@ export class ChangeTrustOptHandler extends WithClientRequestActiveAccountResolve
    * @throws {TrustlineNotFoundException} If a delete request targets a trustline that does not exist.
    * @throws {UserRejectedRequestError} If the user rejects the confirmation prompt.
    */
-  protected async _handle(
+  protected async execute(
     resolvedAccount: ResolvedActivatedAccount,
     request: ChangeTrustOptJsonRpcRequest,
   ): Promise<ChangeTrustOptJsonRpcResponse> {

@@ -5,12 +5,10 @@ import {
   SignTransactionRequestStruct,
   SignTransactionResponseStruct,
 } from './api';
+import type { AccountResolver } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
-import type {
-  AccountService,
-  StellarKeyringAccount,
-} from '../../services/account';
+import type { StellarKeyringAccount } from '../../services/account';
 import type {
   Transaction,
   TransactionBuilder,
@@ -22,7 +20,7 @@ import {
   assertTransactionScope,
   collectTransactionAssetCaipIds,
 } from '../../services/transaction/utils';
-import type { Wallet, WalletService } from '../../services/wallet';
+import type { Wallet } from '../../services/wallet';
 import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
@@ -50,23 +48,20 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
 
   constructor({
     logger,
-    accountService,
-    walletService,
+    accountResolver,
     transactionBuilder,
     transactionService,
     confirmationUIController,
   }: {
     logger: ILogger;
-    accountService: AccountService;
-    walletService: WalletService;
+    accountResolver: AccountResolver;
     transactionBuilder: TransactionBuilder;
     transactionService: TransactionService;
     confirmationUIController: ConfirmationUXController;
   }) {
     super({
       logger,
-      accountService,
-      walletService,
+      accountResolver,
       loggerPrefix: '[📝 SignTransactionHandler]',
       requestStruct: SignTransactionRequestStruct,
       responseStruct: SignTransactionResponseStruct,

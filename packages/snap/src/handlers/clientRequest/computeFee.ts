@@ -8,19 +8,19 @@ import {
   ComputeFeeJsonRpcRequestStruct,
   ComputeFeeJsonRpcResponseStruct,
 } from './api';
-import type { ResolvedActivatedAccount } from '../base';
-import { WithClientRequestActiveAccountResolve } from './base';
+import {
+  type AccountResolver,
+  type ResolvedActivatedAccount,
+} from '../accountResolver';
+import { BaseClientRequestHandler } from './base';
 import { KnownCaip19Slip44IdMap } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
-import type { AccountService } from '../../services/account';
-import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction/TransactionService';
-import type { WalletService } from '../../services/wallet';
 import { toDisplayBalance } from '../../utils/currency';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
 
-export class ComputeFeeHandler extends WithClientRequestActiveAccountResolve<
+export class ComputeFeeHandler extends BaseClientRequestHandler<
   ComputeFeeJsonRpcRequest,
   ComputeFeeJsonRpcResponse
 > {
@@ -28,15 +28,11 @@ export class ComputeFeeHandler extends WithClientRequestActiveAccountResolve<
 
   constructor({
     logger,
-    accountService,
-    onChainAccountService,
-    walletService,
+    accountResolver,
     transactionService,
   }: {
     logger: ILogger;
-    accountService: AccountService;
-    onChainAccountService: OnChainAccountService;
-    walletService: WalletService;
+    accountResolver: AccountResolver;
     transactionService: TransactionService;
   }) {
     const prefixedLogger = createPrefixedLogger(
@@ -44,9 +40,7 @@ export class ComputeFeeHandler extends WithClientRequestActiveAccountResolve<
       '[💰 ComputeFeeHandler]',
     );
     super({
-      accountService,
-      onChainAccountService,
-      walletService,
+      accountResolver,
       logger: prefixedLogger,
       requestStruct: ComputeFeeJsonRpcRequestStruct,
       responseStruct: ComputeFeeJsonRpcResponseStruct,
@@ -72,7 +66,7 @@ export class ComputeFeeHandler extends WithClientRequestActiveAccountResolve<
    * @param request.params.scope - The CAIP-2 chain ID.
    * @returns Fee entries for the client ({@link ComputeFeeJsonRpcResponse}).
    */
-  async _handle(
+  protected async execute(
     resolved: ResolvedActivatedAccount,
     request: ComputeFeeJsonRpcRequest,
   ): Promise<ComputeFeeJsonRpcResponse> {

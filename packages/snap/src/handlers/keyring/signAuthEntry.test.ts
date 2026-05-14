@@ -5,15 +5,14 @@ import { Sep43ErrorCode } from './exceptions';
 import { SignAuthEntryHandler } from './signAuthEntry';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
-import {
-  generateStellarKeyringAccount,
-  mockAccountService,
-} from '../../services/account/__mocks__/account.fixtures';
+import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
+import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { bufferToUint8Array } from '../../utils/buffer';
 import { logger } from '../../utils/logger';
+import { AccountResolver } from '../accountResolver';
 
 jest.mock('../../utils/logger');
 
@@ -87,7 +86,13 @@ describe('SignAuthEntryHandler', () => {
       0,
     );
 
-    const { accountService, walletService } = mockAccountService();
+    const { accountService, onChainAccountService, walletService } =
+      mockOnChainAccountService();
+    const accountResolver = new AccountResolver({
+      accountService,
+      onChainAccountService,
+      walletService,
+    });
 
     jest
       .spyOn(AccountService.prototype, 'resolveAccount')
@@ -107,8 +112,7 @@ describe('SignAuthEntryHandler', () => {
 
     const handler = new SignAuthEntryHandler({
       logger,
-      accountService,
-      walletService,
+      accountResolver,
       confirmationUIController,
     });
 
