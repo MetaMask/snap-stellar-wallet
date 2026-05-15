@@ -4,7 +4,7 @@ import type { KnownCaip2ChainId } from '../../api';
 import type { ILogger } from '../../utils';
 import type { StellarKeyringAccount } from '../account';
 import { assertSameAddress } from '../account/utils';
-import { type NetworkService } from '../network';
+import { AccountNotActivatedException, type NetworkService } from '../network';
 import type { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
 
@@ -54,10 +54,15 @@ export class OnChainAccountService {
     scope: KnownCaip2ChainId;
   }): Promise<boolean> {
     const { accountAddress, scope } = params;
-    return (
-      (await this.#networkService.getAccountOrNull(accountAddress, scope)) !==
-      null
-    );
+    try {
+      await this.#networkService.getAccount(accountAddress, scope);
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof AccountNotActivatedException) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**

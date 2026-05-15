@@ -633,7 +633,7 @@ describe('TransactionService', () => {
       );
 
       jest
-        .spyOn(NetworkService.prototype, 'loadActivatedAccountOrNull')
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
         .mockResolvedValue(destOnChain);
       jest
         .spyOn(NetworkService.prototype, 'getBaseFee')
@@ -668,8 +668,13 @@ describe('TransactionService', () => {
       );
 
       jest
-        .spyOn(NetworkService.prototype, 'loadActivatedAccountOrNull')
-        .mockResolvedValue(null);
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockRejectedValue(
+          new AccountNotActivatedException(
+            unfundedDestination,
+            KnownCaip2ChainId.Mainnet,
+          ),
+        );
       jest
         .spyOn(NetworkService.prototype, 'getBaseFee')
         .mockResolvedValue(new BigNumber('100'));
@@ -712,14 +717,18 @@ describe('TransactionService', () => {
       );
 
       jest
-        .spyOn(NetworkService.prototype, 'loadActivatedAccountOrNull')
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
         .mockResolvedValue(destOnChain);
       jest
         .spyOn(NetworkService.prototype, 'simulateTransaction')
         .mockImplementation(async (transaction) => transaction);
       jest
-        .spyOn(NetworkService.prototype, 'getSep41TokenBalance')
-        .mockResolvedValue(new BigNumber(1_000_000));
+        .spyOn(NetworkService.prototype, 'getSep41AssetBalances')
+        .mockResolvedValue({
+          [sourceWallet.address]: {
+            [USDC_SEP41]: new BigNumber(1_000_000),
+          },
+        });
 
       const tx = await transactionService.createValidatedSendTransaction({
         onChainAccount: sourceOnChain,
@@ -761,8 +770,13 @@ describe('TransactionService', () => {
       );
 
       jest
-        .spyOn(NetworkService.prototype, 'loadActivatedAccountOrNull')
-        .mockResolvedValue(null);
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockRejectedValue(
+          new AccountNotActivatedException(
+            unfundedDestination,
+            KnownCaip2ChainId.Mainnet,
+          ),
+        );
 
       const error = await transactionService
         .createValidatedSendTransaction({
@@ -805,8 +819,13 @@ describe('TransactionService', () => {
       );
 
       jest
-        .spyOn(NetworkService.prototype, 'loadActivatedAccountOrNull')
-        .mockResolvedValue(null);
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockRejectedValue(
+          new AccountNotActivatedException(
+            unfundedDestination,
+            KnownCaip2ChainId.Mainnet,
+          ),
+        );
 
       const error = await transactionService
         .createValidatedSendTransaction({

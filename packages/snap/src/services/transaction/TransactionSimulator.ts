@@ -3,7 +3,6 @@ import { BigNumber } from 'bignumber.js';
 
 import {
   InsufficientBalanceToCoverFeeException,
-  InvalidInvokeContractStructureException,
   TransactionValidationException,
   UnsupportedOperationTypeException,
 } from './exceptions';
@@ -12,7 +11,6 @@ import type {
   SimulationState,
   TrustlineState,
   OperationSimulator,
-  Sep41TokenBalanceMapKey,
 } from './simulation';
 import {
   ChangeTrustOPSimulator,
@@ -22,10 +20,10 @@ import {
   PaymentOPSimulator,
   getSpendableNative,
   getAccount,
-  toSep41TokenBalanceMapKey,
 } from './simulation';
 import type { Transaction } from './Transaction';
 import {
+  assertInvokeHostFunctionSoleOperation,
   assertTransactionScope,
   assertTransactionSourceAccount,
 } from './utils';
@@ -34,7 +32,7 @@ import type {
   KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
-import { entries } from '../../utils/array';
+import { isClassicAssetId, isSep41Id } from '../../utils';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 
 /**
@@ -68,14 +66,6 @@ export type TransactionSimulatorOptions = {
    * Extra accounts merged into simulation (e.g. payment destinations). Ignored when simulation path does not apply.
    */
   preloadedAccounts?: OnChainAccount[];
-  /**
-   * Per-account token balances (account id → SEP-41 asset id → smallest units). Flattened internally with {@link toSep41TokenBalanceMapKey}.
-   * Used only when the sole invoke is a SEP-41 `transfer`; spend is read from the invoke, not from this map.
-   */
-  preloadedTokenBalance?: Record<
-    string,
-    Record<KnownCaip19Sep41AssetId, BigNumber>
-  >;
 };
 
 export class TransactionSimulator {
@@ -96,10 +86,11 @@ export class TransactionSimulator {
    * then runs ordered simulation for supported ops; classic ops update balances / trustlines.
    * Soroban `invokeHostFunction` is only allowed as a single-op tx and is a no-op for state.
    * All involved accounts must be known from the wallet snapshot (or {@link TransactionSimulatorOptions.preloadedAccounts}).
+   * For a sole SEP-41 `transfer` invoke, the sender's contract token balance must appear on that account's {@link OnChainAccount} snapshot (e.g. {@link OnChainAccount.setAsset}).
    *
    * @param transaction - Wrapped Stellar transaction.
    * @param account - Loaded signing account (Horizon-shaped raw for balances).
-   * @param options - Optional `expectedOPTypes`, `preloadedAccounts`, and `preloadedTokenBalance` (invoke-only SEP-41 `transfer` balance check after fee debit).
+   * @param options - Optional `expectedOPTypes` and `preloadedAccounts`.
    * @returns Stack of simulation states: fee snapshot first, then one entry per operation after apply.
    * @throws {TransactionScopeNotMatchException} If the transaction scope does not match the account scope.
    * @throws {TransactionValidationException} When the transaction cannot be simulated (wallet not source/fee source, unsupported op, unknown accounts for payments, etc.).
@@ -187,14 +178,15 @@ export class TransactionSimulator {
     // TODO: we may need to relax it in future when we support fee payment by other account.
     assertTransactionSourceAccount(transaction, account.accountId);
 
+    // Soroban `invokeHostFunction` is only allowed as a single-op tx and is a no-op for state.
+    assertInvokeHostFunctionSoleOperation(transaction);
+
     const expectedOPTypeSet = new Set<string>(expectedOPTypes);
     const supportedOPTypeSet = new Set<string>(
       Object.values(SupportedOperations),
     );
 
     this.#assertOPLength(ops);
-    this.#assertInvokeHostFunctionSoleOP(transaction);
-
     for (const op of ops) {
       this.#assertSupportedOP(op, supportedOPTypeSet);
       this.#assertExpectedOP(op, expectedOPTypeSet);
@@ -205,7 +197,7 @@ export class TransactionSimulator {
     sourceAccount: OnChainAccount,
     options?: TransactionSimulatorOptions,
   ): SimulationState {
-    const { preloadedAccounts, preloadedTokenBalance } = options ?? {};
+    const { preloadedAccounts } = options ?? {};
     const sourceAccountState = this.#buildAccountState(sourceAccount);
     const accounts = new Map([[sourceAccount.accountId, sourceAccountState]]);
 
@@ -217,52 +209,34 @@ export class TransactionSimulator {
       }
     }
 
-    let simulationPreloadedTokenBalance: SimulationState['preloadedTokenBalance'];
-    if (preloadedTokenBalance !== undefined) {
-      const preloadedTokenBalanceMap = new Map<
-        Sep41TokenBalanceMapKey,
-        BigNumber
-      >();
-
-      entries(preloadedTokenBalance).forEach(([accountId, balancesByAsset]) => {
-        entries(balancesByAsset).forEach(([assetId, balance]) => {
-          preloadedTokenBalanceMap.set(
-            toSep41TokenBalanceMapKey(accountId, assetId),
-            balance,
-          );
-        });
-      });
-
-      simulationPreloadedTokenBalance =
-        preloadedTokenBalanceMap.size > 0
-          ? preloadedTokenBalanceMap
-          : undefined;
-    }
-
     return {
       accounts,
-      preloadedTokenBalance: simulationPreloadedTokenBalance,
     };
   }
 
   #buildAccountState(account: OnChainAccount): AccountState {
     const trustlines = new Map<KnownCaip19ClassicAssetId, TrustlineState>();
+    const sep41Balances = new Map<KnownCaip19Sep41AssetId, BigNumber>();
 
-    for (const assetId of account.classicTrustlineAssetIds) {
+    for (const assetId of account.assetIds) {
       const row = account.getAsset(assetId);
       if (row === undefined) {
         continue;
       }
-      const { limit } = row;
-      if (limit === undefined) {
-        continue;
+      if (isSep41Id(assetId)) {
+        sep41Balances.set(assetId, row.balance);
+      } else if (isClassicAssetId(assetId)) {
+        const { limit } = row;
+        if (limit === undefined) {
+          continue;
+        }
+        trustlines.set(assetId, {
+          balance: row.balance,
+          limit,
+          authorized: row.authorized !== false,
+          sponsored: row.sponsored === true,
+        });
       }
-      trustlines.set(assetId, {
-        balance: row.balance,
-        limit,
-        authorized: row.authorized !== false,
-        sponsored: row.sponsored === true,
-      });
     }
 
     return {
@@ -271,13 +245,8 @@ export class TransactionSimulator {
       numSponsoring: account.numSponsoring,
       numSponsored: account.numSponsored,
       trustlines,
+      sep41Balances,
     };
-  }
-
-  #assertInvokeHostFunctionSoleOP(transaction: Transaction): void {
-    if (transaction.hasInvokeHostFunction && transaction.operationCount !== 1) {
-      throw new InvalidInvokeContractStructureException();
-    }
   }
 
   #assertSupportedOP(
@@ -383,23 +352,14 @@ export class TransactionSimulator {
     for (const [accountId, accountState] of state.accounts) {
       accounts.set(accountId, this.#cloneAccountState(accountState));
     }
-    const tokenBalances = state.preloadedTokenBalance;
-    let preloadedTokenBalance: SimulationState['preloadedTokenBalance'];
-    if (tokenBalances !== undefined && tokenBalances.size > 0) {
-      const cloned = new Map<Sep41TokenBalanceMapKey, BigNumber>();
-      for (const [key, balance] of tokenBalances) {
-        cloned.set(key, new BigNumber(balance.toString()));
-      }
-      preloadedTokenBalance = cloned;
-    }
     return {
       accounts,
-      preloadedTokenBalance,
     };
   }
 
   #cloneAccountState(accountState: AccountState): AccountState {
     const trustlines = new Map<KnownCaip19ClassicAssetId, TrustlineState>();
+    const sep41Balances = new Map<KnownCaip19Sep41AssetId, BigNumber>();
     const { nativeRawBalance, subentryCount, numSponsoring, numSponsored } =
       accountState;
     for (const [assetId, trustline] of accountState.trustlines) {
@@ -410,12 +370,16 @@ export class TransactionSimulator {
         sponsored: trustline.sponsored,
       });
     }
+    for (const [assetId, balance] of accountState.sep41Balances) {
+      sep41Balances.set(assetId, new BigNumber(balance.toString()));
+    }
     return {
       nativeRawBalance: new BigNumber(nativeRawBalance.toString()),
       subentryCount,
       numSponsoring,
       numSponsored,
       trustlines,
+      sep41Balances,
     };
   }
 

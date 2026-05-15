@@ -36,17 +36,6 @@ import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 jest.mock('@metamask/keyring-snap-sdk', () => ({
   emitSnapKeyringEvent: jest.fn(),
 }));
-jest.mock('../../config', () => ({
-  AppConfig: {
-    api: {
-      tokenApi: {
-        baseUrl: 'https://example.com',
-        chunkSize: 20,
-      },
-    },
-    selectedNetwork: 'stellar:pubnet',
-  },
-}));
 jest.mock('../../utils/logger');
 
 describe('SignAndSendTransactionHandler', () => {

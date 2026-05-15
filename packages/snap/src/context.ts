@@ -66,7 +66,8 @@ const transactionRepository = new TransactionRepository(state);
 const assetMetadataRepository = new AssetMetadataRepository(state);
 
 /** ------------------------------ Services  ------------------------------ */
-const networkService = new NetworkService({ logger });
+const appCache = new InMemoryCache(noOpLogger);
+const networkService = new NetworkService({ logger, cache: appCache });
 
 const assetMetadataService = new AssetMetadataService({
   networkService,
@@ -99,7 +100,6 @@ const transactionService = new TransactionService({
   transactionRepository,
   networkService,
   transactionBuilder,
-  cache: new InMemoryCache(noOpLogger),
 });
 
 const priceService = new PriceService({
@@ -219,9 +219,7 @@ const onAddressInputHandler = new OnAddressInputHandler({
 
 const onAmountInputHandler = new OnAmountInputHandler({
   logger,
-  accountService,
-  onChainAccountService,
-  walletService,
+  accountResolver,
   assetMetadataService,
   transactionService,
 });

@@ -3,7 +3,6 @@ import {
   Horizon as StellarHorizon,
   rpc as StellarRpc,
   NotFoundError,
-  xdr,
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -25,6 +24,7 @@ import type { KnownCaip19Sep41AssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { logger } from '../../utils/logger';
+import { InMemoryCache } from '../cache/InMemoryCache';
 import { createMockAccountWithBalances } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import {
@@ -44,7 +44,10 @@ describe('NetworkService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    networkService = new NetworkService({ logger });
+    networkService = new NetworkService({
+      logger,
+      cache: new InMemoryCache(logger),
+    });
     scope = KnownCaip2ChainId.Mainnet;
   });
 
@@ -252,50 +255,6 @@ describe('NetworkService', () => {
     });
   });
 
-  describe('loadActivatedAccountOrNull', () => {
-    const testAddress =
-      'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';
-
-    it('returns null when the account is not on-chain', async () => {
-      const { loadAccountSpy } = getHorizonClientSpies();
-      loadAccountSpy.mockRejectedValue(new NotFoundError('not found', {}));
-
-      const result = await networkService.loadActivatedAccountOrNull(
-        testAddress,
-        scope,
-      );
-      expect(result).toBeNull();
-    });
-
-    it('returns OnChainAccount when the account exists', async () => {
-      const { loadAccountSpy } = getHorizonClientSpies();
-      const account = createMockAccountWithBalances(testAddress, '1', {
-        nativeBalance: 1,
-        assets: [],
-      });
-      loadAccountSpy.mockResolvedValue(
-        account as unknown as StellarHorizon.AccountResponse,
-      );
-
-      const result = await networkService.loadActivatedAccountOrNull(
-        testAddress,
-        scope,
-      );
-
-      expect(result).toBeInstanceOf(OnChainAccount);
-      expect(result?.accountId).toStrictEqual(testAddress);
-    });
-
-    it('rethrows AccountLoadException when Horizon fails for other reasons', async () => {
-      const { loadAccountSpy } = getHorizonClientSpies();
-      loadAccountSpy.mockRejectedValue(new Error('Network error'));
-
-      await expect(
-        networkService.loadActivatedAccountOrNull(testAddress, scope),
-      ).rejects.toThrow(AccountLoadException);
-    });
-  });
-
   describe('getAccount', () => {
     const testAddress =
       'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';
@@ -343,40 +302,6 @@ describe('NetworkService', () => {
     });
   });
 
-  describe('getAccountOrNull', () => {
-    const testAddress =
-      'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';
-
-    it('returns null when the account is not on-chain', async () => {
-      const { getAccountSpy } = getRpcServerSpies();
-      getAccountSpy.mockRejectedValue(
-        new Error(`Account not found: ${testAddress}`),
-      );
-
-      const result = await networkService.getAccountOrNull(testAddress, scope);
-      expect(result).toBeNull();
-    });
-
-    it('returns OnChainAccount when RPC succeeds', async () => {
-      const { getAccountSpy } = getRpcServerSpies();
-      getAccountSpy.mockResolvedValue(new Account(testAddress, '2'));
-
-      const result = await networkService.getAccountOrNull(testAddress, scope);
-
-      expect(result).toBeInstanceOf(OnChainAccount);
-      expect(result?.sequenceNumber).toBe('2');
-    });
-
-    it('rethrows AccountLoadException for other RPC errors', async () => {
-      const { getAccountSpy } = getRpcServerSpies();
-      getAccountSpy.mockRejectedValue(new Error('RPC unavailable'));
-
-      await expect(
-        networkService.getAccountOrNull(testAddress, scope),
-      ).rejects.toThrow(AccountLoadException);
-    });
-  });
-
   describe('getAssetData', () => {
     it('returns the matching row from getAssetsData', async () => {
       const row = {
@@ -420,62 +345,6 @@ describe('NetworkService', () => {
       await expect(
         networkService.getAssetsData([validSep41AssetId], scope),
       ).rejects.toThrow(NetworkServiceException);
-    });
-  });
-
-  describe('getSep41TokenBalance', () => {
-    const accountAddress =
-      'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';
-
-    it('throws SimulationException when simulation returns an error payload', async () => {
-      const { simulateTransactionSpy } = getRpcServerSpies();
-      simulateTransactionSpy.mockResolvedValue({
-        error: 'contract reverted',
-      } as never);
-
-      await expect(
-        networkService.getSep41TokenBalance({
-          accountAddress,
-          assetId: validSep41AssetId,
-          scope,
-          sequenceNumber: '1',
-        }),
-      ).rejects.toThrow(SimulationException);
-    });
-
-    it('throws NetworkServiceException when simulation has no retval', async () => {
-      const { simulateTransactionSpy } = getRpcServerSpies();
-      simulateTransactionSpy.mockResolvedValue({
-        id: 'sim-1',
-        result: {},
-      } as never);
-
-      await expect(
-        networkService.getSep41TokenBalance({
-          accountAddress,
-          assetId: validSep41AssetId,
-          scope,
-          sequenceNumber: '1',
-        }),
-      ).rejects.toThrow(NetworkServiceException);
-    });
-
-    it('returns balance from scVal when simulation succeeds', async () => {
-      const { simulateTransactionSpy } = getRpcServerSpies();
-      const retval = xdr.ScVal.scvU64(xdr.Uint64.fromString('12345'));
-      simulateTransactionSpy.mockResolvedValue({
-        id: 'sim-1',
-        result: { retval },
-      } as never);
-
-      const result = await networkService.getSep41TokenBalance({
-        accountAddress,
-        assetId: validSep41AssetId,
-        scope,
-        sequenceNumber: '1',
-      });
-
-      expect(result.toString()).toBe('12345');
     });
   });
 

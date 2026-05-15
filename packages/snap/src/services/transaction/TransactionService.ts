@@ -6,6 +6,8 @@ import {
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { groupBy } from 'lodash';
 
+import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
+import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
 import type { TransactionBuilder } from './TransactionBuilder';
 import type { TransactionRepository } from './TransactionRepository';
@@ -16,13 +18,7 @@ import type {
   KnownCaip19Slip44Id,
   KnownCaip2ChainId,
 } from '../../api';
-import { AppConfig } from '../../config';
-import {
-  getSnapProvider,
-  isSep41Id,
-  isSlip44Id,
-  type Serializable,
-} from '../../utils';
+import { getSnapProvider, isSep41Id, isSlip44Id } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account/api';
@@ -33,16 +29,13 @@ import {
 } from '../network/exceptions';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import type { Wallet } from '../wallet';
+import { InsufficientBalanceException } from './exceptions';
 import {
   SupportedOperations,
   TransactionSimulator,
   type TransactionSimulatorOptions,
 } from './TransactionSimulator';
 import { assertTransactionScope } from './utils';
-import type { ICache } from '../cache';
-import { useCache } from '../cache';
-import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
-import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 
 export class TransactionService {
   readonly #logger: ILogger;
@@ -55,45 +48,32 @@ export class TransactionService {
 
   readonly #keyringTransactionBuilder: KeyringTransactionBuilder;
 
-  readonly #cache: ICache<Serializable>;
-
   constructor({
     logger,
     transactionRepository,
     networkService,
     transactionBuilder,
-    cache,
   }: {
     logger: ILogger;
     transactionRepository: TransactionRepository;
     networkService: NetworkService;
     transactionBuilder: TransactionBuilder;
-    cache: ICache<Serializable>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🧾 TransactionService]');
     this.#transactionRepository = transactionRepository;
     this.#networkService = networkService;
     this.#transactionBuilder = transactionBuilder;
     this.#keyringTransactionBuilder = new KeyringTransactionBuilder();
-    this.#cache = cache;
   }
 
   /**
    * Gets the base fee for a transaction.
-   * Results are cached for {@link AppConfig.cache.ttlMilliseconds.baseFee}.
    *
    * @param scope - The CAIP-2 chain ID.
    * @returns A promise that resolves to the base fee.
    */
   async getBaseFee(scope: KnownCaip2ChainId): Promise<BigNumber> {
-    return useCache(
-      this.#networkService.getBaseFee.bind(this.#networkService),
-      this.#cache,
-      {
-        functionName: 'TransactionService:getBaseFee',
-        ttlMilliseconds: AppConfig.cache.ttlMilliseconds.baseFee,
-      },
-    )(scope);
+    return this.#networkService.getBaseFeeWithCache(scope);
   }
 
   /**
@@ -141,6 +121,7 @@ export class TransactionService {
    * @param params.scope - The CAIP-2 chain ID.
    * @param params.assetId - The CAIP-19 asset ID.
    * @param params.destination - The destination address.
+   * @param params.useCache - Whether to use the cache.
    * @returns A promise that resolves to the validated transaction.
    */
   async createValidatedSendTransaction(params: {
@@ -149,17 +130,37 @@ export class TransactionService {
     scope: KnownCaip2ChainId;
     assetId: KnownCaip19AssetIdOrSlip44Id;
     destination: string;
+    useCache?: boolean;
   }): Promise<Transaction> {
-    const { onChainAccount, scope, assetId, amount, destination } = params;
+    const {
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination,
+      useCache = false,
+    } = params;
 
-    // Preload the destination account
-    const destinationAccount: OnChainAccount | null =
-      await this.#networkService.loadActivatedAccountOrNull(destination, scope);
+    let destinationAccount: OnChainAccount | null = null;
+    if (onChainAccount.accountId === destination) {
+      destinationAccount = onChainAccount;
+    } else {
+      destinationAccount = await this.#loadActivatedAccountOrNull(
+        destination,
+        scope,
+        useCache,
+      );
+    }
 
     const isSep41 = isSep41Id(assetId);
 
     // If it is SEP-41, run SEP-41 transfer flow to build and validate the transaction
     if (isSep41) {
+      // fail early if the destination account is not activated
+      if (destinationAccount === null) {
+        throw new AccountNotActivatedException(destination, scope);
+      }
+
       return this.#createValidatedSep41Transfer({
         onChainAccount,
         scope,
@@ -167,6 +168,7 @@ export class TransactionService {
         amount,
         destination,
         destinationAccount,
+        useCache,
       });
     }
 
@@ -182,8 +184,7 @@ export class TransactionService {
   }
 
   /**
-   * Creates a validated SEP-41 transfer transaction.
-   * SEP-41 is using smart contracts to transfer assets,
+   * Creates a validated SEP-41 transfer transaction (Soroban contract transfer).
    *
    * @param params - The parameters for the transaction.
    * @param params.onChainAccount - The on-chain account.
@@ -192,6 +193,7 @@ export class TransactionService {
    * @param params.amount - The amount to send.
    * @param params.destination - The destination address.
    * @param params.destinationAccount - The destination account.
+   * @param params.useCache - Whether to use the cache.
    * @returns A promise that resolves to the validated transaction.
    */
   async #createValidatedSep41Transfer(params: {
@@ -200,7 +202,8 @@ export class TransactionService {
     assetId: KnownCaip19Sep41AssetId;
     amount: BigNumber;
     destination: string;
-    destinationAccount: OnChainAccount | null;
+    destinationAccount: OnChainAccount;
+    useCache: boolean;
   }): Promise<Transaction> {
     const {
       onChainAccount,
@@ -209,13 +212,8 @@ export class TransactionService {
       amount,
       destination,
       destinationAccount,
+      useCache,
     } = params;
-
-    // fail early if the destination account is not activated
-    const isActivated = destinationAccount !== null;
-    if (!isActivated) {
-      throw new AccountNotActivatedException(destination, scope);
-    }
 
     let transaction = this.#transactionBuilder.sep41Transfer({
       onChainAccount,
@@ -224,29 +222,45 @@ export class TransactionService {
       amount,
       destination,
     });
-    // simulate the transaction to:
-    // - validate if it is a valid contract
-    // - estimate the fee
-    transaction = await this.#networkService.simulateTransaction(
+
+    if (!onChainAccount.getAsset(assetId)) {
+      const onChainBalance = await this.#networkService.getSep41AssetBalances({
+        accounts: [onChainAccount.accountId],
+        assetIds: [assetId],
+        scope,
+      });
+      onChainAccount.setAsset(assetId, {
+        balance:
+          onChainBalance?.[onChainAccount.accountId]?.[assetId] ??
+          new BigNumber(0),
+        // We don't need symbol/decimals for a SEP-41 asset here; simulation
+        // does not use them.
+        symbol: '',
+      });
+    }
+
+    // Simulation will throw an error if the balance is less than the sending amount,
+    // so we can fail early here.
+    if (onChainAccount.getAsset(assetId)?.balance.lt(amount)) {
+      throw new InsufficientBalanceException(
+        onChainAccount.accountId,
+        amount.toString(),
+      );
+    }
+
+    // Simulate the transaction to estimate the network fee for contract call
+    transaction = await this.#networkService.simulateSep41TransferWithCache({
       transaction,
       scope,
-    );
-
-    const onChainBalance = await this.#networkService.getSep41TokenBalance({
-      accountAddress: onChainAccount.accountId,
       assetId,
-      scope,
-      sequenceNumber: onChainAccount.sequenceNumber,
+      fromAccountId: onChainAccount.accountId,
+      toAccountId: destination,
+      refreshCache: !useCache,
     });
 
     this.validateTransaction(transaction, onChainAccount, {
       expectedOPTypes: [SupportedOperations.InvokeHostFunction],
       preloadedAccounts: destinationAccount ? [destinationAccount] : undefined,
-      preloadedTokenBalance: {
-        [onChainAccount.accountId]: {
-          [assetId]: onChainBalance,
-        },
-      },
     });
 
     return transaction;
@@ -380,6 +394,25 @@ export class TransactionService {
     return preloadedAccounts.filter(
       (account): account is OnChainAccount => account !== null,
     );
+  }
+
+  async #loadActivatedAccountOrNull(
+    accountAddress: string,
+    scope: KnownCaip2ChainId,
+    useCache: boolean = false,
+  ): Promise<OnChainAccount | null> {
+    try {
+      return await this.#networkService.loadOnChainAccountWithCache(
+        accountAddress,
+        scope,
+        !useCache,
+      );
+    } catch (error: unknown) {
+      if (error instanceof AccountNotActivatedException) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**

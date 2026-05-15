@@ -39,8 +39,13 @@ import {
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { logger } from '../../utils/logger';
+import { AccountResolver } from '../accountResolver';
 
 jest.mock('../../utils/logger');
+jest.mock('../../utils/snap');
+jest.mock('../../ui/confirmation/views/AccountActivationPrompt/render', () => ({
+  render: jest.fn().mockResolvedValue(undefined),
+}));
 
 const destinationAddress =
   'GDTF7ERUQVTX23ZD6NY5XRYC5IQAKWFVTQ6IXSMEZWGVNDDGPYCVHRZP';
@@ -74,8 +79,11 @@ describe('OnAmountInputHandler', () => {
     jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
       account,
     });
-    const resolveOnChainAccountSpy = jest
-      .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
+    const resolveOnChainAccountByKeyringAccountIdSpy = jest
+      .spyOn(
+        OnChainAccountService.prototype,
+        'resolveOnChainAccountByKeyringAccountId',
+      )
       .mockResolvedValue(onChainAccount);
     jest
       .spyOn(WalletService.prototype, 'resolveWallet')
@@ -94,11 +102,15 @@ describe('OnAmountInputHandler', () => {
       .spyOn(AssetMetadataService.prototype, 'resolve')
       .mockResolvedValue(assetMetadata);
 
-    const handler = new OnAmountInputHandler({
-      logger,
+    const accountResolver = new AccountResolver({
       accountService,
       onChainAccountService,
       walletService,
+    });
+
+    const handler = new OnAmountInputHandler({
+      logger,
+      accountResolver,
       assetMetadataService,
       transactionService,
     });
@@ -109,7 +121,7 @@ describe('OnAmountInputHandler', () => {
       onChainAccount,
       wallet,
       createValidatedSendTransaction,
-      resolveOnChainAccountSpy,
+      resolveOnChainAccountByKeyringAccountIdSpy,
     };
   }
 
@@ -141,6 +153,7 @@ describe('OnAmountInputHandler', () => {
       assetId,
       amount: new BigNumber('10000000'),
       destination: onChainAccount.accountId,
+      useCache: true,
     });
   });
 
@@ -155,6 +168,7 @@ describe('OnAmountInputHandler', () => {
       assetId,
       amount: new BigNumber('10000000'),
       destination: destinationAddress,
+      useCache: true,
     });
   });
 
@@ -208,17 +222,14 @@ describe('OnAmountInputHandler', () => {
     });
   });
 
-  it('returns insufficient balance to cover fee when the account is not activated on chain', async () => {
-    const { handler, resolveOnChainAccountSpy, wallet } = setup();
-    resolveOnChainAccountSpy.mockRejectedValueOnce(
-      new AccountNotActivatedException(wallet.address, scope),
-    );
+  it('rethrows AccountNotActivatedException when keyring state has no on-chain snapshot', async () => {
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy, wallet } =
+      setup();
+    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValueOnce(null);
 
-    expect(await handler.handle(baseRequest())).toStrictEqual({
-      valid: false,
-      errors: [
-        { code: MultiChainSendErrorCodes.InsufficientBalanceToCoverFee },
-      ],
+    await expect(handler.handle(baseRequest())).rejects.toMatchObject({
+      address: wallet.address,
+      scope,
     });
   });
 

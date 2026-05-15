@@ -1,4 +1,4 @@
-import { parseCaipAssetType, type Json } from '@metamask/utils';
+import { parseCaipAssetType } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import type {
@@ -10,25 +10,26 @@ import {
   OnAmountInputJsonRpcRequestStruct,
   OnAmountInputJsonRpcResponseStruct,
 } from './api';
-import type { ResolvedActivatedAccount } from '../base';
-import { WithClientRequestActiveAccountResolve } from './base';
+import { BaseClientRequestHandler } from './base';
 import type { KnownCaip2ChainId } from '../../api';
-import type { AccountService } from '../../services/account';
 import type { AssetMetadataService } from '../../services/asset-metadata';
 import { AccountNotActivatedException } from '../../services/network/exceptions';
-import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction';
 import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
   TransactionValidationException,
 } from '../../services/transaction/exceptions';
-import type { WalletService } from '../../services/wallet';
 import { toSmallestUnit } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
+import type {
+  AccountResolver,
+  ResolvedActivatedAccount,
+} from '../accountResolver';
+import { RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE } from '../accountResolver';
 
-export class OnAmountInputHandler extends WithClientRequestActiveAccountResolve<
+export class OnAmountInputHandler extends BaseClientRequestHandler<
   OnAmountInputJsonRpcRequest,
   OnAmountInputJsonRpcResponse
 > {
@@ -40,16 +41,12 @@ export class OnAmountInputHandler extends WithClientRequestActiveAccountResolve<
 
   constructor({
     logger,
-    accountService,
-    onChainAccountService,
-    walletService,
+    accountResolver,
     assetMetadataService,
     transactionService,
   }: {
     logger: ILogger;
-    accountService: AccountService;
-    onChainAccountService: OnChainAccountService;
-    walletService: WalletService;
+    accountResolver: AccountResolver;
     assetMetadataService: AssetMetadataService;
     transactionService: TransactionService;
   }) {
@@ -58,12 +55,11 @@ export class OnAmountInputHandler extends WithClientRequestActiveAccountResolve<
       '[💰 OnAmountInputHandler]',
     );
     super({
-      accountService,
-      onChainAccountService,
-      walletService,
+      accountResolver,
       logger: prefixedLogger,
       requestStruct: OnAmountInputJsonRpcRequestStruct,
       responseStruct: OnAmountInputJsonRpcResponseStruct,
+      resolveAccountOptions: RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE,
     });
     this.#assetMetadataService = assetMetadataService;
     this.#transactionService = transactionService;
@@ -73,11 +69,11 @@ export class OnAmountInputHandler extends WithClientRequestActiveAccountResolve<
   /**
    * Validates that the sender can afford a transfer of `params.value`.
    *
-   * @param resolved - Activated keyring account and wallet.
+   * @param resolved - Keyring account, persisted on-chain snapshot, and wallet.
    * @param request - JSON-RPC request with `assetId` and `value` (positive amount string).
    * @returns Validation result with `valid` and optional error codes.
    */
-  async _handle(
+  protected async execute(
     resolved: ResolvedActivatedAccount,
     request: OnAmountInputJsonRpcRequest,
   ): Promise<OnAmountInputJsonRpcResponse> {
@@ -89,8 +85,6 @@ export class OnAmountInputHandler extends WithClientRequestActiveAccountResolve<
       const { units } = await this.#assetMetadataService.resolve(assetId);
       const { decimals } = units[0];
 
-      // Reserved for balance / fee checks once send validation is wired here.
-
       const amountInSmallestUnit = toSmallestUnit(
         new BigNumber(value),
         decimals,
@@ -101,9 +95,10 @@ export class OnAmountInputHandler extends WithClientRequestActiveAccountResolve<
         scope,
         assetId,
         amount: amountInSmallestUnit,
-        // if the destination is not provided,
-        // use the from account address as the destination
+        // If no destination is provided, validate a self-transfer to the sender.
         destination: to ?? onChainAccount.accountId,
+        // Use cached network reads so repeated amount checks stay fast.
+        useCache: true,
       });
 
       return {
@@ -140,17 +135,5 @@ export class OnAmountInputHandler extends WithClientRequestActiveAccountResolve<
       }
       throw error;
     }
-  }
-
-  protected async handleAccountNotActivatedError(): Promise<Json> {
-    // if the account is not activated,
-    // this account should have no balance, instead of throwing an error
-    // so we return an insufficient balance error
-    return {
-      valid: false,
-      errors: [
-        { code: MultiChainSendErrorCodes.InsufficientBalanceToCoverFee },
-      ],
-    };
   }
 }
