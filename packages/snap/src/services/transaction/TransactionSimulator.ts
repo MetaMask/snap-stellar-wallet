@@ -227,7 +227,7 @@ export class TransactionSimulator {
         sep41Balances.set(assetId, row.balance);
       } else if (isClassicAssetId(assetId)) {
         const { limit } = row;
-        if (limit === undefined) {
+        if (limit === undefined || limit.isLessThanOrEqualTo(0)) {
           continue;
         }
         trustlines.set(assetId, {
