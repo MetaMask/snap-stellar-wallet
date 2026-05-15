@@ -98,7 +98,6 @@ const transactionService = new TransactionService({
   transactionRepository,
   networkService,
   transactionBuilder,
-  cache: new InMemoryCache(noOpLogger),
 });
 
 const priceService = new PriceService({

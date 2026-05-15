@@ -38,7 +38,6 @@ export const createMockTransactionService = () => {
         },
       }),
     ),
-    cache: createMemoryCache().cache,
     networkService,
     transactionBuilder,
   });
