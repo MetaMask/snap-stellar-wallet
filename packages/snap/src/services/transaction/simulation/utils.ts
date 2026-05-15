@@ -2,11 +2,7 @@ import type { Operation } from '@stellar/stellar-sdk';
 import { Address, scValToNative } from '@stellar/stellar-sdk';
 
 import { TransactionValidationException } from '../exceptions';
-import type {
-  AccountState,
-  Sep41TokenBalanceMapKey,
-  SimulationState,
-} from './api';
+import type { AccountState, SimulationState } from './api';
 import type { KnownCaip19Sep41AssetId, KnownCaip2ChainId } from '../../../api';
 import { toCaip19Sep41AssetId } from '../../../utils';
 import { parseScValToNative } from '../../network/utils';
@@ -65,6 +61,7 @@ export type ParsedSep41TransferInvoke = {
    */
   assetId: KnownCaip19Sep41AssetId;
   fromAccountId: string;
+  toAccountId: string;
   amount: BigNumber;
 };
 
@@ -82,52 +79,51 @@ export function tryParseSep41TransferInvoke(
   op: Operation.InvokeHostFunction,
   scope: KnownCaip2ChainId,
 ): ParsedSep41TransferInvoke | null {
-  const { func } = op;
-  if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
+  try {
+    const { func } = op;
+    if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
+      return null;
+    }
+    const ic = func.invokeContract();
+    // if it is not a transfer function, we can skip parsing the transfer metadata
+    if (ic.functionName().toString() !== 'transfer') {
+      return null;
+    }
+
+    const args = ic.args();
+    if (
+      args.length !== 3 ||
+      args[0] === undefined ||
+      args[1] === undefined ||
+      args[2] === undefined
+    ) {
+      throw new TransactionValidationException(
+        'Invalid transfer function arguments',
+      );
+    }
+    // First argument is the from address
+    const fromArg = args[0];
+    // Second argument is the to address
+    const toArg = args[1];
+    // Third argument is the amount
+    const amountArg = args[2];
+
+    const contractAddr = Address.fromScAddress(ic.contractAddress()).toString();
+
+    const fromNative = scValToNative(fromArg);
+    const toNative = scValToNative(toArg);
+    const amountNative = scValToNative(amountArg);
+    if (typeof fromNative !== 'string' || !fromNative.startsWith('G')) {
+      throw new TransactionValidationException('Invalid from address');
+    }
+
+    return {
+      assetId: toCaip19Sep41AssetId(scope, contractAddr),
+      fromAccountId: fromNative,
+      toAccountId: toNative,
+      amount: parseScValToNative(amountNative),
+    };
+  } catch {
     return null;
   }
-  const ic = func.invokeContract();
-  // if it is not a transfer function, we can skip parsing the transfer metadata
-  if (ic.functionName().toString() !== 'transfer') {
-    return null;
-  }
-
-  const args = ic.args();
-  if (args.length !== 3 || args[0] === undefined || args[2] === undefined) {
-    throw new TransactionValidationException(
-      'Invalid transfer function arguments',
-    );
-  }
-  // First argument is the from address
-  const fromArg = args[0];
-  // Third argument is the amount
-  const amountArg = args[2];
-
-  const contractAddr = Address.fromScAddress(ic.contractAddress()).toString();
-
-  const fromNative = scValToNative(fromArg);
-  const amountNative = scValToNative(amountArg);
-  if (typeof fromNative !== 'string' || !fromNative.startsWith('G')) {
-    throw new TransactionValidationException('Invalid from address');
-  }
-
-  return {
-    assetId: toCaip19Sep41AssetId(scope, contractAddr),
-    fromAccountId: fromNative,
-    amount: parseScValToNative(amountNative),
-  };
-}
-
-/**
- * Map key for {@link SimulationState.preloadedTokenBalance}: `accountId` and SEP-41 `assetId` (order matters).
- *
- * @param accountId - Stellar account id of the token holder (`G…`).
- * @param assetId - SEP-41 CAIP-19 asset id for the token contract.
- * @returns Opaque composite map key.
- */
-export function toSep41TokenBalanceMapKey(
-  accountId: string,
-  assetId: KnownCaip19Sep41AssetId,
-): Sep41TokenBalanceMapKey {
-  return `${accountId}-${assetId}`;
 }
