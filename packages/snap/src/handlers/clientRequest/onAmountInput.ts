@@ -136,4 +136,11 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
       throw error;
     }
   }
+
+  protected override async handleAccountNotActivatedError(_error: AccountNotActivatedException): Promise<OnAmountInputJsonRpcResponse> {
+    return {
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    };
+  }
 }
