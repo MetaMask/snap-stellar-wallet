@@ -20,9 +20,13 @@ import {
 } from './exceptions';
 import { MultiCall } from './MultiCall';
 import { NetworkService } from './NetworkService';
-import type { KnownCaip19Sep41AssetId } from '../../api';
+import type {
+  KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
+} from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
+import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import { logger } from '../../utils/logger';
 import { InMemoryCache } from '../cache/InMemoryCache';
 import { createMockAccountWithBalances } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
@@ -126,6 +130,35 @@ describe('NetworkService', () => {
     });
   });
 
+  describe('getBaseFeeWithCache', () => {
+    it('returns cached base fee without refetching Horizon when refreshCache is false', async () => {
+      const { fetchBaseFeeSpy } = getHorizonClientSpies();
+      fetchBaseFeeSpy.mockResolvedValue(55);
+
+      const first = await networkService.getBaseFeeWithCache(scope);
+      await Promise.resolve();
+      await Promise.resolve();
+      const second = await networkService.getBaseFeeWithCache(scope);
+
+      expect(first).toStrictEqual(new BigNumber(55));
+      expect(second).toStrictEqual(new BigNumber(55));
+      expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('refetches base fee when refreshCache is true', async () => {
+      const { fetchBaseFeeSpy } = getHorizonClientSpies();
+      fetchBaseFeeSpy.mockResolvedValueOnce(10).mockResolvedValueOnce(11);
+
+      await networkService.getBaseFeeWithCache(scope);
+      await Promise.resolve();
+      await Promise.resolve();
+      const refreshed = await networkService.getBaseFeeWithCache(scope, true);
+
+      expect(refreshed).toStrictEqual(new BigNumber(11));
+      expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('loadOnChainAccount', () => {
     const testAddress =
       'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';
@@ -168,6 +201,39 @@ describe('NetworkService', () => {
       await expect(
         networkService.loadOnChainAccount(testAddress, scope),
       ).rejects.toThrow(AccountLoadException);
+    });
+  });
+
+  describe('loadOnChainAccountWithCache', () => {
+    const testAddress =
+      'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';
+
+    it('returns cached account without a second Horizon load when refreshCache is false', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+      const account = createMockAccountWithBalances(testAddress, '9', {
+        nativeBalance: 1,
+        assets: [],
+      });
+      loadAccountSpy.mockResolvedValue(
+        account as unknown as StellarHorizon.AccountResponse,
+      );
+
+      const first = await networkService.loadOnChainAccountWithCache(
+        testAddress,
+        scope,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      const second = await networkService.loadOnChainAccountWithCache(
+        testAddress,
+        scope,
+      );
+
+      expect(first.accountId).toStrictEqual(testAddress);
+      expect(second.accountId).toStrictEqual(testAddress);
+      expect(first.sequenceNumber).toBe('9');
+      expect(second.sequenceNumber).toBe('9');
+      expect(loadAccountSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -348,6 +414,105 @@ describe('NetworkService', () => {
     });
   });
 
+  describe('getClassicAssetData', () => {
+    const classicAssetId =
+      'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN' as KnownCaip19ClassicAssetId;
+    const issuer = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
+    /* eslint-disable @typescript-eslint/naming-convention -- Horizon asset record fields */
+    it('returns classic asset metadata from Horizon', async () => {
+      const call = jest.fn().mockResolvedValue({
+        records: [
+          {
+            asset_code: 'USDC',
+            asset_issuer: issuer,
+          },
+        ],
+      });
+      const assetsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'assets')
+        .mockReturnValue({
+          forCode: jest.fn().mockReturnValue({
+            forIssuer: jest.fn().mockReturnValue({ call }),
+          }),
+        } as never);
+
+      const result = await networkService.getClassicAssetData(
+        classicAssetId,
+        scope,
+      );
+
+      expect(result).toStrictEqual({
+        assetId: classicAssetId,
+        symbol: 'USDC',
+        decimals: STELLAR_DECIMAL_PLACES,
+        name: 'USDC',
+      });
+      expect(call).toHaveBeenCalled();
+      assetsSpy.mockRestore();
+    });
+
+    it('throws AssetDataFetchException when Horizon returns no rows', async () => {
+      const call = jest.fn().mockResolvedValue({ records: [] });
+      const assetsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'assets')
+        .mockReturnValue({
+          forCode: jest.fn().mockReturnValue({
+            forIssuer: jest.fn().mockReturnValue({ call }),
+          }),
+        } as never);
+
+      await expect(
+        networkService.getClassicAssetData(classicAssetId, scope),
+      ).rejects.toThrow(AssetDataFetchException);
+
+      assetsSpy.mockRestore();
+    });
+
+    it('throws AssetDataFetchException when the matching row issuer does not match', async () => {
+      const call = jest.fn().mockResolvedValue({
+        records: [
+          {
+            asset_code: 'USDC',
+            asset_issuer:
+              'GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+          },
+        ],
+      });
+      const assetsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'assets')
+        .mockReturnValue({
+          forCode: jest.fn().mockReturnValue({
+            forIssuer: jest.fn().mockReturnValue({ call }),
+          }),
+        } as never);
+
+      await expect(
+        networkService.getClassicAssetData(classicAssetId, scope),
+      ).rejects.toThrow(AssetDataFetchException);
+
+      assetsSpy.mockRestore();
+    });
+
+    it('wraps unexpected Horizon errors in NetworkServiceException', async () => {
+      const call = jest.fn().mockRejectedValue(new Error('Horizon outage'));
+      const assetsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'assets')
+        .mockReturnValue({
+          forCode: jest.fn().mockReturnValue({
+            forIssuer: jest.fn().mockReturnValue({ call }),
+          }),
+        } as never);
+
+      await expect(
+        networkService.getClassicAssetData(classicAssetId, scope),
+      ).rejects.toThrow(NetworkServiceException);
+
+      assetsSpy.mockRestore();
+    });
+    /* eslint-enable @typescript-eslint/naming-convention */
+  });
+
   describe('pollTransaction', () => {
     it('returns transaction hash when status is SUCCESS', async () => {
       const { pollTransactionSpy } = getRpcServerSpies();
@@ -450,6 +615,24 @@ describe('NetworkService', () => {
       );
 
       expect(result).toBe('failed');
+      transactionsSpy.mockRestore();
+    });
+
+    it('rethrows when Horizon responds with a non-404 error', async () => {
+      const call = jest.fn().mockRejectedValue(new Error('timeout'));
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
+
+      await expect(
+        networkService.getHorizonTransactionInclusionStatus(
+          testTransactionHash,
+          scope,
+        ),
+      ).rejects.toThrow('timeout');
+
       transactionsSpy.mockRestore();
     });
   });
@@ -569,6 +752,18 @@ describe('NetworkService', () => {
       expect(simulateTransactionSpy).not.toHaveBeenCalled();
     });
 
+    it('throws SimulationException when simulateTransaction RPC rejects', async () => {
+      const { simulateTransactionSpy } = getRpcServerSpies();
+      simulateTransactionSpy.mockRejectedValue(new Error('RPC down'));
+
+      await expect(
+        networkService.simulateTransaction(
+          createMockInvokeHostFunctionTransaction(),
+          scope,
+        ),
+      ).rejects.toThrow(SimulationException);
+    });
+
     it('throws SimulationException when RPC returns a simulation error', async () => {
       const { simulateTransactionSpy } = getRpcServerSpies();
       simulateTransactionSpy.mockResolvedValue({
@@ -581,6 +776,79 @@ describe('NetworkService', () => {
           scope,
         ),
       ).rejects.toThrow(SimulationException);
+    });
+  });
+
+  describe('simulateSep41TransferWithCache', () => {
+    it('throws NetworkServiceException when transaction is not invokeHostFunction', async () => {
+      const mockTx = createMockTransaction();
+
+      await expect(
+        networkService.simulateSep41TransferWithCache({
+          transaction: mockTx,
+          scope,
+          assetId: validSep41AssetId,
+          fromAccountId: generateStellarAddress(),
+          toAccountId: generateStellarAddress(),
+        }),
+      ).rejects.toThrow(NetworkServiceException);
+    });
+
+    it('uses cache so simulateTransaction runs once for identical transfer context', async () => {
+      const mockInvoke = createMockInvokeHostFunctionTransaction();
+      const simulateTxSpy = jest
+        .spyOn(NetworkService.prototype, 'simulateTransaction')
+        .mockResolvedValue(mockInvoke);
+      const fromAccountId = generateStellarAddress();
+      const toAccountId = generateStellarAddress();
+
+      const first = await networkService.simulateSep41TransferWithCache({
+        transaction: mockInvoke,
+        scope,
+        assetId: validSep41AssetId,
+        fromAccountId,
+        toAccountId,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      const second = await networkService.simulateSep41TransferWithCache({
+        transaction: mockInvoke,
+        scope,
+        assetId: validSep41AssetId,
+        fromAccountId,
+        toAccountId,
+      });
+
+      expect(simulateTxSpy).toHaveBeenCalledTimes(1);
+      expect(first.getRaw().toXDR()).toBe(second.getRaw().toXDR());
+      simulateTxSpy.mockRestore();
+    });
+
+    it('runs simulateTransaction again when refreshCache is true', async () => {
+      const mockInvoke = createMockInvokeHostFunctionTransaction();
+      const simulateTxSpy = jest
+        .spyOn(NetworkService.prototype, 'simulateTransaction')
+        .mockResolvedValue(mockInvoke);
+      const fromAccountId = generateStellarAddress();
+      const toAccountId = generateStellarAddress();
+      const params = {
+        transaction: mockInvoke,
+        scope,
+        assetId: validSep41AssetId,
+        fromAccountId,
+        toAccountId,
+      };
+
+      await networkService.simulateSep41TransferWithCache(params);
+      await Promise.resolve();
+      await Promise.resolve();
+      await networkService.simulateSep41TransferWithCache({
+        ...params,
+        refreshCache: true,
+      });
+
+      expect(simulateTxSpy).toHaveBeenCalledTimes(2);
+      simulateTxSpy.mockRestore();
     });
   });
 
@@ -682,6 +950,22 @@ describe('NetworkService', () => {
 
       expect(result[account]?.[validSep41AssetId]?.toFixed()).toBe('1');
       expect(result[account]?.[secondAssetId]).toBeNull();
+      simResultSpy.mockRestore();
+    });
+
+    it('throws NetworkServiceException when multicall result length does not match expected grid size', async () => {
+      const simResultSpy = jest
+        .spyOn(MultiCall.prototype, 'simResult')
+        .mockResolvedValue([BigInt('1')]);
+
+      await expect(
+        networkService.getSep41AssetBalances({
+          accounts: [account],
+          assetIds: [validSep41AssetId, secondAssetId],
+          scope: KnownCaip2ChainId.Mainnet,
+        }),
+      ).rejects.toThrow(NetworkServiceException);
+
       simResultSpy.mockRestore();
     });
 
