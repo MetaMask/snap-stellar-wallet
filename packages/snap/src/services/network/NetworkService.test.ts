@@ -890,7 +890,7 @@ describe('NetworkService', () => {
           scope,
         ),
       ).rejects.toMatchObject({
-        message: expect.stringMatching(/"code":"contract_error"/),
+        message: expect.stringMatching(/"code":"contract_error"/u),
       });
 
       isSimErrorSpy.mockRestore();
