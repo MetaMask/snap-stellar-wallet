@@ -167,7 +167,7 @@ export const AppConfig = create(
         baseFee: process.env.BASE_FEE_TTL_MILLISECONDS,
         loadOnChainAccount: process.env.LOAD_ON_CHAIN_ACCOUNT_TTL_MILLISECONDS,
         simulateTransaction: process.env.SIMULATE_TRANSACTION_TTL_MILLISECONDS,
-        sep41AssetBalance: process.env.SEP41_TOKEN_BALANCE_TTL_MILLISECONDS,
+        sep41AssetBalance: process.env.SEP41_ASSET_BALANCE_TTL_MILLISECONDS,
       },
     },
   },

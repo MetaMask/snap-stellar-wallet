@@ -1,8 +1,12 @@
 import {
   Account,
+  Contract,
   Horizon as StellarHorizon,
-  rpc as StellarRpc,
+  Networks,
+  nativeToScVal,
   NotFoundError,
+  rpc as StellarRpc,
+  TransactionBuilder as StellarTransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -35,6 +39,8 @@ import {
   buildMockClassicTransaction,
   buildMockInvokeHostFunctionTransaction,
 } from '../transaction/__mocks__/transaction.fixtures';
+import { InvalidInvokeContractStructureException } from '../transaction/exceptions';
+import { Transaction } from '../transaction/Transaction';
 import { generateStellarAddress } from '../wallet/__mocks__/wallet.fixtures';
 
 jest.mock('../../utils/logger');
@@ -107,6 +113,21 @@ describe('NetworkService', () => {
         sequence: '1',
       },
     });
+  };
+
+  const buildTransactionWithTwoInvokeHostFunctionOps = (): Transaction => {
+    const source = 'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG';
+    const stellarAccount = new Account(source, '1');
+    const contract = new Contract(
+      'CASUP2OPFVEHCWGP2XLBXOV7DQIQIT42AQISG4MXAZGNLVFFN63X7WRT',
+    );
+    const builder = new StellarTransactionBuilder(stellarAccount, {
+      fee: '200',
+      networkPassphrase: Networks.PUBLIC,
+    });
+    builder.addOperation(contract.call('fnA', nativeToScVal(1)));
+    builder.addOperation(contract.call('fnB', nativeToScVal(2)));
+    return new Transaction(builder.setTimeout(60).build());
   };
 
   describe('getBaseFee', () => {
@@ -234,6 +255,37 @@ describe('NetworkService', () => {
       expect(first.sequenceNumber).toBe('9');
       expect(second.sequenceNumber).toBe('9');
       expect(loadAccountSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('refetches account when refreshCache is true', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+      const accountV1 = createMockAccountWithBalances(testAddress, '1', {
+        nativeBalance: 1,
+        assets: [],
+      });
+      const accountV2 = createMockAccountWithBalances(testAddress, '2', {
+        nativeBalance: 1,
+        assets: [],
+      });
+      loadAccountSpy
+        .mockResolvedValueOnce(
+          accountV1 as unknown as StellarHorizon.AccountResponse,
+        )
+        .mockResolvedValueOnce(
+          accountV2 as unknown as StellarHorizon.AccountResponse,
+        );
+
+      await networkService.loadOnChainAccountWithCache(testAddress, scope);
+      await Promise.resolve();
+      await Promise.resolve();
+      const refreshed = await networkService.loadOnChainAccountWithCache(
+        testAddress,
+        scope,
+        true,
+      );
+
+      expect(refreshed.sequenceNumber).toBe('2');
+      expect(loadAccountSpy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -560,6 +612,20 @@ describe('NetworkService', () => {
         scope,
       });
     });
+
+    it('rethrows TransactionPollException when poll rejects with one', async () => {
+      const { pollTransactionSpy } = getRpcServerSpies();
+      const pollException = new TransactionPollException(
+        testTransactionHash,
+        StellarRpc.Api.GetTransactionStatus.FAILED,
+        scope,
+      );
+      pollTransactionSpy.mockRejectedValue(pollException);
+
+      await expect(
+        networkService.pollTransaction(testTransactionHash, scope),
+      ).rejects.toStrictEqual(pollException);
+    });
   });
 
   describe('getHorizonTransactionInclusionStatus', () => {
@@ -696,6 +762,26 @@ describe('NetworkService', () => {
       ).rejects.toThrow(TransactionPollException);
     });
 
+    it('throws TransactionPollException when pollTransaction is true and poll returns a non-success terminal status', async () => {
+      const { sendTransactionSpy, pollTransactionSpy } = getRpcServerSpies();
+      sendTransactionSpy.mockResolvedValue({
+        hash: testTransactionHash,
+      } as unknown as StellarRpc.Api.SendTransactionResponse);
+      pollTransactionSpy.mockResolvedValue({
+        status: StellarRpc.Api.GetTransactionStatus.FAILED,
+        txHash: testTransactionHash,
+      } as unknown as StellarRpc.Api.GetFailedTransactionResponse);
+      const mockTransaction = createMockTransaction();
+
+      await expect(
+        networkService.send({
+          transaction: mockTransaction,
+          scope,
+          pollTransaction: true,
+        }),
+      ).rejects.toThrow(TransactionPollException);
+    });
+
     it('throws TransactionRetryableException when RPC returns ERROR with txBadSeq', async () => {
       const { sendTransactionSpy } = getRpcServerSpies();
       sendTransactionSpy.mockResolvedValue({
@@ -739,6 +825,17 @@ describe('NetworkService', () => {
         networkService.send({ transaction: mockTransaction, scope }),
       ).rejects.toThrow(TransactionSendException);
     });
+
+    it('rethrows NetworkServiceException when sendTransaction throws one', async () => {
+      const { sendTransactionSpy } = getRpcServerSpies();
+      const networkEx = new NetworkServiceException('upstream');
+      sendTransactionSpy.mockRejectedValue(networkEx);
+      const mockTransaction = createMockTransaction();
+
+      await expect(
+        networkService.send({ transaction: mockTransaction, scope }),
+      ).rejects.toStrictEqual(networkEx);
+    });
   });
 
   describe('simulateTransaction', () => {
@@ -777,6 +874,53 @@ describe('NetworkService', () => {
         ),
       ).rejects.toThrow(SimulationException);
     });
+
+    it('throws SimulationException with stringified error when simulation error payload is not a string', async () => {
+      const { simulateTransactionSpy } = getRpcServerSpies();
+      const isSimErrorSpy = jest
+        .spyOn(StellarRpc.Api, 'isSimulationError')
+        .mockReturnValue(true);
+      simulateTransactionSpy.mockResolvedValue({
+        error: { code: 'contract_error' },
+      } as never);
+
+      await expect(
+        networkService.simulateTransaction(
+          createMockInvokeHostFunctionTransaction(),
+          scope,
+        ),
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/"code":"contract_error"/),
+      });
+
+      isSimErrorSpy.mockRestore();
+    });
+
+    it('calls RPC simulateTransaction with the wrapped envelope getRaw()', async () => {
+      const { simulateTransactionSpy } = getRpcServerSpies();
+      const mockInvoke = createMockInvokeHostFunctionTransaction();
+      simulateTransactionSpy.mockRejectedValue(
+        new Error('stop after simulate'),
+      );
+
+      await expect(
+        networkService.simulateTransaction(mockInvoke, scope),
+      ).rejects.toThrow(SimulationException);
+
+      expect(simulateTransactionSpy).toHaveBeenCalledTimes(1);
+      expect(simulateTransactionSpy).toHaveBeenCalledWith(mockInvoke.getRaw());
+    });
+
+    it('throws SimulationException when the envelope has more than one invokeHostFunction operation', async () => {
+      const { simulateTransactionSpy } = getRpcServerSpies();
+      const invalidStructureTx = buildTransactionWithTwoInvokeHostFunctionOps();
+
+      await expect(
+        networkService.simulateTransaction(invalidStructureTx, scope),
+      ).rejects.toThrow(SimulationException);
+
+      expect(simulateTransactionSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('simulateSep41TransferWithCache', () => {
@@ -792,6 +936,20 @@ describe('NetworkService', () => {
           toAccountId: generateStellarAddress(),
         }),
       ).rejects.toThrow(NetworkServiceException);
+    });
+
+    it('throws InvalidInvokeContractStructureException when the envelope has multiple invokeHostFunction operations', async () => {
+      const invalidStructureTx = buildTransactionWithTwoInvokeHostFunctionOps();
+
+      await expect(
+        networkService.simulateSep41TransferWithCache({
+          transaction: invalidStructureTx,
+          scope,
+          assetId: validSep41AssetId,
+          fromAccountId: generateStellarAddress(),
+          toAccountId: generateStellarAddress(),
+        }),
+      ).rejects.toThrow(InvalidInvokeContractStructureException);
     });
 
     it('uses cache so simulateTransaction runs once for identical transfer context', async () => {
@@ -969,6 +1127,22 @@ describe('NetworkService', () => {
       simResultSpy.mockRestore();
     });
 
+    it('throws NetworkServiceException when multicall simulation throws', async () => {
+      const simResultSpy = jest
+        .spyOn(MultiCall.prototype, 'simResult')
+        .mockRejectedValue(new Error('simulation failed'));
+
+      await expect(
+        networkService.getSep41AssetBalances({
+          accounts: [account],
+          assetIds: [validSep41AssetId],
+          scope: KnownCaip2ChainId.Mainnet,
+        }),
+      ).rejects.toThrow(NetworkServiceException);
+
+      simResultSpy.mockRestore();
+    });
+
     it('returns empty object on testnet (batch SEP-41 balances not supported)', async () => {
       const simResultSpy = jest.spyOn(MultiCall.prototype, 'simResult');
       const testnetAssetId =
@@ -982,6 +1156,32 @@ describe('NetworkService', () => {
 
       expect(result).toStrictEqual({});
       expect(simResultSpy).not.toHaveBeenCalled();
+      simResultSpy.mockRestore();
+    });
+  });
+
+  describe('getSep41AssetBalancesWithCache', () => {
+    const account = 'GDYTQGVA3NCXM5JPVMOHLDUAHMI3OQ2B2YI25BXYKROAGXXT2T3ZGHE6';
+
+    it('returns cached balances without a second multicall when invoked twice with the same params', async () => {
+      const simResultSpy = jest
+        .spyOn(MultiCall.prototype, 'simResult')
+        .mockResolvedValue([BigInt('42')]);
+      const params = {
+        accounts: [account],
+        assetIds: [validSep41AssetId],
+        scope: KnownCaip2ChainId.Mainnet,
+      };
+
+      const first = await networkService.getSep41AssetBalancesWithCache(params);
+      await Promise.resolve();
+      await Promise.resolve();
+      const second =
+        await networkService.getSep41AssetBalancesWithCache(params);
+
+      expect(first).toStrictEqual(second);
+      expect(first[account]?.[validSep41AssetId]?.toFixed()).toBe('42');
+      expect(simResultSpy).toHaveBeenCalledTimes(1);
       simResultSpy.mockRestore();
     });
   });

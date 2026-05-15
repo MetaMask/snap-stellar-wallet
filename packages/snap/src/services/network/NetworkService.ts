@@ -576,6 +576,28 @@ export class NetworkService {
   }
 
   /**
+   * Fetches SEP-41 asset balances for multiple accounts via Soroban simulation of `balance(Address)` with cache.
+   *
+   * @param params - Balance query input.
+   * @param params.accounts - Accounts holding the token (`G…`).
+   * @param params.assetIds - CAIP-19 asset ids for SEP-41 tokens.
+   * @param params.scope - CAIP-2 chain id.
+   * @returns Per-account map of asset id to balance in smallest units, or `null` when a cell cannot be read.
+   */
+  async getSep41AssetBalancesWithCache(params: {
+    accounts: string[];
+    assetIds: KnownCaip19Sep41AssetId[];
+    scope: KnownCaip2ChainId;
+  }): Promise<
+    Record<string, Record<KnownCaip19Sep41AssetId, BigNumber | null>>
+  > {
+    return useCache(this.getSep41AssetBalances.bind(this), this.#cache, {
+      functionName: 'NetworkService:getSep41AssetBalancesWithCache',
+      ttlMilliseconds: AppConfig.cache.ttlMilliseconds.sep41AssetBalance,
+    })(params);
+  }
+
+  /**
    * Submits a signed transaction to the network and optionally waits for a terminal status.
    * `scope` must match {@link Transaction.scope} on the envelope.
    *
@@ -641,15 +663,15 @@ export class NetworkService {
     scope: KnownCaip2ChainId,
   ): Promise<Transaction> {
     try {
-      const client = this.#getRpcClient(scope);
-      if (
-        !transaction.hasInvokeHostFunction ||
-        transaction.operationCount !== 1
-      ) {
+      if (!transaction.hasInvokeHostFunction) {
         throw new NetworkServiceException(
-          'Transaction is not a valid invokeHostFunction transaction',
+          'Transaction is not a valid SEP-41 transfer transaction',
         );
       }
+
+      assertInvokeHostFunctionSoleOperation(transaction);
+
+      const client = this.#getRpcClient(scope);
       const rawTransaction = transaction.getRaw();
       const simulateResponse = await client.simulateTransaction(rawTransaction);
 

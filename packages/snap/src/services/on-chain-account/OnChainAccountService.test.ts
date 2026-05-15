@@ -40,7 +40,7 @@ describe('OnChainAccountService', () => {
   });
 
   describe('isAccountActivated', () => {
-    it('returns true when getAccountOrNull returns an account', async () => {
+    it('returns true when getAccount returns an account', async () => {
       const { getAccountSpy } = getNetworkServiceSpies();
       const wallet = getTestWallet({ seed });
       const onChainAcc = createMockAccountWithBalances(
