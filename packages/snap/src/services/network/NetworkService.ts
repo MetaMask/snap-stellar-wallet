@@ -257,9 +257,9 @@ export class NetworkService {
     scope: KnownCaip2ChainId,
     refreshCache: boolean = false,
   ): Promise<OnChainAccount> {
-    // small trade off to convert the account to a serializable object.
+    // small trade-off to convert the account to a serializable object.
     const serialized = await useCache(
-      async () => {
+      async (_accountAddress, _scope) => {
         const account = await this.loadOnChainAccount(accountAddress, scope);
         return account.toSerializableFull();
       },
@@ -269,7 +269,7 @@ export class NetworkService {
         ttlMilliseconds: AppConfig.cache.ttlMilliseconds.loadOnChainAccount,
         refreshCache,
       },
-    )();
+    )(accountAddress, scope);
 
     return OnChainAccount.fromSerializable(serialized);
   }
