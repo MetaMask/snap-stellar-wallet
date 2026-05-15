@@ -2,6 +2,7 @@ import { parseCaipAssetType } from '@metamask/utils';
 import { Asset } from '@stellar/stellar-sdk';
 
 import {
+  InvalidInvokeContractStructureException,
   TransactionScopeNotMatchException,
   TransactionValidationException,
 } from './exceptions';
@@ -103,6 +104,19 @@ export function assertAccountInvolvesTransaction(
   );
 }
 
+/**
+ * Ensures the transaction has only one `invokeHostFunction` operation.
+ *
+ * @param transaction - Wrapped Stellar transaction.
+ * @throws {InvalidInvokeContractStructureException} When the transaction has more than one `invokeHostFunction` operation.
+ */
+export function assertInvokeHostFunctionSoleOperation(
+  transaction: Transaction,
+): void {
+  if (transaction.hasInvokeHostFunction && transaction.operationCount !== 1) {
+    throw new InvalidInvokeContractStructureException();
+  }
+}
 /**
  * Ensures a CAIP asset identifier belongs to the caller-provided scope.
  *
