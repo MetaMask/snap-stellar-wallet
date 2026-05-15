@@ -229,7 +229,7 @@ export class PaymentOPSimulator implements OperationSimulator {
     });
 
     let balanceAfterDebit: BigNumber | undefined;
-    // Special handle for self-payment
+    // Special handling for self-payment
     if (sourceId === destId) {
       if (isSlip44Id(assetId)) {
         balanceAfterDebit = source.nativeRawBalance.minus(payAmt);
