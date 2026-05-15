@@ -117,6 +117,7 @@ export function assertInvokeHostFunctionSoleOperation(
     throw new InvalidInvokeContractStructureException();
   }
 }
+
 /**
  * Ensures a CAIP asset identifier belongs to the caller-provided scope.
  *

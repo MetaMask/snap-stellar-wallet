@@ -100,8 +100,6 @@ const ConfigStruct = object({
       historicalPrices: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
       // 1 hour
       baseFee: parseIntegerStruct(1000, 60 * 60 * 1000 * 1),
-      // 10 minutes
-      onChainAccount: parseIntegerStruct(1000, 10 * 60 * 1000 * 1),
       // 10 minutes (Horizon account payload; aligns with on-chain account cache usage)
       loadOnChainAccount: parseIntegerStruct(1000, 10 * 60 * 1000 * 1),
       // Short: simulation is sequence- and footprint-sensitive
@@ -167,10 +165,9 @@ export const AppConfig = create(
         fiatExchangeRates: process.env.FIAT_EXCHANGE_RATES_TTL_MILLISECONDS,
         historicalPrices: process.env.HISTORICAL_PRICES_TTL_MILLISECONDS,
         baseFee: process.env.BASE_FEE_TTL_MILLISECONDS,
-        onChainAccount: process.env.ON_CHAIN_ACCOUNT_TTL_MILLISECONDS,
         loadOnChainAccount: process.env.LOAD_ON_CHAIN_ACCOUNT_TTL_MILLISECONDS,
         simulateTransaction: process.env.SIMULATE_TRANSACTION_TTL_MILLISECONDS,
-        sep41AssetBalance: process.env.SEP41_TOKEN_BALANCE_TTL_MILLISECONDS,
+        sep41AssetBalance: process.env.SEP41_ASSET_BALANCE_TTL_MILLISECONDS,
       },
     },
   },
