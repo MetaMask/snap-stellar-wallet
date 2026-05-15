@@ -1,13 +1,10 @@
 import { ensureError, parseCaipAssetType } from '@metamask/utils';
 import {
-  Account as StellarAccount,
   Address,
-  BASE_FEE,
   Contract,
   Horizon as StellarHorizon,
   NotFoundError,
   rpc,
-  scValToNative,
   TransactionBuilder as StellarSdkTransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
@@ -35,7 +32,6 @@ import {
   caip2ChainIdToNetwork,
   extractAssetDataFromContractData,
   isAccountNotFoundError,
-  parseScValToNative,
   sep41MulticallCellToBalance,
 } from './utils';
 import type {
@@ -46,7 +42,7 @@ import { KnownCaip2ChainId } from '../../api';
 import type { NetworkConfig } from '../../config';
 import { AppConfig } from '../../config';
 import { STELLAR_DECIMAL_PLACES } from '../../constants';
-import type { ILogger } from '../../utils';
+import type { ILogger, Serializable } from '../../utils';
 import {
   isSameStr,
   createPrefixedLogger,
@@ -56,8 +52,11 @@ import {
   rethrowIfInstanceElseThrow,
   batchesAllSettled,
 } from '../../utils';
+import type { ICache } from '../cache';
+import { useCache } from '../cache';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
+import { assertInvokeHostFunctionSoleOperation } from '../transaction/utils';
 
 /**
  * Stellar network access through **Horizon** and **Soroban RPC**: base fee, account loading (full
@@ -68,6 +67,8 @@ import { Transaction } from '../transaction/Transaction';
 export class NetworkService {
   readonly #logger: ILogger;
 
+  readonly #cache: ICache<Serializable>;
+
   readonly #horizonClientMap = new Map<
     KnownCaip2ChainId,
     StellarHorizon.Server
@@ -75,8 +76,15 @@ export class NetworkService {
 
   readonly #rpcClientMap = new Map<KnownCaip2ChainId, rpc.Server>();
 
-  constructor({ logger }: { logger: ILogger }) {
+  constructor({
+    logger,
+    cache,
+  }: {
+    logger: ILogger;
+    cache: ICache<Serializable>;
+  }) {
     this.#logger = createPrefixedLogger(logger, '[🌐 NetworkService]');
+    this.#cache = cache;
   }
 
   #getHorizonClient(scope: KnownCaip2ChainId): StellarHorizon.Server {
@@ -125,6 +133,24 @@ export class NetworkService {
       this.#logger.logErrorWithDetails('Failed to fetch base fee', error);
       throw new BaseFeeFetchException(scope);
     }
+  }
+
+  /**
+   * Fetches the current base fee per operation from the Stellar network with cache.
+   *
+   * @param scope - The CAIP-2 chain ID.
+   * @param refreshCache - Whether to refresh the cache.
+   * @returns A promise that resolves to the base fee as BigNumber.
+   */
+  async getBaseFeeWithCache(
+    scope: KnownCaip2ChainId,
+    refreshCache: boolean = false,
+  ): Promise<BigNumber> {
+    return useCache(this.getBaseFee.bind(this), this.#cache, {
+      functionName: 'NetworkService:getBaseFeeWithCache',
+      ttlMilliseconds: AppConfig.cache.ttlMilliseconds.baseFee,
+      refreshCache,
+    })(scope);
   }
 
   /**
@@ -218,15 +244,53 @@ export class NetworkService {
     }
   }
 
+  /**
+   * Loads the account from **Horizon** (balances, trustlines, sequence, subentries, etc.) with cache.
+   *
+   * @param accountAddress - The Stellar account address (public key).
+   * @param scope - The CAIP-2 chain ID.
+   * @param refreshCache - Whether to refresh the cache.
+   * @returns A promise that resolves to a {@link OnChainAccount} backed by Horizon's account response.
+   */
+  async loadOnChainAccountWithCache(
+    accountAddress: string,
+    scope: KnownCaip2ChainId,
+    refreshCache: boolean = false,
+  ): Promise<OnChainAccount> {
+    // small trade-off to convert the account to a serializable object.
+    const serialized = await useCache(
+      async (_accountAddress, _scope) => {
+        const account = await this.loadOnChainAccount(accountAddress, scope);
+        return account.toSerializableFull();
+      },
+      this.#cache,
+      {
+        functionName: 'NetworkService:loadOnChainAccount',
+        ttlMilliseconds: AppConfig.cache.ttlMilliseconds.loadOnChainAccount,
+        refreshCache,
+      },
+    )(accountAddress, scope);
+
+    return OnChainAccount.fromSerializable(serialized);
+  }
+
+  /**
+   * Loads the accounts from **Horizon** (balances, trustlines, sequence, subentries, etc.).
+   *
+   * @param accountAddresses - The Stellar account addresses (public keys).
+   * @param scope - The CAIP-2 chain ID.
+   * @param batchSize - The batch size for the accounts.
+   * @returns A Promise that resolves to an array of {@link OnChainAccount} objects.
+   */
   async loadOnChainAccounts(
-    accountAddress: string[],
+    accountAddresses: string[],
     scope: KnownCaip2ChainId,
     // Hardcoded to 5 to avoid overwhelming the network
     batchSize: number = 5,
   ): Promise<(OnChainAccount | null)[]> {
     try {
       const settled = await batchesAllSettled(
-        accountAddress,
+        accountAddresses,
         batchSize,
         async (accountId) => this.loadOnChainAccount(accountId, scope), // Assume the onChainAccount scope is the same as the transaction scope
       );
@@ -238,7 +302,7 @@ export class NetworkService {
           onChainAccounts.push(result.value);
         } else {
           this.#logger.warn('Failed to preload participating account', {
-            accountId: accountAddress[idx],
+            accountId: accountAddresses[idx],
             error: result.reason,
           });
           onChainAccounts.push(null);
@@ -420,75 +484,6 @@ export class NetworkService {
   }
 
   /**
-   * Reads a SEP-41-style token balance via Soroban simulation of `balance(Address)`.
-   *
-   * @param params - Balance query input.
-   * @param params.accountAddress - Account holding the token (`G…`).
-   * @param params.assetId - CAIP-19 asset id for SEP-41 token.
-   * @param params.scope - CAIP-2 chain id.
-   * @param params.sequenceNumber - Current sequence number of the account (for the ephemeral tx).
-   * @returns Token balance in the contract's smallest units.
-   * @throws {SimulationException} When Soroban simulation fails.
-   * @throws {NetworkServiceException} When simulation returns no result or another unexpected error occurs.
-   */
-  async getSep41TokenBalance(params: {
-    accountAddress: string;
-    assetId: KnownCaip19Sep41AssetId;
-    scope: KnownCaip2ChainId;
-    sequenceNumber: string;
-  }): Promise<BigNumber> {
-    const { accountAddress, assetId, scope, sequenceNumber } = params;
-    const { assetReference: tokenAddress } = parseCaipAssetType(assetId);
-    try {
-      const client = this.#getRpcClient(scope);
-      const token = new Contract(tokenAddress);
-      const op = token.call(
-        'balance',
-        Address.fromString(accountAddress).toScVal(),
-      );
-
-      const account = new StellarAccount(accountAddress, sequenceNumber);
-      const rawTx = new StellarSdkTransactionBuilder(account, {
-        fee: BASE_FEE,
-        networkPassphrase: caip2ChainIdToNetwork(scope),
-      })
-        .addOperation(op)
-        .setTimeout(180)
-        .build();
-
-      // Using simulateTransaction to get the balance is more reliable than calling the balance function directly.
-      const sim = await client.simulateTransaction(rawTx);
-
-      if (rpc.Api.isSimulationError(sim)) {
-        throw new SimulationException(
-          typeof sim.error === 'string' ? sim.error : JSON.stringify(sim.error),
-        );
-      }
-
-      const retval = sim.result?.retval;
-      if (!retval) {
-        throw new NetworkServiceException(
-          'SEP-41 balance simulation returned no result',
-        );
-      }
-
-      const native = scValToNative(retval);
-
-      return parseScValToNative(native);
-    } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to load SEP-41 token balance',
-        error,
-      );
-      return rethrowIfInstanceElseThrow(
-        error,
-        [NetworkServiceException],
-        new NetworkServiceException('Failed to load SEP-41 token balance'),
-      );
-    }
-  }
-
-  /**
    * Fetches SEP-41 asset balances for multiple accounts via Soroban simulation of `balance(Address)`.
    *
    * **Mainnet only** — uses the Stellar MultiCall router (single simulation). On testnet this method
@@ -581,47 +576,25 @@ export class NetworkService {
   }
 
   /**
-   * Loads account data when the account exists and is funded; returns `null` if the account is not on-chain.
+   * Fetches SEP-41 asset balances for multiple accounts via Soroban simulation of `balance(Address)` with cache.
    *
-   * @param accountAddress - The Stellar account address (public key).
-   * @param scope - The CAIP-2 chain ID.
-   * @returns The loaded account, or `null` when {@link AccountNotActivatedException} would apply.
-   * @throws {AccountLoadException} If loading fails for a reason other than a missing account.
+   * @param params - Balance query input.
+   * @param params.accounts - Accounts holding the token (`G…`).
+   * @param params.assetIds - CAIP-19 asset ids for SEP-41 tokens.
+   * @param params.scope - CAIP-2 chain id.
+   * @returns Per-account map of asset id to balance in smallest units, or `null` when a cell cannot be read.
    */
-  async loadActivatedAccountOrNull(
-    accountAddress: string,
-    scope: KnownCaip2ChainId,
-  ): Promise<OnChainAccount | null> {
-    try {
-      return await this.loadOnChainAccount(accountAddress, scope);
-    } catch (error: unknown) {
-      if (error instanceof AccountNotActivatedException) {
-        return null;
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Like {@link getAccount} but returns `null` if the account is not on-chain.
-   *
-   * @param accountAddress - The Stellar account address (public key).
-   * @param scope - The CAIP-2 chain ID.
-   * @returns A Promise that resolves to a loaded account or `null` when missing.
-   * @throws {AccountLoadException} If the fetch fails for a reason other than a missing account.
-   */
-  async getAccountOrNull(
-    accountAddress: string,
-    scope: KnownCaip2ChainId,
-  ): Promise<OnChainAccount | null> {
-    try {
-      return await this.getAccount(accountAddress, scope);
-    } catch (error: unknown) {
-      if (error instanceof AccountNotActivatedException) {
-        return null;
-      }
-      throw error;
-    }
+  async getSep41AssetBalancesWithCache(params: {
+    accounts: string[];
+    assetIds: KnownCaip19Sep41AssetId[];
+    scope: KnownCaip2ChainId;
+  }): Promise<
+    Record<string, Record<KnownCaip19Sep41AssetId, BigNumber | null>>
+  > {
+    return useCache(this.getSep41AssetBalances.bind(this), this.#cache, {
+      functionName: 'NetworkService:getSep41AssetBalancesWithCache',
+      ttlMilliseconds: AppConfig.cache.ttlMilliseconds.sep41AssetBalance,
+    })(params);
   }
 
   /**
@@ -690,15 +663,15 @@ export class NetworkService {
     scope: KnownCaip2ChainId,
   ): Promise<Transaction> {
     try {
-      const client = this.#getRpcClient(scope);
-      if (
-        !transaction.hasInvokeHostFunction ||
-        transaction.operationCount !== 1
-      ) {
+      if (!transaction.hasInvokeHostFunction) {
         throw new NetworkServiceException(
-          'Transaction is not a valid invokeHostFunction transaction',
+          'Transaction is not a valid SEP-41 transfer transaction',
         );
       }
+
+      assertInvokeHostFunctionSoleOperation(transaction);
+
+      const client = this.#getRpcClient(scope);
       const rawTransaction = transaction.getRaw();
       const simulateResponse = await client.simulateTransaction(rawTransaction);
 
@@ -725,6 +698,70 @@ export class NetworkService {
         ),
       );
     }
+  }
+
+  /**
+   * Simulates a SEP-41 transfer transaction via RPC and returns a new {@link Transaction} with updated fee.
+   *
+   * @param params - The parameters for simulating a SEP-41 transfer transaction.
+   * @param params.transaction - The transaction to simulate.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.assetId - The CAIP-19 SEP-41 asset ID.
+   * @param params.fromAccountId - The from account ID.
+   * @param params.toAccountId - The to account ID.
+   * @param params.refreshCache - Whether to refresh the cache.
+   * @returns A promise that resolves to a new {@link Transaction} with updated fee.
+   */
+  async simulateSep41TransferWithCache({
+    transaction,
+    scope,
+    assetId,
+    fromAccountId,
+    toAccountId,
+    refreshCache = false,
+  }: {
+    transaction: Transaction;
+    scope: KnownCaip2ChainId;
+    assetId: KnownCaip19Sep41AssetId;
+    fromAccountId: string;
+    toAccountId: string;
+    refreshCache?: boolean;
+  }): Promise<Transaction> {
+    if (!transaction.hasInvokeHostFunction) {
+      throw new NetworkServiceException(
+        'Transaction is not a valid SEP-41 transfer transaction',
+      );
+    }
+
+    assertInvokeHostFunctionSoleOperation(transaction);
+
+    const cachedXdr = await useCache(
+      async () => {
+        const simulatedTransaction = await this.simulateTransaction(
+          transaction,
+          scope,
+        );
+        return simulatedTransaction.getRaw().toXDR();
+      },
+      this.#cache,
+      {
+        functionName: 'NetworkService:simulateSep41TransferWithCache',
+        ttlMilliseconds: AppConfig.cache.ttlMilliseconds.simulateTransaction,
+        refreshCache,
+        generateCacheKey: (functionName: string, _args: Serializable[]) => {
+          // Simulation result for Soroban Contract token transfer is only impacted by:
+          // the assetId, fromAccountId, toAccountId, and scope.
+          return `${functionName}:${assetId}:${fromAccountId}:${toAccountId}:${scope}`;
+        },
+      },
+    )();
+
+    return new Transaction(
+      StellarSdkTransactionBuilder.fromXDR(
+        cachedXdr,
+        caip2ChainIdToNetwork(scope),
+      ),
+    );
   }
 
   #getSendRpcErrorCode(rpcError: rpc.Api.SendTransactionResponse): string {
