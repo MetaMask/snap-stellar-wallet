@@ -11,6 +11,8 @@ import {
   ClientRequestMethod,
 } from './handlers/clientRequest';
 import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
+import { OnAddressInputHandler } from './handlers/clientRequest/onAddressInput';
+import { OnAmountInputHandler } from './handlers/clientRequest/onAmountInput';
 import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
@@ -64,7 +66,8 @@ const transactionRepository = new TransactionRepository(state);
 const assetMetadataRepository = new AssetMetadataRepository(state);
 
 /** ------------------------------ Services  ------------------------------ */
-const networkService = new NetworkService({ logger });
+const appCache = new InMemoryCache(noOpLogger);
+const networkService = new NetworkService({ logger, cache: appCache });
 
 const assetMetadataService = new AssetMetadataService({
   networkService,
@@ -97,7 +100,6 @@ const transactionService = new TransactionService({
   transactionRepository,
   networkService,
   transactionBuilder,
-  cache: new InMemoryCache(noOpLogger),
 });
 
 const priceService = new PriceService({
@@ -150,7 +152,6 @@ const keyringHandler = new KeyringHandler({
   accountService,
   onChainAccountService,
   transactionService,
-  assetMetadataService,
   handlers: keyringMethodHandlers,
 });
 
@@ -211,6 +212,17 @@ const changeTrustOptHandler = new ChangeTrustOptHandler({
   confirmationUIController,
 });
 
+const onAddressInputHandler = new OnAddressInputHandler({
+  logger,
+});
+
+const onAmountInputHandler = new OnAmountInputHandler({
+  logger,
+  accountResolver,
+  assetMetadataService,
+  transactionService,
+});
+
 const signAndSendTransactionHandler = new SignAndSendTransactionHandler({
   logger,
   accountResolver,
@@ -228,6 +240,8 @@ const clientRequestMethodHandlers: Record<
   IClientRequestHandler
 > = {
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
+  [ClientRequestMethod.OnAddressInput]: onAddressInputHandler,
+  [ClientRequestMethod.OnAmountInput]: onAmountInputHandler,
   [ClientRequestMethod.SignAndSendTransaction]: signAndSendTransactionHandler,
   [ClientRequestMethod.ComputeFee]: computeFeeHandler,
 };

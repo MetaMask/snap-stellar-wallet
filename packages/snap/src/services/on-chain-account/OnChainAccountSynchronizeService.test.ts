@@ -667,9 +667,9 @@ describe('OnChainAccountSynchronizeService', () => {
       >,
     );
     // Trustline removal happened on sync 2 and was missed by client.
-    // Classic removals persist as tombstone rows (`limit` 0), so sync 4 still sends balance 0.
+    // Classic removals persist as tombstone entries (`limit` 0), so sync 4 still sends balance 0.
     expect(simulatedClientBalances[USDC_CLASSIC]?.amount).toBe('0');
-    // SEP-41 zero rows are persisted and continue to be sent, so sync 4 corrects the client.
+    // SEP-41 zero entries are persisted and continue to be sent, so sync 4 corrects the client.
     expect(simulatedClientBalances[sep41Id]).toStrictEqual({
       unit: 'USDC',
       amount: '0',
@@ -720,7 +720,7 @@ describe('OnChainAccountSynchronizeService', () => {
     const eurcClassicRow = withEurcBinding.balances.find(
       (b) => b.assetId !== NATIVE,
     );
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- EURC is the only non-native row
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- EURC is the only non-native entry
     const EURC_CLASSIC = eurcClassicRow!.assetId;
     const onChainAccountEurcOnly =
       OnChainAccount.fromSerializable(withEurcBinding);
@@ -846,7 +846,7 @@ describe('OnChainAccountSynchronizeService', () => {
       [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
     });
 
-    // 4th `AccountBalancesUpdated` (after sync 4): same on-chain row as sync 3, but `find` read a stale
+    // 4th `AccountBalancesUpdated` (after sync 4): same on-chain entries as sync 3, but `find` read a stale
     // baseline so asset-list deltas fire; balances stay a full per-asset map (native + SEP-41 + classics).
     const fourthBalanceSnapshot = accountBalancesFromNthBalanceEmit(3);
     expect(Object.keys(fourthBalanceSnapshot).length).toBeGreaterThan(2);
@@ -887,7 +887,7 @@ describe('OnChainAccountSynchronizeService', () => {
     });
   });
 
-  it('does not restore SEP-41 rows when SEP-41 balance fetch fails and no persisted snapshot is found', async () => {
+  it('does not restore SEP-41 entries when SEP-41 balance fetch fails and no persisted snapshot is found', async () => {
     setupTest();
 
     const { keyringAccount, onChainAccount } = setupOnChainAccountWithBalance(
@@ -914,7 +914,7 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(setAssetSpy).not.toHaveBeenCalled();
   });
 
-  it('restores persisted SEP-41 rows when SEP-41 balance fetch fails and still emits current balances', async () => {
+  it('restores persisted SEP-41 entries when SEP-41 balance fetch fails and still emits current balances', async () => {
     setupTest();
 
     const {
@@ -964,7 +964,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
   });
 
-  it('restores unresolved persisted SEP-41 rows when only some SEP-41 balances fail', async () => {
+  it('restores unresolved persisted SEP-41 entries when only some SEP-41 balances fail', async () => {
     setupTest();
 
     const {
