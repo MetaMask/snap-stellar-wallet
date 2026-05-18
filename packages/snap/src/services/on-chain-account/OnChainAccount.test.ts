@@ -18,6 +18,7 @@ import type {
 } from './OnChainAccountSerializable';
 import { OnChainAccountSerializableFullStruct } from './OnChainAccountSerializable';
 import { calculateSpendableBalance, minimumBalanceStroops } from './utils';
+import type { KnownCaip19Sep41AssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import {
   getSlip44AssetId,
@@ -140,6 +141,109 @@ describe('OnChainAccount', () => {
         ),
       ).toBe(false);
     });
+
+    it('returns false for a classic trustline tombstone with limit zero', () => {
+      const scope = KnownCaip2ChainId.Mainnet;
+      const usdcId = toCaip19ClassicAssetId(
+        scope,
+        'USDC',
+        'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+      );
+      const accountId = Keypair.random().publicKey();
+      const onChainAccount = new OnChainAccount(
+        new Account(accountId, '1'),
+        scope,
+        {
+          accountId,
+          sequenceNumber: '1',
+          scope,
+          meta: { subentryCount: 0, numSponsoring: 0, numSponsored: 0 },
+          rawNativeBalance: '200000000',
+          balances: [
+            {
+              assetId: usdcId,
+              balance: '0',
+              symbol: 'USDC',
+              address:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+              limit: '0',
+              authorized: true,
+            },
+          ],
+        },
+      );
+
+      expect(onChainAccount.hasAsset(usdcId)).toBe(false);
+    });
+  });
+
+  describe('asset visibility', () => {
+    const scope = KnownCaip2ChainId.Mainnet;
+    const nativeId = getSlip44AssetId(scope);
+    const usdcId = toCaip19ClassicAssetId(
+      scope,
+      'USDC',
+      'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+    );
+    const sep41Id =
+      'stellar:pubnet/sep41:CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75' as KnownCaip19Sep41AssetId;
+
+    const createAccountWithHiddenRows = () => {
+      const accountId = Keypair.random().publicKey();
+      return new OnChainAccount(new Account(accountId, '1'), scope, {
+        accountId,
+        sequenceNumber: '1',
+        scope,
+        meta: { subentryCount: 0, numSponsoring: 0, numSponsored: 0 },
+        rawNativeBalance: '200000000',
+        balances: [
+          {
+            assetId: usdcId,
+            balance: '0',
+            symbol: 'USDC',
+            address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            limit: '0',
+            authorized: true,
+          },
+          {
+            assetId: sep41Id,
+            balance: '0',
+            symbol: 'USDC',
+            decimals: 7,
+          },
+        ],
+      });
+    };
+
+    it('omits tombstones and zero SEP-41 entries from getAsset and assetIds', () => {
+      const onChainAccount = createAccountWithHiddenRows();
+
+      expect(onChainAccount.getAsset(usdcId)).toBeUndefined();
+      expect(onChainAccount.getAsset(sep41Id)).toBeUndefined();
+      expect(onChainAccount.assetIds).toStrictEqual([nativeId]);
+    });
+
+    it('returns hidden entries from getRawAsset and rawAssetIds', () => {
+      const onChainAccount = createAccountWithHiddenRows();
+
+      expect(onChainAccount.getRawAsset(usdcId)).toStrictEqual({
+        balance: new BigNumber(0),
+        symbol: 'USDC',
+        limit: new BigNumber(0),
+        address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+        authorized: true,
+      });
+      expect(onChainAccount.getRawAsset(sep41Id)).toStrictEqual({
+        balance: new BigNumber(0),
+        symbol: 'USDC',
+        decimals: 7,
+      });
+      expect(onChainAccount.rawAssetIds).toStrictEqual([
+        nativeId,
+        usdcId,
+        sep41Id,
+      ]);
+    });
   });
 
   describe('getScope', () => {
@@ -180,7 +284,7 @@ describe('OnChainAccount', () => {
       },
     );
 
-    it('returns undefined when the account has no balance row for the asset id', () => {
+    it('returns undefined when the account has no asset entry for the asset id', () => {
       const acc = new Account(
         testOnChain.accountId,
         testOnChain.sequenceNumber,
