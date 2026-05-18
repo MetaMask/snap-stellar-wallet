@@ -222,14 +222,13 @@ describe('OnAmountInputHandler', () => {
     });
   });
 
-  it('rethrows AccountNotActivatedException when keyring state has no on-chain snapshot', async () => {
-    const { handler, resolveOnChainAccountByKeyringAccountIdSpy, wallet } =
-      setup();
+  it('returns invalid when keyring state has no on-chain snapshot', async () => {
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValueOnce(null);
 
-    await expect(handler.handle(baseRequest())).rejects.toMatchObject({
-      address: wallet.address,
-      scope,
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
     });
   });
 

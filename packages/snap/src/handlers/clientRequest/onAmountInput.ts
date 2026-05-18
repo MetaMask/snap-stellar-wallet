@@ -137,7 +137,16 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
     }
   }
 
-  protected override async handleAccountNotActivatedError(_error: AccountNotActivatedException): Promise<OnAmountInputJsonRpcResponse> {
+  /**
+   * Override the base handler to return invalid when the account is not activated.
+   * Instead of showing the account not activated alert, it returns an invalid response.
+   *
+   * @param _error - The error to handle.
+   * @returns The invalid response when the account is not activated.
+   */
+  protected override async handleAccountNotActivatedError(
+    _error: AccountNotActivatedException,
+  ): Promise<OnAmountInputJsonRpcResponse> {
     return {
       valid: false,
       errors: [{ code: MultiChainSendErrorCodes.Invalid }],

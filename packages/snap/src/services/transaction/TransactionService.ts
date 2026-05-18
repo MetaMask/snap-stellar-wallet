@@ -223,7 +223,9 @@ export class TransactionService {
       destination,
     });
 
-    if (!onChainAccount.getAsset(assetId)) {
+    // Use getRawAsset so we only fetch when the asset is absent from the State.
+    // Use getAsset hides zero-balance SEP-41 entries and would trigger a redundant on-chain fetch.
+    if (!onChainAccount.getRawAsset(assetId)) {
       const onChainBalance = await this.#networkService.getSep41AssetBalances({
         accounts: [onChainAccount.accountId],
         assetIds: [assetId],
@@ -241,7 +243,7 @@ export class TransactionService {
 
     // Simulation will throw an error if the balance is less than the sending amount,
     // so we can fail early here.
-    if (onChainAccount.getAsset(assetId)?.balance.lt(amount)) {
+    if (onChainAccount.getRawAsset(assetId)?.balance.lt(amount)) {
       throw new InsufficientBalanceException(
         onChainAccount.accountId,
         amount.toString(),
