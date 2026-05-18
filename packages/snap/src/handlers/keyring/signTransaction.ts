@@ -147,7 +147,11 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
           readableTransaction,
           account,
         },
-        renderOptions: { loadPrice: true },
+        renderOptions: { loadPrice: true, scanTxn: true },
+        securityScanRequest: {
+          accountAddress: account.address,
+          transaction: transaction.getRaw().toXDR(),
+        },
         tokenPrices,
       })) === true
     );

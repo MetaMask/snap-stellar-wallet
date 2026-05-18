@@ -26,10 +26,11 @@ import type {
   FeeData,
 } from '../../api';
 import { FetchStatus } from '../../api';
-import { Asset, AssetIcon, FeeRow } from '../../components';
+import { Asset, AssetIcon, FeeRow, TransactionAlert } from '../../components';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
+  isConfirmDisabledByScan,
   getNetworkName,
 } from '../../utils';
 
@@ -51,12 +52,30 @@ export const ConfirmSignChangeTrustOptIn = ({
   origin,
   preferences,
   tokenPricesFetchStatus = FetchStatus.Initial,
+  scan,
+  scanFetchStatus = FetchStatus.Initial,
 }: ConfirmSignChangeTrustOptInProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
+  const shouldDisableConfirmButton = isConfirmDisabledByScan({
+    preferences,
+    scan,
+    scanFetchStatus,
+  });
+
   return (
     <Container>
       <Box>
+        {preferences.useSecurityAlerts || preferences.simulateOnChainActions ? (
+          <TransactionAlert
+            scanFetchStatus={scanFetchStatus}
+            validation={scan?.validation ?? null}
+            error={scan?.error ?? null}
+            preferences={preferences}
+            showValidationAlert={preferences.useSecurityAlerts}
+            showSimulationError={preferences.simulateOnChainActions}
+          />
+        ) : null}
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">
@@ -141,7 +160,10 @@ export const ConfirmSignChangeTrustOptIn = ({
         <Button name={ConfirmSignChangeTrustOptInFormNames.Cancel}>
           {t('confirmation.cancelButton')}
         </Button>
-        <Button name={ConfirmSignChangeTrustOptInFormNames.Confirm}>
+        <Button
+          name={ConfirmSignChangeTrustOptInFormNames.Confirm}
+          disabled={shouldDisableConfirmButton}
+        >
           {t('confirmation.confirmButton')}
         </Button>
       </Footer>

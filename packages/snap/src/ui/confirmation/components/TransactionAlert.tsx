@@ -1,0 +1,177 @@
+import type { ComponentOrElement } from '@metamask/snaps-sdk';
+import {
+  Banner,
+  Box,
+  Icon,
+  Link,
+  Text as SnapText,
+  type BannerProps,
+} from '@metamask/snaps-sdk/jsx';
+
+import type {
+  TransactionScanError,
+  TransactionScanValidation,
+} from '../../../services/transaction-scan';
+import type { Locale, LocalizedMessage } from '../../../utils';
+import { i18n } from '../../../utils';
+import type { ConfirmationBaseProps } from '../api';
+import { FetchStatus } from '../api';
+
+type TransactionAlertProps = {
+  preferences: ConfirmationBaseProps['preferences'];
+  validation: TransactionScanValidation | null;
+  error: TransactionScanError | null;
+  scanFetchStatus: FetchStatus;
+  showValidationAlert: boolean;
+  showSimulationError: boolean;
+};
+
+const VALIDATION_TYPE_TO_SEVERITY: Partial<
+  Record<
+    NonNullable<TransactionScanValidation['type']>,
+    BannerProps['severity']
+  >
+> = {
+  Malicious: 'danger',
+  Warning: 'warning',
+};
+
+const ERROR_MESSAGE_IDS: Record<string, LocalizedMessage> = {
+  insufficientbalance: 'transactionScan.errors.insufficientBalance',
+  insufficientfunds: 'transactionScan.errors.insufficientFunds',
+  invalidtransaction: 'transactionScan.errors.invalidTransaction',
+  invalidaddress: 'transactionScan.errors.invalidAddress',
+  unsupportedeip712message: 'transactionScan.errors.unsupportedEIP712Message',
+};
+
+export const TransactionAlert = ({
+  preferences,
+  validation,
+  error,
+  scanFetchStatus,
+  showValidationAlert,
+  showSimulationError,
+}: TransactionAlertProps): ComponentOrElement => {
+  const translate = i18n(preferences.locale as Locale);
+
+  if (scanFetchStatus === FetchStatus.Fetching) {
+    return (
+      <Banner
+        title={translate('confirmation.securityScanInProgressTitle')}
+        severity="info"
+      >
+        <SnapText>
+          {translate('confirmation.securityScanInProgressMessage')}
+        </SnapText>
+      </Banner>
+    );
+  }
+
+  if (scanFetchStatus === FetchStatus.Error) {
+    return (
+      <Banner
+        title={translate('confirmation.securityScanAPIErrorTitle')}
+        severity="danger"
+      >
+        <SnapText>
+          {translate('confirmation.securityScanAPIErrorMessage')}
+        </SnapText>
+      </Banner>
+    );
+  }
+
+  if (validation?.type && showValidationAlert) {
+    const severity = VALIDATION_TYPE_TO_SEVERITY[validation.type];
+
+    if (severity) {
+      return (
+        <Banner
+          title={translate('confirmation.validationErrorTitle')}
+          severity={severity}
+        >
+          <SnapText>
+            {translate('confirmation.validationErrorSubtitle')}
+          </SnapText>
+          <SnapText size="sm">
+            <Link href="https://support.metamask.io/configure/wallet/how-to-turn-on-security-alerts/">
+              {translate('confirmation.validationErrorLearnMore')}
+            </Link>
+          </SnapText>
+          <SnapText size="sm">
+            <Icon color="primary" name="security-tick" />{' '}
+            {translate('confirmation.validationErrorSecurityAdviced')}{' '}
+            <Link href="https://www.blockaid.io">Blockaid</Link>
+          </SnapText>
+        </Banner>
+      );
+    }
+  }
+
+  if (
+    error &&
+    shouldShowError(error, showSimulationError, showValidationAlert)
+  ) {
+    return (
+      <Banner
+        title={translate('confirmation.simulationErrorTitle')}
+        severity="warning"
+      >
+        <SnapText>
+          {translate('confirmation.simulationErrorSubtitle', {
+            reason: getErrorMessage(error, preferences.locale),
+          })}
+        </SnapText>
+      </Banner>
+    );
+  }
+
+  return <Box>{null}</Box>;
+};
+
+/**
+ * Determines whether a scan error should be visible for the enabled alert type.
+ *
+ * @param error - The scan error to evaluate.
+ * @param showSimulationError - Whether simulation errors are visible.
+ * @param showValidationAlert - Whether validation errors are visible.
+ * @returns True when the error should be rendered.
+ */
+function shouldShowError(
+  error: TransactionScanError,
+  showSimulationError: boolean,
+  showValidationAlert: boolean,
+): boolean {
+  if (error.type === 'simulation') {
+    return showSimulationError;
+  }
+
+  if (error.type === 'validation') {
+    return showValidationAlert;
+  }
+
+  return showSimulationError || showValidationAlert;
+}
+
+/**
+ * Gets a user-facing scan error message.
+ *
+ * @param error - The scan error returned by the transaction scan service.
+ * @param locale - The locale used for translated fallback messages.
+ * @returns A translated or API-provided error message.
+ */
+function getErrorMessage(error: TransactionScanError, locale: string): string {
+  const translate = i18n(locale);
+  const normalizedCode = error.code
+    ?.replace(/[^a-zA-Z0-9]/gu, '')
+    .toLowerCase();
+  const messageId = normalizedCode ? ERROR_MESSAGE_IDS[normalizedCode] : null;
+
+  if (messageId) {
+    return translate(messageId);
+  }
+
+  return (
+    error.message ??
+    translate('transactionScan.errors.unknownError' as LocalizedMessage)
+  );
+}
