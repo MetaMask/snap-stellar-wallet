@@ -1,7 +1,7 @@
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 import type { KnownCaip2ChainId } from '../../api';
 
-/** Per-asset view: native, classic trustline (limit + issuer in `address`), or SEP-41. */
+/** Per-asset entry: native, classic trustline (limit + issuer in `address`), or SEP-41. */
 export type SpendableBalance = {
   balance: BigNumber;
   symbol: string;

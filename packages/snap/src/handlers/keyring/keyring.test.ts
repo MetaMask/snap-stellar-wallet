@@ -44,7 +44,6 @@ import {
   generateStellarKeyringAccount,
 } from '../../services/account/__mocks__/account.fixtures';
 import { AccountNotFoundException } from '../../services/account/exceptions';
-import { createMockAssetMetadataService } from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import type { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
@@ -115,13 +114,11 @@ describe('KeyringHandler', () => {
     const { accountService, onChainAccountService } =
       mockOnChainAccountService();
     const { transactionService } = createMockTransactionService();
-    const { service: assetMetadataService } = createMockAssetMetadataService();
     keyringHandler = new KeyringHandler({
       logger,
       accountService,
       onChainAccountService,
       transactionService,
-      assetMetadataService,
       handlers: {
         [MultichainMethod.SignMessage]: mockSignMessageHandler,
         [MultichainMethod.SignTransaction]: mockSignTransactionHandler,
