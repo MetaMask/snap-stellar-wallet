@@ -15,6 +15,7 @@ import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndS
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
+import { RefreshConfirmationSecurityScanHandler } from './handlers/cronjob/refreshConfirmationSecurityScan';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
@@ -43,6 +44,10 @@ import {
   TransactionRepository,
   TransactionService,
 } from './services/transaction';
+import {
+  SecurityAlertsApiClient,
+  TransactionScanService,
+} from './services/transaction-scan';
 import { WalletService } from './services/wallet';
 import { ConfirmationUXController } from './ui/confirmation/controller';
 import { logger, noOpLogger } from './utils';
@@ -102,6 +107,13 @@ const transactionService = new TransactionService({
 
 const priceService = new PriceService({
   cache: new InMemoryCache(noOpLogger),
+  logger,
+});
+
+const transactionScanService = new TransactionScanService({
+  securityAlertsApiClient: new SecurityAlertsApiClient(
+    AppConfig.api.securityAlertsApi,
+  ),
   logger,
 });
 
@@ -167,6 +179,13 @@ const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
   confirmationUIController,
 });
 
+const refreshConfirmationSecurityScanHandler =
+  new RefreshConfirmationSecurityScanHandler({
+    logger,
+    transactionScanService,
+    confirmationUIController,
+  });
+
 const trackTransactionHandler = new TrackTransactionHandler({
   logger,
   networkService,
@@ -187,6 +206,8 @@ const cronjobMethodHandlers: Record<
 > = {
   [BackgroundEventMethod.RefreshConfirmationPrices]:
     refreshConfirmationPricesHandler,
+  [BackgroundEventMethod.RefreshConfirmationSecurityScan]:
+    refreshConfirmationSecurityScanHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
   [BackgroundEventMethod.SynchronizeAccounts]: syncAccountsHandler,
 };

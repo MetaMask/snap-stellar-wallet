@@ -27,9 +27,11 @@ import type { ConfirmationBaseProps, FeeData } from '../../api';
 import { FetchStatus } from '../../api';
 import { Asset } from '../../components/Asset';
 import { FeeRow } from '../../components/Fee';
+import { TransactionAlert } from '../../components/TransactionAlert';
 import {
   getAccountName,
   getNetworkName,
+  isConfirmDisabledByScan,
   resolveAssetDisplay,
 } from '../../utils';
 
@@ -166,16 +168,33 @@ export const ConfirmSignTransaction = ({
   feeData,
   tokenPrices,
   tokenPricesFetchStatus = FetchStatus.Initial,
+  scan,
+  scanFetchStatus = FetchStatus.Initial,
 }: ConfirmSignTransactionProps): ComponentOrElement => {
   const t = i18n(locale as Locale);
   const { address } = account;
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
   const feePrice = tokenPrices?.[feeData.assetId] ?? null;
+  const shouldDisableConfirmButton = isConfirmDisabledByScan({
+    preferences,
+    scan,
+    scanFetchStatus,
+  });
 
   return (
     <Container>
       <Box>
+        {preferences.useSecurityAlerts || preferences.simulateOnChainActions ? (
+          <TransactionAlert
+            scanFetchStatus={scanFetchStatus}
+            validation={scan?.validation ?? null}
+            error={scan?.error ?? null}
+            preferences={preferences}
+            showValidationAlert={preferences.useSecurityAlerts}
+            showSimulationError={preferences.simulateOnChainActions}
+          />
+        ) : null}
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">{t('confirmation.signTransaction.title')}</Heading>
@@ -294,7 +313,10 @@ export const ConfirmSignTransaction = ({
         <Button name={ConfirmSignTransactionFormNames.Cancel}>
           {t('confirmation.cancelButton')}
         </Button>
-        <Button name={ConfirmSignTransactionFormNames.Confirm}>
+        <Button
+          name={ConfirmSignTransactionFormNames.Confirm}
+          disabled={shouldDisableConfirmButton}
+        >
           {t('confirmation.confirmButton')}
         </Button>
       </Footer>

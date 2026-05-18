@@ -2,12 +2,13 @@ import type { GetPreferencesResult } from '@metamask/snaps-sdk';
 import type { CaipAccountId } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
-import type { FeeData } from './api';
+import { FetchStatus, type FeeData } from './api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import { parseOperationAssetReference } from '../../services/transaction/utils';
+import type { TransactionScanResult } from '../../services/transaction-scan';
 import type { Locale } from '../../utils';
 import {
   FALLBACK_LANGUAGE,
@@ -150,6 +151,27 @@ export function formatFeeData(
     iconUrl: nativeAssetMetadata.iconUrl,
     amount: amountInLumen.toString(),
   };
+}
+
+/**
+ * Determines whether a transaction confirmation must be temporarily blocked by scan state.
+ *
+ * @param params - Scan and preference state.
+ * @param params.preferences - User preferences controlling scan behavior.
+ * @param params.scan - Latest transaction scan result.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @returns True when the confirm action should be disabled.
+ */
+export function isConfirmDisabledByScan(params: {
+  preferences: GetPreferencesResult;
+  scan?: TransactionScanResult | null;
+  scanFetchStatus: FetchStatus;
+}): boolean {
+  const { preferences, scan, scanFetchStatus } = params;
+  return (
+    scanFetchStatus === FetchStatus.Fetching ||
+    (preferences.useSecurityAlerts && scan?.validation?.type === 'Malicious')
+  );
 }
 
 /**

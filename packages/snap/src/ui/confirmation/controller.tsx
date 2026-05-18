@@ -12,6 +12,7 @@ import {
   getPreferencesWithFallback,
 } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
+import type { SecurityScanRequest } from '../../services/transaction-scan';
 import type { ILogger, Locale } from '../../utils';
 import {
   createInterface,
@@ -55,6 +56,7 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
   renderContext: Props;
   origin?: string;
   renderOptions?: ConfirmationRenderOptions;
+  securityScanRequest?: Omit<SecurityScanRequest, 'origin' | 'scope'>;
   tokenPrices?: ContextWithPrices['tokenPrices'];
 };
 
@@ -120,11 +122,11 @@ export class ConfirmationUXController {
         renderContext,
         origin = 'metamask',
         fee,
-        renderOptions = {
-          ...this.#defaultRenderOptions,
-          ...params.renderOptions,
-        },
       } = params;
+      const renderOptions = {
+        ...this.#defaultRenderOptions,
+        ...params.renderOptions,
+      };
 
       const preferences = await getPreferencesWithFallback();
 
@@ -150,6 +152,11 @@ export class ConfirmationUXController {
         preferences.useExternalPricingData &&
         tokenPrices !== undefined;
 
+      const enableSecurityScan =
+        renderOptions.scanTxn &&
+        (preferences.useSecurityAlerts || preferences.simulateOnChainActions) &&
+        params.securityScanRequest !== undefined;
+
       const defaultContext = {
         // if pricing is disabled, mark as fetched immediately
         tokenPricesFetchStatus: enablePricing
@@ -162,6 +169,19 @@ export class ConfirmationUXController {
         currency: preferences.currency,
         scope,
         feeData: fee ? formatFeeData(scope, fee) : {},
+        scan: null,
+        scanFetchStatus: enableSecurityScan
+          ? FetchStatus.Fetching
+          : FetchStatus.Fetched,
+        ...(enableSecurityScan
+          ? {
+              securityScanRequest: {
+                ...params.securityScanRequest,
+                origin,
+                scope,
+              },
+            }
+          : {}),
         tokenPrices,
       };
 
@@ -178,9 +198,7 @@ export class ConfirmationUXController {
       );
       const dialogPromise = showDialog(id);
 
-      // 3. TODO: Perform security scan (always needed for estimated changes simulation)
-
-      // 4. Update interface with scan results after initial render (silently ignores if dismissed)
+      // 3. Update interface context after initial render (silently ignores if dismissed)
       const updated = await updateInterfaceIfExists(
         id,
         this.#renderConfirmationView(interfaceKey, context),
@@ -192,7 +210,7 @@ export class ConfirmationUXController {
         return dialogPromise;
       }
 
-      // 5. Schedule background jobs only after confirming the interface is still alive
+      // 4. Schedule background jobs only after confirming the interface is still alive
       if (enablePricing) {
         // Trigger immediate price fetch (1 second), then continue every 20 seconds
         await scheduleBackgroundEvent({
@@ -206,9 +224,19 @@ export class ConfirmationUXController {
         });
       }
 
-      // TODO: Schedule security scan background refresh (every 20 seconds)
+      if (enableSecurityScan) {
+        await scheduleBackgroundEvent({
+          method: BackgroundEventMethod.RefreshConfirmationSecurityScan,
+          duration: Duration.OneSecond,
+          params: {
+            scope,
+            interfaceId: id,
+            interfaceKey,
+          },
+        });
+      }
 
-      // 6. Return the dialog promise immediately (don't await it!)
+      // 5. Return the dialog promise immediately (don't await it!)
       // Cleanup happens in the background refresh handler when it detects the interface is gone
       return dialogPromise;
     } catch (error) {

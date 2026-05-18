@@ -2,7 +2,9 @@ import type { GetPreferencesResult } from '@metamask/snaps-sdk';
 import { union } from '@metamask/snaps-sdk';
 import type { Infer } from '@metamask/superstruct';
 import {
+  boolean,
   enums,
+  optional,
   record,
   type,
   string,
@@ -19,6 +21,14 @@ import {
   KnownCaip19Sep41AssetStruct,
   KnownCaip19Slip44IdStruct,
 } from '../../api';
+import {
+  SecurityScanRequestStruct,
+  TransactionScanResultStruct,
+} from '../../services/transaction-scan';
+import type {
+  SecurityScanRequest,
+  TransactionScanResult,
+} from '../../services/transaction-scan';
 
 export type FeeData = {
   assetId: KnownCaip19AssetIdOrSlip44Id;
@@ -50,6 +60,22 @@ export const ContextWithPricesStruct = type({
 
 export type ContextWithPrices = Infer<typeof ContextWithPricesStruct>;
 
+const SecurityScanPreferencesStruct = type({
+  useSecurityAlerts: optional(boolean()),
+  simulateOnChainActions: optional(boolean()),
+});
+
+export const ContextWithSecurityScanStruct = type({
+  preferences: SecurityScanPreferencesStruct,
+  scan: optional(nullable(TransactionScanResultStruct)),
+  scanFetchStatus: enums(Object.values(FetchStatus)),
+  securityScanRequest: optional(SecurityScanRequestStruct),
+});
+
+export type ContextWithSecurityScan = Infer<
+  typeof ContextWithSecurityScanStruct
+>;
+
 export enum ConfirmationInterfaceKey {
   ChangeTrustlineOptIn = 'ChangeTrustlineOptIn',
   ChangeTrustlineOptOut = 'ChangeTrustlineOptOut',
@@ -67,6 +93,9 @@ export const ConfirmationInterfaceKeyStruct = enums(
  * before the caller's `renderContext` is merged in.
  */
 export type ConfirmationBaseProps = Partial<ContextWithPrices> & {
+  scan?: TransactionScanResult | null;
+  scanFetchStatus?: FetchStatus;
+  securityScanRequest?: SecurityScanRequest;
   preferences: GetPreferencesResult;
   locale: string;
   scope: KnownCaip2ChainId;
