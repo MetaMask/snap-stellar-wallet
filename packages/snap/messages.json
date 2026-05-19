@@ -122,6 +122,12 @@
   "confirmation.validationErrorSubtitle": {
     "message": "If you approve this request, a third party known for scams will take all your assets."
   },
+  "confirmation.validationWarningTitle": {
+    "message": "This request may be risky"
+  },
+  "confirmation.validationWarningSubtitle": {
+    "message": "Security Alerts found potential risk. Only continue if you trust this site and every address involved."
+  },
   "confirmation.validationErrorLearnMore": {
     "message": "Learn more"
   },

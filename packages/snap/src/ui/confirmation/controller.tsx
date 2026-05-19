@@ -128,6 +128,12 @@ export class ConfirmationUXController {
         ...params.renderOptions,
       };
 
+      if (renderOptions.scanTxn && params.securityScanRequest === undefined) {
+        throw new Error(
+          'Cannot scan a transaction confirmation without a security scan request.',
+        );
+      }
+
       const preferences = await getPreferencesWithFallback();
 
       const defaultTokenPrices = fee

@@ -26,14 +26,26 @@ type TransactionAlertProps = {
   showSimulationError: boolean;
 };
 
-const VALIDATION_TYPE_TO_SEVERITY: Partial<
+const VALIDATION_TYPE_TO_ALERT: Partial<
   Record<
     NonNullable<TransactionScanValidation['type']>,
-    BannerProps['severity']
+    {
+      severity: BannerProps['severity'];
+      title: LocalizedMessage;
+      subtitle: LocalizedMessage;
+    }
   >
 > = {
-  Malicious: 'danger',
-  Warning: 'warning',
+  Malicious: {
+    severity: 'danger',
+    title: 'confirmation.validationErrorTitle',
+    subtitle: 'confirmation.validationErrorSubtitle',
+  },
+  Warning: {
+    severity: 'warning',
+    title: 'confirmation.validationWarningTitle',
+    subtitle: 'confirmation.validationWarningSubtitle',
+  },
 };
 
 const ERROR_MESSAGE_IDS: Record<string, LocalizedMessage> = {
@@ -81,17 +93,18 @@ export const TransactionAlert = ({
   }
 
   if (validation?.type && showValidationAlert) {
-    const severity = VALIDATION_TYPE_TO_SEVERITY[validation.type];
+    const alert = VALIDATION_TYPE_TO_ALERT[validation.type];
 
-    if (severity) {
+    if (alert) {
+      const description = validation.description?.trim();
+      const subtitle =
+        description === undefined || description.length === 0
+          ? translate(alert.subtitle)
+          : description;
+
       return (
-        <Banner
-          title={translate('confirmation.validationErrorTitle')}
-          severity={severity}
-        >
-          <SnapText>
-            {translate('confirmation.validationErrorSubtitle')}
-          </SnapText>
+        <Banner title={translate(alert.title)} severity={alert.severity}>
+          <SnapText>{subtitle}</SnapText>
           <SnapText size="sm">
             <Link href="https://support.metamask.io/configure/wallet/how-to-turn-on-security-alerts/">
               {translate('confirmation.validationErrorLearnMore')}

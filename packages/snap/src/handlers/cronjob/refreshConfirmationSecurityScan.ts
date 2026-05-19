@@ -29,8 +29,8 @@ import {
 } from '../../utils/snap';
 
 type SecurityScanPreferences = {
-  useSecurityAlerts?: boolean;
-  simulateOnChainActions?: boolean;
+  useSecurityAlerts: boolean;
+  simulateOnChainActions: boolean;
 };
 
 type SecurityScanInterfaceContext = Record<string, Json> &
@@ -121,14 +121,16 @@ export class RefreshConfirmationSecurityScanHandler extends CronjobBaseHandler<R
     }
 
     try {
-      await this.#reRenderSecurityScan({
-        interfaceId,
-        interfaceKey,
-        updatedContext: {
-          ...interfaceContext,
-          scanFetchStatus: FetchStatus.Fetching,
-        },
-      });
+      if (interfaceContext.scanFetchStatus !== FetchStatus.Fetching) {
+        await this.#reRenderSecurityScan({
+          interfaceId,
+          interfaceKey,
+          updatedContext: {
+            ...interfaceContext,
+            scanFetchStatus: FetchStatus.Fetching,
+          },
+        });
+      }
 
       const scan = await this.#transactionScanService.scanTransaction({
         ...scanRequest,
@@ -198,15 +200,15 @@ export class RefreshConfirmationSecurityScanHandler extends CronjobBaseHandler<R
   }
 
   #getScanOptions(
-    preferences: SecurityScanPreferences | undefined,
+    preferences: SecurityScanPreferences,
   ): TransactionScanOption[] {
     const options: TransactionScanOption[] = [];
 
-    if (preferences?.simulateOnChainActions) {
+    if (preferences.simulateOnChainActions) {
       options.push(TransactionScanOption.Simulation);
     }
 
-    if (preferences?.useSecurityAlerts) {
+    if (preferences.useSecurityAlerts) {
       options.push(TransactionScanOption.Validation);
     }
 

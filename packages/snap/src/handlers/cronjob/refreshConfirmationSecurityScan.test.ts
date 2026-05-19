@@ -100,7 +100,11 @@ describe('RefreshConfirmationSecurityScanHandler', () => {
   it('refreshes the scan and schedules the next refresh', async () => {
     const { handler, transactionScanService, confirmationUIController } =
       setup();
-    jest.mocked(getInterfaceContextIfExists).mockResolvedValue(baseContext);
+    const fetchedContext = {
+      ...baseContext,
+      scanFetchStatus: FetchStatus.Fetched,
+    };
+    jest.mocked(getInterfaceContextIfExists).mockResolvedValue(fetchedContext);
 
     await handler.handle(request);
 
@@ -115,7 +119,7 @@ describe('RefreshConfirmationSecurityScanHandler', () => {
       interfaceId,
       interfaceKey,
       updatedContext: {
-        ...baseContext,
+        ...fetchedContext,
         scanFetchStatus: FetchStatus.Fetching,
       },
     });
@@ -123,7 +127,7 @@ describe('RefreshConfirmationSecurityScanHandler', () => {
       interfaceId,
       interfaceKey,
       updatedContext: {
-        ...baseContext,
+        ...fetchedContext,
         scan,
         scanFetchStatus: FetchStatus.Fetched,
       },
@@ -136,6 +140,26 @@ describe('RefreshConfirmationSecurityScanHandler', () => {
         interfaceKey,
       },
       duration: Duration.TwentySeconds,
+    });
+  });
+
+  it('does not rewrite fetching status when the scan is already fetching', async () => {
+    const { handler, confirmationUIController } = setup();
+    jest.mocked(getInterfaceContextIfExists).mockResolvedValue(baseContext);
+
+    await handler.handle(request);
+
+    expect(confirmationUIController.updateConfirmation).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(confirmationUIController.updateConfirmation).toHaveBeenCalledWith({
+      interfaceId,
+      interfaceKey,
+      updatedContext: {
+        ...baseContext,
+        scan,
+        scanFetchStatus: FetchStatus.Fetched,
+      },
     });
   });
 
@@ -206,6 +230,30 @@ describe('RefreshConfirmationSecurityScanHandler', () => {
     const context = {
       ...baseContext,
       preferences: 'invalid',
+    };
+    jest.mocked(getInterfaceContextIfExists).mockResolvedValue(context);
+
+    await handler.handle(request);
+
+    expect(transactionScanService.scanTransaction).not.toHaveBeenCalled();
+    expect(confirmationUIController.updateConfirmation).toHaveBeenCalledWith({
+      interfaceId,
+      interfaceKey,
+      updatedContext: {
+        ...context,
+        scan: null,
+        scanFetchStatus: FetchStatus.Error,
+      },
+    });
+    expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
+  });
+
+  it('marks the scan as error when security scan preferences are malformed', async () => {
+    const { handler, transactionScanService, confirmationUIController } =
+      setup();
+    const context = {
+      ...baseContext,
+      preferences: {},
     };
     jest.mocked(getInterfaceContextIfExists).mockResolvedValue(context);
 

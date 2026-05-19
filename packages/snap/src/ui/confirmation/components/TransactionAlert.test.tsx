@@ -112,6 +112,27 @@ describe('TransactionAlert', () => {
     });
   });
 
+  it('renders warning validation alerts with softer warning copy', () => {
+    const component = TransactionAlert({
+      preferences,
+      validation: {
+        type: 'Warning',
+        reason: 'suspicious_request',
+        description: null,
+      },
+      error: null,
+      scanFetchStatus: FetchStatus.Fetched,
+      showValidationAlert: true,
+      showSimulationError: false,
+    });
+
+    expect(getType(component)).toBe('Banner');
+    expect(getProps(component)).toMatchObject({
+      severity: 'warning',
+      title: 'This request may be risky',
+    });
+  });
+
   it('renders API scan failures as danger banners', () => {
     const component = TransactionAlert({
       preferences,
