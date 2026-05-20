@@ -61,6 +61,7 @@ export const ContextWithPricesStruct = type({
 export type ContextWithPrices = Infer<typeof ContextWithPricesStruct>;
 
 const SecurityScanPreferencesStruct = type({
+  useExternalPricingData: optional(boolean()),
   useSecurityAlerts: boolean(),
   simulateOnChainActions: boolean(),
 });

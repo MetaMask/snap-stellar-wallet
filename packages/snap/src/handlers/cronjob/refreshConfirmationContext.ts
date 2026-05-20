@@ -224,6 +224,9 @@ export class RefreshConfirmationContextHandler extends CronjobBaseHandler<Refres
   }
 
   #shouldFetchPrices(ctx: ConfirmationDataContext): boolean {
+    if (!ctx.preferences.useExternalPricingData) {
+      return false;
+    }
     if (Object.keys(ctx.tokenPrices).length === 0) {
       return false;
     }

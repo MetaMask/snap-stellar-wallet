@@ -60,6 +60,7 @@ describe('RefreshConfirmationContextHandler', () => {
     tokenPrices: { [xlmAssetId]: null },
     tokenPricesFetchStatus: FetchStatus.Fetching,
     preferences: {
+      useExternalPricingData: true,
       useSecurityAlerts: true,
       simulateOnChainActions: true,
     },
@@ -340,6 +341,39 @@ describe('RefreshConfirmationContextHandler', () => {
     expect(scheduleBackgroundEvent).toHaveBeenCalled();
   });
 
+  it('does not fetch prices when external pricing is disabled', async () => {
+    const {
+      handler,
+      priceService,
+      transactionScanService,
+      confirmationUIController,
+    } = setup();
+    const context = {
+      ...baseContext,
+      preferences: {
+        ...baseContext.preferences,
+        useExternalPricingData: false,
+      },
+      tokenPricesFetchStatus: FetchStatus.Fetched,
+    };
+    jest.mocked(getInterfaceContextIfExists).mockResolvedValue(context);
+
+    await handler.handle(request);
+
+    expect(priceService.getSpotPrices).not.toHaveBeenCalled();
+    expect(transactionScanService.scanTransaction).toHaveBeenCalledTimes(1);
+    expect(confirmationUIController.updateConfirmation).toHaveBeenCalledWith({
+      interfaceId,
+      interfaceKey,
+      updatedContext: {
+        ...context,
+        scan: scanResult,
+        scanFetchStatus: FetchStatus.Fetched,
+      },
+    });
+    expect(scheduleBackgroundEvent).toHaveBeenCalled();
+  });
+
   it('writes recovery patches for both sources when neither can be fetched but the UI is mid-flight', async () => {
     const {
       handler,
@@ -439,6 +473,7 @@ describe('RefreshConfirmationContextHandler', () => {
     const context = {
       ...baseContext,
       preferences: {
+        useExternalPricingData: true,
         useSecurityAlerts: false,
         simulateOnChainActions: false,
       },
