@@ -17,8 +17,11 @@ import {
   generateStellarKeyringAccount,
 } from '../account/__mocks__/account.fixtures';
 import { DerivedAccountAddressMismatchException } from '../account/exceptions';
-import { NetworkService } from '../network';
-import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
+import { AccountNotActivatedException, NetworkService } from '../network';
+import {
+  generateStellarAddress,
+  getTestWallet,
+} from '../wallet/__mocks__/wallet.fixtures';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
@@ -29,23 +32,16 @@ describe('OnChainAccountService', () => {
   );
 
   const getNetworkServiceSpies = () => ({
-    getAccountOrNullSpy: jest.spyOn(
-      NetworkService.prototype,
-      'getAccountOrNull',
-    ),
+    getAccountSpy: jest.spyOn(NetworkService.prototype, 'getAccount'),
     loadOnChainAccountSpy: jest.spyOn(
       NetworkService.prototype,
       'loadOnChainAccount',
     ),
-    loadActivatedAccountOrNullSpy: jest.spyOn(
-      NetworkService.prototype,
-      'loadActivatedAccountOrNull',
-    ),
   });
 
   describe('isAccountActivated', () => {
-    it('returns true when getAccountOrNull returns an account', async () => {
-      const { getAccountOrNullSpy } = getNetworkServiceSpies();
+    it('returns true when getAccount returns an account', async () => {
+      const { getAccountSpy } = getNetworkServiceSpies();
       const wallet = getTestWallet({ seed });
       const onChainAcc = createMockAccountWithBalances(
         wallet.address,
@@ -57,7 +53,7 @@ describe('OnChainAccountService', () => {
         KnownCaip2ChainId.Mainnet,
         horizonSource(onChainAcc, KnownCaip2ChainId.Mainnet),
       );
-      getAccountOrNullSpy.mockResolvedValue(onChain);
+      getAccountSpy.mockResolvedValue(onChain);
 
       const { onChainAccountService } = mockOnChainAccountService();
       const result = await onChainAccountService.isAccountActivated({
@@ -68,13 +64,19 @@ describe('OnChainAccountService', () => {
       expect(result).toBe(true);
     });
 
-    it('returns false when getAccountOrNull returns null', async () => {
-      const { getAccountOrNullSpy } = getNetworkServiceSpies();
-      getAccountOrNullSpy.mockResolvedValue(null);
+    it('returns false when getAccount throws AccountNotActivatedException', async () => {
+      const { getAccountSpy } = getNetworkServiceSpies();
+      const accountAddress = generateStellarAddress();
+      getAccountSpy.mockRejectedValue(
+        new AccountNotActivatedException(
+          accountAddress,
+          KnownCaip2ChainId.Mainnet,
+        ),
+      );
 
       const { onChainAccountService } = mockOnChainAccountService();
       const result = await onChainAccountService.isAccountActivated({
-        accountAddress: Keypair.random().publicKey(),
+        accountAddress,
         scope: KnownCaip2ChainId.Mainnet,
       });
 

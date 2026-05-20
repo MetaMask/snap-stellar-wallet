@@ -211,8 +211,8 @@ export class AccountService {
     toIndex: number;
   }): Promise<StellarKeyringAccount[]> {
     const { fromIndex, toIndex } = options;
-    // MetaMask Client is the only caller of this method,
-    // We dont add mutex lock here, because the caller should ensure the requests are piped in order
+    // MetaMask client is the only caller of this method.
+    // We don't add a mutex here; the caller should ensure requests are piped in order.
     const accounts = await this.#accountsRepository.getAll();
     const entropySource =
       options.entropySource ?? (await getDefaultEntropySource());

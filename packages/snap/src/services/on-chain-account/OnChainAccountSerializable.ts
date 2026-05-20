@@ -66,7 +66,7 @@ export type SerializableSlip44SpendableBalance = Infer<
 >;
 
 /**
- * JSON-safe balance rows: numeric fields are decimal strings (stroops). Callers that produce this
+ * JSON-safe asset entries: numeric fields are decimal strings (stroops). Callers that produce this
  * shape (Horizon sync, persisted snap) are expected to supply valid numeric strings; stricter
  * superstruct refinements can be added later if needed.
  */
@@ -80,7 +80,7 @@ export type SerializableSpendableBalance = Infer<
 >;
 
 /**
- * Full binding: ledger meta, all balance rows, and on-ledger native total as a stroops integer string.
+ * Full binding: ledger meta, all asset entries, and on-ledger native total as a stroops integer string.
  * Native slip44 spendable is always recomputed on bind from `rawNativeBalance` + meta via
  * `calculateSpendableBalance` (same as Horizon).
  */
