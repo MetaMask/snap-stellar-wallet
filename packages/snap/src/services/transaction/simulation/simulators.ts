@@ -8,7 +8,6 @@ import {
   effectiveSource,
   getSpendableNative,
   tryParseSep41TransferInvoke,
-  toSep41TokenBalanceMapKey,
 } from './utils';
 import type {
   KnownCaip19ClassicAssetId,
@@ -116,17 +115,20 @@ function validateDebit(params: {
  * @param params.accountId - Destination account id for error reporting.
  * @param params.assetId - Asset being credited.
  * @param params.amount - Amount in smallest units.
+ * @param params.balanceAfterDebit - Optional post-debit balance on the same row (native or trustline) when credit follows a debit on the same account+asset; enables correct limit checks for self-payments and path payments to self.
  */
 function validateCredit(params: {
   account: AccountState;
   accountId: string;
   assetId: ClassicAssetId;
   amount: BigNumber;
+  balanceAfterDebit?: BigNumber;
 }): void {
-  const { account, accountId, assetId, amount } = params;
+  const { account, accountId, assetId, amount, balanceAfterDebit } = params;
 
   if (isSlip44Id(assetId)) {
-    const newNativeBalance = account.nativeRawBalance.plus(amount);
+    const nativeBalance = balanceAfterDebit ?? account.nativeRawBalance;
+    const newNativeBalance = nativeBalance.plus(amount);
     if (newNativeBalance.isGreaterThan(new BigNumber(MAX_INT64))) {
       throw new TransactionValidationException(
         'Payment would exceed maximum int64 balance for destination',
@@ -145,7 +147,8 @@ function validateCredit(params: {
     throw new TrustlineNotAuthorizedException(assetId, accountId);
   }
 
-  const newBalance = line.balance.plus(amount);
+  const trustlineBalance = balanceAfterDebit ?? line.balance;
+  const newBalance = trustlineBalance.plus(amount);
   if (newBalance.isGreaterThan(line.limit)) {
     throw new TransactionValidationException(
       `Payment would exceed trustline limit for asset ${assetId} on destination`,
@@ -224,11 +227,26 @@ export class PaymentOPSimulator implements OperationSimulator {
       assetId,
       amount: payAmt,
     });
+
+    let balanceAfterDebit: BigNumber | undefined;
+    // Special handling for self-payment
+    if (sourceId === destId) {
+      if (isSlip44Id(assetId)) {
+        balanceAfterDebit = source.nativeRawBalance.minus(payAmt);
+      } else {
+        const line = source.trustlines.get(assetId);
+        if (line !== undefined) {
+          balanceAfterDebit = line.balance.minus(payAmt);
+        }
+      }
+    }
+
     validateCredit({
       account: dest,
       accountId: destId,
       assetId,
       amount: payAmt,
+      balanceAfterDebit,
     });
   }
 
@@ -289,11 +307,26 @@ export class PathPaymentOPSimulator implements OperationSimulator {
       assetId: sendAssetId,
       amount: sendAmount,
     });
+
+    let balanceAfterDebit: BigNumber | undefined;
+    // Special handle for path payment to self
+    if (sourceId === destId && sendAssetId === destAssetId) {
+      if (isSlip44Id(sendAssetId) && isSlip44Id(destAssetId)) {
+        balanceAfterDebit = source.nativeRawBalance.minus(sendAmount);
+      } else if (!isSlip44Id(destAssetId)) {
+        const line = source.trustlines.get(destAssetId);
+        if (line !== undefined) {
+          balanceAfterDebit = line.balance.minus(sendAmount);
+        }
+      }
+    }
+
     validateCredit({
       account: dest,
       accountId: destId,
       assetId: destAssetId,
       amount: destAmount,
+      balanceAfterDebit,
     });
   }
 
@@ -409,6 +442,7 @@ export class CreateAccountOPSimulator implements OperationSimulator {
       numSponsoring: 0,
       numSponsored: 0,
       trustlines: new Map(),
+      sep41Balances: new Map(),
     });
   }
 
@@ -562,12 +596,12 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
     // Contract transaction should always be sourced from the user wallet account
     // `getAccount` will throw if the source account is not found in the simulation state,
     // hence, it should protect if the actual source account is not same as user wallet account
-    getAccount(state, sourceId);
+    const senderState = getAccount(state, sourceId);
 
     // handle the SEP-41 transfer operation
     const parsed = tryParseSep41TransferInvoke(op, scope);
     if (parsed === null) {
-      // Not a SEP-41 `transfer`; skip contract-token balance validation (other invokes ignore preloaded map).
+      // Not a SEP-41 `transfer`; skip contract-token balance validation (other invokes ignore SEP-41 rows).
       return;
     }
 
@@ -580,13 +614,10 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
       );
     }
 
-    const sep41TokenBalanceMap = state.preloadedTokenBalance;
-    const onChainBalance = sep41TokenBalanceMap?.get(
-      toSep41TokenBalanceMapKey(sourceId, assetId),
-    );
+    const onChainBalance = senderState.sep41Balances.get(assetId);
     if (onChainBalance === undefined) {
       throw new TransactionValidationException(
-        'SEP-41 transfer requires a preloaded token balance for the sender and contract',
+        'SEP-41 transfer requires a SEP-41 token balance on the sender account snapshot for this contract',
       );
     }
 

@@ -6,8 +6,6 @@ import type {
   KnownCaip2ChainId,
 } from '../../../api';
 
-export type Sep41TokenBalanceMapKey = `${string}-${KnownCaip19Sep41AssetId}`;
-
 /**
  * Trustline row for simulation. `sponsored` mirrors Horizon: non-empty `balance.sponsor` means reserve is sponsored.
  */
@@ -33,6 +31,10 @@ export type AccountState = {
   numSponsoring: number;
   numSponsored: number;
   trustlines: Map<KnownCaip19ClassicAssetId, TrustlineState>;
+  /**
+   * SEP-41 contract token balances from the wallet snapshot (smallest units), keyed by CAIP-19 SEP-41 id.
+   */
+  sep41Balances: Map<KnownCaip19Sep41AssetId, BigNumber>;
 };
 
 /**
@@ -43,10 +45,6 @@ export type SimulationState = {
    * Map of account id to account state.
    */
   accounts: Map<string, AccountState>;
-  /**
-   * Optional map for preloaded SEP-41 token balances.
-   */
-  preloadedTokenBalance?: Map<Sep41TokenBalanceMapKey, BigNumber>;
 };
 
 /**
