@@ -594,6 +594,43 @@ describe('TransactionSimulator', () => {
         }),
       ).toThrow(TrustlineNotAuthorizedException);
     });
+
+    it('succeeds for credit asset self-payment when naive balance+amount would exceed trustline limit', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 1,
+        assets: [
+          {
+            assetType: 'credit_alphanum4',
+            assetCode: 'USDC',
+            assetIssuer: USDC_ISSUER,
+            balance: 99,
+            limit: '100',
+          },
+        ],
+      });
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              source: wallet.address,
+              destination: wallet.address,
+              asset: MOCK_USDC_ASSET,
+              amount: '50',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.Payment],
+        }),
+      ).toHaveLength(2);
+    });
   });
 
   describe('pathPayment', () => {
@@ -626,6 +663,45 @@ describe('TransactionSimulator', () => {
         simulator.simulate(tx, onChainAccount, {
           expectedOPTypes: [SupportedOperations.PathPayment],
           preloadedAccounts: [destOnChainAccount(dest)],
+        }),
+      ).toHaveLength(2);
+    });
+
+    it('succeeds for strict send path to self on same credit asset when naive dest balance+destMin exceeds limit', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 1,
+        assets: [
+          {
+            assetType: 'credit_alphanum4',
+            assetCode: 'USDC',
+            assetIssuer: USDC_ISSUER,
+            balance: 99,
+            limit: '100',
+          },
+        ],
+      });
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'pathPaymentStrictSend',
+            params: {
+              source: wallet.address,
+              sendAsset: MOCK_USDC_ASSET,
+              sendAmount: '40',
+              destination: wallet.address,
+              destAsset: MOCK_USDC_ASSET,
+              destMin: '35',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.PathPayment],
         }),
       ).toHaveLength(2);
     });
@@ -1088,7 +1164,7 @@ describe('TransactionSimulator', () => {
       );
     });
 
-    it('passes preloadedTokenBalance when invoke is SEP-41 transfer and balance covers amount', () => {
+    it('passes when sender on-chain snapshot includes SEP-41 balance covering transfer amount', () => {
       const dest = Keypair.random().publicKey();
       const sorobanTx = buildSep41TransferTransaction({
         source: SOROBAN_INVOKE_SOURCE,
@@ -1103,19 +1179,15 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
+      loaded.setAsset(SEP41_ASSET_MAINNET, {
+        balance: new BigNumber(1_000_000),
+        symbol: 'TOK',
+      });
 
-      expect(
-        simulator.simulate(sorobanTx, loaded, {
-          preloadedTokenBalance: {
-            [SOROBAN_INVOKE_SOURCE]: {
-              [SEP41_ASSET_MAINNET]: new BigNumber(1_000_000),
-            },
-          },
-        }),
-      ).toHaveLength(2);
+      expect(simulator.simulate(sorobanTx, loaded)).toHaveLength(2);
     });
 
-    it('throws InsufficientBalanceException when SEP-41 transfer amount exceeds preloaded balance', () => {
+    it('throws InsufficientBalanceException when SEP-41 transfer amount exceeds sender snapshot balance', () => {
       const dest = Keypair.random().publicKey();
       const sorobanTx = buildSep41TransferTransaction({
         source: SOROBAN_INVOKE_SOURCE,
@@ -1131,18 +1203,17 @@ describe('TransactionSimulator', () => {
         assets: [],
       });
 
-      expect(() =>
-        simulator.simulate(sorobanTx, loaded, {
-          preloadedTokenBalance: {
-            [SOROBAN_INVOKE_SOURCE]: {
-              [SEP41_ASSET_MAINNET]: new BigNumber(5),
-            },
-          },
-        }),
-      ).toThrow(InsufficientBalanceException);
+      loaded.setAsset(SEP41_ASSET_MAINNET, {
+        balance: new BigNumber(5),
+        symbol: 'TOK',
+      });
+
+      expect(() => simulator.simulate(sorobanTx, loaded)).toThrow(
+        InsufficientBalanceException,
+      );
     });
 
-    it('throws when preloadedTokenBalance does not match SEP-41 transfer sender or contract', () => {
+    it('throws when SEP-41 balance exists only on a different preloaded account, not the sender', () => {
       const dest = Keypair.random().publicKey();
       const sorobanTx = buildSep41TransferTransaction({
         source: SOROBAN_INVOKE_SOURCE,
@@ -1158,17 +1229,24 @@ describe('TransactionSimulator', () => {
         assets: [],
       });
       const other = Keypair.random().publicKey();
+      const otherLoaded = onChainFromMockBalances(other, '1', {
+        nativeBalance: 50,
+        subentryCount: 0,
+        assets: [],
+      });
+      otherLoaded.setAsset(SEP41_ASSET_MAINNET, {
+        balance: new BigNumber(100),
+        symbol: 'TOK',
+      });
 
       expect(() =>
         simulator.simulate(sorobanTx, loaded, {
-          preloadedTokenBalance: {
-            [other]: { [SEP41_ASSET_MAINNET]: new BigNumber(100) },
-          },
+          preloadedAccounts: [otherLoaded],
         }),
       ).toThrow(TransactionValidationException);
     });
 
-    it('throws when SEP-41 transfer has no preloaded entry for sender and contract', () => {
+    it('throws when SEP-41 transfer has no SEP-41 balance row for sender and contract on snapshot', () => {
       const dest = Keypair.random().publicKey();
       const sorobanTx = buildSep41TransferTransaction({
         source: SOROBAN_INVOKE_SOURCE,
@@ -1189,23 +1267,19 @@ describe('TransactionSimulator', () => {
       );
     });
 
-    it('ignores preloadedTokenBalance when invoke is not a SEP-41 transfer', () => {
+    it('succeeds for non-SEP-41 invoke even when sender snapshot carries an unrelated SEP-41 balance row', () => {
       const sorobanTx = buildSoleNonSep41InvokeTx();
       const loaded = onChainFromMockBalances(SOROBAN_INVOKE_SOURCE, '1', {
         nativeBalance: 50,
         subentryCount: 0,
         assets: [],
       });
+      loaded.setAsset(SEP41_ASSET_MAINNET, {
+        balance: new BigNumber(1_000_000),
+        symbol: 'TOK',
+      });
 
-      expect(
-        simulator.simulate(sorobanTx, loaded, {
-          preloadedTokenBalance: {
-            [SOROBAN_INVOKE_SOURCE]: {
-              [SEP41_ASSET_MAINNET]: new BigNumber(1_000_000),
-            },
-          },
-        }),
-      ).toHaveLength(2);
+      expect(simulator.simulate(sorobanTx, loaded)).toHaveLength(2);
     });
   });
 

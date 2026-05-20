@@ -146,7 +146,7 @@ export class OnChainAccountSynchronizeService {
         });
       } catch (error: unknown) {
         this.#logger.logErrorWithDetails(
-          'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 token rows where needed',
+          'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 asset entries where needed',
           error,
         );
       }
@@ -201,10 +201,10 @@ export class OnChainAccountSynchronizeService {
         );
 
         // Fill gaps from the last saved snapshot: SEP-41 backfill + classic removal tombstones.
-        // SEP-41: if step 2 failed completely, copy every missing SEP-41 row; if step 2 ran,
-        // copy only rows for token ids still unresolved. Classic: re-inject tombstone rows when
+        // SEP-41: if step 2 failed completely, copy every missing SEP-41 entry; if step 2 ran,
+        // copy only entries for token ids still unresolved. Classic: re-inject tombstone entries when
         // Horizon dropped a trustline that persisted state still had (or limit 0 tombstone).
-        this.#mergePersistedRowsIntoOnChainAccount(
+        this.#mergePersistedEntriesIntoOnChainAccount(
           synchronizedOnChainAccount,
           stateSnapshotOnChainAccount,
           unresolvedSep41AssetIds,
@@ -363,10 +363,10 @@ export class OnChainAccountSynchronizeService {
    * Applies fetched SEP-41 balances for one account and returns unresolved token ids.
    *
    * Returning `undefined` means the whole SEP-41 fetch step failed; merge will copy any missing
-   * persisted SEP-41 rows. Returning a set means the fetch step succeeded and merge should only
-   * restore rows for token ids still unresolved here.
+   * persisted SEP-41 entries. Returning a set means the fetch step succeeded and merge should only
+   * restore entries for token ids still unresolved here.
    *
-   * @param onChainAccount - In-memory account after classic Horizon load; receives SEP-41 rows including zero balances.
+   * @param onChainAccount - In-memory account after classic Horizon load; receives SEP-41 entries including zero balances.
    * @param sep41BalanceFetchResult - Batch balance/symbol data from the SEP-41 step, or `null` if that step failed.
    * @returns Token ids that could not be resolved to a balance (for merge from last snapshot), or `undefined` if the fetch step did not run.
    */
@@ -395,7 +395,7 @@ export class OnChainAccountSynchronizeService {
       const { symbol } = assetMetadata;
 
       // No balance value for this SEP-41 token: treat as a fetch error (not the same as balance zero).
-      // Mark unresolved so the merge step can reuse the last snapshot row.
+      // Mark unresolved so the merge step can reuse the last snapshot entry.
       if (balance === null || balance === undefined) {
         unresolvedSep41AssetIds.add(assetId);
         continue;
@@ -421,22 +421,22 @@ export class OnChainAccountSynchronizeService {
   }
 
   /**
-   * Copies selected rows from the last saved snapshot onto `onChainAccount` when that in-memory
-   * on-chain view is missing them after Horizon + SEP-41 fetch.
+   * Copies selected asset entries from the last saved snapshot onto `onChainAccount` when that
+   * in-memory on-chain view is missing them after Horizon + SEP-41 fetch.
    *
    * **SEP-41:** If `unresolvedSep41AssetIds` is omitted (whole SEP-41 step failed), backfill every
-   * missing SEP-41 row from `persisted`. If it is a set (step ran), backfill only ids still in the
-   * set and missing on `onChainAccount`. Rows already on `onChainAccount` are unchanged.
+   * missing SEP-41 entry from `persisted`. If it is a set (step ran), backfill only ids still in the
+   * set and missing on `onChainAccount`. Entries already on `onChainAccount` are unchanged.
    *
    * **Classic:** When Horizon omits a trustline still present in `persisted` (or a stored
-   * tombstone with `limit` 0), re-inject a tombstone row so state and keyring payloads stay aligned.
+   * tombstone with `limit` 0), re-inject a tombstone entry so state and keyring payloads stay aligned.
    *
    * @param onChainAccount - In-memory account after Horizon load and SEP-41 application for this run.
    * @param persisted - Same account’s snapshot from before this sync (`null` if none).
    * @param unresolvedSep41AssetIds - When omitted, backfill all missing SEP-41 from snapshot; when a set, only those token ids when still missing on `onChainAccount`.
    * @returns The same `onChainAccount` instance (mutated).
    */
-  #mergePersistedRowsIntoOnChainAccount(
+  #mergePersistedEntriesIntoOnChainAccount(
     onChainAccount: OnChainAccount,
     persisted: OnChainAccount | null,
     unresolvedSep41AssetIds?: Set<KnownCaip19Sep41AssetId>,
@@ -447,8 +447,8 @@ export class OnChainAccountSynchronizeService {
 
     const shouldBackfillAllSep41 = unresolvedSep41AssetIds === undefined;
 
-    for (const assetId of persisted.assetIds) {
-      if (onChainAccount.hasAsset(assetId)) {
+    for (const assetId of persisted.rawAssetIds) {
+      if (onChainAccount.getRawAsset(assetId) !== undefined) {
         continue;
       }
 
@@ -461,7 +461,7 @@ export class OnChainAccountSynchronizeService {
           continue;
         }
 
-        const assetBalance = persisted.getAsset(assetId);
+        const assetBalance = persisted.getRawAsset(assetId);
         if (assetBalance === undefined) {
           continue;
         }
@@ -478,19 +478,24 @@ export class OnChainAccountSynchronizeService {
         continue;
       }
 
-      const row = persisted.getAsset(assetId);
-      if (row?.limit === undefined || row.address === undefined) {
+      const persistedEntry = persisted.getRawAsset(assetId);
+      if (
+        persistedEntry?.limit === undefined ||
+        persistedEntry.address === undefined
+      ) {
         continue;
       }
 
-      const authorized = row.authorized ?? true;
+      const authorized = persistedEntry.authorized ?? true;
       onChainAccount.setAsset(assetId, {
         balance: new BigNumber(0),
-        symbol: row.symbol,
+        symbol: persistedEntry.symbol,
         limit: new BigNumber(0),
-        address: row.address,
+        address: persistedEntry.address,
         authorized,
-        ...(row.sponsored === undefined ? {} : { sponsored: row.sponsored }),
+        ...(persistedEntry.sponsored === undefined
+          ? {}
+          : { sponsored: persistedEntry.sponsored }),
       });
     }
 
@@ -514,8 +519,8 @@ export class OnChainAccountSynchronizeService {
   } {
     const nativeAssetId = getSlip44AssetId(synchronizedOnChainAccount.scope);
     const assetIds = new Set<KnownCaip19AssetIdOrSlip44Id>([
-      ...(stateSnapshotOnChainAccount?.assetIds ?? []),
-      ...synchronizedOnChainAccount.assetIds,
+      ...(stateSnapshotOnChainAccount?.rawAssetIds ?? []),
+      ...synchronizedOnChainAccount.rawAssetIds,
     ]);
 
     const balanceChanges: Record<string, { unit: string; amount: string }> = {};
@@ -523,11 +528,11 @@ export class OnChainAccountSynchronizeService {
     const removedAssets: AccountAssetListDelta['removed'] = [];
 
     for (const assetId of assetIds) {
-      const latestStateRow =
+      const latestStateEntry =
         stateSnapshotOnChainAccount === null
           ? undefined
-          : stateSnapshotOnChainAccount.getAsset(assetId);
-      const onChainRow = synchronizedOnChainAccount.getAsset(assetId);
+          : stateSnapshotOnChainAccount.getRawAsset(assetId);
+      const onChainEntry = synchronizedOnChainAccount.getRawAsset(assetId);
 
       // Always send the full balance snapshot, even when values did not change.
       // This lets the client recover if it missed a previous balances event.
@@ -550,17 +555,20 @@ export class OnChainAccountSynchronizeService {
       //   so payload includes XLM=9, USDC=30, SOLBTC=0.
       //   Classic trustlines removed on chain are persisted as internal tombstones (`limit` 0),
       //   so sync 4 can still send balance `0` for those asset ids if the client missed earlier events.
-      balanceChanges[assetId as string] = this.#buildBalancePayloadRow(
-        onChainRow,
-        latestStateRow,
+      balanceChanges[assetId as string] = this.#buildBalancePayloadFromEntries(
+        onChainEntry,
+        latestStateEntry,
       );
 
       if (assetId === nativeAssetId) {
         continue;
       }
 
-      const isVisibleFromState = this.#isAssetVisible(assetId, latestStateRow);
-      const isVisibleFromOnChain = this.#isAssetVisible(assetId, onChainRow);
+      const isVisibleFromState = this.#isAssetVisible(
+        assetId,
+        latestStateEntry,
+      );
+      const isVisibleFromOnChain = this.#isAssetVisible(assetId, onChainEntry);
       // Add/remove is based on visibility transition between snapshots.
       if (isVisibleFromOnChain && !isVisibleFromState) {
         addedAssets.push(assetId);
@@ -583,36 +591,36 @@ export class OnChainAccountSynchronizeService {
     };
   }
 
-  #buildBalancePayloadRow(
-    onChainRow: SpendableBalance | undefined,
-    latestStateRow: SpendableBalance | undefined,
+  #buildBalancePayloadFromEntries(
+    onChainEntry: SpendableBalance | undefined,
+    latestStateEntry: SpendableBalance | undefined,
   ): { unit: string; amount: string } {
     return {
-      // When an asset was removed this sync, `onChainRow` may be missing or be a classic tombstone
+      // When an asset was removed this sync, `onChainEntry` may be missing or be a classic tombstone
       // (`limit` 0). Use the last known symbol from the persisted snapshot when needed.
-      unit: onChainRow?.symbol ?? latestStateRow?.symbol ?? '',
+      unit: onChainEntry?.symbol ?? latestStateEntry?.symbol ?? '',
       amount: toDisplayBalance(
-        onChainRow?.balance ?? new BigNumber(0),
-        onChainRow?.decimals ?? latestStateRow?.decimals,
+        onChainEntry?.balance ?? new BigNumber(0),
+        onChainEntry?.decimals ?? latestStateEntry?.decimals,
       ),
     };
   }
 
   #isAssetVisible(
     assetId: KnownCaip19AssetIdOrSlip44Id,
-    row: SpendableBalance | undefined,
+    entry: SpendableBalance | undefined,
   ): boolean {
-    if (!row) {
+    if (!entry) {
       return false;
     }
     if (isSep41Id(assetId)) {
-      return !row.balance.isZero();
+      return !entry.balance.isZero();
     }
     if (isClassicAssetId(assetId)) {
-      if (row.limit === undefined) {
+      if (entry.limit === undefined) {
         return false;
       }
-      return row.limit.gt(0);
+      return entry.limit.gt(0);
     }
     return true;
   }

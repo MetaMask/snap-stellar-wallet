@@ -6,12 +6,13 @@ import {
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { groupBy } from 'lodash';
 
+import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
+import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
 import type { TransactionBuilder } from './TransactionBuilder';
 import type { TransactionRepository } from './TransactionRepository';
 import type { KnownCaip19ClassicAssetId, KnownCaip2ChainId } from '../../api';
-import { BASE_FEE_CACHE_TTL_MILLISECONDS } from '../../constants';
-import { getSnapProvider, type Serializable } from '../../utils';
+import { getSnapProvider } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account/api';
@@ -25,10 +26,6 @@ import {
   type TransactionSimulatorOptions,
 } from './TransactionSimulator';
 import { assertTransactionScope } from './utils';
-import type { ICache } from '../cache';
-import { useCache } from '../cache';
-import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
-import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 
 export class TransactionService {
   readonly #logger: ILogger;
@@ -41,45 +38,32 @@ export class TransactionService {
 
   readonly #keyringTransactionBuilder: KeyringTransactionBuilder;
 
-  readonly #cache: ICache<Serializable>;
-
   constructor({
     logger,
     transactionRepository,
     networkService,
     transactionBuilder,
-    cache,
   }: {
     logger: ILogger;
     transactionRepository: TransactionRepository;
     networkService: NetworkService;
     transactionBuilder: TransactionBuilder;
-    cache: ICache<Serializable>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🧾 TransactionService]');
     this.#transactionRepository = transactionRepository;
     this.#networkService = networkService;
     this.#transactionBuilder = transactionBuilder;
     this.#keyringTransactionBuilder = new KeyringTransactionBuilder();
-    this.#cache = cache;
   }
 
   /**
    * Gets the base fee for a transaction.
-   * Results are cached for {@link BASE_FEE_CACHE_TTL_MILLISECONDS}.
    *
    * @param scope - The CAIP-2 chain ID.
    * @returns A promise that resolves to the base fee.
    */
   async getBaseFee(scope: KnownCaip2ChainId): Promise<BigNumber> {
-    return useCache(
-      this.#networkService.getBaseFee.bind(this.#networkService),
-      this.#cache,
-      {
-        functionName: 'TransactionService:getBaseFee',
-        ttlMilliseconds: BASE_FEE_CACHE_TTL_MILLISECONDS,
-      },
-    )(scope);
+    return this.#networkService.getBaseFeeWithCache(scope);
   }
 
   /**

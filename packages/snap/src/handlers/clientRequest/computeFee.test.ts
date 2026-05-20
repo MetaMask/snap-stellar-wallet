@@ -27,17 +27,6 @@ import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { logger } from '../../utils/logger';
 import { AccountResolver } from '../accountResolver';
 
-jest.mock('../../config', () => ({
-  AppConfig: {
-    api: {
-      tokenApi: {
-        baseUrl: 'https://example.com',
-        chunkSize: 20,
-      },
-    },
-    selectedNetwork: 'stellar:pubnet',
-  },
-}));
 jest.mock('../../utils/logger');
 
 describe('ComputeFeeHandler', () => {

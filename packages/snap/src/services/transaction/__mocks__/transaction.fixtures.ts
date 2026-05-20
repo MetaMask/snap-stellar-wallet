@@ -25,7 +25,8 @@ import { TransactionRepository } from '../TransactionRepository';
 import { TransactionService } from '../TransactionService';
 
 export const createMockTransactionService = () => {
-  const networkService = new NetworkService({ logger });
+  const { cache } = createMemoryCache();
+  const networkService = new NetworkService({ logger, cache });
   const transactionBuilder = new TransactionBuilder({ logger });
   const transactionService = new TransactionService({
     logger,
@@ -37,7 +38,6 @@ export const createMockTransactionService = () => {
         },
       }),
     ),
-    cache: createMemoryCache().cache,
     networkService,
     transactionBuilder,
   });

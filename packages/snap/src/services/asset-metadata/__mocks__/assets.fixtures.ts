@@ -2,7 +2,8 @@ import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';
 import { AssetType, KnownCaip2ChainId } from '../../../api';
 import { NATIVE_ASSET_NAME, NATIVE_ASSET_SYMBOL } from '../../../constants';
 import { getSlip44AssetId } from '../../../utils/caip';
-import { logger } from '../../../utils/logger';
+import { logger, noOpLogger } from '../../../utils/logger';
+import { InMemoryCache } from '../../cache';
 import { NetworkService } from '../../network';
 import { State } from '../../state';
 import type {
@@ -106,7 +107,10 @@ export const generateMockKeyringAssetMetadata =
 
 export const createMockAssetMetadataService = () => {
   const service = new AssetMetadataService({
-    networkService: new NetworkService({ logger }),
+    networkService: new NetworkService({
+      logger,
+      cache: new InMemoryCache(noOpLogger),
+    }),
     assetMetadataRepository: new AssetMetadataRepository(
       new State({
         encrypted: false,
