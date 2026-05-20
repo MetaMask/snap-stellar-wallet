@@ -9,12 +9,13 @@ import { TrackTransactionHandler } from './trackTransaction';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
+import { InMemoryCache } from '../../services/cache';
 import { NetworkService } from '../../services/network';
 import { TransactionPollException } from '../../services/network/exceptions';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { TransactionService } from '../../services/transaction';
 import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
-import { logger } from '../../utils/logger';
+import { logger, noOpLogger } from '../../utils/logger';
 import { scheduleBackgroundEvent } from '../../utils/snap';
 
 jest.mock('../../utils/logger');
@@ -94,12 +95,14 @@ describe('TrackTransactionHandler', () => {
 
     findKeyringTransactionByTransactionId.mockResolvedValue(undefined);
 
+    const networkCache = new InMemoryCache(noOpLogger);
+
     const handler = new TrackTransactionHandler({
       logger,
-      networkService: new NetworkService({ logger }),
+      networkService: new NetworkService({ logger, cache: networkCache }),
       onChainAccountService: new OnChainAccountService({
         logger,
-        networkService: new NetworkService({ logger }),
+        networkService: new NetworkService({ logger, cache: networkCache }),
         onChainAccountRepository: {} as never,
         assetMetadataService: {} as never,
       }),

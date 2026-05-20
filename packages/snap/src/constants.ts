@@ -59,9 +59,6 @@ export const NATIVE_ASSET_NAME = 'Lumen';
  */
 export const BASE_FEE = 100;
 
-/** TTL for caching Stellar network base fee lookups (milliseconds). */
-export const BASE_FEE_CACHE_TTL_MILLISECONDS = 60_000;
-
 /**
  * The maximum int64 balance for the Stellar network.
  *

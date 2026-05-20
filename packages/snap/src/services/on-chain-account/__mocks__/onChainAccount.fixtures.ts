@@ -3,10 +3,11 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { Account } from '@stellar/stellar-sdk';
 
 import type { KnownCaip2ChainId } from '../../../api';
-import { logger } from '../../../utils/logger';
+import { logger, noOpLogger } from '../../../utils/logger';
 import { AccountService } from '../../account/AccountService';
 import { AccountsRepository } from '../../account/AccountsRepository';
 import { createMockAssetMetadataService } from '../../asset-metadata/__mocks__/assets.fixtures';
+import { InMemoryCache } from '../../cache';
 import { NetworkService } from '../../network';
 import { State } from '../../state/State';
 import { WalletService } from '../../wallet';
@@ -167,6 +168,7 @@ export function mockOnChainAccountService() {
   });
   const networkService = new NetworkService({
     logger,
+    cache: new InMemoryCache(noOpLogger),
   });
   const onChainAccountRepository = new OnChainAccountRepository(state);
   const { service: assetMetadataService } = createMockAssetMetadataService();
