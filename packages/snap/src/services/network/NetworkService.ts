@@ -753,8 +753,9 @@ export class NetworkService {
         ttlMilliseconds: AppConfig.cache.ttlMilliseconds.simulateTransaction,
         refreshCache,
         generateCacheKey: (functionName: string, _args: Serializable[]) => {
-          // Simulation result for Soroban Contract token transfer is only impacted by:
-          // the assetId, fromAccountId, toAccountId, and scope.
+          // This cache is intended for preflight/fee estimation only. The returned XDR
+          // may contain stale transaction fields such as amount or sequence number.
+          // Final signing/submission must call this with refreshCache: true.
           return `${functionName}:${assetId}:${fromAccountId}:${toAccountId}:${scope}`;
         },
       },
