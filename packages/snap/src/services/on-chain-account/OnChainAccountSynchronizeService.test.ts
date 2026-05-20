@@ -669,7 +669,8 @@ describe('OnChainAccountSynchronizeService', () => {
     // Trustline removal happened on sync 2 and was missed by client.
     // Classic removals persist as tombstone entries (`limit` 0), so sync 4 still sends balance 0.
     expect(simulatedClientBalances[USDC_CLASSIC]?.amount).toBe('0');
-    // SEP-41 zero entries are persisted and continue to be sent, so sync 4 corrects the client.
+    // SEP-41 zero entries are persisted and continue to be sent by sync balance update events,
+    // so sync 4 corrects the client if it missed a previous update.
     expect(simulatedClientBalances[sep41Id]).toStrictEqual({
       unit: 'USDC',
       amount: '0',
