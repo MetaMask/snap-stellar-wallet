@@ -60,6 +60,8 @@ export type MockAssetLine = {
   balance: number;
   /** Horizon `is_authorized`; defaults to true when omitted. */
   isAuthorized?: boolean;
+  /** Horizon trustline `limit` string; defaults to max trust when omitted. */
+  limit?: string;
 };
 
 export type MockAccountWithBalancesData = {
@@ -115,7 +117,7 @@ export const createMockAccountWithBalances = (
       this.balances = [
         ...inputAssets.map((asset) => ({
           balance: asset.balance.toString(),
-          limit: '922337203685.4775807',
+          limit: asset.limit ?? '922337203685.4775807',
           buying_liabilities: '0.0000000',
           selling_liabilities: '0.0000000',
           asset_type: asset.assetType,
@@ -163,7 +165,9 @@ export function mockOnChainAccountService() {
     accountsRepository: new AccountsRepository(state),
     walletService,
   });
-  const networkService = new NetworkService({ logger });
+  const networkService = new NetworkService({
+    logger,
+  });
   const onChainAccountRepository = new OnChainAccountRepository(state);
   const { service: assetMetadataService } = createMockAssetMetadataService();
   const onChainAccountService = new OnChainAccountService({
