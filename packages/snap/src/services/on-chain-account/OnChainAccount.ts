@@ -32,6 +32,7 @@ import {
   getSlip44AssetId,
   isClassicAssetId,
   isSep41Id,
+  isSlip44Id,
   toCaip19ClassicAssetId,
   toSmallestUnit,
 } from '../../utils';
@@ -125,22 +126,40 @@ export class OnChainAccount {
   }
 
   /**
-   * Checks if the account has a balance for a given asset id.
+   * Whether the asset is visible for keyring / client flows (active trustline, positive SEP-41, or native).
    *
    * @param assetId - The asset id to check.
-   * @returns `true` if the account has a balance for the given asset id, `false` otherwise.
+   * @returns `true` when {@link getAsset} would return an entry, `false` otherwise.
    */
   hasAsset(assetId: KnownCaip19AssetIdOrSlip44Id): boolean {
-    return this.#balances.has(assetId);
+    return this.getAsset(assetId) !== undefined;
   }
 
   /**
-   * Gets the balance for a given asset id.
+   * Visible asset entry for keyring, sends, and trustline UX.
+   *
+   * Native slip44 entries are always returned when stored. Classic entries require `limit > 0`.
+   * SEP-41 entries require `balance > 0`. Tombstones and zero-balance SEP-41 entries are omitted.
    *
    * @param assetId - The asset id to get the balance for.
-   * @returns A shallow copy of the row, or `undefined` when this account has no balance for the id.
+   * @returns A shallow copy of the entry, or `undefined` when the asset is not visible.
    */
   getAsset(
+    assetId: KnownCaip19AssetIdOrSlip44Id,
+  ): SpendableBalance | undefined {
+    return this.#getVisibleAsset(assetId);
+  }
+
+  /**
+   * Stored asset entry from the in-memory map, with no visibility filter.
+   *
+   * Pairs with {@link rawAssetIds}. Use {@link getAsset} for keyring / client flows. Includes
+   * tombstones and zero-balance SEP-41 entries that {@link getAsset} omits.
+   *
+   * @param assetId - The asset id to look up.
+   * @returns A shallow copy of the entry, or `undefined` when nothing is stored for the id.
+   */
+  getRawAsset(
     assetId: KnownCaip19AssetIdOrSlip44Id,
   ): SpendableBalance | undefined {
     const entry = this.#balances.get(assetId);
@@ -150,29 +169,48 @@ export class OnChainAccount {
     return { ...entry };
   }
 
-  /**
-   * Sets or replaces a non-native balance row: SEP-41 contract token or classic trustline
-   * (including internal removal tombstones with `limit` 0).
-   *
-   * @param assetId - SEP-41 or classic CAIP-19 id (not slip44 native).
-   * @param balanceEntry - Row stored in the in-memory balance map.
-   */
-  setAsset(
-    assetId: KnownCaip19Sep41AssetId | KnownCaip19ClassicAssetId,
-    balanceEntry: SpendableBalance,
-  ): void {
-    this.#balances.set(assetId, balanceEntry);
+  #getVisibleAsset(
+    assetId: KnownCaip19AssetIdOrSlip44Id,
+  ): SpendableBalance | undefined {
+    const entry = this.#balances.get(assetId);
+    if (entry === undefined) {
+      return undefined;
+    }
+
+    if (
+      isSlip44Id(assetId) ||
+      (isClassicAssetId(assetId) && entry.limit?.gt(0)) ||
+      (isSep41Id(assetId) && entry.balance.gt(0))
+    ) {
+      return { ...entry };
+    }
+
+    return undefined;
   }
 
   /**
-   * Classic Stellar trustline asset ids (CAIP-19) that have a balance row with a limit greater than 0.
+   * Sets or replaces a non-native asset entry: SEP-41 contract token or classic trustline
+   * (including internal removal tombstones with `limit` 0).
+   *
+   * @param assetId - SEP-41 or classic CAIP-19 id (not slip44 native).
+   * @param assetEntry - Entry stored in the in-memory asset map.
+   */
+  setAsset(
+    assetId: KnownCaip19Sep41AssetId | KnownCaip19ClassicAssetId,
+    assetEntry: SpendableBalance,
+  ): void {
+    this.#balances.set(assetId, assetEntry);
+  }
+
+  /**
+   * Classic Stellar trustline asset ids (CAIP-19) with a stored entry whose limit is greater than 0.
    *
    * @returns Asset ids for classic trustlines.
    */
   get classicTrustlineAssetIds(): KnownCaip19ClassicAssetId[] {
     const ids: KnownCaip19ClassicAssetId[] = [];
-    for (const [assetId, row] of this.#balances) {
-      if (isClassicAssetId(assetId) && row.limit?.gt(0) === true) {
+    for (const [assetId, entry] of this.#balances) {
+      if (isClassicAssetId(assetId) && entry.limit?.gt(0) === true) {
         ids.push(assetId);
       }
     }
@@ -180,17 +218,28 @@ export class OnChainAccount {
   }
 
   /**
-   * Gets all asset ids for the on-chain account.
+   * All asset ids stored in the in-memory map, including tombstones and zero-balance SEP-41 entries.
    *
-   * @returns All asset ids for the on-chain account.
+   * @returns Every bound asset id (native slip44 plus non-native entries).
    */
-  get assetIds(): KnownCaip19AssetIdOrSlip44Id[] {
+  get rawAssetIds(): KnownCaip19AssetIdOrSlip44Id[] {
     return Array.from(this.#balances.keys());
   }
 
   /**
+   * Asset ids that pass the same visibility rules as {@link getAsset}.
+   *
+   * @returns Visible asset ids for keyring asset listing.
+   */
+  get assetIds(): KnownCaip19AssetIdOrSlip44Id[] {
+    return Array.from(this.#balances.keys()).filter((assetId) => {
+      return this.#getVisibleAsset(assetId) !== undefined;
+    });
+  }
+
+  /**
    * Native (XLM) balance available to spend after minimum reserve and trustline reserves, in stroops.
-   * Sourced from the bound native slip44 row (set on full bind from `rawNativeBalance` + meta).
+   * Sourced from the bound native slip44 entry (set on full bind from `rawNativeBalance` + meta).
    *
    * @returns Spendable native balance in stroops.
    * @throws {OnChainAccountBalanceNotAvailableException} When native balance is not bound.
@@ -238,7 +287,7 @@ export class OnChainAccount {
   /**
    * Snapshot for persistence: returns a **full** payload when meta and on-ledger native total are
    * bound; otherwise returns a **minimal** payload (`accountId`, `sequenceNumber`, `scope` only).
-   * Full snapshots put native total in `rawNativeBalance` (stroops string); `balances` is only store non-native rows (classic + SEP-41), each with string numerics for JSON.
+   * Full snapshots put native total in `rawNativeBalance` (stroops string); `balances` stores non-native asset entries (classic + SEP-41), each with string numerics for JSON.
    *
    * @returns Full or minimal serializable shape for this binding.
    */
@@ -269,17 +318,17 @@ export class OnChainAccount {
       if (isClassicAssetId(assetId)) {
         if (entry.limit === undefined) {
           throw new OnChainAccountException(
-            `Classic balance row missing limit for asset ${assetId}`,
+            `Classic asset entry missing limit for asset ${assetId}`,
           );
         }
         if (entry.address === undefined) {
           throw new OnChainAccountException(
-            `Classic balance row missing address for asset ${assetId}`,
+            `Classic asset entry missing address for asset ${assetId}`,
           );
         }
         if (entry.authorized === undefined) {
           throw new OnChainAccountException(
-            `Classic balance row missing authorized for asset ${assetId}`,
+            `Classic asset entry missing authorized for asset ${assetId}`,
           );
         }
         balances.push(
@@ -440,7 +489,7 @@ export class OnChainAccount {
 
   #bindFromSerializable(data: OnChainAccountSerializable): void {
     if (OnChainAccountSerializableFullStruct.is(data)) {
-      const { meta, balances: rows, scope } = data;
+      const { meta, balances: assetEntries, scope } = data;
       this.#subentryCount = meta.subentryCount;
       this.#numSponsoring = meta.numSponsoring;
       this.#numSponsored = meta.numSponsored;
@@ -458,22 +507,22 @@ export class OnChainAccount {
         symbol: NATIVE_ASSET_SYMBOL,
       });
 
-      rows.forEach((row) => {
+      assetEntries.forEach((assetEntry) => {
         // native asset is handled separately above
-        if (row.assetId === nativeId) {
+        if (assetEntry.assetId === nativeId) {
           return;
         }
         // check if asset id already exists in the balances map
-        if (this.#balances.has(row.assetId)) {
+        if (this.#balances.has(assetEntry.assetId)) {
           throw new OnChainAccountException(
             'Asset id already exists in the balances map',
           );
         }
 
-        if (SerializableClassicSpendableBalanceStruct.is(row)) {
+        if (SerializableClassicSpendableBalanceStruct.is(assetEntry)) {
           const { balance, symbol, limit, address, authorized, sponsored } =
-            row;
-          this.#balances.set(row.assetId, {
+            assetEntry;
+          this.#balances.set(assetEntry.assetId, {
             balance: new BigNumber(balance),
             symbol,
             limit: new BigNumber(limit),
@@ -481,17 +530,17 @@ export class OnChainAccount {
             authorized,
             ...(sponsored === undefined ? {} : { sponsored }),
           });
-        } else if (SerializableSep41SpendableBalanceStruct.is(row)) {
+        } else if (SerializableSep41SpendableBalanceStruct.is(assetEntry)) {
           const { balance, symbol, decimals } =
-            SerializableSep41SpendableBalanceStruct.create(row);
-          this.#balances.set(row.assetId, {
+            SerializableSep41SpendableBalanceStruct.create(assetEntry);
+          this.#balances.set(assetEntry.assetId, {
             balance: new BigNumber(balance),
             symbol,
             decimals,
           });
         } else {
           throw new OnChainAccountException(
-            `Unsupported balance row for asset: ${String(row.assetId)}`,
+            `Unsupported asset entry for asset: ${String(assetEntry.assetId)}`,
           );
         }
       });

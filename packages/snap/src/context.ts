@@ -150,7 +150,6 @@ const keyringHandler = new KeyringHandler({
   accountService,
   onChainAccountService,
   transactionService,
-  assetMetadataService,
   handlers: keyringMethodHandlers,
 });
 
