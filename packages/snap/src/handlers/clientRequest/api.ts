@@ -15,6 +15,7 @@ import {
   nonempty,
   integer,
   min,
+  coerce,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
@@ -42,6 +43,7 @@ export enum ClientRequestMethod {
   /** -------------------------------- Wallet Standard -------------------------------- */
   OnAddressInput = 'onAddressInput',
   OnAmountInput = 'onAmountInput',
+  ConfirmSend = 'confirmSend',
   // Standard multichain workflow for bridge
   SignAndSendTransaction = 'signAndSendTransaction',
   ComputeFee = 'computeFee',
@@ -231,6 +233,63 @@ export const OnAmountInputJsonRpcResponseStruct = object({
   ),
 });
 
+const ConfirmSendParamsStruct = object({
+  fromAccountId: UuidStruct,
+  toAddress: StellarAddressStruct,
+  assetId: union([
+    KnownCaip19ClassicAssetStruct,
+    KnownCaip19Sep41AssetStruct,
+    KnownCaip19Slip44IdStruct,
+  ]),
+  amount: ValidAmountStruct,
+});
+
+/**
+ * Validation struct for the confirmSend JSON-RPC request.
+ * Coerces the request params to the output struct.
+ */
+export const ConfirmSendJsonRpcRequestStruct = coerce(
+  assign(
+    JsonRpcRequestStruct,
+    object({
+      method: literal(ClientRequestMethod.ConfirmSend),
+      params: assign(
+        ConfirmSendParamsStruct,
+        object({ accountId: UuidStruct }),
+      ),
+    }),
+  ),
+  assign(
+    JsonRpcRequestStruct,
+    object({
+      method: literal(ClientRequestMethod.ConfirmSend),
+      params: ConfirmSendParamsStruct,
+    }),
+  ),
+  (request) => ({
+    ...request,
+    params: {
+      ...request.params,
+      accountId: request.params.fromAccountId,
+    },
+  }),
+);
+
+/**
+ * Validation struct for the confirmSend JSON-RPC response.
+ */
+export const ConfirmSendJsonRpcResponseStruct = object({
+  valid: optional(boolean()),
+  errors: optional(
+    array(
+      object({
+        code: string(),
+      }),
+    ),
+  ),
+  transactionId: optional(StellarTransactionHashStruct),
+});
+
 /**
  * Validation struct for the computeFee JSON-RPC request.
  */
@@ -309,6 +368,20 @@ export type OnAmountInputJsonRpcRequest = Infer<
  */
 export type OnAmountInputJsonRpcResponse = Infer<
   typeof OnAmountInputJsonRpcResponseStruct
+>;
+
+/**
+ * Type for the confirmSend JSON-RPC request.
+ */
+export type ConfirmSendJsonRpcRequest = Infer<
+  typeof ConfirmSendJsonRpcRequestStruct
+>;
+
+/**
+ * Type for the confirmSend JSON-RPC response.
+ */
+export type ConfirmSendJsonRpcResponse = Infer<
+  typeof ConfirmSendJsonRpcResponseStruct
 >;
 
 /**

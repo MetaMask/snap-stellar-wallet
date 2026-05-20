@@ -89,9 +89,9 @@ export const onRpcRequest: OnRpcRequestHandler = async ({ request }) => {
     case 'stellar_signAuthEntry':
       return signAuthEntryHandler.handle(request.params as Json);
     case 'stellar_changeTrustOpt':
-      return clientRequestHandler.handle(
-        request.params as unknown as JsonRpcRequest,
-      );
+    case 'stellar_confirmSend':
+    case 'stellar_onAmountInput':
+    case 'stellar_onAddressInput':
     case 'stellar_signAndSendTransaction':
       return clientRequestHandler.handle(
         request.params as unknown as JsonRpcRequest,

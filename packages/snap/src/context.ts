@@ -11,6 +11,7 @@ import {
   ClientRequestMethod,
 } from './handlers/clientRequest';
 import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
+import { ConfirmSendHandler } from './handlers/clientRequest/confirmSend';
 import { OnAddressInputHandler } from './handlers/clientRequest/onAddressInput';
 import { OnAmountInputHandler } from './handlers/clientRequest/onAmountInput';
 import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
@@ -229,6 +230,14 @@ const signAndSendTransactionHandler = new SignAndSendTransactionHandler({
   transactionService,
 });
 
+const confirmSendHandler = new ConfirmSendHandler({
+  logger,
+  accountResolver,
+  transactionService,
+  assetMetadataService,
+  confirmationUIController,
+});
+
 const computeFeeHandler = new ComputeFeeHandler({
   logger,
   accountResolver,
@@ -242,6 +251,7 @@ const clientRequestMethodHandlers: Record<
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
   [ClientRequestMethod.OnAddressInput]: onAddressInputHandler,
   [ClientRequestMethod.OnAmountInput]: onAmountInputHandler,
+  [ClientRequestMethod.ConfirmSend]: confirmSendHandler,
   [ClientRequestMethod.SignAndSendTransaction]: signAndSendTransactionHandler,
   [ClientRequestMethod.ComputeFee]: computeFeeHandler,
 };
