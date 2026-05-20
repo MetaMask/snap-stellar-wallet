@@ -26,11 +26,59 @@ export class TransactionRepository {
   }
 
   async findByAccountId(accountId: string): Promise<KeyringTransaction[]> {
-    const transactions = await this.#state.getKey<KeyringTransaction[]>(
-      `${this.#stateKey}.${accountId}`,
-    );
+    const transactionsByAccount = await this.#state.getKey<
+      TransactionStateValue['transactions']
+    >(this.#stateKey);
 
-    return transactions ?? [];
+    return transactionsByAccount?.[accountId] ?? [];
+  }
+
+  /**
+   * Finds a persisted keyring transaction by its id (Stellar transaction hash), searching all
+   * accounts in snap state.
+   *
+   * @param txId - Transaction hash (`Transaction.id`).
+   * @returns The matching transaction, or `undefined` when none is stored.
+   */
+  async findByTransactionId(
+    txId: string,
+  ): Promise<KeyringTransaction | undefined> {
+    const transactionsByAccount = await this.#state.getKey<
+      TransactionStateValue['transactions']
+    >(this.#stateKey);
+
+    for (const list of Object.values(transactionsByAccount ?? {})) {
+      const found = list.find((t) => t.id === txId);
+      if (found) {
+        return found;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Finds a persisted keyring transaction by hash among the given accounts.
+   *
+   * @param txId - Stellar transaction hash (keyring `Transaction.id`).
+   * @param accountIds - Account ids to search (same order as the track job).
+   * @returns The transaction when found; otherwise `undefined`.
+   */
+  async findByIdAmongAccounts(
+    txId: string,
+    accountIds: readonly string[],
+  ): Promise<KeyringTransaction | undefined> {
+    const transactionsByAccount = await this.#state.getKey<
+      TransactionStateValue['transactions']
+    >(this.#stateKey);
+
+    for (const accountId of accountIds) {
+      const list = transactionsByAccount?.[accountId] ?? [];
+      const found = list.find((t) => t.id === txId);
+      if (found) {
+        return found;
+      }
+    }
+    return undefined;
   }
 
   async save(transaction: KeyringTransaction): Promise<void> {

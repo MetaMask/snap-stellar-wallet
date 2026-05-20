@@ -1,16 +1,34 @@
-import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
-import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
+import {
+  KeyringEvent,
+  TransactionStatus,
+  type Transaction as KeyringTransaction,
+} from '@metamask/keyring-api';
+import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
+import { groupBy } from 'lodash';
 
 import type { Transaction } from './Transaction';
+import type { TransactionBuilder } from './TransactionBuilder';
 import type { TransactionRepository } from './TransactionRepository';
-import type {
-  KnownCaip19AssetIdOrSlip44Id,
-  KnownCaip2ChainId,
-} from '../../api';
+import type { KnownCaip19ClassicAssetId, KnownCaip2ChainId } from '../../api';
+import { BASE_FEE_CACHE_TTL_MILLISECONDS } from '../../constants';
+import { getSnapProvider, type Serializable } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account/api';
 import type { NetworkService } from '../network';
+import { TransactionRetryableException } from '../network/exceptions';
+import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
+import type { Wallet } from '../wallet';
+import {
+  SupportedOperations,
+  TransactionSimulator,
+  type TransactionSimulatorOptions,
+} from './TransactionSimulator';
+import { assertTransactionScope } from './utils';
+import type { ICache } from '../cache';
+import { useCache } from '../cache';
+import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
+import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 
 export class TransactionService {
   readonly #logger: ILogger;
@@ -19,99 +37,232 @@ export class TransactionService {
 
   readonly #networkService: NetworkService;
 
+  readonly #transactionBuilder: TransactionBuilder;
+
+  readonly #keyringTransactionBuilder: KeyringTransactionBuilder;
+
+  readonly #cache: ICache<Serializable>;
+
   constructor({
     logger,
     transactionRepository,
     networkService,
+    transactionBuilder,
+    cache,
   }: {
     logger: ILogger;
     transactionRepository: TransactionRepository;
     networkService: NetworkService;
+    transactionBuilder: TransactionBuilder;
+    cache: ICache<Serializable>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🧾 TransactionService]');
     this.#transactionRepository = transactionRepository;
     this.#networkService = networkService;
+    this.#transactionBuilder = transactionBuilder;
+    this.#keyringTransactionBuilder = new KeyringTransactionBuilder();
+    this.#cache = cache;
   }
 
   /**
-   * Creates a pending send transaction.
+   * Gets the base fee for a transaction.
+   * Results are cached for {@link BASE_FEE_CACHE_TTL_MILLISECONDS}.
    *
-   * @param params - The parameters for the pending send transaction.
-   * @param params.txId - Stable id for this activity row (e.g. client correlation id).
-   * @param params.account - Keyring account that initiated the send (`from`).
-   * @param params.scope - CAIP-2 chain for `chain` on the keyring transaction.
-   * @param params.toAddress - Destination Stellar address (`G…`).
-   * @param params.amount - Amount in the asset’s smallest units (string).
-   * @param params.asset - Display / CAIP metadata for `from` and `to` asset rows.
-   * @param params.asset.type - CAIP-19 (or slip44) asset id.
-   * @param params.asset.symbol - Human-readable unit label (e.g. `XLM`).
-   * @returns A promise that resolves to the pending send transaction.
+   * @param scope - The CAIP-2 chain ID.
+   * @returns A promise that resolves to the base fee.
    */
-  async createPendingSendTransaction({
-    txId,
-    account,
-    scope,
-    toAddress,
-    amount,
-    asset,
-  }: {
-    txId: string;
-    account: StellarKeyringAccount;
+  async getBaseFee(scope: KnownCaip2ChainId): Promise<BigNumber> {
+    return useCache(
+      this.#networkService.getBaseFee.bind(this.#networkService),
+      this.#cache,
+      {
+        functionName: 'TransactionService:getBaseFee',
+        ttlMilliseconds: BASE_FEE_CACHE_TTL_MILLISECONDS,
+      },
+    )(scope);
+  }
+
+  /**
+   * Creates a validated change trust transaction.
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.assetId - The CAIP-19 classic asset ID.
+   * @param params.limit - The limit for the trustline, 0 for delete trustline.
+   *
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async createValidatedChangeTrustTransaction(params: {
+    onChainAccount: OnChainAccount;
     scope: KnownCaip2ChainId;
-    toAddress: string;
-    amount: string;
-    asset: {
-      type: KnownCaip19AssetIdOrSlip44Id;
-      symbol: string;
-    };
-  }): Promise<KeyringTransaction> {
-    const timestamp = Math.floor(Date.now() / 1000);
+    assetId: KnownCaip19ClassicAssetId;
+    limit?: string;
+  }): Promise<Transaction> {
+    const { onChainAccount, scope, assetId, limit } = params;
 
-    const transaction: KeyringTransaction = {
-      type: TransactionType.Send,
-      id: txId,
-      from: [
-        {
-          address: account.address,
-          asset: {
-            unit: asset.symbol,
-            type: asset.type,
-            amount,
-            fungible: true,
-          },
-        },
-      ],
-      to: [
-        {
-          address: toAddress,
-          asset: {
-            unit: asset.symbol,
-            type: asset.type,
-            amount,
-            fungible: true,
-          },
-        },
-      ],
-      events: [
-        {
-          status: TransactionStatus.Unconfirmed,
-          timestamp,
-        },
-      ],
-      chain: scope,
-      status: TransactionStatus.Unconfirmed,
-      account: account.id,
-      timestamp,
-      fees: [],
-    };
+    const baseFee = await this.getBaseFee(scope);
 
-    this.#logger.debug('Creating pending send transaction', {
+    const transaction = this.#transactionBuilder.changeTrust({
+      onChainAccount,
+      assetId,
+      scope,
+      baseFee: baseFee.toString(),
+      limit,
+    });
+
+    this.validateTransaction(transaction, onChainAccount, {
+      expectedOPTypes: [SupportedOperations.ChangeTrust],
+    });
+
+    return transaction;
+  }
+
+  /**
+   * Creates a validated swap transaction from a Base64 encoded XDR.
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.xdr - The Base64 encoded XDR of the transaction.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async createValidatedSwapTransaction(params: {
+    onChainAccount: OnChainAccount;
+    scope: KnownCaip2ChainId;
+    xdr: string;
+  }): Promise<Transaction> {
+    const { onChainAccount, scope, xdr } = params;
+
+    const transaction = this.#transactionBuilder.deserialize({
+      xdr,
+      scope,
+    });
+
+    const transactionWithFee = await this.computingFee(transaction);
+
+    const preloadedAccounts = await this.#getPreloadedAccounts(
+      transactionWithFee,
+      onChainAccount,
+    );
+
+    this.validateTransaction(transactionWithFee, onChainAccount, {
+      expectedOPTypes: [
+        SupportedOperations.Payment,
+        SupportedOperations.PathPayment,
+        SupportedOperations.InvokeHostFunction,
+        SupportedOperations.ChangeTrust,
+      ],
+      preloadedAccounts,
+    });
+
+    return transactionWithFee;
+  }
+
+  async #getPreloadedAccounts(
+    transaction: Transaction,
+    onChainAccount: OnChainAccount,
+  ): Promise<OnChainAccount[]> {
+    // get the participating accounts Id that are not the source account,
+    // as we already preloaded the source account
+    const participatingAccounts: string[] = transaction.hasInvokeHostFunction
+      ? []
+      : transaction.participatingAccounts.filter(
+          (accountId) => accountId !== onChainAccount.accountId,
+        );
+
+    const preloadedAccounts = await this.#networkService.loadOnChainAccounts(
+      participatingAccounts,
+      transaction.scope,
+    );
+
+    return preloadedAccounts.filter(
+      (account): account is OnChainAccount => account !== null,
+    );
+  }
+
+  /**
+   * Create and save a pending keyring transaction.
+   *
+   * @param request - The request {@link KeyringTransactionRequest} to create the pending transaction for.
+   * @returns A promise that resolves to the pending transaction.
+   */
+  async savePendingKeyringTransaction(
+    request: KeyringTransactionRequest,
+  ): Promise<KeyringTransaction> {
+    const transaction =
+      this.#keyringTransactionBuilder.createTransaction(request);
+
+    this.#logger.debug('Creating pending transaction', {
       transaction,
     });
 
     await this.save(transaction);
 
     return transaction;
+  }
+
+  /**
+   * Loads a persisted keyring transaction by Stellar transaction hash from snap state.
+   *
+   * @param txId - Transaction hash (`Transaction.id`).
+   * @returns The stored keyring transaction, or `undefined` when none exists.
+   */
+  async findKeyringTransactionByTransactionId(
+    txId: string,
+  ): Promise<KeyringTransaction | undefined> {
+    return await this.#transactionRepository.findByTransactionId(txId);
+  }
+
+  /**
+   * Updates a persisted keyring transaction to a terminal status and emits
+   * {@link KeyringEvent.AccountTransactionsUpdated} so the extension Activity list can leave
+   * the "pending" state after Horizon inclusion (or failure).
+   *
+   * @param params - Status update parameters.
+   * @param params.txId - Transaction hash (`Transaction.id`).
+   * @param params.accountIds - When non-empty, only these keyring account buckets are searched
+   * (typical track job). When empty, all persisted account buckets are searched by hash.
+   * @param params.status - {@link TransactionStatus.Confirmed} or {@link TransactionStatus.Failed}.
+   */
+  async updateKeyringTransactionStatus(params: {
+    txId: string;
+    accountIds: readonly string[];
+    status: TransactionStatus.Confirmed | TransactionStatus.Failed;
+  }): Promise<void> {
+    const { txId, accountIds, status } = params;
+
+    const existing =
+      accountIds.length > 0
+        ? await this.#transactionRepository.findByIdAmongAccounts(
+            txId,
+            accountIds,
+          )
+        : await this.#transactionRepository.findByTransactionId(txId);
+
+    if (!existing) {
+      this.#logger.debug(
+        'updateKeyringTransactionStatus: no matching persisted transaction',
+        { txId, accountIds },
+      );
+      return;
+    }
+
+    if (
+      existing.status === TransactionStatus.Confirmed ||
+      existing.status === TransactionStatus.Failed
+    ) {
+      return;
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const updated: KeyringTransaction = {
+      ...existing,
+      status,
+      events: [...existing.events, { status, timestamp }],
+    };
+
+    await this.save(updated);
   }
 
   /**
@@ -130,6 +281,101 @@ export class TransactionService {
       return simulatedTransaction;
     }
     return transaction;
+  }
+
+  /**
+   * Runs local fee/balance/operation simulation for a transaction against the given ledger snapshot.
+   * Delegates to {@link TransactionSimulator.simulate}; throws the same validation exceptions.
+   *
+   * @param transaction - The transaction to validate.
+   * @param onChainAccount - The on-chain account to validate against.
+   * @param options - Optional options for the transaction validation {@link TransactionSimulatorOptions}.
+   * @throws {TransactionScopeNotMatchException} When {@link OnChainAccount.scope} does not match {@link Transaction.scope}.
+   * @throws {TransactionValidationException} When the transaction cannot be validated.
+   */
+  validateTransaction(
+    transaction: Transaction,
+    onChainAccount: OnChainAccount,
+    options?: TransactionSimulatorOptions,
+  ): void {
+    const simulator = new TransactionSimulator();
+    simulator.simulate(transaction, onChainAccount, options);
+  }
+
+  /**
+   * Submits a signed transaction.
+   * When the transaction fails with `txBadSeq`, reloads the account sequence, rebuilds, re-signs once, and retries
+   * **only when** the transaction source matches the resolved {@link OnChainAccount}'s `accountId` (this account consumes sequence)
+   * **and** the envelope is **not** a Soroban `invokeHostFunction` transaction. Soroban envelopes carry `sorobanData` that a
+   * sequence-only rebuild does not preserve; on `txBadSeq` for those txs this method logs, rethrows, and the caller must
+   * re-simulate / re-assemble (for example after a fresh quote).
+   * If the source is another account, `txBadSeq` is rethrown: sequence must be fixed on their side and the envelope re-signed.
+   *
+   * @param params - Options object.
+   * @param params.wallet - Wallet used to sign; for automatic retry, must be the transaction source account.
+   * @param params.onChainAccount - On-chain account for the signing account (sequence bump on `txBadSeq` retry).
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.transaction - The signed transaction (same envelope used as the rebuild template on retry).
+   * @param params.pollTransaction - If true, wait for RPC terminal status after submit.
+   * @returns A promise that resolves to the transaction hash.
+   * @throws {TransactionScopeNotMatchException} When `scope` does not match {@link Transaction.scope} (from {@link assertTransactionScope} before submit).
+   * @throws {TransactionRetryableException} When RPC returns `txBadSeq` (one rebuild+retry for classic txs when the tx source matches `onChainAccount`; Soroban invoke txs are not auto-retried).
+   * @throws {TransactionSendException} When submission fails for other RPC reasons.
+   * @throws {TransactionPollException} When `pollTransaction` is true and polling does not end in SUCCESS.
+   */
+  async sendTransaction(params: {
+    wallet: Wallet;
+    onChainAccount: OnChainAccount;
+    scope: KnownCaip2ChainId;
+    transaction: Transaction;
+    pollTransaction?: boolean;
+  }): Promise<string> {
+    const {
+      wallet,
+      onChainAccount,
+      scope,
+      transaction: templateTransaction,
+    } = params;
+
+    assertTransactionScope(templateTransaction, scope);
+
+    const pollTransaction = params.pollTransaction ?? false;
+
+    const sendOnce = async (transaction: Transaction): Promise<string> =>
+      this.#networkService.send({
+        transaction,
+        scope,
+        pollTransaction,
+      });
+
+    try {
+      return await sendOnce(templateTransaction);
+    } catch (error: unknown) {
+      if (error instanceof TransactionRetryableException) {
+        const txSource = templateTransaction.sourceAccount;
+        if (txSource !== onChainAccount.accountId) {
+          this.#logger.warn(
+            'transaction failed with txBadSeq but transaction source does not match wallet; cannot bump sequence.',
+          );
+          throw error;
+        }
+
+        const freshAccount = await this.#networkService.getAccount(
+          onChainAccount.accountId,
+          scope,
+        );
+
+        const newTransaction = this.#transactionBuilder.rebuildTxnWithNewSeq({
+          transaction: templateTransaction,
+          sequenceNumber: freshAccount.sequenceNumber,
+        });
+
+        wallet.signTransaction(newTransaction);
+
+        return await sendOnce(newTransaction);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -157,7 +403,9 @@ export class TransactionService {
    * @returns A promise that resolves when the transaction is saved.
    */
   async save(transaction: KeyringTransaction): Promise<void> {
-    await this.#transactionRepository.save(transaction);
+    // use saveMany here to leverage the state lock,
+    // hence the update of the state and the transaction event emission will be in sequence
+    await this.saveMany([transaction]);
   }
 
   /**
@@ -168,6 +416,7 @@ export class TransactionService {
    */
   async saveMany(transactions: KeyringTransaction[]): Promise<void> {
     await this.#transactionRepository.saveMany(transactions);
+    await this.#emitAccountTransactionsUpdated(transactions);
   }
 
   /**
@@ -183,6 +432,20 @@ export class TransactionService {
   ): Promise<void> {
     this.#logger.debug(
       'TransactionService.synchronize: transaction history sync not implemented yet',
+    );
+  }
+
+  async #emitAccountTransactionsUpdated(
+    transactions: KeyringTransaction[],
+  ): Promise<void> {
+    const transactionsByAccountId = groupBy(transactions, 'account');
+
+    await emitSnapKeyringEvent(
+      getSnapProvider(),
+      KeyringEvent.AccountTransactionsUpdated,
+      {
+        transactions: transactionsByAccountId,
+      },
     );
   }
 }

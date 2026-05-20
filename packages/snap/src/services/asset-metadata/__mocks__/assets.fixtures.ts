@@ -17,6 +17,8 @@ export const USDC_CLASSIC: KnownCaip19AssetIdOrSlip44Id =
   'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
 export const USDC_SEP41: KnownCaip19AssetIdOrSlip44Id =
   'stellar:pubnet/sep41:CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75';
+export const USDT_SEP41: KnownCaip19AssetIdOrSlip44Id =
+  'stellar:pubnet/sep41:CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J';
 
 export const generateMockStellarAssetMetadata = (): AssetMetadataByAssetId => {
   return {
@@ -48,6 +50,16 @@ export const generateMockStellarAssetMetadata = (): AssetMetadataByAssetId => {
       fungible: true,
       iconUrl: 'https://example.test/icon.png',
       units: [{ name: 'USDC', symbol: 'USDC', decimals: 7 }],
+    },
+    [USDT_SEP41]: {
+      assetId: USDT_SEP41,
+      assetType: AssetType.Sep41,
+      chainId: KnownCaip2ChainId.Mainnet,
+      name: 'USDT',
+      symbol: 'USDT',
+      fungible: true,
+      iconUrl: 'https://example.test/icon.png',
+      units: [{ name: 'USDT', symbol: 'USDT', decimals: 7 }],
     },
   } as AssetMetadataByAssetId;
 };
@@ -81,6 +93,13 @@ export const generateMockKeyringAssetMetadata =
         fungible: true,
         iconUrl: 'https://example.test/icon.png',
         units: [{ name: 'USDC', symbol: 'USDC', decimals: 7 }],
+      },
+      [USDT_SEP41]: {
+        name: 'USDT',
+        symbol: 'USDT',
+        fungible: true,
+        iconUrl: 'https://example.test/icon.png',
+        units: [{ name: 'USDT', symbol: 'USDT', decimals: 7 }],
       },
     } as KeyringAssetMetadataByAssetId;
   };

@@ -9,11 +9,12 @@ const prodOrigins = ['https://portfolio.metamask.io'];
 const allowedOrigins = isDev ? ['http://localhost:3000'] : prodOrigins;
 
 const dappPermissions = isDev
-  ? new Set([
+  ? new Set<string>([
       // Keyring methods
       KeyringRpcMethod.ListAccounts,
       KeyringRpcMethod.GetAccount,
       KeyringRpcMethod.CreateAccount,
+      KeyringRpcMethod.CreateAccounts,
       KeyringRpcMethod.DeleteAccount,
       KeyringRpcMethod.DiscoverAccounts,
       KeyringRpcMethod.GetAccountBalances,
@@ -21,13 +22,14 @@ const dappPermissions = isDev
       KeyringRpcMethod.ListAccountTransactions,
       KeyringRpcMethod.ListAccountAssets,
     ])
-  : new Set([]);
+  : new Set<string>([]);
 
 const metamaskPermissions = new Set([
   // Keyring methods
   KeyringRpcMethod.ListAccounts,
   KeyringRpcMethod.GetAccount,
   KeyringRpcMethod.CreateAccount,
+  KeyringRpcMethod.CreateAccounts,
   KeyringRpcMethod.DeleteAccount,
   KeyringRpcMethod.DiscoverAccounts,
   KeyringRpcMethod.GetAccountBalances,

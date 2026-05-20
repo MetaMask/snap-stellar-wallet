@@ -20,31 +20,82 @@ export class Transaction {
 
   readonly #participatingAccounts: Set<string> = new Set<string>();
 
+  readonly #invokedByAccounts: Set<string> = new Set<string>();
+
   constructor(inner: StellarTransaction | FeeBumpTransaction) {
     this.#inner = inner;
     this.#initialize();
   }
 
   #initialize(): void {
+    this.#invokedByAccounts.add(this.sourceAccount);
+    this.#invokedByAccounts.add(this.feeSourceAccount);
+
     this.#participatingAccounts.add(this.sourceAccount);
     this.#participatingAccounts.add(this.feeSourceAccount);
 
     for (const operation of this.transactionOperations) {
-      this.#participatingAccounts.add(operation.source ?? this.sourceAccount);
+      const source = operation.source ?? this.sourceAccount;
+      // Source of the operation should count as invoked by the account
+      this.#invokedByAccounts.add(source);
+      this.#participatingAccounts.add(source);
+
+      // Destination of the operation should count as participating in the transaction.
+      // For now, we only support payment related operations
+      if (operation.type === 'pathPaymentStrictSend') {
+        this.#participatingAccounts.add(operation.destination);
+      } else if (operation.type === 'pathPaymentStrictReceive') {
+        this.#participatingAccounts.add(operation.destination);
+      } else if (operation.type === 'payment') {
+        this.#participatingAccounts.add(operation.destination);
+      }
+
       this.#operationTypes.add(operation.type);
     }
   }
 
-  getMemo(encode: 'hex' | 'base64' | 'utf8' = 'utf8'): string | null {
+  /**
+   * Memo for confirmations: lowercase hex for hash/return (32 raw bytes), decimal string for
+   * id, UTF-8 for text (up to 28 on-chain bytes), or null when the memo is `none` or missing.
+   *
+   * @returns Encoded memo string or null.
+   */
+  getMemo(): string | null {
     const raw = this.getRaw();
-    if (raw instanceof FeeBumpTransaction) {
-      return raw.innerTransaction.memo?.value
-        ? bufferToUint8Array(raw.innerTransaction.memo.value).toString(encode)
-        : null;
+    const memo =
+      raw instanceof FeeBumpTransaction ? raw.innerTransaction.memo : raw.memo;
+
+    if (!memo) {
+      return null;
     }
-    return raw.memo?.value
-      ? bufferToUint8Array(raw.memo.value).toString(encode)
-      : null;
+
+    switch (memo.type) {
+      case 'hash':
+      case 'return': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return bufferToUint8Array(value).toString('hex');
+      }
+      case 'id': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return typeof value === 'string' ? value : String(value);
+      }
+      case 'text': {
+        const { value } = memo;
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return bufferToUint8Array(value).toString('utf8');
+      }
+      case 'none':
+      default:
+        return null;
+    }
   }
 
   /**
@@ -139,7 +190,11 @@ export class Transaction {
   }
 
   /**
-   * Accounts that participate in the envelope: tx source, fee source, and each operation’s effective source.
+   * Accounts that participate in the envelope:
+   * - tx source,
+   * - fee source
+   * - each operation’s effective source
+   * - destination of the payment related operations
    *
    * @returns Participating account ids (`G…`).
    */
@@ -160,13 +215,23 @@ export class Transaction {
   }
 
   /**
-   * Whether the account is among {@link Transaction.hasParticipatingAccount} (source, fee source, or op source).
+   * Whether the account is among {@link Transaction.hasParticipatingAccount}.
    *
    * @param accountId - The account ID to check.
-   * @returns True if the account participates in the envelope.
+   * @returns True if the account participates in the envelope, false otherwise.
    */
   hasParticipatingAccount(accountId: string): boolean {
     return this.#participatingAccounts.has(accountId);
+  }
+
+  /**
+   * Checks if the transaction is invoked by the given account.
+   *
+   * @param accountId - The account ID to check.
+   * @returns True if the transaction is invoked by the given account, false otherwise.
+   */
+  isInvokedByAccount(accountId: string): boolean {
+    return this.#invokedByAccounts.has(accountId);
   }
 
   /**

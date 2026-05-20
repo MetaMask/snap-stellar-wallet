@@ -22,10 +22,11 @@ export type LocalizedMessage = [MessageKeys] extends [never]
  * @param locale - The user's preferred locale.
  * @returns A function that gets the translation for a given key.
  */
-export function i18n(locale: Locale) {
+export function i18n(locale: string) {
   // Needs to be casted as EN is the main language and we can have the case where
   // messages are not yet completed for the other languages (e.g. empty `es` map).
-  const messages = (locales[locale] ?? locales[FALLBACK_LANGUAGE]) as Partial<
+  const messages = (locales[locale as Locale] ??
+    locales[FALLBACK_LANGUAGE]) as Partial<
     Record<LocalizedMessage, { message: string }>
   >;
 

@@ -27,6 +27,16 @@ export class SignMessageException extends Error {
 }
 
 /**
+ * Thrown when the SEP-43 auth entry cannot be signed.
+ */
+export class SignAuthEntryException extends Error {
+  constructor() {
+    super('Failed to sign auth entry');
+    this.name = 'SignAuthEntryException';
+  }
+}
+
+/**
  * Thrown when the message cannot be verified.
  */
 export class VerifyMessageException extends Error {

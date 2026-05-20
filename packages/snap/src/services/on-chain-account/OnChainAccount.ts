@@ -24,6 +24,7 @@ import { calculateSpendableBalance } from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
@@ -150,14 +151,28 @@ export class OnChainAccount {
   }
 
   /**
-   * Classic Stellar trustline asset ids (CAIP-19) that have a balance row with a limit.
+   * Sets or replaces a non-native balance row: SEP-41 contract token or classic trustline
+   * (including internal removal tombstones with `limit` 0).
    *
-   * @returns Asset ids for which {@link getAsset} includes `limit` (classic trustlines only).
+   * @param assetId - SEP-41 or classic CAIP-19 id (not slip44 native).
+   * @param balanceEntry - Row stored in the in-memory balance map.
+   */
+  setAsset(
+    assetId: KnownCaip19Sep41AssetId | KnownCaip19ClassicAssetId,
+    balanceEntry: SpendableBalance,
+  ): void {
+    this.#balances.set(assetId, balanceEntry);
+  }
+
+  /**
+   * Classic Stellar trustline asset ids (CAIP-19) that have a balance row with a limit greater than 0.
+   *
+   * @returns Asset ids for classic trustlines.
    */
   get classicTrustlineAssetIds(): KnownCaip19ClassicAssetId[] {
     const ids: KnownCaip19ClassicAssetId[] = [];
     for (const [assetId, row] of this.#balances) {
-      if (isClassicAssetId(assetId) && row.limit !== undefined) {
+      if (isClassicAssetId(assetId) && row.limit?.gt(0) === true) {
         ids.push(assetId);
       }
     }
@@ -279,11 +294,14 @@ export class OnChainAccount {
           }),
         );
       } else if (isSep41Id(assetId)) {
-        balances.push({
-          assetId,
-          balance: entry.balance.toString(),
-          symbol: entry.symbol,
-        });
+        balances.push(
+          SerializableSep41SpendableBalanceStruct.create({
+            assetId,
+            balance: entry.balance.toString(),
+            symbol: entry.symbol,
+            decimals: entry.decimals,
+          }),
+        );
       } else {
         throw new OnChainAccountException(`Asset id not supported: ${assetId}`);
       }
@@ -314,6 +332,14 @@ export class OnChainAccount {
       sequenceNumber: this.sequenceNumber,
       scope: this.#scope,
     };
+  }
+
+  toSerializableFull(): OnChainAccountSerializableFull {
+    const serialized = this.toSerializable();
+    if (!OnChainAccountSerializableFullStruct.is(serialized)) {
+      throw new OnChainAccountException('Account is not fully hydrated');
+    }
+    return serialized;
   }
 
   /**
@@ -447,7 +473,6 @@ export class OnChainAccount {
         if (SerializableClassicSpendableBalanceStruct.is(row)) {
           const { balance, symbol, limit, address, authorized, sponsored } =
             row;
-
           this.#balances.set(row.assetId, {
             balance: new BigNumber(balance),
             symbol,
@@ -457,10 +482,12 @@ export class OnChainAccount {
             ...(sponsored === undefined ? {} : { sponsored }),
           });
         } else if (SerializableSep41SpendableBalanceStruct.is(row)) {
-          const { balance, symbol } = row;
+          const { balance, symbol, decimals } =
+            SerializableSep41SpendableBalanceStruct.create(row);
           this.#balances.set(row.assetId, {
             balance: new BigNumber(balance),
             symbol,
+            decimals,
           });
         } else {
           throw new OnChainAccountException(

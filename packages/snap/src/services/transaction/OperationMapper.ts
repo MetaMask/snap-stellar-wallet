@@ -1,6 +1,7 @@
 import type { Json } from '@metamask/utils';
 import type { Asset, Operation } from '@stellar/stellar-sdk';
-import { LiquidityPoolAsset, LiquidityPoolId } from '@stellar/stellar-sdk';
+import { LiquidityPoolAsset, LiquidityPoolId, xdr } from '@stellar/stellar-sdk';
+import { BigNumber } from 'bignumber.js';
 
 import type { Transaction } from './Transaction';
 import type { KnownCaip2ChainId } from '../../api';
@@ -60,6 +61,7 @@ export type ReadableTransactionJson = {
   operationCount: number;
   sourceAccount: string;
   feeSourceAccount: string;
+  memo: string | null;
   operations: ReadableOperationJson[];
 };
 
@@ -128,6 +130,7 @@ export class OperationMapper {
       operationCount: operations.length,
       sourceAccount,
       feeSourceAccount: transaction.feeSourceAccount,
+      memo: transaction.getMemo(),
       operations,
     };
   }
@@ -165,24 +168,45 @@ export class OperationMapper {
   #mapSorobanPlaceholder(operation: Operation): ReadableOperationField[] {
     if (operation.type === 'invokeHostFunction') {
       const hostOp = operation;
-      let funcXdr: string | null = null;
+      const rows: ReadableOperationField[] = [];
       try {
-        if (typeof hostOp.func?.toXDR === 'function') {
-          const raw = hostOp.func.toXDR();
-          funcXdr = raw.toString('base64');
+        const { func } = hostOp;
+        if (
+          func &&
+          func.switch() ===
+            xdr.HostFunctionType.hostFunctionTypeInvokeContract()
+        ) {
+          const invokeArgs = func.invokeContract();
+          const contractIdHex = bufferToUint8Array(
+            invokeArgs.contractAddress().toXDR(),
+          )
+            .slice(4)
+            .toString('hex');
+          const functionName = invokeArgs.functionName().toString('utf8');
+          rows.push(this.#field('contractId', contractIdHex, 'text'));
+          rows.push(this.#field('functionName', functionName, 'text'));
+          const args = invokeArgs.args();
+          if (args.length > 0) {
+            rows.push(
+              this.#field(
+                'arguments',
+                args.map((arg) => arg.toXDR('base64')),
+                'json',
+              ),
+            );
+          }
         }
       } catch {
-        funcXdr = null;
+        // Fall through to XDR fallback
       }
-      const rows: ReadableOperationField[] = [
-        this.#field(
-          'note',
-          'Soroban invokeHostFunction; review contract call on a block explorer or dedicated UI.',
-          'text',
-        ),
-      ];
-      if (funcXdr) {
-        rows.push(this.#field('hostFunctionXdrBase64', funcXdr, 'text'));
+      if (rows.length === 0) {
+        rows.push(
+          this.#field(
+            'note',
+            'Soroban invokeHostFunction; review contract call on a block explorer or dedicated UI.',
+            'text',
+          ),
+        );
       }
       return rows;
     }
@@ -373,9 +397,49 @@ export class OperationMapper {
           rows.push(this.#field('homeDomain', setOptions.homeDomain, 'text'));
         }
         if ('signer' in setOptions && setOptions.signer !== undefined) {
-          rows.push(
-            this.#field('signer', JSON.stringify(setOptions.signer), 'text'),
-          );
+          // SDK Signer is a union of disjoint interfaces; cast to Record for key-based branching.
+          const signer = setOptions.signer as unknown as Record<
+            string,
+            unknown
+          >;
+          if ('ed25519PublicKey' in signer) {
+            rows.push(
+              this.#field(
+                'signerEd25519',
+                signer.ed25519PublicKey as string,
+                'address',
+              ),
+            );
+          } else if ('sha256Hash' in signer) {
+            rows.push(
+              this.#field(
+                'signerSha256Hash',
+                bufferToUint8Array(signer.sha256Hash as Buffer).toString('hex'),
+                'text',
+              ),
+            );
+          } else if ('preAuthTx' in signer) {
+            rows.push(
+              this.#field(
+                'signerPreAuthTx',
+                bufferToUint8Array(signer.preAuthTx as Buffer).toString('hex'),
+                'text',
+              ),
+            );
+          } else if ('ed25519SignedPayload' in signer) {
+            rows.push(
+              this.#field(
+                'signerSignedPayload',
+                signer.ed25519SignedPayload as string,
+                'text',
+              ),
+            );
+          }
+          if (signer.weight !== undefined) {
+            rows.push(
+              this.#field('signerWeight', Number(signer.weight), 'number'),
+            );
+          }
         }
         return rows;
       }
@@ -417,12 +481,16 @@ export class OperationMapper {
       case 'createClaimableBalance': {
         const createCb = operation;
         return [
-          this.#field('asset', createCb.asset.toString(), 'asset'),
-          this.#field('amount', createCb.amount, 'amount'),
+          this.#field(
+            'asset',
+            [createCb.asset.toString(), createCb.amount],
+            'assetWithAmount',
+          ),
           this.#field(
             'claimants',
             createCb.claimants.map((claimant) => ({
               destination: claimant.destination,
+              predicate: OperationMapper.#formatPredicate(claimant.predicate),
             })),
             'json',
           ),
@@ -445,8 +513,11 @@ export class OperationMapper {
       case 'clawback': {
         const clawback = operation;
         return [
-          this.#field('asset', clawback.asset.toString(), 'asset'),
-          this.#field('amount', clawback.amount, 'amount'),
+          this.#field(
+            'asset',
+            [clawback.asset.toString(), clawback.amount],
+            'assetWithAmount',
+          ),
           this.#field('from', clawback.from, 'address'),
         ];
       }
@@ -456,20 +527,34 @@ export class OperationMapper {
       }
       case 'setTrustLineFlags': {
         const trustFlags = operation;
-        return [
+        const setFlagLabels: string[] = [];
+        const clearFlagLabels: string[] = [];
+        if (trustFlags.flags.authorized === true) {
+          setFlagLabels.push('authorized');
+        } else if (trustFlags.flags.authorized === false) {
+          clearFlagLabels.push('authorized');
+        }
+        if (trustFlags.flags.authorizedToMaintainLiabilities === true) {
+          setFlagLabels.push('authorizedToMaintainLiabilities');
+        } else if (trustFlags.flags.authorizedToMaintainLiabilities === false) {
+          clearFlagLabels.push('authorizedToMaintainLiabilities');
+        }
+        if (trustFlags.flags.clawbackEnabled === true) {
+          setFlagLabels.push('clawbackEnabled');
+        } else if (trustFlags.flags.clawbackEnabled === false) {
+          clearFlagLabels.push('clawbackEnabled');
+        }
+        const rows: ReadableOperationField[] = [
           this.#field('trustor', trustFlags.trustor, 'address'),
           this.#field('asset', trustFlags.asset.toString(), 'asset'),
-          this.#field(
-            'flags',
-            {
-              authorized: trustFlags.flags.authorized ?? null,
-              authorizedToMaintainLiabilities:
-                trustFlags.flags.authorizedToMaintainLiabilities ?? null,
-              clawbackEnabled: trustFlags.flags.clawbackEnabled ?? null,
-            },
-            'json',
-          ),
         ];
+        if (setFlagLabels.length > 0) {
+          rows.push(this.#field('setFlags', setFlagLabels, 'text'));
+        }
+        if (clearFlagLabels.length > 0) {
+          rows.push(this.#field('clearFlags', clearFlagLabels, 'text'));
+        }
+        return rows;
       }
       case 'liquidityPoolDeposit': {
         const poolDeposit = operation;
@@ -580,7 +665,30 @@ export class OperationMapper {
     value: Json,
     type: ReadableFieldType,
   ): ReadableOperationField {
-    return { key, value, type };
+    let normalizedValue: Json = value;
+    if (type === 'amount') {
+      normalizedValue = OperationMapper.#normalizeStellarAmount(value);
+    } else if (type === 'assetWithAmount' && Array.isArray(value)) {
+      const [asset, amount] = value as [Json, Json];
+      normalizedValue = [
+        asset,
+        OperationMapper.#normalizeStellarAmount(amount),
+      ];
+    }
+    return { key, value: normalizedValue, type };
+  }
+
+  /**
+   * Strips trailing zeros from Stellar amount strings; passes other values through.
+   *
+   * @param value - Field value as produced by the Stellar SDK operation.
+   * @returns Normalized amount string, or the original value when not numeric.
+   */
+  static #normalizeStellarAmount(value: Json): Json {
+    if (typeof value === 'string' && /^-?\d+(\.\d+)?$/u.test(value)) {
+      return new BigNumber(value).toString();
+    }
+    return value;
   }
 
   #formatTrustLine(line: Asset | LiquidityPoolAsset): string {
@@ -588,5 +696,48 @@ export class OperationMapper {
       return `${line.assetA.toString()} / ${line.assetB.toString()} (LP fee ${line.fee})`;
     }
     return line.toString();
+  }
+
+  static #formatPredicate(predicate: xdr.ClaimPredicate): string {
+    try {
+      const type = predicate.switch();
+      if (type === xdr.ClaimPredicateType.claimPredicateUnconditional()) {
+        return 'unconditional';
+      }
+      if (type === xdr.ClaimPredicateType.claimPredicateBeforeAbsoluteTime()) {
+        const absBeforeVal = predicate.absBefore();
+        const seconds = Number(absBeforeVal.toXDR().readBigInt64BE(0));
+        return `before ${new Date(seconds * 1000).toISOString()}`;
+      }
+      if (type === xdr.ClaimPredicateType.claimPredicateBeforeRelativeTime()) {
+        const relBeforeVal = predicate.relBefore();
+        return `within ${String(relBeforeVal)}s`;
+      }
+      if (type === xdr.ClaimPredicateType.claimPredicateAnd()) {
+        const preds = predicate.andPredicates();
+        const left = preds[0];
+        const right = preds[1];
+        if (left && right) {
+          return `(${OperationMapper.#formatPredicate(left)} AND ${OperationMapper.#formatPredicate(right)})`;
+        }
+      }
+      if (type === xdr.ClaimPredicateType.claimPredicateOr()) {
+        const preds = predicate.orPredicates();
+        const left = preds[0];
+        const right = preds[1];
+        if (left && right) {
+          return `(${OperationMapper.#formatPredicate(left)} OR ${OperationMapper.#formatPredicate(right)})`;
+        }
+      }
+      if (type === xdr.ClaimPredicateType.claimPredicateNot()) {
+        const inner = predicate.notPredicate();
+        return inner
+          ? `NOT ${OperationMapper.#formatPredicate(inner)}`
+          : 'NOT(null)';
+      }
+    } catch {
+      // Fall through
+    }
+    return 'unknown predicate';
   }
 }

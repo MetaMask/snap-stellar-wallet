@@ -1,5 +1,5 @@
 import { KeyringRpcMethod, type KeyringAccount } from '@metamask/keyring-api';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { styled } from 'styled-components';
 
 import {
@@ -147,25 +147,162 @@ const SignOpsButton = styled.button`
   }
 `;
 
+const TrustlineButtonRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  margin-top: 1.2rem;
+  align-self: flex-start;
+  ${({ theme }) => theme.mediaQueries.small} {
+    width: 100%;
+    flex-direction: column;
+  }
+`;
+
+const AccountSelect = styled.select`
+  width: 100%;
+  margin-top: 1.2rem;
+  margin-bottom: 1.2rem;
+  padding: 1.2rem;
+  border-radius: ${({ theme }) => theme.radii.default};
+  border: 1px solid ${({ theme }) => theme.colors.border?.default};
+  background-color: ${({ theme }) => theme.colors.background?.default};
+  color: ${({ theme }) => theme.colors.text?.default};
+  font-family: inherit;
+  font-size: ${({ theme }) => theme.fontSizes.text};
+  box-sizing: border-box;
+`;
+
+const AccountToolbar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  align-items: center;
+  margin-top: 0.4rem;
+  align-self: flex-start;
+  width: 100%;
+  ${({ theme }) => theme.mediaQueries.small} {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
+/**
+ * Builds a short label for a keyring account (address + id prefix).
+ *
+ * @param account - Keyring account from `ListAccounts`.
+ * @returns Human-readable option text for the account picker.
+ */
+function formatAccountOptionLabel(account: KeyringAccount): string {
+  const { address } = account;
+  const short =
+    address.length > 14
+      ? `${address.slice(0, 8)}…${address.slice(-6)}`
+      : address;
+  return `${short} · ${account.id.slice(0, 8)}…`;
+}
+
 const Index = () => {
   const { error } = useMetaMaskContext();
   const { isFlask, snapsDetected, installedSnap } = useMetaMask();
   const requestSnap = useRequestSnap();
-  const invokeSnap = useInvokeSnap();
   const invokeKeyring = useInvokeKeyring();
+  const invokeKeyringRef = useRef(invokeKeyring);
+  invokeKeyringRef.current = invokeKeyring;
+  const invokeSnap = useInvokeSnap();
+  const [keyringAccounts, setKeyringAccounts] = useState<KeyringAccount[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+    null,
+  );
   const [signMessageText, setSignMessageText] = useState(
     'Hello from the Stellar wallet test dapp',
   );
 
   const [signTxnText, setSignTxnText] = useState('');
+  const [signAndSendTxnText, setSignAndSendTxnText] = useState('');
+  const [signAuthEntryText, setSignAuthEntryText] = useState('');
   const [signMessageOutput, setSignMessageOutput] = useState<string | null>(
     null,
   );
   const [signTxnOutput, setSignTxnOutput] = useState<string | null>(null);
+  const [signAndSendTxnOutput, setSignAndSendTxnOutput] = useState<
+    string | null
+  >(null);
+  const [signAuthEntryOutput, setSignAuthEntryOutput] = useState<string | null>(
+    null,
+  );
+
+  const [trustlineAssetId, setTrustlineAssetId] = useState(
+    'stellar:testnet/asset:USDT-GAHPYWLK6YRN7CVYZOO4H3VDRZ7PVF5UJGLZCSPAEIKJE2XSWF5LAGER',
+  );
+  const [trustlineOutput, setTrustlineOutput] = useState<string | null>(null);
+  const [trustlineLimit, setTrustlineLimit] = useState('');
 
   const isMetaMaskReady = isLocalSnap(defaultSnapOrigin)
     ? isFlask
     : snapsDetected;
+
+  const applyKeyringAccountList = (list: KeyringAccount[]) => {
+    setKeyringAccounts(list);
+    setSelectedAccountId((previousId) => {
+      if (list.length === 0) {
+        return null;
+      }
+      if (previousId && list.some((a) => a.id === previousId)) {
+        return previousId;
+      }
+      return list[0]?.id ?? null;
+    });
+  };
+
+  const refreshKeyringAccounts = async (): Promise<KeyringAccount[]> => {
+    const accounts = (await invokeKeyringRef.current({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+    const list = Array.isArray(accounts) ? accounts : [];
+    applyKeyringAccountList(list);
+    return list;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (installedSnap) {
+      const loadAccounts = async () => {
+        const accounts = (await invokeKeyringRef.current({
+          method: KeyringRpcMethod.ListAccounts,
+        })) as KeyringAccount[] | null;
+        if (cancelled) {
+          return;
+        }
+        const list = Array.isArray(accounts) ? accounts : [];
+        applyKeyringAccountList(list);
+      };
+
+      loadAccounts().catch(() => {
+        /* ignore list failures; user can retry with Refresh */
+      });
+    } else {
+      applyKeyringAccountList([]);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [installedSnap]);
+
+  const resolveSelectedAccount = (): KeyringAccount | null => {
+    if (keyringAccounts.length === 0) {
+      return null;
+    }
+    if (selectedAccountId) {
+      const match = keyringAccounts.find((a) => a.id === selectedAccountId);
+      if (match) {
+        return match;
+      }
+    }
+    return keyringAccounts[0] ?? null;
+  };
 
   const handleAddStellarAccount = async () => {
     await invokeKeyring({
@@ -174,12 +311,7 @@ const Index = () => {
         options: {},
       },
     });
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-
-    const account = accounts?.[0];
-    console.log('account', account);
+    await refreshKeyringAccounts();
   };
 
   const handleSignMessageClick = async () => {
@@ -190,11 +322,7 @@ const Index = () => {
       return;
     }
 
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-
-    const account = accounts?.[0];
+    const account = resolveSelectedAccount();
     if (!account) {
       setSignMessageOutput(
         'No keyring accounts found. Add a Stellar account in MetaMask first.',
@@ -207,7 +335,8 @@ const Index = () => {
       setSignMessageOutput('Selected account has no chain scope.');
       return;
     }
-    const response = (await invokeSnap({
+
+    const response = await invokeSnap({
       method: 'stellar_signMessage',
       params: {
         id: crypto.randomUUID(),
@@ -221,20 +350,9 @@ const Index = () => {
           },
         },
       },
-    })) as { pending: false; signature: string } | { pending: true } | null;
+    });
 
-    if (!response) {
-      return;
-    }
-
-    if (response.pending) {
-      setSignMessageOutput('Request is pending in MetaMask.');
-      return;
-    }
-
-    console.log('response', response);
-
-    setSignMessageOutput(response.signature);
+    setSignMessageOutput(JSON.stringify(response, null, 2));
   };
 
   const handleSignTxnClick = async () => {
@@ -245,10 +363,7 @@ const Index = () => {
       return;
     }
 
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-    const account = accounts?.[accounts.length - 1];
+    const account = resolveSelectedAccount();
     if (!account) {
       setSignTxnOutput(
         'No keyring accounts found. Add a Stellar account in MetaMask first.',
@@ -261,7 +376,8 @@ const Index = () => {
       setSignTxnOutput('Selected account has no chain scope.');
       return;
     }
-    const response = (await invokeSnap({
+
+    const response = await invokeSnap({
       method: 'stellar_signTransaction',
       params: {
         id: crypto.randomUUID(),
@@ -271,24 +387,166 @@ const Index = () => {
         request: {
           method: 'signTransaction',
           params: {
-            transaction: trimmed,
+            xdr: trimmed,
           },
         },
       },
-    })) as { pending: false; signature: string } | { pending: true } | null;
+    });
 
-    if (!response) {
+    setSignTxnOutput(JSON.stringify(response, null, 2));
+  };
+
+  const handleSignAndSendTxnClick = async () => {
+    setSignAndSendTxnOutput(null);
+    const trimmed = signAndSendTxnText.trim();
+    if (!trimmed) {
+      setSignAndSendTxnOutput(
+        'Enter a base64 encoded transaction to sign and send.',
+      );
       return;
     }
 
-    if (response.pending) {
-      setSignTxnOutput('Request is pending in MetaMask.');
+    const accounts = (await invokeKeyring({
+      method: KeyringRpcMethod.ListAccounts,
+    })) as KeyringAccount[] | null;
+    const account = accounts?.[0];
+    if (!account) {
+      setSignAndSendTxnOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
       return;
     }
 
-    console.log('response', response);
+    const scope = account.scopes[0];
+    if (!scope) {
+      setSignAndSendTxnOutput('Selected account has no chain scope.');
+      return;
+    }
 
-    setSignTxnOutput(response.signature);
+    try {
+      const result = await invokeSnap({
+        method: 'stellar_signAndSendTransaction',
+        params: {
+          jsonrpc: '2.0',
+          id: crypto.randomUUID(),
+          method: 'signAndSendTransaction',
+          params: {
+            accountId: account.id,
+            scope,
+            transaction: trimmed,
+            options: {
+              type: 'swap',
+            },
+          },
+        },
+      });
+      setSignAndSendTxnOutput(JSON.stringify(result, null, 2));
+    } catch (signAndSendError: unknown) {
+      const message =
+        signAndSendError instanceof Error
+          ? signAndSendError.message
+          : String(signAndSendError);
+      setSignAndSendTxnOutput(message);
+    }
+  };
+
+  const handleSignAuthEntryClick = async () => {
+    setSignAuthEntryOutput(null);
+    const trimmed = signAuthEntryText.trim();
+    if (!trimmed) {
+      setSignAuthEntryOutput(
+        'Enter a base64-encoded HashIdPreimage (Soroban auth entry) to sign.',
+      );
+      return;
+    }
+
+    const account = resolveSelectedAccount();
+    if (!account) {
+      setSignAuthEntryOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    const scope = account.scopes[0];
+    if (!scope) {
+      setSignAuthEntryOutput('Selected account has no chain scope.');
+      return;
+    }
+
+    const response = await invokeSnap({
+      method: 'stellar_signAuthEntry',
+      params: {
+        id: crypto.randomUUID(),
+        origin: 'http://localhost:3000',
+        scope,
+        account: account.id,
+        request: {
+          method: 'signAuthEntry',
+          params: {
+            authEntry: trimmed,
+          },
+        },
+      },
+    });
+
+    setSignAuthEntryOutput(JSON.stringify(response, null, 2));
+  };
+
+  const invokeChangeTrustOpt = async (action: 'add' | 'delete') => {
+    setTrustlineOutput(null);
+    const trimmedAsset = trustlineAssetId.trim();
+    if (!trimmedAsset) {
+      setTrustlineOutput(
+        'Enter a CAIP-19 classic asset id (e.g. stellar:testnet/asset:CODE-ISSUER).',
+      );
+      return;
+    }
+
+    const trimmedLimit = trustlineLimit.trim();
+
+    const account = resolveSelectedAccount();
+    if (!account) {
+      setTrustlineOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    const scope = account.scopes[0];
+    if (!scope) {
+      setTrustlineOutput('Selected account has no chain scope.');
+      return;
+    }
+
+    const params: Record<string, unknown> = {
+      accountId: account.id,
+      assetId: trimmedAsset,
+      scope,
+      action,
+    };
+    if (action === 'add' && trimmedLimit) {
+      params.limit = trimmedLimit;
+    }
+
+    try {
+      const result = await invokeSnap({
+        method: 'stellar_changeTrustOpt',
+        params: {
+          jsonrpc: '2.0',
+          id: crypto.randomUUID(),
+          method: 'changeTrustOpt',
+          params,
+        },
+      });
+      setTrustlineOutput(JSON.stringify(result, null, 2));
+    } catch (trustlineError: unknown) {
+      const message =
+        trustlineError instanceof Error
+          ? trustlineError.message
+          : String(trustlineError);
+      setTrustlineOutput(message);
+    }
   };
 
   return (
@@ -368,9 +626,53 @@ const Index = () => {
         />
         <Card
           content={{
-            title: 'Sign message (Keyring API)',
+            title: 'Active keyring account',
             description:
-              'Calls keyring_submitRequest with signMessage using the first Stellar keyring account.',
+              'Signing and trustline actions use the account you select here. Refresh after creating accounts elsewhere in MetaMask.',
+            button: (
+              <>
+                <AccountSelect
+                  aria-label="Keyring account for signing"
+                  value={selectedAccountId ?? ''}
+                  onChange={({ target }) =>
+                    setSelectedAccountId(target.value || null)
+                  }
+                  disabled={!installedSnap || keyringAccounts.length === 0}
+                >
+                  {keyringAccounts.length === 0 ? (
+                    <option value="">No accounts loaded</option>
+                  ) : (
+                    keyringAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {formatAccountOptionLabel(account)}
+                      </option>
+                    ))
+                  )}
+                </AccountSelect>
+                <AccountToolbar>
+                  <SignOpsButton
+                    type="button"
+                    onClick={() => {
+                      refreshKeyringAccounts().catch(() => {
+                        /* ignore */
+                      });
+                    }}
+                    disabled={!installedSnap}
+                  >
+                    Refresh account list
+                  </SignOpsButton>
+                </AccountToolbar>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+        <Card
+          content={{
+            title: 'Sign message',
+            description:
+              'Calls the dev-only stellar_signMessage RPC alias (SEP-43-shaped params + response). In production, the same handler is reached via the multichain API.',
             button: (
               <>
                 <MessageField
@@ -398,9 +700,9 @@ const Index = () => {
 
         <Card
           content={{
-            title: 'Sign transaction (Keyring API)',
+            title: 'Sign transaction',
             description:
-              'Calls keyring_submitRequest with signTransaction using the first Stellar keyring account.',
+              'Calls the dev-only stellar_signTransaction RPC alias (SEP-43-shaped params + response). Paste a mainnet base64 XDR whose source is the wallet account. In production, the same handler is reached via the multichain API.',
             button: (
               <>
                 <MessageField
@@ -419,6 +721,110 @@ const Index = () => {
                 >
                   Sign transaction
                 </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+
+        <Card
+          content={{
+            title: 'Sign and send transaction',
+            description:
+              'Calls the dev-only stellar_signAndSendTransaction RPC alias. Paste an unsigned swap/Soroban XDR whose source is the wallet account; the snap validates, signs, submits, and returns the transaction hash.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="Transaction to sign and send"
+                  value={signAndSendTxnText}
+                  onChange={({ target }) => setSignAndSendTxnText(target.value)}
+                  disabled={!installedSnap}
+                />
+                {signAndSendTxnOutput !== null && (
+                  <SignatureOutput>{signAndSendTxnOutput}</SignatureOutput>
+                )}
+                <SignOpsButton
+                  type="button"
+                  onClick={handleSignAndSendTxnClick}
+                  disabled={!installedSnap}
+                >
+                  Sign and send transaction
+                </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+        <Card
+          content={{
+            title: 'Sign auth entry',
+            description:
+              'Calls the dev-only stellar_signAuthEntry RPC alias (SEP-43). Paste a base64 HashIdPreimage (Soroban authorization preimage) — the wallet hashes it with SHA-256 and signs the digest.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="Auth entry preimage to sign"
+                  value={signAuthEntryText}
+                  onChange={({ target }) => setSignAuthEntryText(target.value)}
+                  disabled={!installedSnap}
+                />
+                {signAuthEntryOutput !== null && (
+                  <SignatureOutput>{signAuthEntryOutput}</SignatureOutput>
+                )}
+                <SignOpsButton
+                  type="button"
+                  onClick={handleSignAuthEntryClick}
+                  disabled={!installedSnap}
+                >
+                  Sign auth entry
+                </SignOpsButton>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+
+        <Card
+          content={{
+            title: 'Change trust (test dapp RPC)',
+            description:
+              'Invokes stellar_changeTrustOpt (changeTrustOpt with action add or delete). Optional limit for add; for delete, limit must be 0. Uses the active keyring account above.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="CAIP-19 asset id for trustline"
+                  value={trustlineAssetId}
+                  onChange={({ target }) => setTrustlineAssetId(target.value)}
+                  disabled={!installedSnap}
+                />
+                <MessageField
+                  aria-label="Trust limit (optional for add; required for delete, must be 0)"
+                  value={trustlineLimit}
+                  onChange={({ target }) => setTrustlineLimit(target.value)}
+                  disabled={!installedSnap}
+                />
+                {trustlineOutput !== null && (
+                  <SignatureOutput>{trustlineOutput}</SignatureOutput>
+                )}
+                <TrustlineButtonRow>
+                  <SignOpsButton
+                    type="button"
+                    onClick={async () => invokeChangeTrustOpt('add')}
+                    disabled={!installedSnap}
+                  >
+                    Add trustline
+                  </SignOpsButton>
+                  <SignOpsButton
+                    type="button"
+                    onClick={async () => invokeChangeTrustOpt('delete')}
+                    disabled={!installedSnap}
+                  >
+                    Remove trustline
+                  </SignOpsButton>
+                </TrustlineButtonRow>
               </>
             ),
           }}

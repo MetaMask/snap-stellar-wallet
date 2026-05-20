@@ -48,6 +48,7 @@ const config = {
     '\\.svg$': 'jest-transform-stub',
   },
   resetMocks: true,
+  restoreMocks: true,
   testMatch: ['**/src/**/?(*.)+(spec|test).[tj]s?(x)'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 };
