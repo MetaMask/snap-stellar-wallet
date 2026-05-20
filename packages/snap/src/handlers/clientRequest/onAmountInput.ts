@@ -67,10 +67,13 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
   }
 
   /**
-   * Validates that the sender can afford a transfer of `params.value`.
+   * Preflight-validates a send amount for an asset transfer by building a
+   * validated send transaction (balance and fee checks only; nothing is signed
+   * or submitted). Uses cached network reads for SEP-41 fee simulation so
+   * repeated amount checks stay responsive.
    *
    * @param resolved - Keyring account, persisted on-chain snapshot, and wallet.
-   * @param request - JSON-RPC request with `assetId` and `value` (positive amount string).
+   * @param request - JSON-RPC request with `assetId`, `value` (positive amount string), and optional `to`.
    * @returns Validation result with `valid` and optional error codes.
    */
   protected async execute(
