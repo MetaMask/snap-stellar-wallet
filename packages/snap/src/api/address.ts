@@ -20,7 +20,31 @@ export const StellarAddressStruct = refine(
   },
 );
 
+export const StellarAddressOrContractStruct = refine(
+  nonempty(string()),
+  'stellar_contract_or_address',
+  (value: string) => {
+    try {
+      if (
+        !StrKey.isValidContract(value) &&
+        !StrKey.isValidEd25519PublicKey(value)
+      ) {
+        return 'Invalid Stellar address or contract';
+      }
+      return true;
+    } catch {
+      return 'Invalid Stellar address or contract';
+    }
+  },
+);
 /**
  * Type for a Stellar address.
  */
 export type StellarAddress = Infer<typeof StellarAddressStruct>;
+
+/**
+ * Type for a Stellar address or contract.
+ */
+export type StellarAddressOrContract = Infer<
+  typeof StellarAddressOrContractStruct
+>;
