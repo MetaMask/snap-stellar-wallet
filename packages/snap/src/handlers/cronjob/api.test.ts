@@ -4,8 +4,7 @@ import {
   BackgroundEventMethod,
   BackgroundEventMethodStruct,
   CronjobJsonRpcRequestStruct,
-  RefreshConfirmationPricesJsonRpcRequestStruct,
-  RefreshConfirmationSecurityScanJsonRpcRequestStruct,
+  RefreshConfirmationContextJsonRpcRequestStruct,
   SyncAccountJsonRpcRequestStruct,
   SyncAccountParamsStruct,
   TrackTransactionJsonRpcRequestStruct,
@@ -127,21 +126,21 @@ describe('Cronjob API structs', () => {
     });
   });
 
-  describe('RefreshConfirmationPricesJsonRpcRequestStruct', () => {
-    it('accepts refresh confirmation prices requests', () => {
+  describe('RefreshConfirmationContextJsonRpcRequestStruct', () => {
+    it('accepts refresh confirmation context requests', () => {
       const value = {
         ...jsonRpcBase,
-        method: BackgroundEventMethod.RefreshConfirmationPrices,
+        method: BackgroundEventMethod.RefreshConfirmationContext,
         params: {
           scope: KnownCaip2ChainId.Mainnet,
           interfaceId: 'interface-id',
           interfaceKey: ConfirmationInterfaceKey.SignTransaction,
         },
       };
-      assert(value, RefreshConfirmationPricesJsonRpcRequestStruct);
+      assert(value, RefreshConfirmationContextJsonRpcRequestStruct);
       expect(value).toStrictEqual({
         ...jsonRpcBase,
-        method: BackgroundEventMethod.RefreshConfirmationPrices,
+        method: BackgroundEventMethod.RefreshConfirmationContext,
         params: {
           scope: KnownCaip2ChainId.Mainnet,
           interfaceId: 'interface-id',
@@ -149,29 +148,22 @@ describe('Cronjob API structs', () => {
         },
       });
     });
-  });
 
-  describe('RefreshConfirmationSecurityScanJsonRpcRequestStruct', () => {
-    it('accepts refresh confirmation security scan requests', () => {
-      const value = {
-        ...jsonRpcBase,
-        method: BackgroundEventMethod.RefreshConfirmationSecurityScan,
-        params: {
-          scope: KnownCaip2ChainId.Mainnet,
-          interfaceId: 'interface-id',
-          interfaceKey: ConfirmationInterfaceKey.SignTransaction,
-        },
-      };
-      assert(value, RefreshConfirmationSecurityScanJsonRpcRequestStruct);
-      expect(value).toStrictEqual({
-        ...jsonRpcBase,
-        method: BackgroundEventMethod.RefreshConfirmationSecurityScan,
-        params: {
-          scope: KnownCaip2ChainId.Mainnet,
-          interfaceId: 'interface-id',
-          interfaceKey: ConfirmationInterfaceKey.SignTransaction,
-        },
-      });
+    it('rejects refresh confirmation context requests with the wrong method', () => {
+      expect(() =>
+        assert(
+          {
+            ...jsonRpcBase,
+            method: BackgroundEventMethod.TrackTransaction,
+            params: {
+              scope: KnownCaip2ChainId.Mainnet,
+              interfaceId: 'interface-id',
+              interfaceKey: ConfirmationInterfaceKey.SignTransaction,
+            },
+          },
+          RefreshConfirmationContextJsonRpcRequestStruct,
+        ),
+      ).toThrow(StructError);
     });
   });
 

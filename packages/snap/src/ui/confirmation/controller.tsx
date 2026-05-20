@@ -216,24 +216,13 @@ export class ConfirmationUXController {
         return dialogPromise;
       }
 
-      // 4. Schedule background jobs only after confirming the interface is still alive
-      if (enablePricing) {
-        // Trigger immediate price fetch (1 second), then continue every 20 seconds
+      // 4. Schedule the single background job that refreshes every data source
+      //    the dialog depends on (prices, security scan, …). One writer per
+      //    interface eliminates the lost-update race on the shared context.
+      if (enablePricing || enableSecurityScan) {
         await scheduleBackgroundEvent({
-          method: BackgroundEventMethod.RefreshConfirmationPrices,
+          method: BackgroundEventMethod.RefreshConfirmationContext,
           duration: Duration.OneSecond, // Start immediately
-          params: {
-            scope,
-            interfaceId: id,
-            interfaceKey,
-          },
-        });
-      }
-
-      if (enableSecurityScan) {
-        await scheduleBackgroundEvent({
-          method: BackgroundEventMethod.RefreshConfirmationSecurityScan,
-          duration: Duration.OneSecond,
           params: {
             scope,
             interfaceId: id,

@@ -32,8 +32,7 @@ export type ICronjobRequestHandler = {
 
 export enum BackgroundEventMethod {
   SynchronizeAccounts = 'synchronizeAccounts',
-  RefreshConfirmationPrices = 'refreshConfirmationPrices',
-  RefreshConfirmationSecurityScan = 'refreshConfirmationSecurityScan',
+  RefreshConfirmationContext = 'refreshConfirmationContext',
   TrackTransaction = 'trackTransaction',
 }
 
@@ -41,13 +40,7 @@ export const BackgroundEventMethodStruct = enums(
   Object.values(BackgroundEventMethod),
 );
 
-export const RefreshConfirmationPricesParamsStruct = type({
-  scope: KnownCaip2ChainIdStruct,
-  interfaceId: nonempty(string()),
-  interfaceKey: ConfirmationInterfaceKeyStruct,
-});
-
-export const RefreshConfirmationSecurityScanParamsStruct = type({
+export const RefreshConfirmationContextParamsStruct = type({
   scope: KnownCaip2ChainIdStruct,
   interfaceId: nonempty(string()),
   interfaceKey: ConfirmationInterfaceKeyStruct,
@@ -68,19 +61,11 @@ export const SyncAccountParamsStruct = object({
   ),
 });
 
-export const RefreshConfirmationPricesJsonRpcRequestStruct = assign(
+export const RefreshConfirmationContextJsonRpcRequestStruct = assign(
   JsonRpcRequestStruct,
   object({
-    method: literal(BackgroundEventMethod.RefreshConfirmationPrices),
-    params: RefreshConfirmationPricesParamsStruct,
-  }),
-);
-
-export const RefreshConfirmationSecurityScanJsonRpcRequestStruct = assign(
-  JsonRpcRequestStruct,
-  object({
-    method: literal(BackgroundEventMethod.RefreshConfirmationSecurityScan),
-    params: RefreshConfirmationSecurityScanParamsStruct,
+    method: literal(BackgroundEventMethod.RefreshConfirmationContext),
+    params: RefreshConfirmationContextParamsStruct,
   }),
 );
 
@@ -108,20 +93,12 @@ export const CronjobJsonRpcRequestStruct = object({
 
 export type CronjobJsonRpcRequest = Infer<typeof CronjobJsonRpcRequestStruct>;
 
-export type RefreshConfirmationPricesJsonRpcRequest = Infer<
-  typeof RefreshConfirmationPricesJsonRpcRequestStruct
+export type RefreshConfirmationContextJsonRpcRequest = Infer<
+  typeof RefreshConfirmationContextJsonRpcRequestStruct
 >;
 
-export type RefreshConfirmationSecurityScanJsonRpcRequest = Infer<
-  typeof RefreshConfirmationSecurityScanJsonRpcRequestStruct
->;
-
-export type RefreshConfirmationPricesParams = Infer<
-  typeof RefreshConfirmationPricesParamsStruct
->;
-
-export type RefreshConfirmationSecurityScanParams = Infer<
-  typeof RefreshConfirmationSecurityScanParamsStruct
+export type RefreshConfirmationContextParams = Infer<
+  typeof RefreshConfirmationContextParamsStruct
 >;
 
 export type TrackTransactionJsonRpcRequest = Infer<

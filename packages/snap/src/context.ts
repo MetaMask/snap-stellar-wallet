@@ -14,8 +14,7 @@ import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
 import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
-import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
-import { RefreshConfirmationSecurityScanHandler } from './handlers/cronjob/refreshConfirmationSecurityScan';
+import { RefreshConfirmationContextHandler } from './handlers/cronjob/refreshConfirmationContext';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
@@ -134,7 +133,6 @@ const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountResolver,
   transactionBuilder,
-  transactionService,
   confirmationUIController,
 });
 
@@ -173,18 +171,14 @@ const userInputHandler = new UserInputHandler({
 
 /** ------------------------------ Cronjob Handler ------------------------------ */
 
-const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
-  logger,
-  priceService,
-  confirmationUIController,
-});
-
-const refreshConfirmationSecurityScanHandler =
-  new RefreshConfirmationSecurityScanHandler({
+const refreshConfirmationContextHandler = new RefreshConfirmationContextHandler(
+  {
     logger,
+    priceService,
     transactionScanService,
     confirmationUIController,
-  });
+  },
+);
 
 const trackTransactionHandler = new TrackTransactionHandler({
   logger,
@@ -204,10 +198,8 @@ const cronjobMethodHandlers: Record<
   BackgroundEventMethod,
   ICronjobRequestHandler
 > = {
-  [BackgroundEventMethod.RefreshConfirmationPrices]:
-    refreshConfirmationPricesHandler,
-  [BackgroundEventMethod.RefreshConfirmationSecurityScan]:
-    refreshConfirmationSecurityScanHandler,
+  [BackgroundEventMethod.RefreshConfirmationContext]:
+    refreshConfirmationContextHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
   [BackgroundEventMethod.SynchronizeAccounts]: syncAccountsHandler,
 };

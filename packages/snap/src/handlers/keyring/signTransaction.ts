@@ -12,7 +12,6 @@ import type { StellarKeyringAccount } from '../../services/account';
 import type {
   Transaction,
   TransactionBuilder,
-  TransactionService,
 } from '../../services/transaction';
 import { OperationMapper } from '../../services/transaction';
 import {
@@ -42,21 +41,17 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
 > {
   readonly #transactionBuilder: TransactionBuilder;
 
-  readonly #transactionService: TransactionService;
-
   readonly #confirmationUIController: ConfirmationUXController;
 
   constructor({
     logger,
     accountResolver,
     transactionBuilder,
-    transactionService,
     confirmationUIController,
   }: {
     logger: ILogger;
     accountResolver: AccountResolver;
     transactionBuilder: TransactionBuilder;
-    transactionService: TransactionService;
     confirmationUIController: ConfirmationUXController;
   }) {
     super({
@@ -67,7 +62,6 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       responseStruct: SignTransactionResponseStruct,
     });
     this.#transactionBuilder = transactionBuilder;
-    this.#transactionService = transactionService;
     this.#confirmationUIController = confirmationUIController;
   }
 
@@ -91,16 +85,12 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
     // We gate signing to envelopes that involve this wallet.
     assertAccountInvolvesTransaction(transaction, wallet.address);
 
-    // Computing fee will inject the fee into the transaction
-    const transactionWithFee =
-      await this.#transactionService.computingFee(transaction);
-
-    if (!(await this.#confirmation(request, transactionWithFee, account))) {
+    if (!(await this.#confirmation(request, transaction, account))) {
       throw new UserRejectedRequestError() as unknown as Error;
     }
 
-    wallet.signTransaction(transactionWithFee);
-    const signedTxXdr = transactionWithFee.getRaw().toXDR();
+    wallet.signTransaction(transaction);
+    const signedTxXdr = transaction.getRaw().toXDR();
 
     return {
       signedTxXdr,
