@@ -701,16 +701,20 @@ export class NetworkService {
   }
 
   /**
-   * Simulates a SEP-41 transfer transaction via RPC and returns a new {@link Transaction} with updated fee.
+   * Simulates a SEP-41 transfer via RPC and returns an assembled {@link Transaction} with fee and footprint.
    *
-   * @param params - The parameters for simulating a SEP-41 transfer transaction.
-   * @param params.transaction - The transaction to simulate.
+   * Results are cached by `assetId`, `fromAccountId`, `toAccountId`, and `scope` so repeated simulations
+   * for the same transfer context (e.g. different amounts during fee estimation) avoid extra RPC calls.
+   * Pass `refreshCache: true` when simulating the transaction that will be signed and submitted.
+   *
+   * @param params - Simulation parameters.
+   * @param params.transaction - SEP-41 transfer envelope with exactly one `invokeHostFunction` operation.
    * @param params.scope - The CAIP-2 chain ID.
    * @param params.assetId - The CAIP-19 SEP-41 asset ID.
-   * @param params.fromAccountId - The from account ID.
-   * @param params.toAccountId - The to account ID.
-   * @param params.refreshCache - Whether to refresh the cache.
-   * @returns A promise that resolves to a new {@link Transaction} with updated fee.
+   * @param params.fromAccountId - Sender account ID.
+   * @param params.toAccountId - Recipient account ID.
+   * @param params.refreshCache - When true, bypasses the cache and stores a fresh simulation result.
+   * @returns A promise that resolves to an assembled {@link Transaction}.
    */
   async simulateSep41TransferWithCache({
     transaction,
