@@ -4,7 +4,7 @@ import { Address, scValToNative } from '@stellar/stellar-sdk';
 import { TransactionValidationException } from '../exceptions';
 import type { AccountState, SimulationState } from './api';
 import {
-  StellarAddressStruct,
+  StellarAddressOrContractStruct,
   type KnownCaip19Sep41AssetId,
   type KnownCaip2ChainId,
 } from '../../../api';
@@ -116,10 +116,16 @@ export function tryParseSep41TransferInvoke(
   const fromNative = scValToNative(fromArg);
   const toNative = scValToNative(toArg);
   const amountNative = scValToNative(amountArg);
-  if (typeof fromNative !== 'string' || !StellarAddressStruct.is(fromNative)) {
+  if (
+    typeof fromNative !== 'string' ||
+    !StellarAddressOrContractStruct.is(fromNative)
+  ) {
     throw new TransactionValidationException('Invalid from address');
   }
-  if (typeof toNative !== 'string' || !StellarAddressStruct.is(toNative)) {
+  if (
+    typeof toNative !== 'string' ||
+    !StellarAddressOrContractStruct.is(toNative)
+  ) {
     throw new TransactionValidationException('Invalid to address');
   }
 
