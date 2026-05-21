@@ -5,7 +5,6 @@ import {
   BackgroundEventMethodStruct,
   CronjobJsonRpcRequestStruct,
   RefreshConfirmationContextJsonRpcRequestStruct,
-  RefreshConfirmationPricesJsonRpcRequestStruct,
   SyncAccountJsonRpcRequestStruct,
   SyncAccountParamsStruct,
   TrackTransactionJsonRpcRequestStruct,
@@ -124,30 +123,6 @@ describe('Cronjob API structs', () => {
           SyncAccountJsonRpcRequestStruct,
         ),
       ).toThrow(StructError);
-    });
-  });
-
-  describe('RefreshConfirmationPricesJsonRpcRequestStruct', () => {
-    it('accepts refresh confirmation prices requests', () => {
-      const value = {
-        ...jsonRpcBase,
-        method: BackgroundEventMethod.RefreshConfirmationPrices,
-        params: {
-          scope: KnownCaip2ChainId.Mainnet,
-          interfaceId: 'interface-id',
-          interfaceKey: ConfirmationInterfaceKey.SignTransaction,
-        },
-      };
-      assert(value, RefreshConfirmationPricesJsonRpcRequestStruct);
-      expect(value).toStrictEqual({
-        ...jsonRpcBase,
-        method: BackgroundEventMethod.RefreshConfirmationPrices,
-        params: {
-          scope: KnownCaip2ChainId.Mainnet,
-          interfaceId: 'interface-id',
-          interfaceKey: ConfirmationInterfaceKey.SignTransaction,
-        },
-      });
     });
   });
 

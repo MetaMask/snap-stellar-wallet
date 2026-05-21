@@ -33,7 +33,6 @@ export type ICronjobRequestHandler = {
 
 export enum BackgroundEventMethod {
   SynchronizeAccounts = 'synchronizeAccounts',
-  RefreshConfirmationPrices = 'refreshConfirmationPrices',
   TrackTransaction = 'trackTransaction',
   RefreshConfirmationContext = 'refreshConfirmationContext',
 }
@@ -41,12 +40,6 @@ export enum BackgroundEventMethod {
 export const BackgroundEventMethodStruct = enums(
   Object.values(BackgroundEventMethod),
 );
-
-export const RefreshConfirmationPricesParamsStruct = type({
-  scope: KnownCaip2ChainIdStruct,
-  interfaceId: nonempty(string()),
-  interfaceKey: ConfirmationInterfaceKeyStruct,
-});
 
 export const RefreshConfirmationContextParamsStruct = type({
   scope: KnownCaip2ChainIdStruct,
@@ -79,14 +72,6 @@ export const SyncAccountParamsStruct = object({
   ),
 });
 
-export const RefreshConfirmationPricesJsonRpcRequestStruct = assign(
-  JsonRpcRequestStruct,
-  object({
-    method: literal(BackgroundEventMethod.RefreshConfirmationPrices),
-    params: RefreshConfirmationPricesParamsStruct,
-  }),
-);
-
 export const TrackTransactionJsonRpcRequestStruct = assign(
   JsonRpcRequestStruct,
   object({
@@ -110,14 +95,6 @@ export const CronjobJsonRpcRequestStruct = object({
 });
 
 export type CronjobJsonRpcRequest = Infer<typeof CronjobJsonRpcRequestStruct>;
-
-export type RefreshConfirmationPricesJsonRpcRequest = Infer<
-  typeof RefreshConfirmationPricesJsonRpcRequestStruct
->;
-
-export type RefreshConfirmationPricesParams = Infer<
-  typeof RefreshConfirmationPricesParamsStruct
->;
 
 export type TrackTransactionJsonRpcRequest = Infer<
   typeof TrackTransactionJsonRpcRequestStruct

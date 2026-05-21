@@ -18,7 +18,6 @@ import {
   ConfirmationPriceRefresher,
   RefreshConfirmationContextHandler,
 } from './handlers/cronjob/refreshConfirmationContext';
-import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
@@ -163,13 +162,6 @@ const userInputHandler = new UserInputHandler({
 });
 
 /** ------------------------------ Cronjob Handler ------------------------------ */
-
-const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
-  logger,
-  priceService,
-  confirmationUIController,
-});
-
 const confirmationPriceRefresher = new ConfirmationPriceRefresher({
   logger,
   priceService,
@@ -201,8 +193,6 @@ const cronjobMethodHandlers: Record<
   BackgroundEventMethod,
   ICronjobRequestHandler
 > = {
-  [BackgroundEventMethod.RefreshConfirmationPrices]:
-    refreshConfirmationPricesHandler,
   [BackgroundEventMethod.RefreshConfirmationContext]:
     refreshConfirmationContextHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
