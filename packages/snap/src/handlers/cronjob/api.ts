@@ -21,6 +21,7 @@ import {
   KnownCaip2ChainIdStruct,
   UuidStruct,
 } from '../../api';
+import { ConfirmationContextRefresherKeyStruct } from './refreshConfirmationContext/api';
 import { ConfirmationInterfaceKeyStruct } from '../../ui/confirmation/api';
 
 /**
@@ -34,6 +35,7 @@ export enum BackgroundEventMethod {
   SynchronizeAccounts = 'synchronizeAccounts',
   RefreshConfirmationPrices = 'refreshConfirmationPrices',
   TrackTransaction = 'trackTransaction',
+  RefreshConfirmationContext = 'refreshConfirmationContext',
 }
 
 export const BackgroundEventMethodStruct = enums(
@@ -45,6 +47,22 @@ export const RefreshConfirmationPricesParamsStruct = type({
   interfaceId: nonempty(string()),
   interfaceKey: ConfirmationInterfaceKeyStruct,
 });
+
+export const RefreshConfirmationContextParamsStruct = type({
+  scope: KnownCaip2ChainIdStruct,
+  interfaceId: nonempty(string()),
+  interfaceKey: ConfirmationInterfaceKeyStruct,
+  /** Refresher keys to run; omitted keys are skipped for this cycle. */
+  refresherKeys: nonempty(array(ConfirmationContextRefresherKeyStruct)),
+});
+
+export const RefreshConfirmationContextJsonRpcRequestStruct = assign(
+  JsonRpcRequestStruct,
+  object({
+    method: literal(BackgroundEventMethod.RefreshConfirmationContext),
+    params: RefreshConfirmationContextParamsStruct,
+  }),
+);
 
 export const TrackTransactionParamsStruct = type({
   txId: nonempty(string()),
@@ -112,3 +130,11 @@ export type SyncAccountJsonRpcRequest = Infer<
 >;
 
 export type SyncAccountParams = Infer<typeof SyncAccountParamsStruct>;
+
+export type RefreshConfirmationContextJsonRpcRequest = Infer<
+  typeof RefreshConfirmationContextJsonRpcRequestStruct
+>;
+
+export type RefreshConfirmationContextParams = Infer<
+  typeof RefreshConfirmationContextParamsStruct
+>;

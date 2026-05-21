@@ -14,6 +14,10 @@ import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
 import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
+import {
+  ConfirmationPriceRefresher,
+  RefreshConfirmationContextHandler,
+} from './handlers/cronjob/refreshConfirmationContext';
 import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
@@ -166,6 +170,19 @@ const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
   confirmationUIController,
 });
 
+const confirmationPriceRefresher = new ConfirmationPriceRefresher({
+  logger,
+  priceService,
+});
+
+const refreshConfirmationContextHandler = new RefreshConfirmationContextHandler(
+  {
+    logger,
+    confirmationUIController,
+    refreshers: [confirmationPriceRefresher],
+  },
+);
+
 const trackTransactionHandler = new TrackTransactionHandler({
   logger,
   networkService,
@@ -186,6 +203,8 @@ const cronjobMethodHandlers: Record<
 > = {
   [BackgroundEventMethod.RefreshConfirmationPrices]:
     refreshConfirmationPricesHandler,
+  [BackgroundEventMethod.RefreshConfirmationContext]:
+    refreshConfirmationContextHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
   [BackgroundEventMethod.SynchronizeAccounts]: syncAccountsHandler,
 };
