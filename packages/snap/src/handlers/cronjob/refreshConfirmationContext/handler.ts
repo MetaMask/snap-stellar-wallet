@@ -72,7 +72,7 @@ export class RefreshConfirmationContextHandler extends CronjobBaseHandler<Refres
     this.#refresherByKey = new Map(
       refreshers.map((refresher) => [refresher.key, refresher]),
     );
-    // A safe guard to ensure all refreshers are registered.
+    // A safeguard to ensure all refreshers are registered.
     if (this.#refresherByKey.size !== refreshers.length) {
       throw new Error(
         'Duplicate confirmation context refresher key registered',
@@ -203,10 +203,10 @@ export class RefreshConfirmationContextHandler extends CronjobBaseHandler<Refres
     refresher: IConfirmationContextRefresher,
     ctx: ConfirmationDataContext,
   ): Promise<ConfirmationContextRefreshResult> {
-    // If the refresher should not fetch becoz of:
-    // - the context is not valid for this refresher;
-    // - the fetch status is Error due to previous failure;
-    // We use the recovery result to clear the stuck loading state.
+    // If the refresher decides there is nothing to fetch right now
+    // (for example, no eligible assets remain or a prior error state
+    // means refresh should be skipped), use the recovery result to clear
+    // any stuck loading state.
     if (!refresher.shouldFetch(ctx)) {
       return refresher.recoveryResult(ctx);
     }
