@@ -132,7 +132,9 @@ export class NetworkService {
     try {
       const client = this.#getHorizonClient(scope);
       const baseFee = await client.fetchBaseFee();
-      return new BigNumber(baseFee).multipliedBy(FEE_MULTIPLIER_BASE);
+      return new BigNumber(baseFee)
+        .multipliedBy(FEE_MULTIPLIER_BASE)
+        .integerValue(BigNumber.ROUND_CEIL);
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to fetch base fee', error);
       throw new BaseFeeFetchException(scope);
@@ -702,7 +704,10 @@ export class NetworkService {
       // simulateResponse.transactionData will be used to assemble the transaction.
       // @link https://github.com/stellar/stellar-sdk/blob/main/packages/stellar-base/src/rpc/transaction.ts
       simulateResponse.transactionData.setResourceFee(
-        resourceFee.multipliedBy(FEE_MULTIPLIER_SMART_CONTRACT).toString(),
+        resourceFee
+          .multipliedBy(FEE_MULTIPLIER_SMART_CONTRACT)
+          .integerValue(BigNumber.ROUND_CEIL)
+          .toString(),
       );
 
       const simulatedTransaction = rpc.assembleTransaction(
