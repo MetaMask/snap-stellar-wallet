@@ -6,6 +6,7 @@ import {
   nativeToScVal,
   NotFoundError,
   rpc as StellarRpc,
+  SorobanDataBuilder,
   TransactionBuilder as StellarTransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
@@ -30,7 +31,11 @@ import type {
 } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
-import { STELLAR_DECIMAL_PLACES } from '../../constants';
+import {
+  FEE_MULTIPLIER_BASE,
+  FEE_MULTIPLIER_SMART_CONTRACT,
+  STELLAR_DECIMAL_PLACES,
+} from '../../constants';
 import { logger } from '../../utils/logger';
 import { InMemoryCache } from '../cache/InMemoryCache';
 import { createMockAccountWithBalances } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
@@ -137,7 +142,9 @@ describe('NetworkService', () => {
 
       const result = await networkService.getBaseFee(scope);
 
-      expect(result).toStrictEqual(new BigNumber(100));
+      expect(result).toStrictEqual(
+        new BigNumber(100).multipliedBy(FEE_MULTIPLIER_BASE),
+      );
       expect(fetchBaseFeeSpy).toHaveBeenCalled();
     });
 
@@ -161,8 +168,12 @@ describe('NetworkService', () => {
       await Promise.resolve();
       const second = await networkService.getBaseFeeWithCache(scope);
 
-      expect(first).toStrictEqual(new BigNumber(55));
-      expect(second).toStrictEqual(new BigNumber(55));
+      expect(first).toStrictEqual(
+        new BigNumber(55).multipliedBy(FEE_MULTIPLIER_BASE),
+      );
+      expect(second).toStrictEqual(
+        new BigNumber(55).multipliedBy(FEE_MULTIPLIER_BASE),
+      );
       expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(1);
     });
 
@@ -175,7 +186,9 @@ describe('NetworkService', () => {
       await Promise.resolve();
       const refreshed = await networkService.getBaseFeeWithCache(scope, true);
 
-      expect(refreshed).toStrictEqual(new BigNumber(11));
+      expect(refreshed).toStrictEqual(
+        new BigNumber(11).multipliedBy(FEE_MULTIPLIER_BASE),
+      );
       expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(2);
     });
   });
@@ -894,6 +907,36 @@ describe('NetworkService', () => {
       });
 
       isSimErrorSpy.mockRestore();
+    });
+
+    it('applies FEE_MULTIPLIER_SMART_CONTRACT to minResourceFee before assembling', async () => {
+      const { simulateTransactionSpy } = getRpcServerSpies();
+      const mockInvoke = createMockInvokeHostFunctionTransaction();
+      const minResourceFee = '1000';
+      const transactionData = new SorobanDataBuilder();
+      const setResourceFeeSpy = jest.spyOn(transactionData, 'setResourceFee');
+      simulateTransactionSpy.mockResolvedValue({
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        _parsed: true,
+        id: '1',
+        latestLedger: 1,
+        events: [],
+        minResourceFee,
+        transactionData,
+        result: { auth: [] },
+      } as never);
+
+      const result = await networkService.simulateTransaction(
+        mockInvoke,
+        scope,
+      );
+
+      expect(result).toBeInstanceOf(Transaction);
+      expect(setResourceFeeSpy).toHaveBeenCalledWith(
+        new BigNumber(minResourceFee)
+          .multipliedBy(FEE_MULTIPLIER_SMART_CONTRACT)
+          .toString(),
+      );
     });
 
     it('calls RPC simulateTransaction with the wrapped envelope getRaw()', async () => {

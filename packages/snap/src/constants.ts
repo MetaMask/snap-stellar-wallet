@@ -70,3 +70,16 @@ export const MAX_INT64 = '9223372036854775807';
  * The type for the keyring account.
  */
 export const KEYRING_ACCOUNT_TYPE = XlmAccountType.Account;
+
+/**
+ * The base fee multiplier for the Stellar network.
+ */
+export const FEE_MULTIPLIER_BASE = 1.2;
+
+/**
+ * The smart contract transaction fee multiplier for the Stellar network.
+ * The multiplier is higher because smart contract transactions have tighter ledger limits than normal transactions.
+ *
+ * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering#ledger-limits
+ */
+export const FEE_MULTIPLIER_SMART_CONTRACT = 1.5;
