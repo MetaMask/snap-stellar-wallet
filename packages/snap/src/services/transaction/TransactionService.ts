@@ -193,7 +193,12 @@ export class TransactionService {
    * @param params.amount - The amount to send.
    * @param params.destination - The destination address.
    * @param params.destinationAccount - The destination account.
-   * @param params.useCache - Whether to use the cache.
+   * @param params.useCache - When `true`, reuses a cached SEP-41 simulation keyed by
+   * asset, sender, recipient, and scope (not amount). Use only for preflight checks
+   * such as amount-input validation, where the caller needs fee/balance feedback on
+   * every keystroke without an RPC call per amount. Balance is checked locally before
+   * simulation, so insufficient funds still fail fast. When `false` (default), always
+   * simulates fresh so the returned transaction is safe to sign and submit.
    * @returns A promise that resolves to the validated transaction.
    */
   async #createValidatedSep41Transfer(params: {
@@ -257,6 +262,8 @@ export class TransactionService {
       assetId,
       fromAccountId: onChainAccount.accountId,
       toAccountId: destination,
+      // With useCache=true the cached XDR may carry a stale amount or sequence;
+      // Callers must only use that path for preflight (e.g. onAmountInput), not signing.
       refreshCache: !useCache,
     });
 
