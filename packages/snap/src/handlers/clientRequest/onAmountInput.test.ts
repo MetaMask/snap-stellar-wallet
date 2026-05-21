@@ -7,7 +7,11 @@ import {
   type OnAmountInputJsonRpcRequest,
 } from './api';
 import { OnAmountInputHandler } from './onAmountInput';
-import { KnownCaip2ChainId, type KnownCaip19ClassicAssetId } from '../../api';
+import {
+  KnownCaip2ChainId,
+  type KnownCaip19ClassicAssetId,
+  type KnownCaip19Sep41AssetId,
+} from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import type { StellarAssetMetadata } from '../../services/asset-metadata';
@@ -16,6 +20,7 @@ import {
   createMockAssetMetadataService,
   generateMockStellarAssetMetadata,
   USDC_CLASSIC,
+  USDC_SEP41,
 } from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { AccountNotActivatedException } from '../../services/network';
 import {
@@ -140,6 +145,27 @@ describe('OnAmountInputHandler', () => {
       },
     };
   }
+
+  it('returns invalid when value has more decimal places than the asset supports', async () => {
+    const sep41AssetId = USDC_SEP41 as KnownCaip19Sep41AssetId;
+    const { handler, createValidatedSendTransaction } = setup();
+    const assetMetadata = generateMockStellarAssetMetadata()[
+      sep41AssetId
+    ] as StellarAssetMetadata;
+    jest
+      .spyOn(AssetMetadataService.prototype, 'resolve')
+      .mockResolvedValue(assetMetadata);
+
+    expect(
+      await handler.handle(
+        baseRequest({ assetId: sep41AssetId, value: '1.12345678' }),
+      ),
+    ).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(createValidatedSendTransaction).not.toHaveBeenCalled();
+  });
 
   it('returns valid when send validation succeeds', async () => {
     const { handler, onChainAccount, createValidatedSendTransaction } = setup();

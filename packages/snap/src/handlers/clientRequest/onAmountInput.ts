@@ -20,7 +20,7 @@ import {
   InsufficientBalanceToCoverFeeException,
   TransactionValidationException,
 } from '../../services/transaction/exceptions';
-import { toSmallestUnit } from '../../utils';
+import { hasDecimals, toSmallestUnit } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type {
@@ -92,6 +92,13 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
         new BigNumber(value),
         decimals,
       );
+
+      if (hasDecimals(amountInSmallestUnit)) {
+        return {
+          valid: false,
+          errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+        };
+      }
 
       await this.#transactionService.createValidatedSendTransaction({
         onChainAccount,
