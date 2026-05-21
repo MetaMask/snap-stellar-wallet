@@ -187,7 +187,10 @@ describe('NetworkService', () => {
       const refreshed = await networkService.getBaseFeeWithCache(scope, true);
 
       expect(refreshed).toStrictEqual(
-        new BigNumber(11).multipliedBy(FEE_MULTIPLIER_BASE),
+        // expected value is 11 * 1.2 = 13.2, rounded up to 14
+        new BigNumber(11)
+          .multipliedBy(FEE_MULTIPLIER_BASE)
+          .integerValue(BigNumber.ROUND_CEIL),
       );
       expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(2);
     });
