@@ -31,11 +31,7 @@ import type {
 } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
-import {
-  FEE_MULTIPLIER_BASE,
-  FEE_MULTIPLIER_SMART_CONTRACT,
-  STELLAR_DECIMAL_PLACES,
-} from '../../constants';
+import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import { logger } from '../../utils/logger';
 import { InMemoryCache } from '../cache/InMemoryCache';
 import { createMockAccountWithBalances } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
@@ -143,7 +139,9 @@ describe('NetworkService', () => {
       const result = await networkService.getBaseFee(scope);
 
       expect(result).toStrictEqual(
-        new BigNumber(100).multipliedBy(FEE_MULTIPLIER_BASE),
+        new BigNumber(100).multipliedBy(
+          AppConfig.transaction.baseFeeMultiplier,
+        ),
       );
       expect(fetchBaseFeeSpy).toHaveBeenCalled();
     });
@@ -169,10 +167,10 @@ describe('NetworkService', () => {
       const second = await networkService.getBaseFeeWithCache(scope);
 
       expect(first).toStrictEqual(
-        new BigNumber(55).multipliedBy(FEE_MULTIPLIER_BASE),
+        new BigNumber(55).multipliedBy(AppConfig.transaction.baseFeeMultiplier),
       );
       expect(second).toStrictEqual(
-        new BigNumber(55).multipliedBy(FEE_MULTIPLIER_BASE),
+        new BigNumber(55).multipliedBy(AppConfig.transaction.baseFeeMultiplier),
       );
       expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(1);
     });
@@ -189,7 +187,7 @@ describe('NetworkService', () => {
       expect(refreshed).toStrictEqual(
         // expected value is 11 * 1.2 = 13.2, rounded up to 14
         new BigNumber(11)
-          .multipliedBy(FEE_MULTIPLIER_BASE)
+          .multipliedBy(AppConfig.transaction.baseFeeMultiplier)
           .integerValue(BigNumber.ROUND_CEIL),
       );
       expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(2);
@@ -912,7 +910,7 @@ describe('NetworkService', () => {
       isSimErrorSpy.mockRestore();
     });
 
-    it('applies FEE_MULTIPLIER_SMART_CONTRACT to minResourceFee before assembling', async () => {
+    it('applies simulationFeeMultiplier to minResourceFee before assembling', async () => {
       const { simulateTransactionSpy } = getRpcServerSpies();
       const mockInvoke = createMockInvokeHostFunctionTransaction();
       const minResourceFee = '1000';
@@ -937,7 +935,7 @@ describe('NetworkService', () => {
       expect(result).toBeInstanceOf(Transaction);
       expect(setResourceFeeSpy).toHaveBeenCalledWith(
         new BigNumber(minResourceFee)
-          .multipliedBy(FEE_MULTIPLIER_SMART_CONTRACT)
+          .multipliedBy(AppConfig.transaction.simulationFeeMultiplier)
           .toString(),
       );
     });
