@@ -128,7 +128,9 @@ export class NetworkService {
     try {
       const client = this.#getHorizonClient(scope);
       const baseFee = await client.fetchBaseFee();
-      return new BigNumber(baseFee);
+      return new BigNumber(baseFee)
+        .multipliedBy(AppConfig.transaction.baseFeeMultiplier)
+        .integerValue(BigNumber.ROUND_CEIL);
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to fetch base fee', error);
       throw new BaseFeeFetchException(scope);
@@ -665,7 +667,7 @@ export class NetworkService {
     try {
       if (!transaction.hasInvokeHostFunction) {
         throw new NetworkServiceException(
-          'Transaction is not a valid SEP-41 transfer transaction',
+          'Transaction is not a valid contract invoke transaction',
         );
       }
 
@@ -683,10 +685,32 @@ export class NetworkService {
         );
       }
 
+      // Get the min resource fee from the simulation response.
+      const resourceFee = new BigNumber(simulateResponse.minResourceFee);
+
+      if (
+        resourceFee.isNaN() ||
+        !resourceFee.isFinite() ||
+        resourceFee.isNegative()
+      ) {
+        throw new SimulationException('Invalid resource fee');
+      }
+
+      // Set the resource fee to the multiplied value.
+      // simulateResponse.transactionData will be used to assemble the transaction.
+      // @link https://github.com/stellar/stellar-sdk/blob/main/packages/stellar-base/src/rpc/transaction.ts
+      simulateResponse.transactionData.setResourceFee(
+        resourceFee
+          .multipliedBy(AppConfig.transaction.simulationFeeMultiplier)
+          .integerValue(BigNumber.ROUND_CEIL)
+          .toString(),
+      );
+
       const simulatedTransaction = rpc.assembleTransaction(
         rawTransaction,
         simulateResponse,
       );
+
       return new Transaction(simulatedTransaction.build());
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to simulate transaction', error);
