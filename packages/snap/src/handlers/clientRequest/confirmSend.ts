@@ -27,6 +27,7 @@ import {
   KeyringTransactionType,
 } from '../../services/transaction';
 import type { TransactionService } from '../../services/transaction';
+import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { hasDecimals, toSmallestUnit } from '../../utils';
 import { createPrefixedLogger } from '../../utils/logger';
@@ -93,7 +94,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
    *
    * @param resolved - Keyring account, live on-chain snapshot, and wallet.
    * @param request - JSON-RPC request with send params (`scope` is derived from `assetId`).
-   * @returns `{ valid: true, transactionId }` on success, or `{ valid: false, errors }` for validation failures.
+   * @returns `{ valid: true, errors: [], transactionId }` on success, or `{ valid: false, errors }` for validation failures.
    * @throws {UserRejectedRequestError} If the user rejects the confirmation prompt.
    */
   protected async execute(
@@ -168,12 +169,13 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
       await TrackTransactionHandler.scheduleBackgroundEvent({
         txId: transactionId,
         scope,
-        // TODO: we should depends on the transaction instead of passing a account id here
+        // TODO: we should depend on the transaction instead of passing an account id here
         accountIds: [stellarKeyringAccount.id],
       });
 
       return {
         valid: true,
+        errors: [],
         transactionId,
       };
     } catch (error: unknown) {
@@ -216,7 +218,8 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     fee: BigNumber;
   }): Promise<boolean> {
     const { request, account, assetMetadata, fee, scope } = params;
-    const { toAddress, amount } = request.params;
+    const { toAddress, amount, assetId } = request.params;
+
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
         scope,
@@ -231,6 +234,9 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         renderOptions: {
           loadPrice: true,
         },
+        tokenPrices: {
+          [assetId]: null,
+        } as ContextWithPrices['tokenPrices'],
       })) === true
     );
   }

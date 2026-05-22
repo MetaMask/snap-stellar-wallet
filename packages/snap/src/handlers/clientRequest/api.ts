@@ -325,13 +325,11 @@ export const ConfirmSendJsonRpcRequestStruct = refine(
  * Validation struct for the confirmSend JSON-RPC response.
  */
 export const ConfirmSendJsonRpcResponseStruct = object({
-  valid: optional(boolean()),
-  errors: optional(
-    array(
-      object({
-        code: string(),
-      }),
-    ),
+  valid: boolean(),
+  errors: array(
+    object({
+      code: string(),
+    }),
   ),
   transactionId: optional(StellarTransactionHashStruct),
 });

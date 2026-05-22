@@ -822,7 +822,7 @@ describe('ConfirmSendJsonRpcRequestStruct', () => {
 
 describe('ConfirmSendJsonRpcResponseStruct', () => {
   it.each([
-    { valid: true, transactionId: transactionHash },
+    { valid: true, errors: [], transactionId: transactionHash },
     {
       valid: false,
       errors: [{ code: 'Invalid' }],
@@ -842,8 +842,9 @@ describe('ConfirmSendJsonRpcResponseStruct', () => {
   });
 
   it.each([
-    { valid: 'yes', transactionId: transactionHash },
-    { valid: true, transactionId: 'dGVzdA==' },
+    { valid: 'yes', errors: [], transactionId: transactionHash },
+    { valid: true, errors: [], transactionId: 'dGVzdA==' },
+    { valid: true, transactionId: transactionHash },
     {
       valid: true,
       transactionId:

@@ -252,6 +252,7 @@ describe('ConfirmSendHandler', () => {
 
     expect(result).toStrictEqual({
       valid: true,
+      errors: [],
       transactionId,
     });
     expect(createValidatedSendTransaction).toHaveBeenCalledWith({
@@ -273,6 +274,9 @@ describe('ConfirmSendHandler', () => {
       },
       renderOptions: {
         loadPrice: true,
+      },
+      tokenPrices: {
+        [assetId]: null,
       },
     });
     expect(signTransactionSpy).toHaveBeenCalledWith(transaction);
@@ -411,6 +415,7 @@ describe('ConfirmSendHandler', () => {
 
     expect(result).toStrictEqual({
       valid: true,
+      errors: [],
       transactionId,
     });
     expect(sendTransaction).toHaveBeenCalledTimes(1);
