@@ -28,7 +28,7 @@ import {
 } from '../../services/transaction';
 import type { TransactionService } from '../../services/transaction';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
-import { toDisplayBalance, toSmallestUnit } from '../../utils';
+import { hasDecimals, toSmallestUnit } from '../../utils';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
 import type {
@@ -101,6 +101,13 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         new BigNumber(amount),
         decimals,
       );
+
+      if (hasDecimals(amountInSmallestUnit)) {
+        return {
+          valid: false,
+          errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+        };
+      }
 
       const transaction =
         await this.#transactionService.createValidatedSendTransaction({
