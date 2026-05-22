@@ -18,7 +18,6 @@ import {
   createPrefixedLogger,
   Duration,
   getSlip44AssetId,
-  scheduleBackgroundEvent,
   showDialog,
   updateInterfaceIfExists,
 } from '../../utils';
@@ -41,7 +40,10 @@ import {
   ConfirmSignTransaction,
   type ConfirmSignTransactionProps,
 } from './views/ConfirmSignTransaction/ConfirmSignTransaction';
-import { BackgroundEventMethod } from '../../handlers/cronjob/api';
+import {
+  ConfirmationContextRefresherKey,
+  RefreshConfirmationContextHandler,
+} from '../../handlers/cronjob/refreshConfirmationContext';
 
 /** Serializable props bag stored on the interface and merged into each view. */
 type ConfirmationViewProps = Record<string, Json>;
@@ -194,21 +196,24 @@ export class ConfirmationUXController {
         return dialogPromise;
       }
 
-      // 5. Schedule background jobs only after confirming the interface is still alive
+      // 5. Schedule background context refresh for enabled refreshers only
+      const refresherKeys: ConfirmationContextRefresherKey[] = [];
       if (enablePricing) {
-        // Trigger immediate price fetch (1 second), then continue every 20 seconds
-        await scheduleBackgroundEvent({
-          method: BackgroundEventMethod.RefreshConfirmationPrices,
-          duration: Duration.OneSecond, // Start immediately
-          params: {
+        refresherKeys.push(ConfirmationContextRefresherKey.Prices);
+      }
+      // TODO: if (renderOptions.scanTxn) { refresherKeys.push(ConfirmationContextRefresherKey.Scan); }
+
+      if (refresherKeys.length > 0) {
+        await RefreshConfirmationContextHandler.scheduleBackgroundEvent(
+          {
             scope,
             interfaceId: id,
             interfaceKey,
+            refresherKeys,
           },
-        });
+          Duration.OneSecond,
+        );
       }
-
-      // TODO: Schedule security scan background refresh (every 20 seconds)
 
       // 6. Return the dialog promise immediately (don't await it!)
       // Cleanup happens in the background refresh handler when it detects the interface is gone
