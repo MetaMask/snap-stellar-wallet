@@ -417,6 +417,16 @@ describe('ConfirmSendHandler', () => {
     expect(scheduleBackgroundEvent).toHaveBeenCalled();
   });
 
+  it('throws InvalidParamsError when amount fails struct validation', async () => {
+    const { handler, createValidatedSendTransaction } = setup();
+
+    await expect(
+      handler.handle(baseRequest({ amount: '1.00000001' })),
+    ).rejects.toThrow(InvalidParamsError);
+
+    expect(createValidatedSendTransaction).not.toHaveBeenCalled();
+  });
+
   it('throws InvalidParamsError when the request fails struct validation', async () => {
     const { handler } = setup();
     const badRequest = {

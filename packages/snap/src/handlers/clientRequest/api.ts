@@ -269,14 +269,14 @@ const ConfirmSendParamsStruct = object({
     KnownCaip19Sep41AssetStruct,
     KnownCaip19Slip44IdStruct,
   ]),
-  amount: ValidAmountStruct,
+  amount: nonempty(string()),
 });
 
 /**
  * Validation struct for the confirmSend JSON-RPC request.
  * Coerces `fromAccountId` to `accountId` and derives `scope` from `assetId` (clients do not send scope).
  */
-export const ConfirmSendJsonRpcRequestStruct = coerce(
+export const ConfirmSendJsonRpcRequestCoercedStruct = coerce(
   assign(
     JsonRpcRequestStruct,
     object({
@@ -305,6 +305,20 @@ export const ConfirmSendJsonRpcRequestStruct = coerce(
       scope: parseCaipAssetType(request.params.assetId).chainId,
     },
   }),
+);
+
+export const ConfirmSendJsonRpcRequestStruct = refine(
+  ConfirmSendJsonRpcRequestCoercedStruct,
+  'confirm-send-request',
+  ({ params }) => {
+    if (
+      (isSep41Id(params.assetId) && ValidAmountStruct.is(params.amount)) ||
+      (!isSep41Id(params.assetId) && ValidStellarAmountStruct.is(params.amount))
+    ) {
+      return true;
+    }
+    return 'Invalid amount';
+  },
 );
 
 /**

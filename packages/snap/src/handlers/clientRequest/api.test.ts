@@ -784,6 +784,40 @@ describe('ConfirmSendJsonRpcRequestStruct', () => {
       StructError,
     );
   });
+
+  it.each([
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        assetId: sep41AssetId,
+        amount: '-1',
+      },
+    },
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        assetId: classicAssetId,
+        amount: '1.00000001',
+      },
+    },
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        assetId: slip44AssetId,
+        amount: '0',
+      },
+    },
+  ])(
+    'rejects a confirmSend JSON-RPC request when amount rules fail refinement',
+    (request) => {
+      expect(() => assert(request, ConfirmSendJsonRpcRequestStruct)).toThrow(
+        StructError,
+      );
+    },
+  );
 });
 
 describe('ConfirmSendJsonRpcResponseStruct', () => {
