@@ -83,19 +83,7 @@ export const ConfirmSendTransaction = ({
           <Box>{null}</Box>
         </Box>
 
-        <Section direction="vertical">
-          <Box direction="horizontal" alignment="start">
-            <SnapText fontWeight="medium">
-              {t('confirmation.estimatedChanges.title')}
-            </SnapText>
-            <Tooltip content={t('confirmation.estimatedChanges.tooltip')}>
-              <Icon name="info" />
-            </Tooltip>
-          </Box>
-          <SnapText color="alternative">
-            {t('confirmation.estimatedChanges.unsupportedContract')}
-          </SnapText>
-        </Section>
+        {/* TODO: add security alert / transaction simulation result */}
 
         <Section>
           {origin ? (

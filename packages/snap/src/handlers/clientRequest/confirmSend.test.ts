@@ -127,7 +127,8 @@ describe('ConfirmSendHandler', () => {
       },
     );
 
-    const { transactionService } = createMockTransactionService();
+    const { transactionService, transactionRepositorySaveManySpy } =
+      createMockTransactionService();
     const createValidatedSendTransaction = jest
       .spyOn(TransactionService.prototype, 'createValidatedSendTransaction')
       .mockResolvedValue(transaction);
@@ -184,19 +185,24 @@ describe('ConfirmSendHandler', () => {
       savePendingKeyringTransaction,
       signTransactionSpy,
       scheduleBackgroundEvent,
+      transactionRepositorySaveManySpy,
     };
   }
 
   function baseRequest(
-    overrides: Partial<ConfirmSendJsonRpcRequest['params']> = {},
-  ): ConfirmSendJsonRpcRequest {
+    overrides: Partial<
+      Pick<
+        ConfirmSendJsonRpcRequest['params'],
+        'fromAccountId' | 'toAddress' | 'assetId' | 'amount'
+      >
+    > = {},
+  ) {
     return {
-      jsonrpc: '2.0',
+      jsonrpc: '2.0' as const,
       id: 1,
       method: ClientRequestMethod.ConfirmSend,
       params: {
         fromAccountId: accountId,
-        accountId,
         assetId,
         toAddress: destinationAddress,
         amount: '1',
@@ -388,6 +394,27 @@ describe('ConfirmSendHandler', () => {
     );
 
     await expect(handler.handle(baseRequest())).rejects.toThrow('unexpected');
+  });
+
+  it('continues successfully when saving pending transaction fails', async () => {
+    const {
+      handler,
+      transactionRepositorySaveManySpy,
+      sendTransaction,
+      scheduleBackgroundEvent,
+    } = setup();
+    transactionRepositorySaveManySpy.mockRejectedValueOnce(
+      new Error('failed save'),
+    );
+
+    const result = await handler.handle(baseRequest());
+
+    expect(result).toStrictEqual({
+      valid: true,
+      transactionId,
+    });
+    expect(sendTransaction).toHaveBeenCalledTimes(1);
+    expect(scheduleBackgroundEvent).toHaveBeenCalled();
   });
 
   it('throws InvalidParamsError when the request fails struct validation', async () => {

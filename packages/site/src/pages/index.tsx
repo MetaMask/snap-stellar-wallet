@@ -622,7 +622,6 @@ const Index = () => {
       params.to = trimmedTo;
     }
 
-    console.log('params', params);
     try {
       const result = await invokeClientRequest('onAmountInput', params);
       setSendOutput(JSON.stringify(result, null, 2));

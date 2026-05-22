@@ -1,5 +1,5 @@
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
-import { ensureError, parseCaipAssetType } from '@metamask/utils';
+import { ensureError } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import type {
@@ -40,6 +40,13 @@ import { AccountNotActivatedException } from '../../services/network';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
+/**
+ * Confirms and submits a send transaction for Unified Non-EVM Send.
+ *
+ * Unlike {@link OnAmountInputHandler}, this handler resolves the on-chain account from
+ * live network data (default {@link AccountResolver} options) so balance, sequence, and
+ * fees are current at submission time.
+ */
 export class ConfirmSendHandler extends BaseClientRequestHandler<
   ConfirmSendJsonRpcRequest,
   ConfirmSendJsonRpcResponse
@@ -81,7 +88,15 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     this.#logger = prefixedLogger;
   }
 
-  async execute(
+  /**
+   * Builds a validated send transaction, shows confirmation, then signs and submits.
+   *
+   * @param resolved - Keyring account, live on-chain snapshot, and wallet.
+   * @param request - JSON-RPC request with send params (`scope` is derived from `assetId`).
+   * @returns `{ valid: true, transactionId }` on success, or `{ valid: false, errors }` for validation failures.
+   * @throws {UserRejectedRequestError} If the user rejects the confirmation prompt.
+   */
+  protected async execute(
     resolved: ResolvedActivatedAccount,
     request: ConfirmSendJsonRpcRequest,
   ): Promise<ConfirmSendJsonRpcResponse> {
@@ -91,9 +106,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         onChainAccount,
         account: stellarKeyringAccount,
       } = resolved;
-      const { amount, toAddress, assetId } = request.params;
-      // Assume 1 account should only have 1 scope
-      const scope = parseCaipAssetType(assetId).chainId as KnownCaip2ChainId;
+      const { amount, toAddress, assetId, scope } = request.params;
       const assetMetadata = await this.#assetMetadataService.resolve(assetId);
       const { decimals, symbol } = assetMetadata.units[0];
 
@@ -165,7 +178,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
       };
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails(
-        'Failed to confrim send transaction',
+        'Failed to confirm send transaction',
         error,
       );
       if (error instanceof InsufficientBalanceException) {

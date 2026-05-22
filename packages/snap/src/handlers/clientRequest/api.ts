@@ -189,26 +189,54 @@ export const OnAddressInputJsonRpcResponseStruct = object({
   ),
 });
 
-/**
- * Validation struct for the onAmountInput JSON-RPC request.
- */
-export const OnAmountInputJsonRpcRequestStruct = refine(
+const OnAmountInputParamsWireStruct = object({
+  accountId: UuidStruct,
+  assetId: union([
+    KnownCaip19ClassicAssetStruct,
+    KnownCaip19Sep41AssetStruct,
+    KnownCaip19Slip44IdStruct,
+  ]),
+  value: nonempty(string()),
+  to: optional(StellarAddressStruct),
+});
+
+const OnAmountInputParamsStruct = assign(
+  OnAmountInputParamsWireStruct,
+  object({
+    scope: KnownCaip2ChainIdStruct,
+  }),
+);
+
+const OnAmountInputJsonRpcRequestCoercedStruct = coerce(
   assign(
     JsonRpcRequestStruct,
     object({
       method: literal(ClientRequestMethod.OnAmountInput),
-      params: object({
-        accountId: UuidStruct,
-        assetId: union([
-          KnownCaip19ClassicAssetStruct,
-          KnownCaip19Sep41AssetStruct,
-          KnownCaip19Slip44IdStruct,
-        ]),
-        value: nonempty(string()),
-        to: optional(StellarAddressStruct),
-      }),
+      params: OnAmountInputParamsStruct,
     }),
   ),
+  assign(
+    JsonRpcRequestStruct,
+    object({
+      method: literal(ClientRequestMethod.OnAmountInput),
+      params: OnAmountInputParamsWireStruct,
+    }),
+  ),
+  (request) => ({
+    ...request,
+    params: {
+      ...request.params,
+      scope: parseCaipAssetType(request.params.assetId).chainId,
+    },
+  }),
+);
+
+/**
+ * Validation struct for the onAmountInput JSON-RPC request.
+ * Derives `scope` from `assetId` (clients do not send scope).
+ */
+export const OnAmountInputJsonRpcRequestStruct = refine(
+  OnAmountInputJsonRpcRequestCoercedStruct,
   'on-amount-input-request',
   ({ params }) => {
     if (
@@ -246,7 +274,7 @@ const ConfirmSendParamsStruct = object({
 
 /**
  * Validation struct for the confirmSend JSON-RPC request.
- * Coerces the request params to the output struct.
+ * Coerces `fromAccountId` to `accountId` and derives `scope` from `assetId` (clients do not send scope).
  */
 export const ConfirmSendJsonRpcRequestStruct = coerce(
   assign(
@@ -255,7 +283,10 @@ export const ConfirmSendJsonRpcRequestStruct = coerce(
       method: literal(ClientRequestMethod.ConfirmSend),
       params: assign(
         ConfirmSendParamsStruct,
-        object({ accountId: UuidStruct }),
+        object({
+          accountId: UuidStruct,
+          scope: KnownCaip2ChainIdStruct,
+        }),
       ),
     }),
   ),
@@ -271,6 +302,7 @@ export const ConfirmSendJsonRpcRequestStruct = coerce(
     params: {
       ...request.params,
       accountId: request.params.fromAccountId,
+      scope: parseCaipAssetType(request.params.assetId).chainId,
     },
   }),
 );
