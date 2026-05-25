@@ -18,6 +18,7 @@ const contractId = 'CASUP2OPFVEHCWGP2XLBXOV7DQIQIT42AQISG4MXAZGNLVFFN63X7WRT';
 
 const issuer = Keypair.random().publicKey();
 const destination = Keypair.random().publicKey();
+const bridgeDestination = Keypair.random().publicKey();
 const feeDestination = Keypair.random().publicKey();
 const usdc = new Asset('USDC', issuer);
 
@@ -45,7 +46,7 @@ describe('SwapTransactionXdrStruct', () => {
     buildTransactionXdr([new Contract(contractId).call('swap')]),
     buildTransactionXdr([
       Operation.payment({
-        destination: feeDestination,
+        destination: bridgeDestination,
         asset: Asset.native(),
         amount: '1',
       }),
