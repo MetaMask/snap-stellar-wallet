@@ -88,25 +88,25 @@ export abstract class BaseClientRequestHandler<
   protected async handleRequest(
     request: RequestType,
   ): Promise<ResponseType | Json> {
-    const resolvedAccount = await this.resolveAccount(request);
-    return await this.execute(resolvedAccount, request);
+    try {
+      const resolvedAccount = await this.resolveAccount(request);
+      return await this.execute(resolvedAccount, request);
+    } catch (error: unknown) {
+      if (error instanceof AccountNotActivatedException) {
+        return this.handleAccountNotActivatedError(error);
+      }
+      throw error;
+    }
   }
 
   protected async resolveAccount(
     request: RequestType,
   ): Promise<ResolvedActivatedAccount> {
-    try {
-      return await this.#accountResolver.resolveAccount({
-        accountId: this.getAccountId(request),
-        scope: this.getScope(request),
-        options: this.#resolveAccountOptions,
-      });
-    } catch (error: unknown) {
-      if (error instanceof AccountNotActivatedException) {
-        await this.handleAccountNotActivatedError(error);
-      }
-      throw error;
-    }
+    return this.#accountResolver.resolveAccount({
+      accountId: this.getAccountId(request),
+      scope: this.getScope(request),
+      options: this.#resolveAccountOptions,
+    });
   }
 
   async #showAccountNotActivatedAlert(address: string): Promise<void> {
@@ -121,7 +121,7 @@ export abstract class BaseClientRequestHandler<
    */
   protected async handleAccountNotActivatedError(
     error: AccountNotActivatedException,
-  ): Promise<never> {
+  ): Promise<Json> {
     await this.#showAccountNotActivatedAlert(error.address);
     throw error;
   }

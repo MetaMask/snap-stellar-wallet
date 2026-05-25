@@ -29,8 +29,6 @@
     "lint:misc": "yarn workspaces foreach --all --parallel --verbose run lint:misc",
     "lint:types": "yarn workspaces foreach --all --parallel --verbose run lint:types",
     "format": "yarn workspaces foreach --all --parallel --verbose run format",
-    "prepare-preview-builds": "./scripts/prepare-preview-builds.sh",
-    "publish-previews": "yarn workspaces foreach --all --no-private --parallel --verbose run publish:preview",
     "start": "yarn workspaces foreach --all --parallel --verbose --interlaced run start",
     "test": "yarn workspace @metamask/stellar-wallet-snap run test",
     "test:integration": "yarn workspace @metamask/stellar-wallet-snap run test:integration"

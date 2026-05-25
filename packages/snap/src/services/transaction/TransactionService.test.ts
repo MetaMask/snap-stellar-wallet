@@ -7,10 +7,13 @@ import {
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { hexToBytes } from '@metamask/utils';
 import { Networks } from '@stellar/stellar-sdk';
+import { BigNumber } from 'bignumber.js';
 
+import { TransactionScopeNotMatchException } from './exceptions';
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
 import { TransactionBuilder } from './TransactionBuilder';
+import { TransactionRepository } from './TransactionRepository';
 import type { KnownCaip19ClassicAssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { getSlip44AssetId, getSnapProvider } from '../../utils';
@@ -22,9 +25,15 @@ import {
 } from './__mocks__/transaction.fixtures';
 import { generateMockStellarKeyringAccounts } from '../account/__mocks__/account.fixtures';
 import type { StellarKeyringAccount } from '../account/api';
-import { NetworkService, TransactionRetryableException } from '../network';
-import { TransactionScopeNotMatchException } from './exceptions';
-import { TransactionRepository } from './TransactionRepository';
+import {
+  USDC_CLASSIC,
+  USDC_SEP41,
+} from '../asset-metadata/__mocks__/assets.fixtures';
+import {
+  AccountNotActivatedException,
+  NetworkService,
+  TransactionRetryableException,
+} from '../network';
 import { OnChainAccount } from '../on-chain-account';
 import {
   createMockAccountWithBalances,
@@ -41,11 +50,6 @@ jest.mock('@metamask/keyring-snap-sdk', () => ({
 }));
 
 describe('TransactionService', () => {
-  beforeEach(() => {
-    jest.mocked(emitSnapKeyringEvent).mockReset();
-    jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
-  });
-
   describe('savePendingKeyringTransaction', () => {
     it('creates and saves a pending send transaction', async () => {
       const { transactionService, transactionRepositorySaveManySpy } =
@@ -598,6 +602,253 @@ describe('TransactionService', () => {
       expect(sendSpy).toHaveBeenCalledTimes(1);
       expect(getAccountSpy).not.toHaveBeenCalled();
       expect(rebuildTxnWithNewSeqSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createValidatedSendTransaction', () => {
+    it('returns a payment transaction for native XLM to an activated destination', async () => {
+      const { transactionService } = createMockTransactionService();
+      const sourceWallet = getTestWallet();
+      const destWallet = getTestWallet();
+
+      const sourceAcc = createMockAccountWithBalances(
+        sourceWallet.address,
+        '1',
+        { ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES, nativeBalance: 500 },
+      );
+      const sourceOnChain = new OnChainAccount(
+        sourceAcc,
+        KnownCaip2ChainId.Mainnet,
+        horizonSource(sourceAcc, KnownCaip2ChainId.Mainnet),
+      );
+
+      const destAcc = createMockAccountWithBalances(destWallet.address, '1', {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 50,
+      });
+      const destOnChain = new OnChainAccount(
+        destAcc,
+        KnownCaip2ChainId.Mainnet,
+        horizonSource(destAcc, KnownCaip2ChainId.Mainnet),
+      );
+
+      jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockResolvedValue(destOnChain);
+      jest
+        .spyOn(NetworkService.prototype, 'getBaseFee')
+        .mockResolvedValue(new BigNumber('100'));
+
+      const tx = await transactionService.createValidatedSendTransaction({
+        onChainAccount: sourceOnChain,
+        amount: new BigNumber('1000000'),
+        scope: KnownCaip2ChainId.Mainnet,
+        assetId: getSlip44AssetId(KnownCaip2ChainId.Mainnet),
+        destination: destWallet.address,
+      });
+
+      expect(tx.transactionOperations).toHaveLength(1);
+      expect(tx.transactionOperations[0]?.type).toBe('payment');
+    });
+
+    it('returns a createAccount transaction for native XLM to an unfunded destination', async () => {
+      const { transactionService } = createMockTransactionService();
+      const sourceWallet = getTestWallet();
+      const unfundedDestination = getTestWallet().address;
+
+      const sourceAcc = createMockAccountWithBalances(
+        sourceWallet.address,
+        '1',
+        { ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES, nativeBalance: 500 },
+      );
+      const sourceOnChain = new OnChainAccount(
+        sourceAcc,
+        KnownCaip2ChainId.Mainnet,
+        horizonSource(sourceAcc, KnownCaip2ChainId.Mainnet),
+      );
+
+      jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockRejectedValue(
+          new AccountNotActivatedException(
+            unfundedDestination,
+            KnownCaip2ChainId.Mainnet,
+          ),
+        );
+      jest
+        .spyOn(NetworkService.prototype, 'getBaseFee')
+        .mockResolvedValue(new BigNumber('100'));
+
+      const tx = await transactionService.createValidatedSendTransaction({
+        onChainAccount: sourceOnChain,
+        amount: new BigNumber('20000000'),
+        scope: KnownCaip2ChainId.Mainnet,
+        assetId: getSlip44AssetId(KnownCaip2ChainId.Mainnet),
+        destination: unfundedDestination,
+      });
+
+      expect(tx.hasCreateAccount).toBe(true);
+    });
+
+    it('returns a SEP-41 transfer transaction when destination is activated', async () => {
+      const { transactionService } = createMockTransactionService();
+      const sourceWallet = getTestWallet();
+      const destWallet = getTestWallet();
+
+      const sourceAcc = createMockAccountWithBalances(
+        sourceWallet.address,
+        '1',
+        { ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES, nativeBalance: 500 },
+      );
+      const sourceOnChain = new OnChainAccount(
+        sourceAcc,
+        KnownCaip2ChainId.Mainnet,
+        horizonSource(sourceAcc, KnownCaip2ChainId.Mainnet),
+      );
+
+      const destAcc = createMockAccountWithBalances(destWallet.address, '1', {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 50,
+      });
+      const destOnChain = new OnChainAccount(
+        destAcc,
+        KnownCaip2ChainId.Mainnet,
+        horizonSource(destAcc, KnownCaip2ChainId.Mainnet),
+      );
+
+      jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockResolvedValue(destOnChain);
+      jest
+        .spyOn(NetworkService.prototype, 'simulateTransaction')
+        .mockImplementation(async (transaction) => transaction);
+      jest
+        .spyOn(NetworkService.prototype, 'getSep41AssetBalances')
+        .mockResolvedValue({
+          [sourceWallet.address]: {
+            [USDC_SEP41]: new BigNumber(1_000_000),
+          },
+        });
+
+      const tx = await transactionService.createValidatedSendTransaction({
+        onChainAccount: sourceOnChain,
+        amount: new BigNumber('100'),
+        scope: KnownCaip2ChainId.Mainnet,
+        assetId: USDC_SEP41,
+        destination: destWallet.address,
+      });
+
+      expect(tx.hasInvokeHostFunction).toBe(true);
+    });
+
+    it('throws AccountNotActivatedException when sending a classic asset to an unfunded destination', async () => {
+      const { transactionService } = createMockTransactionService();
+      const sourceWallet = getTestWallet();
+      const unfundedDestination = getTestWallet().address;
+
+      const sourceAcc = createMockAccountWithBalances(
+        sourceWallet.address,
+        '1',
+        {
+          ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+          nativeBalance: 500,
+          assets: [
+            {
+              assetType: 'credit_alphanum4',
+              assetCode: 'USDC',
+              assetIssuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+              balance: 1000,
+            },
+          ],
+        },
+      );
+      const sourceOnChain = new OnChainAccount(
+        sourceAcc,
+        KnownCaip2ChainId.Mainnet,
+        horizonSource(sourceAcc, KnownCaip2ChainId.Mainnet),
+      );
+
+      jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockRejectedValue(
+          new AccountNotActivatedException(
+            unfundedDestination,
+            KnownCaip2ChainId.Mainnet,
+          ),
+        );
+
+      const error = await transactionService
+        .createValidatedSendTransaction({
+          onChainAccount: sourceOnChain,
+          amount: new BigNumber('1000000'),
+          scope: KnownCaip2ChainId.Mainnet,
+          assetId: USDC_CLASSIC,
+          destination: unfundedDestination,
+        })
+        .then(
+          () => {
+            throw new Error('expected rejection');
+          },
+          (rejection: unknown) => rejection,
+        );
+
+      expect(error).toBeInstanceOf(AccountNotActivatedException);
+      expect((error as AccountNotActivatedException).address).toBe(
+        unfundedDestination,
+      );
+      expect((error as AccountNotActivatedException).scope).toBe(
+        KnownCaip2ChainId.Mainnet,
+      );
+    });
+
+    it('throws AccountNotActivatedException when sending SEP-41 to an unfunded destination', async () => {
+      const { transactionService } = createMockTransactionService();
+      const sourceWallet = getTestWallet();
+      const unfundedDestination = getTestWallet().address;
+
+      const sourceAcc = createMockAccountWithBalances(
+        sourceWallet.address,
+        '1',
+        { ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES, nativeBalance: 500 },
+      );
+      const sourceOnChain = new OnChainAccount(
+        sourceAcc,
+        KnownCaip2ChainId.Mainnet,
+        horizonSource(sourceAcc, KnownCaip2ChainId.Mainnet),
+      );
+
+      jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockRejectedValue(
+          new AccountNotActivatedException(
+            unfundedDestination,
+            KnownCaip2ChainId.Mainnet,
+          ),
+        );
+
+      const error = await transactionService
+        .createValidatedSendTransaction({
+          onChainAccount: sourceOnChain,
+          amount: new BigNumber('100'),
+          scope: KnownCaip2ChainId.Mainnet,
+          assetId: USDC_SEP41,
+          destination: unfundedDestination,
+        })
+        .then(
+          () => {
+            throw new Error('expected rejection');
+          },
+          (rejection: unknown) => rejection,
+        );
+
+      expect(error).toBeInstanceOf(AccountNotActivatedException);
+      expect((error as AccountNotActivatedException).address).toBe(
+        unfundedDestination,
+      );
+      expect((error as AccountNotActivatedException).scope).toBe(
+        KnownCaip2ChainId.Mainnet,
+      );
     });
   });
 });

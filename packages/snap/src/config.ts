@@ -79,6 +79,17 @@ const ConfigStruct = object({
   transaction: object({
     timeout: parseIntegerStruct(100, 180),
     pollingAttempts: parseIntegerStruct(0, 10),
+    /**
+     * The base fee multiplier for the Stellar network.
+     */
+    baseFeeMultiplier: parseIntegerStruct(1, 1.2),
+    /**
+     * The smart contract transaction fee multiplier for the Stellar network.
+     * The multiplier is higher because smart contract transactions have tighter ledger limits than normal transactions.
+     *
+     * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering#ledger-limits
+     */
+    simulationFeeMultiplier: parseIntegerStruct(1, 1.5),
   }),
   api: object({
     tokenApi: object({
@@ -151,6 +162,8 @@ export const AppConfig = create(
     transaction: {
       timeout: process.env.TRANSACTION_TIMEOUT,
       pollingAttempts: process.env.TRANSACTION_POLLING_ATTEMPTS,
+      baseFeeMultiplier: process.env.BASE_FEE_MULTIPLIER,
+      simulationFeeMultiplier: process.env.SIMULATION_FEE_MULTIPLIER,
     },
     api: {
       tokenApi: {

@@ -11,11 +11,16 @@ import {
   ClientRequestMethod,
 } from './handlers/clientRequest';
 import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
+import { OnAddressInputHandler } from './handlers/clientRequest/onAddressInput';
+import { OnAmountInputHandler } from './handlers/clientRequest/onAmountInput';
 import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
 import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
-import { RefreshConfirmationPricesHandler } from './handlers/cronjob/refreshConfirmationPrices';
-import { RefreshConfirmationSecurityScanHandler } from './handlers/cronjob/refreshConfirmationSecurityScan';
+import {
+  ConfirmationPriceRefresher,
+  ConfirmationScanRefresher,
+  RefreshConfirmationContextHandler,
+} from './handlers/cronjob/refreshConfirmationContext';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
@@ -171,19 +176,23 @@ const userInputHandler = new UserInputHandler({
 });
 
 /** ------------------------------ Cronjob Handler ------------------------------ */
-
-const refreshConfirmationPricesHandler = new RefreshConfirmationPricesHandler({
+const confirmationPriceRefresher = new ConfirmationPriceRefresher({
   logger,
   priceService,
-  confirmationUIController,
 });
 
-const refreshConfirmationSecurityScanHandler =
-  new RefreshConfirmationSecurityScanHandler({
+const confirmationScanRefresher = new ConfirmationScanRefresher({
+  logger,
+  transactionScanService,
+});
+
+const refreshConfirmationContextHandler = new RefreshConfirmationContextHandler(
+  {
     logger,
-    transactionScanService,
     confirmationUIController,
-  });
+    refreshers: [confirmationPriceRefresher, confirmationScanRefresher],
+  },
+);
 
 const trackTransactionHandler = new TrackTransactionHandler({
   logger,
@@ -203,10 +212,8 @@ const cronjobMethodHandlers: Record<
   BackgroundEventMethod,
   ICronjobRequestHandler
 > = {
-  [BackgroundEventMethod.RefreshConfirmationPrices]:
-    refreshConfirmationPricesHandler,
-  [BackgroundEventMethod.RefreshConfirmationSecurityScan]:
-    refreshConfirmationSecurityScanHandler,
+  [BackgroundEventMethod.RefreshConfirmationContext]:
+    refreshConfirmationContextHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
   [BackgroundEventMethod.SynchronizeAccounts]: syncAccountsHandler,
 };
@@ -231,6 +238,17 @@ const changeTrustOptHandler = new ChangeTrustOptHandler({
   confirmationUIController,
 });
 
+const onAddressInputHandler = new OnAddressInputHandler({
+  logger,
+});
+
+const onAmountInputHandler = new OnAmountInputHandler({
+  logger,
+  accountResolver,
+  assetMetadataService,
+  transactionService,
+});
+
 const signAndSendTransactionHandler = new SignAndSendTransactionHandler({
   logger,
   accountResolver,
@@ -248,6 +266,8 @@ const clientRequestMethodHandlers: Record<
   IClientRequestHandler
 > = {
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
+  [ClientRequestMethod.OnAddressInput]: onAddressInputHandler,
+  [ClientRequestMethod.OnAmountInput]: onAmountInputHandler,
   [ClientRequestMethod.SignAndSendTransaction]: signAndSendTransactionHandler,
   [ClientRequestMethod.ComputeFee]: computeFeeHandler,
 };
