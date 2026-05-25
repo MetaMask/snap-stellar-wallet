@@ -44,6 +44,13 @@ describe('SwapTransactionXdrStruct', () => {
   it.each([
     buildTransactionXdr([new Contract(contractId).call('swap')]),
     buildTransactionXdr([
+      Operation.payment({
+        destination: feeDestination,
+        asset: Asset.native(),
+        amount: '1',
+      }),
+    ]),
+    buildTransactionXdr([
       Operation.pathPaymentStrictSend({
         sendAsset: Asset.native(),
         sendAmount: '10',
@@ -81,13 +88,6 @@ describe('SwapTransactionXdrStruct', () => {
 
   it.each([
     'not-xdr',
-    buildTransactionXdr([
-      Operation.payment({
-        destination: feeDestination,
-        asset: Asset.native(),
-        amount: '1',
-      }),
-    ]),
     buildTransactionXdr([
       Operation.pathPaymentStrictSend({
         sendAsset: Asset.native(),

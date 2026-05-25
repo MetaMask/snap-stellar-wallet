@@ -67,6 +67,8 @@ function isPathPaymentOperation(operationType: string | undefined): boolean {
  * - `invokeHostFunction`: Soroban swaps are assembled as a single contract
  * invocation; resource fee and authorization checks happen later in the
  * transaction flow.
+ * - `payment`: bridge routes send funds to the bridge contract, which handles
+ * the rest of the route.
  * - `pathPayment*`, `payment`: classic swaps use the path payment for the
  * asset exchange, followed by the fee-send payment appended to the route.
  * - `changeTrust`, `pathPayment*`, `payment`: same classic swap shape, with a
@@ -87,7 +89,8 @@ export const SwapTransactionXdrStruct = refine(
       // Soroban route: the swap is represented by one contract invocation.
       if (
         operationTypes.length === 1 &&
-        firstOperation === 'invokeHostFunction'
+        (firstOperation === 'invokeHostFunction' ||
+          firstOperation === 'payment')
       ) {
         return true;
       }
