@@ -74,6 +74,48 @@ describe('TransactionAlert', () => {
     });
   });
 
+  it('renders validation scan errors with validation failure copy', () => {
+    const component = TransactionAlert({
+      preferences,
+      validation: null,
+      error: {
+        type: 'validation',
+        code: 'invalid_transaction',
+        message: 'invalid_transaction',
+      },
+      scanFetchStatus: FetchStatus.Fetched,
+      showValidationAlert: true,
+      showSimulationError: false,
+    });
+
+    expect(getType(component)).toBe('Banner');
+    expect(getProps(component)).toMatchObject({
+      severity: 'warning',
+      title: 'Security validation failed',
+    });
+  });
+
+  it('renders response scan errors with incomplete scan copy', () => {
+    const component = TransactionAlert({
+      preferences,
+      validation: null,
+      error: {
+        type: 'response',
+        code: 'empty',
+        message: 'No scan results returned',
+      },
+      scanFetchStatus: FetchStatus.Fetched,
+      showValidationAlert: true,
+      showSimulationError: false,
+    });
+
+    expect(getType(component)).toBe('Banner');
+    expect(getProps(component)).toMatchObject({
+      severity: 'warning',
+      title: 'Security scan incomplete',
+    });
+  });
+
   it('does not render validation alerts when security alerts are disabled', () => {
     const component = TransactionAlert({
       preferences,

@@ -100,10 +100,28 @@
     "confirmation.securityScanAPIErrorMessage": {
       "message": "Only continue if you trust every address involved."
     },
+    "confirmation.securityScanErrorTitle": {
+      "message": "Security scan failed"
+    },
+    "confirmation.securityScanErrorSubtitle": {
+      "message": "{reason}"
+    },
+    "confirmation.securityScanIncompleteTitle": {
+      "message": "Security scan incomplete"
+    },
+    "confirmation.securityScanIncompleteSubtitle": {
+      "message": "{reason}. Only continue if you trust every address involved."
+    },
     "confirmation.simulationErrorTitle": {
       "message": "This transaction was reverted during simulation."
     },
     "confirmation.simulationErrorSubtitle": {
+      "message": "{reason}"
+    },
+    "confirmation.validationScanErrorTitle": {
+      "message": "Security validation failed"
+    },
+    "confirmation.validationScanErrorSubtitle": {
       "message": "{reason}"
     },
     "confirmation.validationErrorTitle": {

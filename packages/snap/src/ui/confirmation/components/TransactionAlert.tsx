@@ -56,6 +56,41 @@ const ERROR_MESSAGE_IDS: Record<string, LocalizedMessage> = {
   unsupportedeip712message: 'transactionScan.errors.unsupportedEIP712Message',
 };
 
+const DEFAULT_ERROR_ALERT = {
+  severity: 'warning',
+  title: 'confirmation.securityScanErrorTitle',
+  subtitle: 'confirmation.securityScanErrorSubtitle',
+} as const satisfies {
+  severity: BannerProps['severity'];
+  title: LocalizedMessage;
+  subtitle: LocalizedMessage;
+};
+
+const ERROR_TYPE_TO_ALERT: Record<
+  string,
+  {
+    severity: BannerProps['severity'];
+    title: LocalizedMessage;
+    subtitle: LocalizedMessage;
+  }
+> = {
+  simulation: {
+    severity: 'warning',
+    title: 'confirmation.simulationErrorTitle',
+    subtitle: 'confirmation.simulationErrorSubtitle',
+  },
+  validation: {
+    severity: 'warning',
+    title: 'confirmation.validationScanErrorTitle',
+    subtitle: 'confirmation.validationScanErrorSubtitle',
+  },
+  response: {
+    severity: 'warning',
+    title: 'confirmation.securityScanIncompleteTitle',
+    subtitle: 'confirmation.securityScanIncompleteSubtitle',
+  },
+};
+
 export const TransactionAlert = ({
   preferences,
   validation,
@@ -124,13 +159,12 @@ export const TransactionAlert = ({
     error &&
     shouldShowError(error, showSimulationError, showValidationAlert)
   ) {
+    const alert = getErrorAlert(error);
+
     return (
-      <Banner
-        title={translate('confirmation.simulationErrorTitle')}
-        severity="warning"
-      >
+      <Banner title={translate(alert.title)} severity={alert.severity}>
         <SnapText>
-          {translate('confirmation.simulationErrorSubtitle', {
+          {translate(alert.subtitle, {
             reason: getErrorMessage(error, preferences.locale),
           })}
         </SnapText>
@@ -163,6 +197,24 @@ function shouldShowError(
   }
 
   return showSimulationError || showValidationAlert;
+}
+
+/**
+ * Gets the alert copy for a scan error type.
+ *
+ * @param error - The scan error returned by the transaction scan service.
+ * @returns Localized title/subtitle identifiers and banner severity.
+ */
+function getErrorAlert(error: TransactionScanError): {
+  severity: BannerProps['severity'];
+  title: LocalizedMessage;
+  subtitle: LocalizedMessage;
+} {
+  if (error.type) {
+    return ERROR_TYPE_TO_ALERT[error.type] ?? DEFAULT_ERROR_ALERT;
+  }
+
+  return DEFAULT_ERROR_ALERT;
 }
 
 /**
