@@ -12,6 +12,7 @@ import {
   getPreferencesWithFallback,
 } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
+import { METAMASK_ORIGIN } from '../../constants';
 import type { ILogger, Locale } from '../../utils';
 import {
   createInterface,
@@ -109,7 +110,7 @@ export class ConfirmationUXController {
    * @param params.renderContext - The context for the render.
    * @param params.interfaceKey - The key of the interface to render.
    * @param params.fee - Fee in stroops, REQUIRED for SignTransaction, forbidden otherwise.
-   * @param params.origin - [Optional] The origin of the confirmation. Defaults to 'metamask'.
+   * @param params.origin - [Optional] The origin of the confirmation. Defaults to METAMASK_ORIGIN.
    * @param params.renderOptions - [Optional] The options for the render. Defaults to {@link #defaultRenderOptions}.
    * @param params.tokenPrices - [Optional] The token prices for the render {@link ContextWithPrices['tokenPrices']}.
    * @returns A promise that resolves to the dialog result.
@@ -122,7 +123,7 @@ export class ConfirmationUXController {
         interfaceKey,
         scope,
         renderContext,
-        origin = 'metamask',
+        origin = METAMASK_ORIGIN,
         fee,
         renderOptions = {
           ...this.#defaultRenderOptions,

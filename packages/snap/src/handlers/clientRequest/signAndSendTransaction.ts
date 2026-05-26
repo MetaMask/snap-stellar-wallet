@@ -20,7 +20,7 @@ import {
   type ResolvedActivatedAccount,
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import { METAMASK_ORIGIN, NATIVE_ASSET_SYMBOL } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
 import {
   KeyringTransactionType,
@@ -32,6 +32,7 @@ import { parseOperationAssetReference } from '../../services/transaction/utils';
 import { toDisplayBalance } from '../../utils/currency';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
+import { trackTransactionSubmitted } from '../../utils/snap';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 type PendingSwapDetails = {
@@ -117,6 +118,12 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
       scope,
       transaction,
       pollTransaction: false,
+    });
+
+    await trackTransactionSubmitted({
+      origin: METAMASK_ORIGIN,
+      accountType: account.type,
+      chainIdCaip: scope,
     });
 
     await this.#savePendingTransaction({

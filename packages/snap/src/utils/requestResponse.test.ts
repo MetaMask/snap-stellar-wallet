@@ -11,6 +11,7 @@ import {
   validateResponse,
   validateOrigin,
 } from './requestResponse';
+import { METAMASK_ORIGIN } from '../constants';
 
 const TestStruct = object({
   url: string(),
@@ -76,7 +77,7 @@ describe('validateOrigin', () => {
     KeyringRpcMethod.ResolveAccountAddress,
     KeyringRpcMethod.SetSelectedAccounts,
   ])('allows method %s for metamask', (method) => {
-    const origin = 'metamask';
+    const origin = METAMASK_ORIGIN;
 
     expect(() => validateOrigin(origin, method)).not.toThrow();
   });

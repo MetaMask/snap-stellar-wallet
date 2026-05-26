@@ -7,6 +7,7 @@ import {
 } from './api';
 import { SignAndSendTransactionHandler } from './signAndSendTransaction';
 import { KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../../api';
+import { METAMASK_ORIGIN } from '../../constants';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import {
@@ -30,6 +31,7 @@ import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { toCaip19ClassicAssetId, toDisplayBalance } from '../../utils';
 import { logger } from '../../utils/logger';
+import * as snapUtils from '../../utils/snap';
 import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
@@ -115,6 +117,11 @@ describe('SignAndSendTransactionHandler', () => {
       transactionService,
     });
 
+    const trackTransactionSubmittedSpy = jest.spyOn(
+      snapUtils,
+      'trackTransactionSubmitted',
+    );
+
     const request: SignAndSendTransactionJsonRpcRequest = {
       jsonrpc: '2.0',
       id: 1,
@@ -145,6 +152,7 @@ describe('SignAndSendTransactionHandler', () => {
       savePendingKeyringTransaction,
       scheduleBackgroundEvent,
       signTransactionSpy,
+      trackTransactionSubmittedSpy,
     };
   }
 
@@ -351,6 +359,19 @@ describe('SignAndSendTransactionHandler', () => {
           },
         ],
       },
+    });
+  });
+
+  describe('tracks transaction events', () => {
+    it('tracks transaction submitted', async () => {
+      const { handler, account, request, trackTransactionSubmittedSpy } =
+        setup();
+      await handler.handle(request);
+      expect(trackTransactionSubmittedSpy).toHaveBeenCalledWith({
+        accountType: account.type,
+        chainIdCaip: scope,
+        origin: METAMASK_ORIGIN,
+      });
     });
   });
 });

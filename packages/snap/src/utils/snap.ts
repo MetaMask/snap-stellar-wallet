@@ -27,6 +27,25 @@ export enum Duration {
 }
 
 /**
+ * Enum for transaction tracking event types.
+ */
+export enum TransactionEventType {
+  TransactionAdded = 'Transaction Added',
+  TransactionRejected = 'Transaction Rejected',
+  TransactionApproved = 'Transaction Approved',
+  TransactionSubmitted = 'Transaction Submitted',
+  TransactionFinalized = 'Transaction Finalized',
+}
+
+/**
+ * Enum for security alert tracking event types.
+ */
+export enum SecurityEventType {
+  SecurityAlertDetected = 'Security Alert Detected',
+  SecurityScanCompleted = 'Security Scan Completed',
+}
+
+/**
  * Returns the Snap provider.
  *
  * @returns The Snap provider.
@@ -397,3 +416,192 @@ export async function getPreferences(): Promise<GetPreferencesResult> {
     method: 'snap_getPreferences',
   });
 }
+
+/**
+ * Track an event in MetaMask analytics.
+ *
+ * @param event - The event name to track.
+ * @param properties - Additional properties to include with the event.
+ */
+export async function trackEvent(
+  event: string,
+  properties: Record<string, Json>,
+): Promise<void> {
+  try {
+    await snap.request({
+      method: 'snap_trackEvent',
+      params: {
+        event: {
+          event,
+          properties,
+        },
+      },
+    });
+  } catch {
+    // Silently fail if tracking fails - we don't want to interrupt the user flow
+  }
+}
+
+/* eslint-disable @typescript-eslint/naming-convention */
+/**
+ * Track a "Transaction Added" event when a transaction confirmation is shown.
+ *
+ * @param properties - Event properties.
+ * @param properties.origin - The origin of the request.
+ * @param properties.accountType - The type of account.
+ * @param properties.chainIdCaip - The CAIP-2 chain ID.
+ */
+export async function trackTransactionAdded(properties: {
+  origin: string;
+  accountType: string;
+  chainIdCaip: string;
+}): Promise<void> {
+  await trackEvent(TransactionEventType.TransactionAdded, {
+    message: 'Snap transaction added',
+    origin: properties.origin,
+    account_type: properties.accountType,
+    chain_id_caip: properties.chainIdCaip,
+  });
+}
+
+/**
+ * Track a "Transaction Rejected" event when user rejects a transaction.
+ *
+ * @param properties - Event properties.
+ * @param properties.origin - The origin of the request.
+ * @param properties.accountType - The type of account.
+ * @param properties.chainIdCaip - The CAIP-2 chain ID.
+ */
+export async function trackTransactionRejected(properties: {
+  origin: string;
+  accountType: string;
+  chainIdCaip: string;
+}): Promise<void> {
+  await trackEvent(TransactionEventType.TransactionRejected, {
+    message: 'Snap transaction rejected',
+    origin: properties.origin,
+    account_type: properties.accountType,
+    chain_id_caip: properties.chainIdCaip,
+  });
+}
+
+/**
+ * Track a "Transaction Submitted" event when a transaction is successfully broadcast.
+ *
+ * @param properties - Event properties.
+ * @param properties.origin - The origin of the request.
+ * @param properties.accountType - The type of account.
+ * @param properties.chainIdCaip - The CAIP-2 chain ID.
+ */
+export async function trackTransactionSubmitted(properties: {
+  origin: string;
+  accountType: string;
+  chainIdCaip: string;
+}): Promise<void> {
+  await trackEvent(TransactionEventType.TransactionSubmitted, {
+    message: 'Snap transaction submitted',
+    origin: properties.origin,
+    account_type: properties.accountType,
+    chain_id_caip: properties.chainIdCaip,
+  });
+}
+
+/**
+ * Track a "Transaction Approved" event when a transaction is approved.
+ *
+ * @param properties - Event properties.
+ * @param properties.origin - The origin of the request.
+ * @param properties.accountType - The type of account.
+ * @param properties.chainIdCaip - The CAIP-2 chain ID.
+ */
+export async function trackTransactionApproved(properties: {
+  origin: string;
+  accountType: string;
+  chainIdCaip: string;
+}): Promise<void> {
+  await trackEvent(TransactionEventType.TransactionApproved, {
+    message: 'Snap transaction approved',
+    origin: properties.origin,
+    account_type: properties.accountType,
+    chain_id_caip: properties.chainIdCaip,
+  });
+}
+
+/**
+ * Track a "Transaction Finalized" event when a transaction reaches final state.
+ *
+ * @param properties - Event properties.
+ * @param properties.origin - The origin of the request.
+ * @param properties.accountType - The type of account.
+ * @param properties.chainIdCaip - The CAIP-2 chain ID.
+ */
+export async function trackTransactionFinalized(properties: {
+  origin: string;
+  accountType: string;
+  chainIdCaip: string;
+}): Promise<void> {
+  await trackEvent(TransactionEventType.TransactionFinalized, {
+    message: 'Snap transaction finalized',
+    origin: properties.origin,
+    account_type: properties.accountType,
+    chain_id_caip: properties.chainIdCaip,
+  });
+}
+
+/**
+ * Track a "Security Alert Detected" event when a malicious or warning transaction is detected.
+ *
+ * @param properties - Event properties.
+ * @param properties.origin - The origin of the request.
+ * @param properties.accountType - The type of account.
+ * @param properties.chainIdCaip - The CAIP-2 chain ID.
+ * @param properties.securityAlertResponse - The type of security alert (Warning, Malicious).
+ * @param properties.securityAlertReason - The reason for the security alert.
+ * @param properties.securityAlertDescription - Human-readable description of the alert.
+ */
+export async function trackSecurityAlertDetected(properties: {
+  origin: string;
+  accountType: string;
+  chainIdCaip: string;
+  securityAlertResponse: string;
+  securityAlertReason: string | null;
+  securityAlertDescription: string;
+}): Promise<void> {
+  await trackEvent(SecurityEventType.SecurityAlertDetected, {
+    message: 'Snap security alert detected',
+    origin: properties.origin,
+    account_type: properties.accountType,
+    chain_id_caip: properties.chainIdCaip,
+    security_alert_response: properties.securityAlertResponse,
+    security_alert_reason: properties.securityAlertReason,
+    security_alert_description: properties.securityAlertDescription,
+  });
+}
+
+/**
+ * Track a "Security Scan Completed" event when a transaction security scan finishes.
+ *
+ * @param properties - Event properties.
+ * @param properties.origin - The origin of the request.
+ * @param properties.accountType - The type of account.
+ * @param properties.chainIdCaip - The CAIP-2 chain ID.
+ * @param properties.scanStatus - The status of the scan (SUCCESS, ERROR).
+ * @param properties.hasSecurityAlerts - Whether security alerts were detected.
+ */
+export async function trackSecurityScanCompleted(properties: {
+  origin: string;
+  accountType: string;
+  chainIdCaip: string;
+  scanStatus: string;
+  hasSecurityAlerts: boolean;
+}): Promise<void> {
+  await trackEvent(SecurityEventType.SecurityScanCompleted, {
+    message: 'Snap security scan completed',
+    origin: properties.origin,
+    account_type: properties.accountType,
+    chain_id_caip: properties.chainIdCaip,
+    scan_status: properties.scanStatus,
+    has_security_alerts: properties.hasSecurityAlerts,
+  });
+}
+/* eslint-enable @typescript-eslint/naming-convention */

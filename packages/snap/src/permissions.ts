@@ -2,6 +2,7 @@ import { KeyringRpcMethod } from '@metamask/keyring-api';
 
 import { Environment } from './api';
 import { AppConfig } from './config';
+import { METAMASK_ORIGIN } from './constants';
 
 const isDev = AppConfig.environment !== Environment.Production;
 
@@ -40,7 +41,7 @@ const metamaskPermissions = new Set([
   KeyringRpcMethod.SetSelectedAccounts,
 ]);
 
-const metamask = 'metamask';
+const metamask = METAMASK_ORIGIN;
 
 export const originPermissions = new Map<string, Set<string>>([]);
 
