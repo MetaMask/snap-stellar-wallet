@@ -73,6 +73,7 @@ import type {
   StellarKeyringAccount,
 } from '../../services/account';
 import { AccountNotFoundException } from '../../services/account/exceptions';
+import type { AssetMetadataService } from '../../services/asset-metadata/AssetMetadataService';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import type {
   OnChainAccount,
@@ -111,6 +112,8 @@ export class KeyringHandler implements Keyring {
 
   readonly #transactionService: TransactionService;
 
+  readonly #assetMetadataService: AssetMetadataService;
+
   readonly #handlers: Record<MultichainMethod, IKeyringRequestHandler>;
 
   constructor({
@@ -118,18 +121,21 @@ export class KeyringHandler implements Keyring {
     accountService,
     onChainAccountService,
     transactionService,
+    assetMetadataService,
     handlers,
   }: {
     logger: ILogger;
     accountService: AccountService;
     onChainAccountService: OnChainAccountService;
     transactionService: TransactionService;
+    assetMetadataService: AssetMetadataService;
     handlers: Record<MultichainMethod, IKeyringRequestHandler>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 KeyringHandler]');
     this.#accountService = accountService;
     this.#onChainAccountService = onChainAccountService;
     this.#transactionService = transactionService;
+    this.#assetMetadataService = assetMetadataService;
     this.#handlers = handlers;
   }
 
@@ -551,9 +557,13 @@ export class KeyringHandler implements Keyring {
         }
 
         const { decimals } = assetMetadata.units[0];
+        const onChainRowForExtra =
+          onChainAccount === null || !isClassicAssetId(assetId)
+            ? onChainRow
+            : onChainAccount.getRawAsset(assetId);
         const extra = this.#buildAccountAssetInfoExtra(
           assetId,
-          onChainRow,
+          onChainRowForExtra,
           decimals,
         );
 

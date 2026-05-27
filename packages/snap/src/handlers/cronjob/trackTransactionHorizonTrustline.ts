@@ -27,15 +27,15 @@ export function isHorizonTrustlineMatchingExpectation(
   assetId: KnownCaip19ClassicAssetId,
   action: TrackTransactionTrustlineAction,
 ): boolean {
+  const row = onChainAccount.getRawAsset(assetId);
+
   if (action === TrackTransactionTrustlineAction.Delete) {
-    if (!onChainAccount.hasAsset(assetId)) {
+    if (row === undefined) {
       return true;
     }
-    const row = onChainAccount.getAsset(assetId);
-    return row?.limit?.isZero() ?? false;
+    return row.limit?.isZero() ?? false;
   }
 
-  const row = onChainAccount.getAsset(assetId);
   return row?.limit?.gt(0) ?? false;
 }
 

@@ -12,6 +12,7 @@ import {
 import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
 import { create } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
+import { BigNumber } from 'bignumber.js';
 
 import {
   KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD,
@@ -34,7 +35,11 @@ import {
   KeyringResolveAccountAddressException,
 } from './exceptions';
 import { KeyringHandler } from './keyring';
-import { KnownCaip2ChainId } from '../../api';
+import {
+  type KnownCaip19AssetIdOrSlip44Id,
+  type KnownCaip19ClassicAssetId,
+  KnownCaip2ChainId,
+} from '../../api';
 import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import {
   AccountService,
@@ -47,8 +52,10 @@ import {
 import { AccountNotFoundException } from '../../services/account/exceptions';
 import {
   createMockAssetMetadataService,
+  generateMockKeyringAssetMetadata,
   USDC_CLASSIC,
 } from '../../services/asset-metadata/__mocks__/assets.fixtures';
+import type { KeyringAssetMetadataByAssetId } from '../../services/asset-metadata/api';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import {
   createMockAccountWithBalances,
@@ -137,11 +144,25 @@ describe('KeyringHandler', () => {
     const { accountService, onChainAccountService } =
       mockOnChainAccountService();
     const { transactionService } = createMockTransactionService();
+    const { service: assetMetadataService, getAssetsMetadataByAssetIdsSpy } =
+      createMockAssetMetadataService();
+    const mockKeyringAssetMetadata = generateMockKeyringAssetMetadata();
+    getAssetsMetadataByAssetIdsSpy.mockImplementation(
+      async (assetIds: KnownCaip19AssetIdOrSlip44Id[]) => {
+        const metadataByAssetId = {} as KeyringAssetMetadataByAssetId;
+        for (const assetId of assetIds) {
+          metadataByAssetId[assetId] =
+            mockKeyringAssetMetadata[assetId] ?? null;
+        }
+        return metadataByAssetId;
+      },
+    );
     keyringHandler = new KeyringHandler({
       logger,
       accountService,
       onChainAccountService,
       transactionService,
+      assetMetadataService,
       handlers: {
         [MultichainMethod.SignMessage]: mockSignMessageHandler,
         [MultichainMethod.SignTransaction]: mockSignTransactionHandler,
@@ -694,21 +715,21 @@ describe('KeyringHandler', () => {
     it('returns metadata and trustline extra for a classic asset with limit', async () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      const onChainAccount = createTestOnChainAccount(mockAccount.address);
+      onChainAccount.setAsset(USDC_CLASSIC as KnownCaip19ClassicAssetId, {
+        balance: new BigNumber('0'),
+        symbol: 'USDC',
+        limit: new BigNumber('10000000'),
+        authorized: true,
+        sponsored: false,
+        decimals: 7,
+      });
       jest
         .spyOn(
           OnChainAccountService.prototype,
           'resolveOnChainAccountByKeyringAccountId',
         )
-        .mockResolvedValue({
-          getAsset: () => ({
-            balance: new BigNumber('0'),
-            symbol: 'USDC',
-            limit: new BigNumber('10000000'),
-            authorized: true,
-            sponsored: false,
-            decimals: 7,
-          }),
-        } as unknown as OnChainAccount);
+        .mockResolvedValue(onChainAccount);
 
       const result = await keyringHandler.getAccountAssetInfo(mockAccountId, [
         USDC_CLASSIC,
@@ -725,19 +746,19 @@ describe('KeyringHandler', () => {
     it('returns extra with zero limit for classic tombstone rows', async () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      const onChainAccount = createTestOnChainAccount(mockAccount.address);
+      onChainAccount.setAsset(USDC_CLASSIC as KnownCaip19ClassicAssetId, {
+        balance: new BigNumber('0'),
+        symbol: 'USDC',
+        limit: new BigNumber(0),
+        decimals: 7,
+      });
       jest
         .spyOn(
           OnChainAccountService.prototype,
           'resolveOnChainAccountByKeyringAccountId',
         )
-        .mockResolvedValue({
-          getAsset: () => ({
-            balance: new BigNumber('0'),
-            symbol: 'USDC',
-            limit: new BigNumber(0),
-            decimals: 7,
-          }),
-        } as unknown as OnChainAccount);
+        .mockResolvedValue(onChainAccount);
 
       const result = await keyringHandler.getAccountAssetInfo(mockAccountId, [
         USDC_CLASSIC,
@@ -749,14 +770,13 @@ describe('KeyringHandler', () => {
     it('omits extra when classic asset has no on-chain row', async () => {
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      const onChainAccount = createTestOnChainAccount(mockAccount.address);
       jest
         .spyOn(
           OnChainAccountService.prototype,
           'resolveOnChainAccountByKeyringAccountId',
         )
-        .mockResolvedValue({
-          getAsset: () => undefined,
-        } as unknown as OnChainAccount);
+        .mockResolvedValue(onChainAccount);
 
       const result = await keyringHandler.getAccountAssetInfo(mockAccountId, [
         USDC_CLASSIC,
@@ -770,17 +790,16 @@ describe('KeyringHandler', () => {
       const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      const onChainAccount = createTestOnChainAccount(mockAccount.address, {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 1.000001,
+      });
       jest
         .spyOn(
           OnChainAccountService.prototype,
           'resolveOnChainAccountByKeyringAccountId',
         )
-        .mockResolvedValue({
-          getAsset: () => ({
-            balance: new BigNumber('10'),
-            symbol: 'XLM',
-          }),
-        } as unknown as OnChainAccount);
+        .mockResolvedValue(onChainAccount);
 
       const result = await keyringHandler.handle('metamask', {
         jsonrpc: '2.0',

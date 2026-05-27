@@ -30,6 +30,9 @@ import type { StellarAssetMetadata } from '../asset-metadata/api';
 import { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
 import { AccountNotActivatedException, NetworkService } from '../network';
 
+const isKeyringEmitCall = (call: unknown[], event: KeyringEvent): boolean =>
+  (call[1] as KeyringEvent) === event;
+
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
 jest.mock('@metamask/keyring-snap-sdk', () => ({
@@ -485,7 +488,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
 
     const balanceEventCalls = emitSnapKeyringEventSpy.mock.calls.filter(
-      (call) => call[1] === KeyringEvent.AccountBalancesUpdated,
+      (call) => isKeyringEmitCall(call, KeyringEvent.AccountBalancesUpdated),
     );
     expect(balanceEventCalls).toHaveLength(4);
     expect(balanceEventCalls[3]?.[2]).toStrictEqual(
@@ -624,7 +627,9 @@ describe('OnChainAccountSynchronizeService', () => {
     ); // sync 4
 
     const balanceEventCalls = emitSnapKeyringEventSpy.mock.calls
-      .filter((call) => call[1] === KeyringEvent.AccountBalancesUpdated)
+      .filter((call) =>
+        isKeyringEmitCall(call, KeyringEvent.AccountBalancesUpdated),
+      )
       .map((call) => call[2]);
     expect(balanceEventCalls).toHaveLength(4);
     const sync1Payload = balanceEventCalls[0] as {
@@ -812,8 +817,8 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(saveManySpy).toHaveBeenCalledTimes(4);
     expect(emitSnapKeyringEventSpy).toHaveBeenCalledTimes(6);
 
-    const balanceCalls = emitSnapKeyringEventSpy.mock.calls.filter(
-      (call) => call[1] === KeyringEvent.AccountBalancesUpdated,
+    const balanceCalls = emitSnapKeyringEventSpy.mock.calls.filter((call) =>
+      isKeyringEmitCall(call, KeyringEvent.AccountBalancesUpdated),
     );
     expect(balanceCalls).toHaveLength(4);
 
@@ -856,8 +861,8 @@ describe('OnChainAccountSynchronizeService', () => {
       [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
     });
 
-    const assetListCalls = emitSnapKeyringEventSpy.mock.calls.filter(
-      (call) => call[1] === KeyringEvent.AccountAssetListUpdated,
+    const assetListCalls = emitSnapKeyringEventSpy.mock.calls.filter((call) =>
+      isKeyringEmitCall(call, KeyringEvent.AccountAssetListUpdated),
     );
     expect(assetListCalls).toHaveLength(2);
 
