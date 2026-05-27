@@ -35,7 +35,6 @@
     "lint:types": "tsc --noEmit",
     "format": "prettier '**/*.ts' '**/*.tsx' --write",
     "prepublishOnly": "mm-snap manifest",
-    "publish:preview": "yarn npm publish --tag preview",
     "serve": "mm-snap serve",
     "start": "node scripts/update-manifest-local.js && concurrently \"mm-snap watch\" \"yarn build:locale:watch\"",
     "test": "jest --passWithNoTests --coverage=false",

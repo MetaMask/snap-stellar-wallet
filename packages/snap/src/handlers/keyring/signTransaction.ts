@@ -18,6 +18,7 @@ import { OperationMapper } from '../../services/transaction';
 import {
   assertAccountInvolvesTransaction,
   assertTransactionScope,
+  assertTransactionTimeBound,
   collectTransactionAssetCaipIds,
 } from '../../services/transaction/utils';
 import type { Wallet } from '../../services/wallet';
@@ -90,6 +91,9 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
     // but it must participate as fee source (fee bump), or op source.
     // We gate signing to envelopes that involve this wallet.
     assertAccountInvolvesTransaction(transaction, wallet.address);
+
+    // Ensure the transaction has not expired
+    assertTransactionTimeBound(transaction);
 
     // Computing fee will inject the fee into the transaction
     const transactionWithFee =

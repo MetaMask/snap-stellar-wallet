@@ -11,15 +11,25 @@ import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
 import type { TransactionBuilder } from './TransactionBuilder';
 import type { TransactionRepository } from './TransactionRepository';
-import type { KnownCaip19ClassicAssetId, KnownCaip2ChainId } from '../../api';
-import { getSnapProvider } from '../../utils';
+import type {
+  KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
+  KnownCaip19Slip44Id,
+  KnownCaip2ChainId,
+} from '../../api';
+import { getSnapProvider, isSep41Id, isSlip44Id } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account/api';
 import type { NetworkService } from '../network';
-import { TransactionRetryableException } from '../network/exceptions';
+import {
+  AccountNotActivatedException,
+  TransactionRetryableException,
+} from '../network/exceptions';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import type { Wallet } from '../wallet';
+import { InsufficientBalanceException } from './exceptions';
 import {
   SupportedOperations,
   TransactionSimulator,
@@ -103,6 +113,236 @@ export class TransactionService {
   }
 
   /**
+   * Creates a validated send transaction.
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.amount - The amount to send.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.assetId - The CAIP-19 asset ID.
+   * @param params.destination - The destination address.
+   * @param params.useCache - Whether to use the cache.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async createValidatedSendTransaction(params: {
+    onChainAccount: OnChainAccount;
+    amount: BigNumber;
+    scope: KnownCaip2ChainId;
+    assetId: KnownCaip19AssetIdOrSlip44Id;
+    destination: string;
+    useCache?: boolean;
+  }): Promise<Transaction> {
+    const {
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination,
+      useCache = false,
+    } = params;
+
+    let destinationAccount: OnChainAccount | null = null;
+    if (onChainAccount.accountId === destination) {
+      destinationAccount = onChainAccount;
+    } else {
+      destinationAccount = await this.#loadActivatedAccountOrNull(
+        destination,
+        scope,
+        useCache,
+      );
+    }
+
+    const isSep41 = isSep41Id(assetId);
+
+    // If it is SEP-41, run SEP-41 transfer flow to build and validate the transaction
+    if (isSep41) {
+      // fail early if the destination account is not activated
+      if (destinationAccount === null) {
+        throw new AccountNotActivatedException(destination, scope);
+      }
+
+      return this.#createValidatedSep41Transfer({
+        onChainAccount,
+        scope,
+        assetId,
+        amount,
+        destination,
+        destinationAccount,
+        useCache,
+      });
+    }
+
+    // If it is classic asset, run classic asset transfer flow to build and validate the transaction
+    return this.#createValidatedClassicAssetTransfer({
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination,
+      destinationAccount,
+    });
+  }
+
+  /**
+   * Creates a validated SEP-41 transfer transaction (Soroban contract transfer).
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.assetId - The CAIP-19 SEP-41 asset ID.
+   * @param params.amount - The amount to send.
+   * @param params.destination - The destination address.
+   * @param params.destinationAccount - The destination account.
+   * @param params.useCache - When `true`, reuses a cached SEP-41 simulation keyed by
+   * asset, sender, recipient, and scope (not amount). Use only for preflight checks
+   * such as amount-input validation, where the caller needs fee/balance feedback on
+   * every keystroke without an RPC call per amount. Balance is checked locally before
+   * simulation, so insufficient funds still fail fast. When `false` (default), always
+   * simulates fresh so the returned transaction is safe to sign and submit.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async #createValidatedSep41Transfer(params: {
+    onChainAccount: OnChainAccount;
+    scope: KnownCaip2ChainId;
+    assetId: KnownCaip19Sep41AssetId;
+    amount: BigNumber;
+    destination: string;
+    destinationAccount: OnChainAccount;
+    useCache: boolean;
+  }): Promise<Transaction> {
+    const {
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination,
+      destinationAccount,
+      useCache,
+    } = params;
+
+    let transaction = this.#transactionBuilder.sep41Transfer({
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination,
+    });
+
+    // Use getRawAsset so we only fetch when the asset is absent from the State.
+    // Use getAsset hides zero-balance SEP-41 entries and would trigger a redundant on-chain fetch.
+    if (!onChainAccount.getRawAsset(assetId)) {
+      const onChainBalance = await this.#networkService.getSep41AssetBalances({
+        accounts: [onChainAccount.accountId],
+        assetIds: [assetId],
+        scope,
+      });
+      onChainAccount.setAsset(assetId, {
+        balance:
+          onChainBalance?.[onChainAccount.accountId]?.[assetId] ??
+          new BigNumber(0),
+        // We don't need symbol/decimals for a SEP-41 asset here; simulation
+        // does not use them.
+        symbol: '',
+      });
+    }
+
+    // Simulation will throw an error if the balance is less than the sending amount,
+    // so we can fail early here.
+    if (onChainAccount.getRawAsset(assetId)?.balance.lt(amount)) {
+      throw new InsufficientBalanceException(
+        onChainAccount.accountId,
+        amount.toString(),
+      );
+    }
+
+    // Simulate the transaction to estimate the network fee for contract call
+    transaction = await this.#networkService.simulateSep41TransferWithCache({
+      transaction,
+      scope,
+      assetId,
+      fromAccountId: onChainAccount.accountId,
+      toAccountId: destination,
+      // With useCache=true the cached XDR may carry a stale amount or sequence;
+      // Callers must only use that path for preflight (e.g. onAmountInput), not signing.
+      refreshCache: !useCache,
+    });
+
+    this.validateTransaction(transaction, onChainAccount, {
+      expectedOPTypes: [SupportedOperations.InvokeHostFunction],
+      preloadedAccounts: destinationAccount ? [destinationAccount] : undefined,
+    });
+
+    return transaction;
+  }
+
+  /**
+   * Creates a validated classic asset transfer transaction.
+   * Classic assets use the chain's native transfer mechanism.
+   * If the destination is not activated, a `createAccount` operation can only
+   * be added for slip44/native asset transfers. For non-slip44 classic assets,
+   * the destination account must already be activated or an
+   * `AccountNotActivatedException` will be thrown.
+   * If the destination is activated, a payment operation will be added to the
+   * transaction.
+   *
+   * @param params - The parameters for the transaction.
+   * @param params.onChainAccount - The on-chain account.
+   * @param params.scope - The CAIP-2 chain ID.
+   * @param params.assetId - The CAIP-19 classic asset ID.
+   * @param params.amount - The amount to send.
+   * @param params.destination - The destination address.
+   * @param params.destinationAccount - The destination account.
+   * @returns A promise that resolves to the validated transaction.
+   */
+  async #createValidatedClassicAssetTransfer(params: {
+    onChainAccount: OnChainAccount;
+    scope: KnownCaip2ChainId;
+    assetId: KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
+    amount: BigNumber;
+    destination: string;
+    destinationAccount: OnChainAccount | null;
+  }): Promise<Transaction> {
+    const {
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destinationAccount,
+      destination,
+    } = params;
+
+    const isDestinationActivated = destinationAccount !== null;
+
+    // fail early if the destination account is not activated and the asset is not slip44
+    if (!isDestinationActivated && !isSlip44Id(assetId)) {
+      throw new AccountNotActivatedException(destination, scope);
+    }
+
+    const baseFee = await this.getBaseFee(scope);
+
+    const transaction = this.#transactionBuilder.transfer({
+      onChainAccount,
+      scope,
+      assetId,
+      amount,
+      destination: {
+        address: destination,
+        isActivated: isDestinationActivated,
+      },
+      baseFee,
+    });
+
+    this.validateTransaction(transaction, onChainAccount, {
+      expectedOPTypes: isDestinationActivated
+        ? [SupportedOperations.Payment]
+        : [SupportedOperations.CreateAccount],
+      preloadedAccounts: destinationAccount ? [destinationAccount] : undefined,
+    });
+
+    return transaction;
+  }
+
+  /**
    * Creates a validated swap transaction from a Base64 encoded XDR.
    *
    * @param params - The parameters for the transaction.
@@ -163,6 +403,25 @@ export class TransactionService {
     return preloadedAccounts.filter(
       (account): account is OnChainAccount => account !== null,
     );
+  }
+
+  async #loadActivatedAccountOrNull(
+    accountAddress: string,
+    scope: KnownCaip2ChainId,
+    useCache: boolean = false,
+  ): Promise<OnChainAccount | null> {
+    try {
+      return await this.#networkService.loadOnChainAccountWithCache(
+        accountAddress,
+        scope,
+        !useCache,
+      );
+    } catch (error: unknown) {
+      if (error instanceof AccountNotActivatedException) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -275,6 +534,7 @@ export class TransactionService {
    * @param onChainAccount - The on-chain account to validate against.
    * @param options - Optional options for the transaction validation {@link TransactionSimulatorOptions}.
    * @throws {TransactionScopeNotMatchException} When {@link OnChainAccount.scope} does not match {@link Transaction.scope}.
+   * @throws {TransactionExpireException} When the transaction time bound has passed.
    * @throws {TransactionValidationException} When the transaction cannot be validated.
    */
   validateTransaction(

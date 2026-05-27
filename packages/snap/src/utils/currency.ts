@@ -23,6 +23,20 @@ export function toSmallestUnit(
 }
 
 /**
+ * Checks if an amount has decimal places.
+ *
+ * @param amount - The amount to check.
+ * @returns True if the amount has decimal places, false otherwise.
+ */
+export function hasDecimals(amount: BigNumber): boolean {
+  const decimalPlaces = amount.decimalPlaces();
+  if (decimalPlaces === null) {
+    return false;
+  }
+  return decimalPlaces > 0;
+}
+
+/**
  * Converts an amount from the smallest unit to a human-readable amount.
  *
  * @example normalizeAmount(new BigNumber(123456789)) // 12.3456789

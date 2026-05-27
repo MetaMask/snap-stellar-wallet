@@ -17,6 +17,7 @@ import {
   InvalidAmountForCreateAccountException,
   InvalidInvokeContractStructureException,
   RemoveTrustlineWithNonZeroBalanceException,
+  TransactionExpireException,
   TransactionScopeNotMatchException,
   TransactionValidationException,
   TrustlineNotAuthorizedException,
@@ -42,7 +43,10 @@ import {
   buildMockInvokeHostFunctionTransaction,
   type BuildMockTransactionOptions,
 } from './__mocks__/transaction.fixtures';
-import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
+import {
+  generateStellarAddress,
+  getTestWallet,
+} from '../wallet/__mocks__/wallet.fixtures';
 
 const SEP41_ASSET_MAINNET =
   'stellar:pubnet/sep41:CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J' as const;
@@ -247,6 +251,8 @@ function onChainFromMockBalances(
   return new OnChainAccount(acc, scope, horizonSource(acc, scope));
 }
 
+const destinationAddress = generateStellarAddress();
+
 describe('TransactionSimulator', () => {
   const simulator = new TransactionSimulator();
 
@@ -258,14 +264,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '10',
             },
@@ -323,13 +329,13 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildEnvelopeTransaction(wallet.address, '1', (tb) =>
         tb
           .addOperation(
             StellarOperation.payment({
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: Asset.native(),
               amount: '1',
             }),
@@ -358,7 +364,7 @@ describe('TransactionSimulator', () => {
 
       expect(() =>
         simulator.simulate(tx, onChainAccount, {
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toThrow(InvalidInvokeContractStructureException);
     });
@@ -370,7 +376,7 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
@@ -385,7 +391,7 @@ describe('TransactionSimulator', () => {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '10',
             },
@@ -397,9 +403,71 @@ describe('TransactionSimulator', () => {
       expect(() =>
         simulator.simulate(tx, onChainAccount, {
           expectedOPTypes: [SupportedOperations.Payment],
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toThrow(TransactionValidationException);
+    });
+
+    it('throws when the transaction has expired', () => {
+      const mockNow = 1700000000000;
+      jest.useFakeTimers();
+      jest.setSystemTime(mockNow);
+
+      try {
+        const wallet = getTestWallet();
+        const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+          nativeBalance: 500,
+          subentryCount: 0,
+          assets: [],
+        });
+        const tx = buildMockClassicTransaction(
+          [
+            {
+              type: 'createAccount',
+              params: {
+                source: wallet.address,
+                destination: destinationAddress,
+                startingBalance: '10',
+              },
+            },
+          ],
+          mainnetSimulatorTxOptions(wallet.address, '1', { timeout: 1 }),
+        );
+
+        jest.advanceTimersByTime(2000);
+
+        expect(() => simulator.simulate(tx, onChainAccount)).toThrow(
+          TransactionExpireException,
+        );
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('passes when the transaction does not have an expiration time', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'createAccount',
+            params: {
+              source: wallet.address,
+              destination: destinationAddress,
+              startingBalance: '10',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1', { timeout: 0 }),
+      );
+
+      expect(() => simulator.simulate(tx, onChainAccount)).not.toThrow(
+        TransactionExpireException,
+      );
     });
   });
 
@@ -411,14 +479,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '10',
             },
@@ -428,7 +496,7 @@ describe('TransactionSimulator', () => {
       );
 
       const stack = simulator.simulate(tx, onChainAccount, {
-        preloadedAccounts: [destOnChainAccount(dest)],
+        preloadedAccounts: [destOnChainAccount(destinationAddress)],
       });
       expect(stack).toHaveLength(2);
     });
@@ -467,14 +535,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '1',
             },
@@ -485,7 +553,7 @@ describe('TransactionSimulator', () => {
 
       expect(() =>
         simulator.simulate(tx, onChainAccount, {
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toThrow(InsufficientBalanceException);
     });
@@ -497,14 +565,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: MOCK_USDC_ASSET,
               amount: '1',
             },
@@ -515,7 +583,7 @@ describe('TransactionSimulator', () => {
 
       expect(() =>
         simulator.simulate(tx, onChainAccount, {
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toThrow(TrustlineNotFoundException);
     });
@@ -535,14 +603,14 @@ describe('TransactionSimulator', () => {
           },
         ],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: MOCK_USDC_ASSET,
               amount: '1',
             },
@@ -553,7 +621,7 @@ describe('TransactionSimulator', () => {
 
       expect(() =>
         simulator.simulate(tx, onChainAccount, {
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toThrow(TrustlineNotAuthorizedException);
     });
@@ -572,14 +640,14 @@ describe('TransactionSimulator', () => {
           },
         ],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: MOCK_USDC_ASSET,
               amount: '1',
             },
@@ -590,7 +658,9 @@ describe('TransactionSimulator', () => {
 
       expect(() =>
         simulator.simulate(tx, onChainAccount, {
-          preloadedAccounts: [destOnChainAccountUnauthorized(dest)],
+          preloadedAccounts: [
+            destOnChainAccountUnauthorized(destinationAddress),
+          ],
         }),
       ).toThrow(TrustlineNotAuthorizedException);
     });
@@ -641,7 +711,7 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
@@ -650,7 +720,7 @@ describe('TransactionSimulator', () => {
               source: wallet.address,
               sendAsset: 'native',
               sendAmount: '10',
-              destination: dest,
+              destination: destinationAddress,
               destAsset: MOCK_USDC_ASSET,
               destMin: '5',
             },
@@ -662,12 +732,12 @@ describe('TransactionSimulator', () => {
       expect(
         simulator.simulate(tx, onChainAccount, {
           expectedOPTypes: [SupportedOperations.PathPayment],
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toHaveLength(2);
     });
 
-    it('succeeds for strict send path to self on same credit asset when naive dest balance+destMin exceeds limit', () => {
+    it('succeeds for strict send path to self on same credit asset when naive destination balance plus destMin exceeds limit', () => {
       const wallet = getTestWallet();
       const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
         nativeBalance: 500,
@@ -762,12 +832,16 @@ describe('TransactionSimulator', () => {
           },
         ],
       });
-      const dest = Keypair.random().publicKey();
-      const loadedDestAccount = onChainFromMockBalances(dest, '1', {
-        nativeBalance: 50,
-        subentryCount: 0,
-        assets: [],
-      });
+
+      const loadedDestAccount = onChainFromMockBalances(
+        destinationAddress,
+        '1',
+        {
+          nativeBalance: 50,
+          subentryCount: 0,
+          assets: [],
+        },
+      );
       const tx = buildMockClassicTransaction(
         [
           {
@@ -776,7 +850,7 @@ describe('TransactionSimulator', () => {
               source: wallet.address,
               sendAsset: MOCK_USDC_ASSET,
               sendMax: '20',
-              destination: dest,
+              destination: destinationAddress,
               destAsset: 'native',
               destAmount: '10',
             },
@@ -800,12 +874,16 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
-      const loadedDestAccount = onChainFromMockBalances(dest, '1', {
-        nativeBalance: 50,
-        subentryCount: 0,
-        assets: [],
-      });
+
+      const loadedDestAccount = onChainFromMockBalances(
+        destinationAddress,
+        '1',
+        {
+          nativeBalance: 50,
+          subentryCount: 0,
+          assets: [],
+        },
+      );
       const tx = buildMockClassicTransaction(
         [
           {
@@ -814,7 +892,7 @@ describe('TransactionSimulator', () => {
               source: wallet.address,
               sendAsset: MOCK_USDC_ASSET,
               sendMax: '20',
-              destination: dest,
+              destination: destinationAddress,
               destAsset: 'native',
               destAmount: '10',
             },
@@ -838,12 +916,16 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
-      const loadedDestAccount = onChainFromMockBalances(dest, '1', {
-        nativeBalance: 50,
-        subentryCount: 0,
-        assets: [],
-      });
+
+      const loadedDestAccount = onChainFromMockBalances(
+        destinationAddress,
+        '1',
+        {
+          nativeBalance: 50,
+          subentryCount: 0,
+          assets: [],
+        },
+      );
       const tx = buildMockClassicTransaction(
         [
           {
@@ -852,7 +934,7 @@ describe('TransactionSimulator', () => {
               source: wallet.address,
               sendAsset: 'native',
               sendAmount: '10',
-              destination: dest,
+              destination: destinationAddress,
               destAsset: MOCK_USDC_ASSET,
               destMin: '5',
             },
@@ -878,14 +960,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'createAccount',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               startingBalance: '2',
             },
           },
@@ -903,14 +985,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'createAccount',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               startingBalance: '0.5',
             },
           },
@@ -930,14 +1012,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'createAccount',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               startingBalance: '2',
             },
           },
@@ -947,7 +1029,7 @@ describe('TransactionSimulator', () => {
 
       expect(() =>
         simulator.simulate(tx, onChainAccount, {
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toThrow(TransactionValidationException);
     });
@@ -1165,13 +1247,12 @@ describe('TransactionSimulator', () => {
     });
 
     it('passes when sender on-chain snapshot includes SEP-41 balance covering transfer amount', () => {
-      const dest = Keypair.random().publicKey();
       const sorobanTx = buildSep41TransferTransaction({
         source: SOROBAN_INVOKE_SOURCE,
         sequence: '1',
         contractId: SEP41_CONTRACT_MAINNET,
         from: SOROBAN_INVOKE_SOURCE,
-        to: dest,
+        to: destinationAddress,
         amountSmallestUnits: '1',
       });
       const loaded = onChainFromMockBalances(SOROBAN_INVOKE_SOURCE, '1', {
@@ -1188,13 +1269,12 @@ describe('TransactionSimulator', () => {
     });
 
     it('throws InsufficientBalanceException when SEP-41 transfer amount exceeds sender snapshot balance', () => {
-      const dest = Keypair.random().publicKey();
       const sorobanTx = buildSep41TransferTransaction({
         source: SOROBAN_INVOKE_SOURCE,
         sequence: '1',
         contractId: SEP41_CONTRACT_MAINNET,
         from: SOROBAN_INVOKE_SOURCE,
-        to: dest,
+        to: destinationAddress,
         amountSmallestUnits: '10',
       });
       const loaded = onChainFromMockBalances(SOROBAN_INVOKE_SOURCE, '1', {
@@ -1214,13 +1294,12 @@ describe('TransactionSimulator', () => {
     });
 
     it('throws when SEP-41 balance exists only on a different preloaded account, not the sender', () => {
-      const dest = Keypair.random().publicKey();
       const sorobanTx = buildSep41TransferTransaction({
         source: SOROBAN_INVOKE_SOURCE,
         sequence: '1',
         contractId: SEP41_CONTRACT_MAINNET,
         from: SOROBAN_INVOKE_SOURCE,
-        to: dest,
+        to: destinationAddress,
         amountSmallestUnits: '1',
       });
       const loaded = onChainFromMockBalances(SOROBAN_INVOKE_SOURCE, '1', {
@@ -1247,13 +1326,12 @@ describe('TransactionSimulator', () => {
     });
 
     it('throws when SEP-41 transfer has no SEP-41 balance row for sender and contract on snapshot', () => {
-      const dest = Keypair.random().publicKey();
       const sorobanTx = buildSep41TransferTransaction({
         source: SOROBAN_INVOKE_SOURCE,
         sequence: '1',
         contractId: SEP41_CONTRACT_MAINNET,
         from: SOROBAN_INVOKE_SOURCE,
-        to: dest,
+        to: destinationAddress,
         amountSmallestUnits: '1',
       });
       const loaded = onChainFromMockBalances(SOROBAN_INVOKE_SOURCE, '1', {
@@ -1291,14 +1369,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'createAccount',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               startingBalance: '2',
             },
           },
@@ -1306,7 +1384,7 @@ describe('TransactionSimulator', () => {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '5',
             },
@@ -1325,7 +1403,7 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
@@ -1340,7 +1418,7 @@ describe('TransactionSimulator', () => {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '10',
             },
@@ -1350,7 +1428,7 @@ describe('TransactionSimulator', () => {
       );
 
       const stack = simulator.simulate(tx, onChainAccount, {
-        preloadedAccounts: [destOnChainAccount(dest)],
+        preloadedAccounts: [destOnChainAccount(destinationAddress)],
       });
       expect(stack).toHaveLength(3);
     });
@@ -1362,14 +1440,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: MOCK_USDC_ASSET,
               amount: '1',
             },
@@ -1388,7 +1466,7 @@ describe('TransactionSimulator', () => {
 
       expect(() =>
         simulator.simulate(tx, onChainAccount, {
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toThrow(TrustlineNotFoundException);
     });
@@ -1400,7 +1478,7 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
@@ -1415,7 +1493,7 @@ describe('TransactionSimulator', () => {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '10',
             },
@@ -1430,7 +1508,7 @@ describe('TransactionSimulator', () => {
             SupportedOperations.ChangeTrust,
             SupportedOperations.Payment,
           ],
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toHaveLength(3);
     });
@@ -1483,14 +1561,14 @@ describe('TransactionSimulator', () => {
         subentryCount: 0,
         assets: [],
       });
-      const dest = Keypair.random().publicKey();
+
       const tx = buildMockClassicTransaction(
         [
           {
             type: 'createAccount',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               startingBalance: '2',
             },
           },
@@ -1498,7 +1576,7 @@ describe('TransactionSimulator', () => {
             type: 'payment',
             params: {
               source: wallet.address,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '5',
             },
@@ -1532,7 +1610,6 @@ describe('TransactionSimulator', () => {
       const issuerA = Keypair.random().publicKey();
       const issuerB = Keypair.random().publicKey();
       const sourceKey = Keypair.random().publicKey();
-      const dest = Keypair.random().publicKey();
 
       const loaded = onChainFromMockBalances(sourceKey, '1', {
         nativeBalance: 1.5,
@@ -1576,7 +1653,7 @@ describe('TransactionSimulator', () => {
             type: 'payment',
             params: {
               source: sourceKey,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '0.4',
             },
@@ -1593,7 +1670,7 @@ describe('TransactionSimulator', () => {
             SupportedOperations.ChangeTrust,
             SupportedOperations.Payment,
           ],
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toThrow(InsufficientBalanceToCoverFeeException);
     });
@@ -1602,7 +1679,6 @@ describe('TransactionSimulator', () => {
       const issuerA = Keypair.random().publicKey();
       const issuerB = Keypair.random().publicKey();
       const sourceKey = Keypair.random().publicKey();
-      const dest = Keypair.random().publicKey();
 
       const loaded = onChainFromMockBalances(sourceKey, '1', {
         nativeBalance: 1.6,
@@ -1646,7 +1722,7 @@ describe('TransactionSimulator', () => {
             type: 'payment',
             params: {
               source: sourceKey,
-              destination: dest,
+              destination: destinationAddress,
               asset: 'native',
               amount: '0.4',
             },
@@ -1663,7 +1739,7 @@ describe('TransactionSimulator', () => {
             SupportedOperations.ChangeTrust,
             SupportedOperations.Payment,
           ],
-          preloadedAccounts: [destOnChainAccount(dest)],
+          preloadedAccounts: [destOnChainAccount(destinationAddress)],
         }),
       ).toHaveLength(4);
     });

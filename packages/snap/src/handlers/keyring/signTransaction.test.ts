@@ -296,6 +296,52 @@ describe('SignTransactionHandler', () => {
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
+  it('returns error -3 when the transaction has expired', async () => {
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
+    const USDC_ISSUER =
+      'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+    const MOCK_USDC_ASSET = { code: 'USDC', issuer: USDC_ISSUER } as const;
+    const mockNow = 1700000000000;
+    jest.useFakeTimers();
+    jest.setSystemTime(mockNow);
+
+    try {
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'pathPaymentStrictSend',
+            params: {
+              source: mockAccount.address,
+              sendAsset: MOCK_USDC_ASSET,
+              sendAmount: '40',
+              destination: mockAccount.address,
+              destAsset: MOCK_USDC_ASSET,
+              destMin: '35',
+            },
+          },
+        ],
+        {
+          networkPassphrase: Networks.PUBLIC,
+          source: { accountId: mockAccount.address, sequence: '1' },
+          timeout: 1,
+        },
+      );
+
+      jest.advanceTimersByTime(2000);
+      const result = await handler.handle(
+        buildRequest(mockAccount.id, tx.getRaw().toXDR(), {
+          opts: { networkPassphrase: Networks.PUBLIC },
+        }),
+      );
+      expect(result).toMatchObject({
+        error: { code: Sep43ErrorCode.InvalidRequest },
+      });
+      expect(renderConfirmationDialog).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it.each([
     ['opts.submit', { submit: true }],
     ['opts.submitUrl', { submitUrl: 'https://horizon.stellar.org' }],

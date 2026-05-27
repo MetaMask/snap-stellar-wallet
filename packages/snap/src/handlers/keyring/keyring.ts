@@ -73,7 +73,6 @@ import type {
   StellarKeyringAccount,
 } from '../../services/account';
 import { AccountNotFoundException } from '../../services/account/exceptions';
-import type { AssetMetadataService } from '../../services/asset-metadata';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import type {
   OnChainAccount,
@@ -112,8 +111,6 @@ export class KeyringHandler implements Keyring {
 
   readonly #transactionService: TransactionService;
 
-  readonly #assetMetadataService: AssetMetadataService;
-
   readonly #handlers: Record<MultichainMethod, IKeyringRequestHandler>;
 
   constructor({
@@ -121,21 +118,18 @@ export class KeyringHandler implements Keyring {
     accountService,
     onChainAccountService,
     transactionService,
-    assetMetadataService,
     handlers,
   }: {
     logger: ILogger;
     accountService: AccountService;
     onChainAccountService: OnChainAccountService;
     transactionService: TransactionService;
-    assetMetadataService: AssetMetadataService;
     handlers: Record<MultichainMethod, IKeyringRequestHandler>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 KeyringHandler]');
     this.#accountService = accountService;
     this.#onChainAccountService = onChainAccountService;
     this.#transactionService = transactionService;
-    this.#assetMetadataService = assetMetadataService;
     this.#handlers = handlers;
   }
 
@@ -330,12 +324,8 @@ export class KeyringHandler implements Keyring {
         return [getSlip44AssetId(scope)];
       }
 
-      // Non-SEP-41 (native + classic): always list. SEP-41: only if row exists and balance > 0.
-      return onChainAccount.assetIds.filter((assetId) => {
-        return (
-          !isSep41Id(assetId) || onChainAccount.getAsset(assetId)?.balance.gt(0)
-        );
-      });
+      // Visible assets only (see {@link OnChainAccount.assetIds}).
+      return onChainAccount.assetIds;
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails(
         'Failed to list account assets',
@@ -488,33 +478,16 @@ export class KeyringHandler implements Keyring {
         return assetBalances;
       }
 
-      const assetsMetadata =
-        await this.#assetMetadataService.getAssetsMetadataByAssetIds(assets);
-
       for (const assetId of assets) {
         const asset = onChainAccount.getAsset(assetId);
-        const assetMetadata = assetsMetadata[assetId];
-        // We support get balacne for a asset when:
-        // - Asset is found from the on-chain account
-        // - Asset metadata is found
-        // - Asset metadata is a fungible asset
-        // - Asset is Native / classic trustlines: always include.
-        // - Asset is SEP-41: only include if balance is greater than zero.
-        if (
-          asset === undefined ||
-          assetMetadata === undefined ||
-          assetMetadata === null ||
-          !FungibleAssetMetadataStruct.is(assetMetadata) ||
-          assetMetadata.units[0]?.decimals === undefined ||
-          (isSep41Id(assetId) && !asset.balance.gt(0))
-        ) {
+        // Skip when the asset is not visible (tombstone, zero SEP-41, or missing entry).
+        if (asset === undefined) {
           continue;
         }
 
-        const decimal = assetMetadata.units[0].decimals;
         assetBalances[assetId] = {
           unit: asset.symbol ?? '',
-          amount: toDisplayBalance(asset.balance, decimal),
+          amount: toDisplayBalance(asset.balance, asset.decimals),
         };
       }
       return assetBalances;

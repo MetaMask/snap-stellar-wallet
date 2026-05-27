@@ -3,6 +3,7 @@ import { Asset } from '@stellar/stellar-sdk';
 
 import {
   InvalidInvokeContractStructureException,
+  TransactionExpireException,
   TransactionScopeNotMatchException,
   TransactionValidationException,
 } from './exceptions';
@@ -137,6 +138,22 @@ export function assertAssetScopeMatch(
 }
 
 /**
+ * Asserts the transaction has not expired.
+ *
+ * @param transaction - Wrapped Stellar transaction.
+ * @throws {TransactionExpireException} When the transaction has expired.
+ */
+export function assertTransactionTimeBound(transaction: Transaction): void {
+  const { expirationTime } = transaction;
+  if (expirationTime === undefined) {
+    return;
+  }
+  if (expirationTime < Math.floor(Date.now() / 1000)) {
+    throw new TransactionExpireException(expirationTime);
+  }
+}
+
+/**
  * Maps an `OperationMapper` asset reference to its CAIP-19 id.
  *
  * @param scope - CAIP-2 chain of the transaction.
@@ -204,4 +221,23 @@ export function collectTransactionAssetCaipIds(
     }
   }
   return [...ids];
+}
+
+/**
+ * Parses Stellar `maxTime` into a unix expiration timestamp.
+ *
+ * @param maxTime - `timeBounds.maxTime` from the envelope (unix seconds as a string).
+ * @returns Parsed unix seconds, or `undefined` when there is no upper bound (`0`).
+ */
+export function parseExpirationMaxTime(
+  maxTime: string | undefined,
+): number | undefined {
+  if (maxTime === undefined) {
+    return undefined;
+  }
+  const parsed = parseInt(maxTime, 10);
+  if (Number.isNaN(parsed) || parsed === 0) {
+    return undefined;
+  }
+  return parsed;
 }

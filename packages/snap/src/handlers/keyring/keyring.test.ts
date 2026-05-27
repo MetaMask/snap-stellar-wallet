@@ -12,7 +12,6 @@ import {
 import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
 import { create } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
-import { BigNumber } from 'bignumber.js';
 
 import {
   KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD,
@@ -51,8 +50,14 @@ import {
   USDC_CLASSIC,
 } from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { OnChainAccountService } from '../../services/on-chain-account';
-import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
-import type { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
+import {
+  createMockAccountWithBalances,
+  DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  horizonSource,
+  mockOnChainAccountService,
+  type MockAccountWithBalancesData,
+} from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
+import { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
 import {
   createMockTransactionService,
   generateMockTransactions,
@@ -109,6 +114,18 @@ describe('KeyringHandler', () => {
     findByIdsSpy: jest.spyOn(AccountService.prototype, 'findByIds'),
   });
 
+  const createTestOnChainAccount = (
+    address: string,
+    data: MockAccountWithBalancesData = DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  ): OnChainAccount => {
+    const stellarAccount = createMockAccountWithBalances(address, '1', data);
+    return new OnChainAccount(
+      stellarAccount,
+      KnownCaip2ChainId.Mainnet,
+      horizonSource(stellarAccount, KnownCaip2ChainId.Mainnet),
+    );
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySourceId);
@@ -120,13 +137,11 @@ describe('KeyringHandler', () => {
     const { accountService, onChainAccountService } =
       mockOnChainAccountService();
     const { transactionService } = createMockTransactionService();
-    const { service: assetMetadataService } = createMockAssetMetadataService();
     keyringHandler = new KeyringHandler({
       logger,
       accountService,
       onChainAccountService,
       transactionService,
-      assetMetadataService,
       handlers: {
         [MultichainMethod.SignMessage]: mockSignMessageHandler,
         [MultichainMethod.SignTransaction]: mockSignTransactionHandler,
@@ -407,21 +422,19 @@ describe('KeyringHandler', () => {
 
   describe('listAccountAssets', () => {
     it('returns on-chain asset ids for the account', async () => {
-      const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      const onChainAccount = createTestOnChainAccount(mockAccount.address);
       jest
         .spyOn(
           OnChainAccountService.prototype,
           'resolveOnChainAccountByKeyringAccountId',
         )
-        .mockResolvedValue({
-          assetIds: [slipId],
-        } as unknown as OnChainAccount);
+        .mockResolvedValue(onChainAccount);
 
       const result = await keyringHandler.listAccountAssets(mockAccountId);
 
-      expect(result).toStrictEqual([slipId]);
+      expect(result).toStrictEqual(onChainAccount.assetIds);
     });
 
     it('returns native asset id when the account is not activated on-chain', async () => {
@@ -620,18 +633,16 @@ describe('KeyringHandler', () => {
       const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
       const { resolveAccountSpy } = getAccountServiceSpies();
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      const onChainAccount = createTestOnChainAccount(mockAccount.address, {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 1.000001,
+      });
       jest
         .spyOn(
           OnChainAccountService.prototype,
           'resolveOnChainAccountByKeyringAccountId',
         )
-        .mockResolvedValue({
-          assetIds: [slipId],
-          getAsset: () => ({
-            balance: new BigNumber('10'),
-            symbol: 'XLM',
-          }),
-        } as unknown as OnChainAccount);
+        .mockResolvedValue(onChainAccount);
 
       const result = await keyringHandler.getAccountBalances(mockAccountId, [
         slipId,
