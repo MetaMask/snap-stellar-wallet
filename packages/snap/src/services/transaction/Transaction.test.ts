@@ -176,4 +176,92 @@ describe('Transaction', () => {
       expect(wrapped.getMemo()).toStrictEqual(expected);
     },
   );
+
+  describe('expiration time', () => {
+    const mockNow = 1700000000000;
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(mockNow);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('reads expiration time from inner transaction for a fee-bump envelope', () => {
+      const source = Keypair.random();
+      const feeSource = Keypair.random();
+      const dest = Keypair.random().publicKey();
+
+      const inner = new StellarTransactionBuilder(
+        new Account(source.publicKey(), '1'),
+        { fee: '100', networkPassphrase: Networks.TESTNET },
+      )
+        .addOperation(
+          Operation.payment({
+            destination: dest,
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        .setTimeout(60)
+        .build();
+
+      const feeBump = StellarTransactionBuilder.buildFeeBumpTransaction(
+        feeSource,
+        String(Number(inner.fee) * 2),
+        inner,
+        Networks.TESTNET,
+      );
+
+      expect(new Transaction(feeBump).expirationTime).toStrictEqual(
+        mockNow / 1000 + 60,
+      );
+    });
+
+    it('reads expiration time from inner transaction for a classic transaction', () => {
+      const source = Keypair.random();
+      const dest = Keypair.random().publicKey();
+
+      const inner = new StellarTransactionBuilder(
+        new Account(source.publicKey(), '1'),
+        { fee: '100', networkPassphrase: Networks.TESTNET },
+      )
+        .addOperation(
+          Operation.payment({
+            destination: dest,
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        .setTimeout(60)
+        .build();
+
+      expect(new Transaction(inner).expirationTime).toStrictEqual(
+        mockNow / 1000 + 60,
+      );
+    });
+
+    it('returns undefined if the transaction has no expiration time', () => {
+      const source = Keypair.random();
+      const dest = Keypair.random().publicKey();
+
+      const inner = new StellarTransactionBuilder(
+        new Account(source.publicKey(), '1'),
+        { fee: '100', networkPassphrase: Networks.TESTNET },
+      )
+        .addOperation(
+          Operation.payment({
+            destination: dest,
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        // Set timeout to 0 means no expiration time
+        .setTimeout(0)
+        .build();
+
+      expect(new Transaction(inner).expirationTime).toBeUndefined();
+    });
+  });
 });

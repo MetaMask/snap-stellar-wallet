@@ -5,6 +5,7 @@ import type {
 import { FeeBumpTransaction } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { parseExpirationMaxTime } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { bufferToUint8Array } from '../../utils';
 import { networkToCaip2ChainId } from '../network/utils';
@@ -96,6 +97,21 @@ export class Transaction {
       default:
         return null;
     }
+  }
+
+  /**
+   * The expiration time of the transaction.
+   *
+   * @see https://github.com/stellar/js-stellar-base/blob/master/src/transaction_builder.js#L320
+   *
+   * @returns Unix timestamp (seconds) for `maxTime`, or `undefined` when there is no upper bound (`maxTime` of `0`).
+   */
+  get expirationTime(): number | undefined {
+    const raw = this.getRaw();
+    if (raw instanceof FeeBumpTransaction) {
+      return parseExpirationMaxTime(raw.innerTransaction.timeBounds?.maxTime);
+    }
+    return parseExpirationMaxTime(raw.timeBounds?.maxTime);
   }
 
   /**
