@@ -3,6 +3,7 @@ import { Asset } from '@stellar/stellar-sdk';
 
 import {
   InvalidInvokeContractStructureException,
+  TransactionExpireException,
   TransactionScopeNotMatchException,
   TransactionValidationException,
 } from './exceptions';
@@ -136,6 +137,20 @@ export function assertAssetScopeMatch(
   }
 }
 
+/**
+ * Asserts the transaction has not expired.
+ *
+ * @param transaction - Wrapped Stellar transaction.
+ * @throws {TransactionExpireException} When the transaction has expired.
+ */
+export function assertTransactionTimeBound(transaction: Transaction): void {
+  if (!transaction.expirationTime) {
+    return;
+  }
+  if (transaction.expirationTime < Date.now()) {
+    throw new TransactionExpireException(transaction.expirationTime);
+  }
+}
 /**
  * Maps an `OperationMapper` asset reference to its CAIP-19 id.
  *

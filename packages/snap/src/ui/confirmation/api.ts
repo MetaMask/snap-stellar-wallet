@@ -1,5 +1,4 @@
 import type { GetPreferencesResult } from '@metamask/snaps-sdk';
-import { union } from '@metamask/snaps-sdk';
 import type { Infer } from '@metamask/superstruct';
 import {
   enums,
@@ -8,6 +7,7 @@ import {
   string,
   nullable,
   nonempty,
+  union,
 } from '@metamask/superstruct';
 
 import type {
@@ -18,7 +18,14 @@ import {
   KnownCaip19ClassicAssetStruct,
   KnownCaip19Sep41AssetStruct,
   KnownCaip19Slip44IdStruct,
+  KnownCaip2ChainIdStruct,
+  UuidStruct,
+  XdrStruct,
 } from '../../api';
+import {
+  ChangeTrustOptJsonRpcRequestStruct,
+  ConfirmSendJsonRpcRequestStruct,
+} from '../../handlers/clientRequest/api';
 
 export type FeeData = {
   assetId: KnownCaip19AssetIdOrSlip44Id;
@@ -48,7 +55,23 @@ export const ContextWithPricesStruct = type({
   currency: nonempty(string()),
 });
 
+export const ContextWithTransactionScanStruct = type({
+  transaction: nonempty(XdrStruct),
+  transactionsFetchStatus: enums(Object.values(FetchStatus)),
+  accountId: UuidStruct,
+  scope: KnownCaip2ChainIdStruct,
+  request: union([
+    // we only support send and change trust transactions to scan the transaction
+    ConfirmSendJsonRpcRequestStruct,
+    ChangeTrustOptJsonRpcRequestStruct,
+  ]),
+});
+
 export type ContextWithPrices = Infer<typeof ContextWithPricesStruct>;
+
+export type ContextWithTransactionScan = Infer<
+  typeof ContextWithTransactionScanStruct
+>;
 
 export enum ConfirmationInterfaceKey {
   ChangeTrustlineOptIn = 'ChangeTrustlineOptIn',

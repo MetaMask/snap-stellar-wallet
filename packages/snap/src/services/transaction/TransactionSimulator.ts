@@ -24,6 +24,7 @@ import {
 import type { Transaction } from './Transaction';
 import {
   assertInvokeHostFunctionSoleOperation,
+  assertTransactionTimeBound,
   assertTransactionScope,
   assertTransactionSourceAccount,
 } from './utils';
@@ -171,6 +172,9 @@ export class TransactionSimulator {
     options?: TransactionSimulatorOptions,
   ): asserts ops is SupportedOPType[] {
     const { expectedOPTypes = [] } = options ?? {};
+
+    // Ensure the transaction is not expired
+    assertTransactionTimeBound(transaction);
 
     // Ensure the transaction scope matches the account scope.
     assertTransactionScope(transaction, account.scope);

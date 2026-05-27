@@ -66,6 +66,10 @@ export class TransactionService {
     this.#keyringTransactionBuilder = new KeyringTransactionBuilder();
   }
 
+  get builder(): TransactionBuilder {
+    return this.#transactionBuilder;
+  }
+
   /**
    * Gets the base fee for a transaction.
    *

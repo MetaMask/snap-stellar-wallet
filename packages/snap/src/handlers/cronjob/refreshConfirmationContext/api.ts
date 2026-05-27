@@ -1,13 +1,17 @@
 import { enums } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
 
-import type { ContextWithPrices } from '../../../ui/confirmation/api';
+import type {
+  ContextWithPrices,
+  ContextWithTransactionScan,
+} from '../../../ui/confirmation/api';
 
 /** Identifies which confirmation context refreshers to run for a cron cycle. */
 export enum ConfirmationContextRefresherKey {
   Prices = 'prices',
   /** TODO: Reserved for security scan; wire in context when implemented. */
   Scan = 'scan',
+  Transaction = 'transaction',
 }
 
 export const ConfirmationContextRefresherKeyStruct = enums(
@@ -17,7 +21,9 @@ export const ConfirmationContextRefresherKeyStruct = enums(
 /**
  * Context the handler passes to refreshers.
  */
-export type ConfirmationDataContext = Record<string, Json> & ContextWithPrices;
+export type ConfirmationDataContext = Record<string, Json> &
+  ContextWithPrices &
+  ContextWithTransactionScan;
 
 /** Outcome of one refresher cycle. `null` means no work was needed. */
 export type ConfirmationContextRefreshResult = {

@@ -98,6 +98,20 @@ export class Transaction {
     }
   }
 
+  get expirationTime(): number | undefined {
+    const raw = this.getRaw();
+    let expirationTime: string | undefined;
+    if (raw instanceof FeeBumpTransaction) {
+      expirationTime = raw.innerTransaction.timeBounds?.maxTime;
+    } else {
+      expirationTime = raw.timeBounds?.maxTime;
+    }
+    if (!expirationTime) {
+      return undefined;
+    }
+    return new Date(expirationTime).getTime();
+  }
+
   /**
    * Total fee in stroops charged to {@link Transaction.feeSourceAccount} for this envelope.
    * If it is a fee bump transaction, it will be the fee of the fee bump transaction, instead of the inner transaction.
