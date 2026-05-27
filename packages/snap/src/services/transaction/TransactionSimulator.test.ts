@@ -737,7 +737,7 @@ describe('TransactionSimulator', () => {
       ).toHaveLength(2);
     });
 
-    it('succeeds for strict send path to self on same credit asset when naive destinationAddress balance+destMin exceeds limit', () => {
+    it('succeeds for strict send path to self on same credit asset when naive destination balance plus destMin exceeds limit', () => {
       const wallet = getTestWallet();
       const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
         nativeBalance: 500,

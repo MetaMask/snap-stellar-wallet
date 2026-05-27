@@ -219,7 +219,7 @@ describe('Transaction', () => {
       );
     });
 
-    it('reads expiration time from inner transaction for a classic transaction', () => {
+    it('reads expiration time from the transaction itself for a classic transaction', () => {
       const source = Keypair.random();
       const dest = Keypair.random().publicKey();
 
