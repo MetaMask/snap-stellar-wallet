@@ -15,6 +15,7 @@ import type { Json } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import {
+  KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD,
   MultichainMethod,
   SignAuthEntryResponseStruct,
   SignMessageResponseStruct,
@@ -26,6 +27,7 @@ import {
   KeyringDeleteAccountException,
   KeyringDiscoverAccountsException,
   KeyringGetAccountBalancesException,
+  KeyringGetAccountAssetInfoException,
   KeyringGetAccountException,
   KeyringListAccountAssetsException,
   KeyringListAccountsException,
@@ -44,7 +46,10 @@ import {
   generateStellarKeyringAccount,
 } from '../../services/account/__mocks__/account.fixtures';
 import { AccountNotFoundException } from '../../services/account/exceptions';
-import { createMockAssetMetadataService } from '../../services/asset-metadata/__mocks__/assets.fixtures';
+import {
+  createMockAssetMetadataService,
+  USDC_CLASSIC,
+} from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import type { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
@@ -671,6 +676,125 @@ describe('KeyringHandler', () => {
       await expect(
         keyringHandler.getAccountBalances(mockAccountId, [slipId]),
       ).rejects.toThrow(KeyringGetAccountBalancesException);
+    });
+  });
+
+  describe('getAccountAssetInfo', () => {
+    it('returns metadata and trustline extra for a classic asset with limit', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      jest
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
+        .mockResolvedValue({
+          getAsset: () => ({
+            balance: new BigNumber('0'),
+            symbol: 'USDC',
+            limit: new BigNumber('10000000'),
+            authorized: true,
+            sponsored: false,
+            decimals: 7,
+          }),
+        } as unknown as OnChainAccount);
+
+      const result = await keyringHandler.getAccountAssetInfo(mockAccountId, [
+        USDC_CLASSIC,
+      ]);
+
+      expect(result[USDC_CLASSIC]?.metadata.symbol).toBe('USDC');
+      expect(result[USDC_CLASSIC]?.extra).toStrictEqual({
+        limit: '1',
+        authorized: true,
+        sponsored: false,
+      });
+    });
+
+    it('returns extra with zero limit for classic tombstone rows', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      jest
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
+        .mockResolvedValue({
+          getAsset: () => ({
+            balance: new BigNumber('0'),
+            symbol: 'USDC',
+            limit: new BigNumber(0),
+            decimals: 7,
+          }),
+        } as unknown as OnChainAccount);
+
+      const result = await keyringHandler.getAccountAssetInfo(mockAccountId, [
+        USDC_CLASSIC,
+      ]);
+
+      expect(result[USDC_CLASSIC]?.extra).toStrictEqual({ limit: '0' });
+    });
+
+    it('omits extra when classic asset has no on-chain row', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      jest
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
+        .mockResolvedValue({
+          getAsset: () => undefined,
+        } as unknown as OnChainAccount);
+
+      const result = await keyringHandler.getAccountAssetInfo(mockAccountId, [
+        USDC_CLASSIC,
+      ]);
+
+      expect(result[USDC_CLASSIC]?.metadata).toBeDefined();
+      expect(result[USDC_CLASSIC]?.extra).toBeUndefined();
+    });
+
+    it('routes keyring_getAccountAssetInfo via handle', async () => {
+      const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      jest
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
+        .mockResolvedValue({
+          getAsset: () => ({
+            balance: new BigNumber('10'),
+            symbol: 'XLM',
+          }),
+        } as unknown as OnChainAccount);
+
+      const result = await keyringHandler.handle('metamask', {
+        jsonrpc: '2.0',
+        id: 1,
+        method: KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD,
+        params: { accountId: mockAccountId, assets: [slipId] },
+      });
+
+      expect(handleKeyringRequest).not.toHaveBeenCalled();
+      expect(result).toHaveProperty(slipId);
+    });
+
+    it('throws when asset info resolution fails', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      jest
+        .spyOn(
+          OnChainAccountService.prototype,
+          'resolveOnChainAccountByKeyringAccountId',
+        )
+        .mockRejectedValue(new Error('Horizon unavailable'));
+
+      await expect(
+        keyringHandler.getAccountAssetInfo(mockAccountId, [USDC_CLASSIC]),
+      ).rejects.toThrow(KeyringGetAccountAssetInfoException);
     });
   });
 

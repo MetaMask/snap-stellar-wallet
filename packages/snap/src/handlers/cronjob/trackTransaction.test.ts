@@ -3,22 +3,35 @@ import {
   TransactionType,
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
+import { Account as StellarAccount } from '@stellar/stellar-sdk';
+import { BigNumber } from 'bignumber.js';
 
 import { BackgroundEventMethod } from './api';
 import { TrackTransactionHandler } from './trackTransaction';
-import { KnownCaip2ChainId } from '../../api';
+import { KnownCaip2ChainId, type KnownCaip19ClassicAssetId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
+import { USDC_CLASSIC } from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { InMemoryCache } from '../../services/cache';
 import { NetworkService } from '../../services/network';
 import { TransactionPollException } from '../../services/network/exceptions';
-import { OnChainAccountService } from '../../services/on-chain-account';
+import {
+  OnChainAccount,
+  OnChainAccountService,
+} from '../../services/on-chain-account';
 import { TransactionService } from '../../services/transaction';
 import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
 import { logger, noOpLogger } from '../../utils/logger';
 import { scheduleBackgroundEvent } from '../../utils/snap';
 
 jest.mock('../../utils/logger');
+jest.mock('./trackTransactionHorizonTrustline', () => {
+  const actual = jest.requireActual('./trackTransactionHorizonTrustline');
+  return {
+    ...actual,
+    delayMilliseconds: jest.fn().mockResolvedValue(undefined),
+  };
+});
 jest.mock('../../utils/snap', () => {
   const actual = jest.requireActual('../../utils/snap');
   return {
@@ -34,6 +47,7 @@ describe('TrackTransactionHandler', () => {
   const txId = 'abc123';
   const scope = KnownCaip2ChainId.Testnet;
   const accountId = '22222222-2222-4222-8222-222222222222';
+  const classicAssetId = USDC_CLASSIC as KnownCaip19ClassicAssetId;
 
   beforeEach(() => {
     jest.mocked(scheduleBackgroundEvent).mockClear();
@@ -87,6 +101,11 @@ describe('TrackTransactionHandler', () => {
       .spyOn(OnChainAccountService.prototype, 'synchronize')
       .mockResolvedValue(undefined);
 
+    const resolveOnChainAccount = jest.spyOn(
+      OnChainAccountService.prototype,
+      'resolveOnChainAccount',
+    );
+
     const updateKeyringTransactionStatus = jest
       .spyOn(TransactionService.prototype, 'updateKeyringTransactionStatus')
       .mockResolvedValue(undefined);
@@ -122,9 +141,73 @@ describe('TrackTransactionHandler', () => {
       pollTransaction,
       findKeyringTransactionByTransactionId,
       synchronize,
+      resolveOnChainAccount,
       updateKeyringTransactionStatus,
     };
   }
+
+  it('settles confirmed change-trust after Horizon trustline matches expectation', async () => {
+    const {
+      handler,
+      account,
+      pollTransaction,
+      synchronize,
+      resolveOnChainAccount,
+      updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
+    } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
+    pollTransaction.mockResolvedValue(txId);
+
+    const stellarAccount = new StellarAccount(account.address, '1');
+    const staleHorizonAccount = new OnChainAccount(stellarAccount, scope);
+    staleHorizonAccount.setAsset(classicAssetId, {
+      balance: new BigNumber(0),
+      symbol: 'USDC',
+      limit: new BigNumber('9223372036854775807'),
+      address: account.address,
+      authorized: true,
+    });
+    const updatedHorizonAccount = new OnChainAccount(stellarAccount, scope);
+
+    resolveOnChainAccount
+      .mockResolvedValueOnce(staleHorizonAccount)
+      .mockResolvedValue(updatedHorizonAccount);
+
+    const callOrder: string[] = [];
+    synchronize.mockImplementation(async () => {
+      callOrder.push('sync');
+    });
+    updateKeyringTransactionStatus.mockImplementation(async () => {
+      callOrder.push('settle');
+    });
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+        trustlineVerification: {
+          assetId: classicAssetId,
+          action: 'delete',
+        },
+      },
+    });
+
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    expect(resolveOnChainAccount).toHaveBeenCalledTimes(2);
+    expect(callOrder).toStrictEqual(['sync', 'sync', 'settle']);
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
+      txId,
+      accountIds: [accountId],
+      status: TransactionStatus.Confirmed,
+    });
+  });
 
   it('loads persisted keyring transaction from state before Soroban poll', async () => {
     const { handler, pollTransaction, findKeyringTransactionByTransactionId } =

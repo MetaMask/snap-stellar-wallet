@@ -2,6 +2,7 @@ import { KeyringRpcMethod } from '@metamask/keyring-api';
 
 import { Environment } from './api';
 import { AppConfig } from './config';
+import { KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD } from './handlers/keyring/api';
 
 const isDev = AppConfig.environment !== Environment.Production;
 
@@ -38,6 +39,7 @@ const metamaskPermissions = new Set([
   KeyringRpcMethod.ListAccountAssets,
   KeyringRpcMethod.ResolveAccountAddress,
   KeyringRpcMethod.SetSelectedAccounts,
+  KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD,
 ]);
 
 const metamask = 'metamask';

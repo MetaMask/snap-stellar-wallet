@@ -159,6 +159,10 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       txId: transactionId,
       scope,
       accountIds: [account.id],
+      trustlineVerification: {
+        assetId,
+        action,
+      },
     });
 
     return {
