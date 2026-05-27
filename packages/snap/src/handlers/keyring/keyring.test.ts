@@ -643,7 +643,7 @@ describe('KeyringHandler', () => {
       ]);
 
       expect(result).toStrictEqual({
-        [slipId]: { unit: 'XLM', amount: '0.000001' },
+        [slipId]: { unit: 'XLM', amount: '1.000001' },
       });
     });
 

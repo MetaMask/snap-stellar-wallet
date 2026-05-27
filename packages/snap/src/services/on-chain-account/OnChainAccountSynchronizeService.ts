@@ -13,6 +13,7 @@ import type {
   KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
+import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
@@ -540,7 +541,7 @@ export class OnChainAccountSynchronizeService {
       // - XLM (native), USDC classic trustline, EURC classic trustline, SOLBTC SEP-41.
       // ------------------------- Sync 1 ------------------------------------------
       // - Sync 1 (success): payload received by client:
-      //   XLM=10, USDC=25, EURC=0, SOLBTC=5.
+      //   XLM=10 (raw total), USDC=25, EURC=0, SOLBTC=5.
       // ------------------------- Sync 2 ------------------------------------------
       // - Sync 2 (client misses event): chain updates to
       //   XLM=11, USDC=30, EURC trustline removed (it was already zero), SOLBTC=0.
@@ -552,17 +553,21 @@ export class OnChainAccountSynchronizeService {
       //   Because SEP-41 zero balances are persisted, payload still includes SOLBTC=0.
       // ------------------------- Sync 4 ------------------------------------------
       // - Sync 4 (success): we still emit full balances for on-chain view + latest snapshot,
-      //   so payload includes XLM=9, USDC=30, SOLBTC=0.
+      //   so payload includes XLM=9 (raw total), USDC=30, SOLBTC=0.
       //   Classic trustlines removed on chain are persisted as internal tombstones (`limit` 0),
       //   so sync 4 can still send balance `0` for those asset ids if the client missed earlier events.
-      balanceChanges[assetId as string] = this.#buildBalancePayloadFromEntries(
-        onChainEntry,
-        latestStateEntry,
-      );
-
-      if (assetId === nativeAssetId) {
-        continue;
-      }
+      balanceChanges[assetId as string] =
+        assetId === nativeAssetId
+          ? {
+              unit: NATIVE_ASSET_SYMBOL,
+              amount: toDisplayBalance(
+                synchronizedOnChainAccount.nativeRawBalance,
+              ),
+            }
+          : this.#buildBalancePayloadFromEntries(
+              onChainEntry,
+              latestStateEntry,
+            );
 
       const isVisibleFromState = this.#isAssetVisible(
         assetId,
@@ -579,15 +584,17 @@ export class OnChainAccountSynchronizeService {
       }
     }
 
+    // Native is always persisted on activated accounts;
+    if (!addedAssets.includes(nativeAssetId)) {
+      addedAssets.push(nativeAssetId);
+    }
+
     return {
       balanceChanges,
-      assetListChanges:
-        addedAssets.length > 0 || removedAssets.length > 0
-          ? {
-              added: addedAssets,
-              removed: removedAssets,
-            }
-          : null,
+      assetListChanges: {
+        added: addedAssets,
+        removed: removedAssets,
+      },
     };
   }
 
