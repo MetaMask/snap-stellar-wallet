@@ -196,12 +196,6 @@ export class KeyringGetAccountBalancesException extends KeyringException {
   }
 }
 
-export class KeyringGetAccountAssetInfoException extends KeyringException {
-  constructor(accountId: string) {
-    super(`Failed to get account asset info for account ${accountId}`);
-  }
-}
-
 export class KeyringResolveAccountAddressException extends KeyringException {
   constructor(
     scope: KnownCaip2ChainId,

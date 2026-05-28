@@ -15,6 +15,7 @@ import {
   nonempty,
   integer,
   min,
+  record,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
@@ -33,6 +34,7 @@ import {
   ValidStellarAmountStruct,
   SwapTransactionXdrStruct,
 } from '../../api';
+import { AccountAssetInfoEntryStruct } from '../../services/account-asset-info';
 import { isSep41Id } from '../../utils';
 
 /**
@@ -47,6 +49,7 @@ export enum ClientRequestMethod {
   ComputeFee = 'computeFee',
   /** -------------------------------- Stellar Specific -------------------------------- */
   ChangeTrustOpt = 'changeTrustOpt',
+  GetAccountAssetInfo = 'getAccountAssetInfo',
 }
 
 export enum MultiChainSendErrorCodes {
@@ -135,6 +138,37 @@ export const ChangeTrustOptJsonRpcResponseStruct = object({
   status: boolean(),
   transactionId: optional(StellarTransactionHashStruct),
 });
+
+const GetAccountAssetInfoParamsStruct = object({
+  accountId: UuidStruct,
+  scope: KnownCaip2ChainIdStruct,
+  assets: array(
+    union([
+      KnownCaip19Sep41AssetStruct,
+      KnownCaip19ClassicAssetStruct,
+      KnownCaip19Slip44IdStruct,
+    ]),
+  ),
+});
+
+/**
+ * Validation struct for the getAccountAssetInfo JSON-RPC request.
+ */
+export const GetAccountAssetInfoJsonRpcRequestStruct = assign(
+  JsonRpcRequestStruct,
+  object({
+    method: literal(ClientRequestMethod.GetAccountAssetInfo),
+    params: GetAccountAssetInfoParamsStruct,
+  }),
+);
+
+/**
+ * Validation struct for the getAccountAssetInfo JSON-RPC response.
+ */
+export const GetAccountAssetInfoJsonRpcResponseStruct = record(
+  string(),
+  AccountAssetInfoEntryStruct,
+);
 
 /**
  * Validation struct for the sendTransaction JSON-RPC request.
@@ -281,6 +315,20 @@ export type ChangeTrustOptJsonRpcRequest = Infer<
  */
 export type ChangeTrustOptJsonRpcResponse = Infer<
   typeof ChangeTrustOptJsonRpcResponseStruct
+>;
+
+/**
+ * Type for the getAccountAssetInfo JSON-RPC request.
+ */
+export type GetAccountAssetInfoJsonRpcRequest = Infer<
+  typeof GetAccountAssetInfoJsonRpcRequestStruct
+>;
+
+/**
+ * Type for the getAccountAssetInfo JSON-RPC response.
+ */
+export type GetAccountAssetInfoJsonRpcResponse = Infer<
+  typeof GetAccountAssetInfoJsonRpcResponseStruct
 >;
 
 /**

@@ -16,7 +16,6 @@ import {
   nullable,
   enums,
   refine,
-  boolean,
 } from '@metamask/superstruct';
 import type { Infer } from '@metamask/superstruct';
 import { base64 } from '@metamask/utils';
@@ -342,32 +341,6 @@ export const GetAccountBalancesRequestStruct = object({
     ]),
   ),
 });
-
-/** Stellar-only keyring RPC (not in `@metamask/keyring-api` yet). */
-export const KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD =
-  'keyring_getAccountAssetInfo' as const;
-
-export const GetAccountAssetInfoRequestStruct = GetAccountBalancesRequestStruct;
-
-/**
- * Optional per-asset fields for chains that use trust lines (Stellar classic).
- */
-export const AccountAssetInfoExtraStruct = object({
-  limit: optional(string()),
-  authorized: optional(boolean()),
-  sponsored: optional(boolean()),
-});
-
-export const AccountAssetInfoEntryStruct = object({
-  metadata: type({}),
-  extra: optional(AccountAssetInfoExtraStruct),
-});
-
-export type AccountAssetInfoExtra = Infer<typeof AccountAssetInfoExtraStruct>;
-
-export type GetAccountAssetInfoRequest = Infer<
-  typeof GetAccountAssetInfoRequestStruct
->;
 
 /**
  * The options for the createAccount method.

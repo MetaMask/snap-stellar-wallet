@@ -11,6 +11,7 @@ import {
   ClientRequestMethod,
 } from './handlers/clientRequest';
 import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
+import { GetAccountAssetInfoHandler } from './handlers/clientRequest/getAccountAssetInfo';
 import { OnAddressInputHandler } from './handlers/clientRequest/onAddressInput';
 import { OnAmountInputHandler } from './handlers/clientRequest/onAmountInput';
 import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
@@ -30,6 +31,7 @@ import {
   SignTransactionHandler,
 } from './handlers/keyring';
 import { AccountService, AccountsRepository } from './services/account';
+import { AccountAssetInfoService } from './services/account-asset-info';
 import {
   AssetMetadataRepository,
   AssetMetadataService,
@@ -98,6 +100,13 @@ const onChainAccountService = new OnChainAccountService({
   assetMetadataService,
 });
 
+const accountAssetInfoService = new AccountAssetInfoService({
+  logger,
+  accountService,
+  onChainAccountService,
+  assetMetadataService,
+});
+
 const transactionService = new TransactionService({
   logger,
   transactionRepository,
@@ -155,7 +164,6 @@ const keyringHandler = new KeyringHandler({
   accountService,
   onChainAccountService,
   transactionService,
-  assetMetadataService,
   handlers: keyringMethodHandlers,
 });
 
@@ -245,11 +253,17 @@ const computeFeeHandler = new ComputeFeeHandler({
   transactionService,
 });
 
+const getAccountAssetInfoHandler = new GetAccountAssetInfoHandler({
+  logger,
+  accountAssetInfoService,
+});
+
 const clientRequestMethodHandlers: Record<
   ClientRequestMethod,
   IClientRequestHandler
 > = {
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
+  [ClientRequestMethod.GetAccountAssetInfo]: getAccountAssetInfoHandler,
   [ClientRequestMethod.OnAddressInput]: onAddressInputHandler,
   [ClientRequestMethod.OnAmountInput]: onAmountInputHandler,
   [ClientRequestMethod.SignAndSendTransaction]: signAndSendTransactionHandler,

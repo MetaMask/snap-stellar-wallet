@@ -23,8 +23,6 @@ import {
   InvalidParamsError,
   type Json,
   type JsonRpcRequest,
-  FungibleAssetMetadataStruct,
-  type FungibleAssetMetadata,
 } from '@metamask/snaps-sdk';
 import { ensureError, type CaipAssetTypeOrId } from '@metamask/utils';
 
@@ -33,7 +31,6 @@ import type {
   GetAccountRequest,
   ResolveAccountAddressJsonRpcRequest,
   MultichainMethod,
-  AccountAssetInfoExtra,
 } from './api';
 import {
   CreateAccountOptionsStruct,
@@ -46,8 +43,6 @@ import {
   SetSelectedAccountsRequestStruct,
   ListAccountAssetsRequestStruct,
   GetAccountBalancesRequestStruct,
-  GetAccountAssetInfoRequestStruct,
-  KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD,
 } from './api';
 import type { IKeyringRequestHandler } from './base';
 import {
@@ -56,7 +51,6 @@ import {
   KeyringDiscoverAccountsException,
   KeyringEmitAccountCreatedEventException,
   KeyringGetAccountBalancesException,
-  KeyringGetAccountAssetInfoException,
   KeyringGetAccountException,
   KeyringListAccountAssetsException,
   KeyringListAccountsException,
@@ -73,13 +67,11 @@ import type {
   StellarKeyringAccount,
 } from '../../services/account';
 import { AccountNotFoundException } from '../../services/account/exceptions';
-import type { AssetMetadataService } from '../../services/asset-metadata/AssetMetadataService';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import type {
   OnChainAccount,
   OnChainAccountService,
 } from '../../services/on-chain-account';
-import type { SpendableBalance } from '../../services/on-chain-account/api';
 import type { TransactionService } from '../../services/transaction/TransactionService';
 import type { ILogger } from '../../utils';
 import {
@@ -87,8 +79,6 @@ import {
   Duration,
   getSlip44AssetId,
   getSnapProvider,
-  isClassicAssetId,
-  isSep41Id,
   isSlip44Id,
   toDisplayBalance,
   rethrowIfInstanceElseThrow,
@@ -97,11 +87,6 @@ import {
   withCatchAndThrowSnapError,
 } from '../../utils';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
-
-export type AccountAssetInfoEntry = {
-  metadata: FungibleAssetMetadata;
-  extra?: AccountAssetInfoExtra;
-};
 
 export class KeyringHandler implements Keyring {
   readonly #logger: ILogger;
@@ -112,8 +97,6 @@ export class KeyringHandler implements Keyring {
 
   readonly #transactionService: TransactionService;
 
-  readonly #assetMetadataService: AssetMetadataService;
-
   readonly #handlers: Record<MultichainMethod, IKeyringRequestHandler>;
 
   constructor({
@@ -121,21 +104,18 @@ export class KeyringHandler implements Keyring {
     accountService,
     onChainAccountService,
     transactionService,
-    assetMetadataService,
     handlers,
   }: {
     logger: ILogger;
     accountService: AccountService;
     onChainAccountService: OnChainAccountService;
     transactionService: TransactionService;
-    assetMetadataService: AssetMetadataService;
     handlers: Record<MultichainMethod, IKeyringRequestHandler>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 KeyringHandler]');
     this.#accountService = accountService;
     this.#onChainAccountService = onChainAccountService;
     this.#transactionService = transactionService;
-    this.#assetMetadataService = assetMetadataService;
     this.#handlers = handlers;
   }
 
@@ -143,14 +123,6 @@ export class KeyringHandler implements Keyring {
     const result =
       (await withCatchAndThrowSnapError(async () => {
         validateOrigin(origin, request.method);
-        if (request.method === KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD) {
-          validateRequest(request.params, GetAccountAssetInfoRequestStruct);
-          const { accountId, assets } = request.params as {
-            accountId: string;
-            assets: KnownCaip19AssetIdOrSlip44Id[];
-          };
-          return await this.getAccountAssetInfo(accountId, assets);
-        }
         return handleKeyringRequest(this, request);
       }, this.#logger)) ?? null;
 
@@ -504,106 +476,6 @@ export class KeyringHandler implements Keyring {
       );
       throw new KeyringGetAccountBalancesException(accountId);
     }
-  }
-
-  /**
-   * Returns fungible metadata and optional trust-line fields for the requested assets.
-   * Classic Stellar assets include `extra.limit` when an on-chain row exists; omit `extra`
-   * when the asset is not on the account (e.g. portfolio import pending trust line).
-   *
-   * @param accountId - Keyring account id.
-   * @param assets - CAIP-19 asset ids to resolve.
-   * @returns Per-asset metadata and optional extra fields.
-   */
-  async getAccountAssetInfo(
-    accountId: string,
-    assets: KnownCaip19AssetIdOrSlip44Id[],
-  ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoEntry>> {
-    validateRequest({ accountId, assets }, GetAccountAssetInfoRequestStruct);
-
-    const scope = AppConfig.selectedNetwork;
-    const result = {} as Record<
-      KnownCaip19AssetIdOrSlip44Id,
-      AccountAssetInfoEntry
-    >;
-
-    try {
-      const { onChainAccount } = await this.#resolveAccountByAccountId(
-        accountId,
-        scope,
-      );
-
-      const assetsMetadata =
-        await this.#assetMetadataService.getAssetsMetadataByAssetIds(assets);
-
-      for (const assetId of assets) {
-        const assetMetadata = assetsMetadata[assetId];
-        if (
-          assetMetadata === undefined ||
-          assetMetadata === null ||
-          !FungibleAssetMetadataStruct.is(assetMetadata) ||
-          assetMetadata.units[0]?.decimals === undefined
-        ) {
-          continue;
-        }
-
-        const onChainRow =
-          onChainAccount === null
-            ? undefined
-            : onChainAccount.getAsset(assetId);
-
-        if (isSep41Id(assetId) && !onChainRow?.balance.gt(0)) {
-          continue;
-        }
-
-        const { decimals } = assetMetadata.units[0];
-        const onChainRowForExtra =
-          onChainAccount === null || !isClassicAssetId(assetId)
-            ? onChainRow
-            : onChainAccount.getRawAsset(assetId);
-        const extra = this.#buildAccountAssetInfoExtra(
-          assetId,
-          onChainRowForExtra,
-          decimals,
-        );
-
-        result[assetId] = {
-          metadata: assetMetadata,
-          ...(extra === undefined ? {} : { extra }),
-        };
-      }
-
-      return result;
-    } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to get account asset info',
-        ensureError(error).message,
-      );
-      throw new KeyringGetAccountAssetInfoException(accountId);
-    }
-  }
-
-  #buildAccountAssetInfoExtra(
-    assetId: KnownCaip19AssetIdOrSlip44Id,
-    onChainRow: SpendableBalance | undefined,
-    decimals: number,
-  ): AccountAssetInfoExtra | undefined {
-    if (!isClassicAssetId(assetId) || onChainRow === undefined) {
-      return undefined;
-    }
-    if (onChainRow.limit === undefined) {
-      return undefined;
-    }
-
-    return {
-      limit: toDisplayBalance(onChainRow.limit, decimals),
-      ...(onChainRow.authorized === undefined
-        ? {}
-        : { authorized: onChainRow.authorized }),
-      ...(onChainRow.sponsored === undefined
-        ? {}
-        : { sponsored: onChainRow.sponsored }),
-    };
   }
 
   async resolveAccountAddress(

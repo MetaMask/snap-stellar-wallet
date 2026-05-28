@@ -11,7 +11,6 @@ import {
   validateResponse,
   validateOrigin,
 } from './requestResponse';
-import { KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD } from '../handlers/keyring/api';
 
 const TestStruct = object({
   url: string(),
@@ -76,7 +75,6 @@ describe('validateOrigin', () => {
     KeyringRpcMethod.ListAccountAssets,
     KeyringRpcMethod.ResolveAccountAddress,
     KeyringRpcMethod.SetSelectedAccounts,
-    KEYRING_GET_ACCOUNT_ASSET_INFO_METHOD,
   ])('allows method %s for metamask', (method) => {
     const origin = 'metamask';
 
