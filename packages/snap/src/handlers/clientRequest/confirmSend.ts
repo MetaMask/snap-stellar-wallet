@@ -144,24 +144,13 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         throw ensureError(new UserRejectedRequestError());
       }
 
-      // refresh the account to get the latest balance and sequence to validate the transaction.
-      const finalizedTransaction =
-        await this.#transactionService.createValidatedSendTransaction({
-          onChainAccount,
-          scope,
-          assetId,
-          amount: amountInSmallestUnit,
-          destination: toAddress,
-          refreshAccount: true,
-        });
-
-      wallet.signTransaction(finalizedTransaction);
+      wallet.signTransaction(transaction);
 
       const transactionId = await this.#transactionService.sendTransaction({
         wallet,
         onChainAccount,
         scope,
-        transaction: finalizedTransaction,
+        transaction,
         pollTransaction: false,
       });
 
