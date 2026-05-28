@@ -1,4 +1,4 @@
-import { assert, StructError } from '@metamask/superstruct';
+import { assert, create, StructError } from '@metamask/superstruct';
 import {
   Account,
   Contract,
@@ -17,6 +17,8 @@ import {
   OnAmountInputJsonRpcRequestStruct,
   OnAmountInputJsonRpcResponseStruct,
   ComputeFeeJsonRpcRequestStruct,
+  ConfirmSendJsonRpcRequestStruct,
+  ConfirmSendJsonRpcResponseStruct,
   SignAndSendTransactionJsonRpcRequestStruct,
   SignAndSendTransactionJsonRpcResponseStruct,
 } from './api';
@@ -49,6 +51,10 @@ const sep41AssetId =
 const slip44AssetId = 'stellar:pubnet/slip44:148';
 const stellarAddress =
   'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+const destinationAddress =
+  'GDTF7ERUQVTX23ZD6NY5XRYC5IQAKWFVTQ6IXSMEZWGVNDDGPYCVHRZP';
+const transactionHash =
+  '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1';
 
 describe('JsonRpcRequestWithAccountStruct', () => {
   it.each([
@@ -477,42 +483,69 @@ describe('OnAddressInputJsonRpcResponseStruct', () => {
 });
 
 describe('OnAmountInputJsonRpcRequestStruct', () => {
+  const baseWireRequest = {
+    jsonrpc: '2.0' as const,
+    id: 1,
+    method: ClientRequestMethod.OnAmountInput,
+    params: {
+      accountId,
+      assetId: classicAssetId,
+      value: '10',
+    },
+  };
+
   it.each([
     {
-      jsonrpc: '2.0' as const,
-      id: 1,
-      method: ClientRequestMethod.OnAmountInput,
-      params: {
-        accountId,
-        assetId: classicAssetId,
-        value: '10',
-      },
+      request: baseWireRequest,
+      expectedScope: 'stellar:pubnet',
     },
     {
-      jsonrpc: '2.0' as const,
-      id: 1,
-      method: ClientRequestMethod.OnAmountInput,
-      params: {
-        accountId,
-        assetId: slip44AssetId,
-        value: '1.0000001',
-        to: stellarAddress,
+      request: {
+        ...baseWireRequest,
+        params: {
+          ...baseWireRequest.params,
+          assetId: slip44AssetId,
+          value: '1.0000001',
+          to: stellarAddress,
+        },
       },
+      expectedScope: 'stellar:pubnet',
     },
     {
-      jsonrpc: '2.0' as const,
-      id: 1,
-      method: ClientRequestMethod.OnAmountInput,
-      params: {
-        accountId,
-        assetId: sep41AssetId,
-        value: '1.12345678',
+      request: {
+        ...baseWireRequest,
+        params: {
+          ...baseWireRequest.params,
+          assetId: sep41AssetId,
+          value: '1.12345678',
+        },
       },
+      expectedScope: 'stellar:pubnet',
     },
-  ])('accepts a valid onAmountInput JSON-RPC request', (request) => {
-    expect(() =>
-      assert(request, OnAmountInputJsonRpcRequestStruct),
-    ).not.toThrow();
+    {
+      request: {
+        ...baseWireRequest,
+        params: {
+          ...baseWireRequest.params,
+          assetId: 'stellar:testnet/slip44:148',
+          value: '10',
+        },
+      },
+      expectedScope: 'stellar:testnet',
+    },
+  ])(
+    'accepts a valid onAmountInput JSON-RPC request',
+    ({ request, expectedScope }) => {
+      const result = create(request, OnAmountInputJsonRpcRequestStruct);
+
+      expect(result.params.scope).toBe(expectedScope);
+    },
+  );
+
+  it('derives scope from assetId via coercion', () => {
+    const result = create(baseWireRequest, OnAmountInputJsonRpcRequestStruct);
+
+    expect(result.params.scope).toBe('stellar:pubnet');
   });
 
   it.each([
@@ -617,4 +650,210 @@ describe('OnAmountInputJsonRpcResponseStruct', () => {
       ).toThrow(StructError);
     },
   );
+});
+
+describe('ConfirmSendJsonRpcRequestStruct', () => {
+  const baseWireRequest = {
+    jsonrpc: '2.0' as const,
+    id: 1,
+    method: ClientRequestMethod.ConfirmSend,
+    params: {
+      fromAccountId: accountId,
+      toAddress: destinationAddress,
+      assetId: classicAssetId,
+      amount: '1',
+    },
+  };
+
+  it.each([
+    {
+      request: baseWireRequest,
+      expectedScope: 'stellar:pubnet',
+    },
+    {
+      request: {
+        ...baseWireRequest,
+        params: {
+          ...baseWireRequest.params,
+          assetId: sep41AssetId,
+          amount: '1.12345678',
+        },
+      },
+      expectedScope: 'stellar:pubnet',
+    },
+    {
+      request: {
+        ...baseWireRequest,
+        params: {
+          ...baseWireRequest.params,
+          assetId: slip44AssetId,
+          amount: '1.0000001',
+        },
+      },
+      expectedScope: 'stellar:pubnet',
+    },
+    {
+      request: {
+        ...baseWireRequest,
+        params: {
+          ...baseWireRequest.params,
+          assetId: 'stellar:testnet/slip44:148',
+          amount: '10',
+        },
+      },
+      expectedScope: 'stellar:testnet',
+    },
+  ])(
+    'accepts a valid confirmSend JSON-RPC request',
+    ({ request, expectedScope }) => {
+      const result = create(request, ConfirmSendJsonRpcRequestStruct);
+
+      expect(result.params.accountId).toBe(accountId);
+      expect(result.params.scope).toBe(expectedScope);
+    },
+  );
+
+  it('coerces fromAccountId to accountId and derives scope from assetId', () => {
+    const result = create(baseWireRequest, ConfirmSendJsonRpcRequestStruct);
+
+    expect(result.params.accountId).toBe(accountId);
+    expect(result.params.fromAccountId).toBe(accountId);
+    expect(result.params.scope).toBe('stellar:pubnet');
+  });
+
+  it('derives testnet scope from a testnet asset id', () => {
+    const result = create(
+      {
+        ...baseWireRequest,
+        params: {
+          ...baseWireRequest.params,
+          assetId: 'stellar:testnet/slip44:148',
+        },
+      },
+      ConfirmSendJsonRpcRequestStruct,
+    );
+
+    expect(result.params.scope).toBe('stellar:testnet');
+  });
+
+  it.each([
+    {
+      ...baseWireRequest,
+      method: ClientRequestMethod.OnAmountInput,
+    },
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        fromAccountId: 'not-a-uuid',
+      },
+    },
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        toAddress: 'not-a-stellar-address',
+      },
+    },
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        assetId: 'stellar:pubnet/asset:INVALID',
+      },
+    },
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        amount: '',
+      },
+    },
+    {
+      jsonrpc: '2.0' as const,
+      id: 1,
+      method: ClientRequestMethod.ConfirmSend,
+      params: {
+        toAddress: destinationAddress,
+        assetId: classicAssetId,
+        amount: '1',
+      },
+    },
+  ])('rejects an invalid confirmSend JSON-RPC request', (request) => {
+    expect(() => assert(request, ConfirmSendJsonRpcRequestStruct)).toThrow(
+      StructError,
+    );
+  });
+
+  it.each([
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        assetId: sep41AssetId,
+        amount: '-1',
+      },
+    },
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        assetId: classicAssetId,
+        amount: '1.00000001',
+      },
+    },
+    {
+      ...baseWireRequest,
+      params: {
+        ...baseWireRequest.params,
+        assetId: slip44AssetId,
+        amount: '0',
+      },
+    },
+  ])(
+    'rejects a confirmSend JSON-RPC request when amount rules fail refinement',
+    (request) => {
+      expect(() => assert(request, ConfirmSendJsonRpcRequestStruct)).toThrow(
+        StructError,
+      );
+    },
+  );
+});
+
+describe('ConfirmSendJsonRpcResponseStruct', () => {
+  it.each([
+    { valid: true, errors: [], transactionId: transactionHash },
+    {
+      valid: false,
+      errors: [{ code: 'Invalid' }],
+    },
+    {
+      valid: false,
+      errors: [{ code: 'InsufficientBalance' }],
+    },
+    {
+      valid: false,
+      errors: [{ code: 'InsufficientBalanceToCoverFee' }],
+    },
+  ])('accepts a valid confirmSend JSON-RPC response', (response) => {
+    expect(() =>
+      assert(response, ConfirmSendJsonRpcResponseStruct),
+    ).not.toThrow();
+  });
+
+  it.each([
+    { valid: 'yes', errors: [], transactionId: transactionHash },
+    { valid: true, errors: [], transactionId: 'dGVzdA==' },
+    { valid: true, transactionId: transactionHash },
+    {
+      valid: true,
+      transactionId:
+        '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0',
+    },
+    { valid: false, errors: [{ code: 1 }] },
+  ])('rejects an invalid confirmSend JSON-RPC response', (response) => {
+    expect(() => assert(response, ConfirmSendJsonRpcResponseStruct)).toThrow(
+      StructError,
+    );
+  });
 });

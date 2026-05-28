@@ -2,6 +2,7 @@ import type { InterfaceContext, UserInputEvent } from '@metamask/snaps-sdk';
 
 import type { UserInputUiEventHandler } from './api';
 import { createEventHandlers as createAccountActivationPromptEvents } from '../../ui/confirmation/views/AccountActivationPrompt/events';
+import { createEventHandlers as createConfirmSendTransactionEvents } from '../../ui/confirmation/views/ConfirmSendTransaction/events';
 import { createEventHandlers as createSignAuthEntryEvents } from '../../ui/confirmation/views/ConfirmSignAuthEntry/events';
 import { createEventHandlers as createSignChangeTrustOptInEvents } from '../../ui/confirmation/views/ConfirmSignChangeTrustOptIn/events';
 import { createEventHandlers as createSignChangeTrustOptOutEvents } from '../../ui/confirmation/views/ConfirmSignChangeTrustOptOut/events';
@@ -51,6 +52,7 @@ export class UserInputHandler {
       ...createSignChangeTrustOptInEvents(),
       ...createSignChangeTrustOptOutEvents(),
       ...createAccountActivationPromptEvents(),
+      ...createConfirmSendTransactionEvents(),
     };
 
     /**

@@ -1,12 +1,16 @@
-import { InvalidParamsError } from '@metamask/snaps-sdk';
+import {
+  InvalidParamsError,
+  UserRejectedRequestError,
+} from '@metamask/snaps-sdk';
+import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
 import {
   ClientRequestMethod,
   MultiChainSendErrorCodes,
-  type OnAmountInputJsonRpcRequest,
+  type ConfirmSendJsonRpcRequest,
 } from './api';
-import { OnAmountInputHandler } from './onAmountInput';
+import { ConfirmSendHandler } from './confirmSend';
 import {
   KnownCaip2ChainId,
   type KnownCaip19ClassicAssetId,
@@ -33,18 +37,24 @@ import {
   horizonSource,
   mockOnChainAccountService,
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
-import type { Transaction } from '../../services/transaction';
 import { TransactionService } from '../../services/transaction';
-import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
+import {
+  buildMockClassicTransaction,
+  createMockTransactionService,
+} from '../../services/transaction/__mocks__/transaction.fixtures';
 import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
   TransactionValidationException,
 } from '../../services/transaction/exceptions';
+import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
+import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
+import { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
 import { AccountResolver } from '../accountResolver';
+import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
@@ -55,14 +65,12 @@ jest.mock('../../ui/confirmation/views/AccountActivationPrompt/render', () => ({
 const destinationAddress =
   'GDTF7ERUQVTX23ZD6NY5XRYC5IQAKWFVTQ6IXSMEZWGVNDDGPYCVHRZP';
 
-describe('OnAmountInputHandler', () => {
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
+describe('ConfirmSendHandler', () => {
   const accountId = '11111111-1111-4111-8111-111111111111';
   const assetId = USDC_CLASSIC as KnownCaip19ClassicAssetId;
   const scope = KnownCaip2ChainId.Mainnet;
+  const transactionId =
+    '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1';
 
   function setup() {
     const wallet = getTestWallet();
@@ -88,20 +96,53 @@ describe('OnAmountInputHandler', () => {
     jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
       account,
     });
-    const resolveOnChainAccountByKeyringAccountIdSpy = jest
-      .spyOn(
-        OnChainAccountService.prototype,
-        'resolveOnChainAccountByKeyringAccountId',
-      )
+    const resolveOnChainAccountSpy = jest
+      .spyOn(OnChainAccountService.prototype, 'resolveOnChainAccount')
       .mockResolvedValue(onChainAccount);
     jest
       .spyOn(WalletService.prototype, 'resolveWallet')
       .mockResolvedValue(wallet);
 
-    const { transactionService } = createMockTransactionService();
+    const transaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: destinationAddress,
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            amount: '1',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: onChainAccount.sequenceNumber,
+        },
+      },
+    );
+
+    const { transactionService, transactionRepositorySaveManySpy } =
+      createMockTransactionService();
     const createValidatedSendTransaction = jest
       .spyOn(TransactionService.prototype, 'createValidatedSendTransaction')
-      .mockResolvedValue({} as Transaction);
+      .mockResolvedValue(transaction);
+    const sendTransaction = jest
+      .spyOn(TransactionService.prototype, 'sendTransaction')
+      .mockResolvedValue(transactionId);
+    const savePendingKeyringTransaction = jest.spyOn(
+      TransactionService.prototype,
+      'savePendingKeyringTransaction',
+    );
+    const signTransactionSpy = jest.spyOn(wallet, 'signTransaction');
+    const scheduleBackgroundEvent = jest
+      .spyOn(TrackTransactionHandler, 'scheduleBackgroundEvent')
+      .mockResolvedValue(undefined);
 
     const { service: assetMetadataService } = createMockAssetMetadataService();
     const assetMetadata = generateMockStellarAssetMetadata()[
@@ -117,11 +158,17 @@ describe('OnAmountInputHandler', () => {
       walletService,
     });
 
-    const handler = new OnAmountInputHandler({
+    const renderConfirmationDialog = jest
+      .spyOn(ConfirmationUXController.prototype, 'renderConfirmationDialog')
+      .mockResolvedValue(true);
+    const confirmationUIController = new ConfirmationUXController({ logger });
+
+    const handler = new ConfirmSendHandler({
       logger,
       accountResolver,
       assetMetadataService,
       transactionService,
+      confirmationUIController,
     });
 
     return {
@@ -129,27 +176,36 @@ describe('OnAmountInputHandler', () => {
       account,
       onChainAccount,
       wallet,
+      assetMetadata,
+      transaction,
       createValidatedSendTransaction,
-      resolveOnChainAccountByKeyringAccountIdSpy,
+      resolveOnChainAccountSpy,
+      renderConfirmationDialog,
+      sendTransaction,
+      savePendingKeyringTransaction,
+      signTransactionSpy,
+      scheduleBackgroundEvent,
+      transactionRepositorySaveManySpy,
     };
   }
 
   function baseRequest(
     overrides: Partial<
       Pick<
-        OnAmountInputJsonRpcRequest['params'],
-        'accountId' | 'assetId' | 'value' | 'to'
+        ConfirmSendJsonRpcRequest['params'],
+        'fromAccountId' | 'toAddress' | 'assetId' | 'amount'
       >
     > = {},
   ) {
     return {
       jsonrpc: '2.0' as const,
       id: 1,
-      method: ClientRequestMethod.OnAmountInput,
+      method: ClientRequestMethod.ConfirmSend,
       params: {
-        accountId,
+        fromAccountId: accountId,
         assetId,
-        value: '1',
+        toAddress: destinationAddress,
+        amount: '1',
         ...overrides,
       },
     };
@@ -167,7 +223,7 @@ describe('OnAmountInputHandler', () => {
 
     expect(
       await handler.handle(
-        baseRequest({ assetId: sep41AssetId, value: '1.12345678' }),
+        baseRequest({ assetId: sep41AssetId, amount: '1.12345678' }),
       ),
     ).toStrictEqual({
       valid: false,
@@ -181,63 +237,96 @@ describe('OnAmountInputHandler', () => {
       handler,
       account,
       onChainAccount,
+      wallet,
+      assetMetadata,
+      transaction,
       createValidatedSendTransaction,
-      resolveOnChainAccountByKeyringAccountIdSpy,
+      renderConfirmationDialog,
+      signTransactionSpy,
+      sendTransaction,
+      savePendingKeyringTransaction,
+      scheduleBackgroundEvent,
     } = setup();
 
     const result = await handler.handle(baseRequest());
 
-    expect(result).toStrictEqual({ valid: true, errors: [] });
-    expect(resolveOnChainAccountByKeyringAccountIdSpy).toHaveBeenCalledWith(
-      account.id,
-      scope,
-    );
-    expect(createValidatedSendTransaction).toHaveBeenCalledWith({
-      onChainAccount,
-      scope,
-      assetId,
-      amount: new BigNumber('10000000'),
-      destination: onChainAccount.accountId,
-      useCache: true,
+    expect(result).toStrictEqual({
+      valid: true,
+      errors: [],
+      transactionId,
     });
-  });
-
-  it('resolves on-chain account using scope derived from assetId', async () => {
-    const testnetAssetId = `${KnownCaip2ChainId.Testnet}/slip44:148`;
-    const {
-      handler,
-      account,
-      createValidatedSendTransaction,
-      resolveOnChainAccountByKeyringAccountIdSpy,
-    } = setup();
-
-    await handler.handle(baseRequest({ assetId: testnetAssetId }));
-
-    expect(resolveOnChainAccountByKeyringAccountIdSpy).toHaveBeenCalledWith(
-      account.id,
-      KnownCaip2ChainId.Testnet,
-    );
-    expect(createValidatedSendTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: KnownCaip2ChainId.Testnet,
-        assetId: testnetAssetId,
-      }),
-    );
-  });
-
-  it('passes explicit destination when params.to is set', async () => {
-    const { handler, onChainAccount, createValidatedSendTransaction } = setup();
-
-    await handler.handle(baseRequest({ to: destinationAddress }));
-
     expect(createValidatedSendTransaction).toHaveBeenCalledWith({
       onChainAccount,
       scope,
       assetId,
       amount: new BigNumber('10000000'),
       destination: destinationAddress,
-      useCache: true,
     });
+    expect(renderConfirmationDialog).toHaveBeenCalledWith({
+      scope,
+      interfaceKey: ConfirmationInterfaceKey.ConfirmSendTransaction,
+      fee: transaction.totalFee.toString(),
+      renderContext: {
+        account,
+        assetMetadata,
+        toAddress: destinationAddress,
+        amount: '1',
+      },
+      renderOptions: {
+        loadPrice: true,
+      },
+      tokenPrices: {
+        [assetId]: null,
+      },
+    });
+    expect(signTransactionSpy).toHaveBeenCalledWith(transaction);
+    expect(sendTransaction).toHaveBeenCalledWith({
+      wallet,
+      onChainAccount,
+      scope,
+      transaction,
+      pollTransaction: false,
+    });
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Send,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        toAddress: destinationAddress,
+        amount: '1',
+        asset: {
+          type: assetId,
+          symbol: 'USDC',
+        },
+      },
+    });
+    expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
+      txId: transactionId,
+      scope,
+      accountIds: [account.id],
+    });
+  });
+
+  it('throws UserRejectedRequestError when confirmation is rejected', async () => {
+    const {
+      handler,
+      renderConfirmationDialog,
+      signTransactionSpy,
+      sendTransaction,
+      savePendingKeyringTransaction,
+      scheduleBackgroundEvent,
+    } = setup();
+    renderConfirmationDialog.mockResolvedValue(false);
+
+    await expect(handler.handle(baseRequest())).rejects.toThrow(
+      UserRejectedRequestError,
+    );
+
+    expect(signTransactionSpy).not.toHaveBeenCalled();
+    expect(sendTransaction).not.toHaveBeenCalled();
+    expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
+    expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
   it('returns insufficient balance when createValidatedSendTransaction throws InsufficientBalanceException', async () => {
@@ -290,9 +379,11 @@ describe('OnAmountInputHandler', () => {
     });
   });
 
-  it('returns invalid when keyring state has no on-chain snapshot', async () => {
-    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
-    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValueOnce(null);
+  it('returns invalid when on-chain account is not activated', async () => {
+    const { handler, resolveOnChainAccountSpy, wallet } = setup();
+    resolveOnChainAccountSpy.mockRejectedValueOnce(
+      new AccountNotActivatedException(wallet.address, scope),
+    );
 
     expect(await handler.handle(baseRequest())).toStrictEqual({
       valid: false,
@@ -309,6 +400,38 @@ describe('OnAmountInputHandler', () => {
     await expect(handler.handle(baseRequest())).rejects.toThrow('unexpected');
   });
 
+  it('continues successfully when saving pending transaction fails', async () => {
+    const {
+      handler,
+      transactionRepositorySaveManySpy,
+      sendTransaction,
+      scheduleBackgroundEvent,
+    } = setup();
+    transactionRepositorySaveManySpy.mockRejectedValueOnce(
+      new Error('failed save'),
+    );
+
+    const result = await handler.handle(baseRequest());
+
+    expect(result).toStrictEqual({
+      valid: true,
+      errors: [],
+      transactionId,
+    });
+    expect(sendTransaction).toHaveBeenCalledTimes(1);
+    expect(scheduleBackgroundEvent).toHaveBeenCalled();
+  });
+
+  it('throws InvalidParamsError when amount fails struct validation', async () => {
+    const { handler, createValidatedSendTransaction } = setup();
+
+    await expect(
+      handler.handle(baseRequest({ amount: '1.00000001' })),
+    ).rejects.toThrow(InvalidParamsError);
+
+    expect(createValidatedSendTransaction).not.toHaveBeenCalled();
+  });
+
   it('throws InvalidParamsError when the request fails struct validation', async () => {
     const { handler } = setup();
     const badRequest = {
@@ -318,7 +441,7 @@ describe('OnAmountInputHandler', () => {
       params: {
         accountId,
         assetId,
-        value: '',
+        amount: '',
       },
     };
 

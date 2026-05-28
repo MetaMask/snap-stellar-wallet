@@ -238,6 +238,11 @@ const Index = () => {
   const [trustlineOutput, setTrustlineOutput] = useState<string | null>(null);
   const [trustlineLimit, setTrustlineLimit] = useState('');
 
+  const [sendAssetId, setSendAssetId] = useState('stellar:testnet/slip44:148');
+  const [sendToAddress, setSendToAddress] = useState('');
+  const [sendAmount, setSendAmount] = useState('1');
+  const [sendOutput, setSendOutput] = useState<string | null>(null);
+
   const isMetaMaskReady = isLocalSnap(defaultSnapOrigin)
     ? isFlask
     : snapsDetected;
@@ -546,6 +551,128 @@ const Index = () => {
     }
   };
 
+  const invokeClientRequest = async (
+    method: 'confirmSend' | 'onAmountInput' | 'onAddressInput',
+    params: Record<string, unknown>,
+  ): Promise<unknown> =>
+    invokeSnap({
+      method: `stellar_${method}`,
+      params: {
+        jsonrpc: '2.0',
+        id: crypto.randomUUID(),
+        method,
+        params,
+      },
+    });
+
+  const handleValidateSendAddress = async () => {
+    setSendOutput(null);
+    const trimmedTo = sendToAddress.trim();
+    if (!trimmedTo) {
+      setSendOutput('Enter a destination Stellar address.');
+      return;
+    }
+
+    try {
+      const result = await invokeClientRequest('onAddressInput', {
+        value: trimmedTo,
+      });
+      setSendOutput(JSON.stringify(result, null, 2));
+    } catch (addressError: unknown) {
+      const message =
+        addressError instanceof Error
+          ? addressError.message
+          : String(addressError);
+      setSendOutput(message);
+    }
+  };
+
+  const handleValidateSendAmount = async () => {
+    setSendOutput(null);
+    const trimmedAsset = sendAssetId.trim();
+    const trimmedAmount = sendAmount.trim();
+    const trimmedTo = sendToAddress.trim();
+
+    if (!trimmedAsset) {
+      setSendOutput('Enter a CAIP-19 asset id.');
+      return;
+    }
+    if (!trimmedAmount) {
+      setSendOutput('Enter an amount.');
+      return;
+    }
+
+    const account = resolveSelectedAccount();
+    if (!account) {
+      setSendOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    const params: Record<string, unknown> = {
+      accountId: account.id,
+      assetId: trimmedAsset,
+      value: trimmedAmount,
+    };
+    if (trimmedTo) {
+      params.to = trimmedTo;
+    }
+
+    try {
+      const result = await invokeClientRequest('onAmountInput', params);
+      setSendOutput(JSON.stringify(result, null, 2));
+    } catch (amountError: unknown) {
+      const message =
+        amountError instanceof Error
+          ? amountError.message
+          : String(amountError);
+      setSendOutput(message);
+    }
+  };
+
+  const handleConfirmSend = async () => {
+    setSendOutput(null);
+    const trimmedAsset = sendAssetId.trim();
+    const trimmedAmount = sendAmount.trim();
+    const trimmedTo = sendToAddress.trim();
+
+    if (!trimmedAsset) {
+      setSendOutput('Enter a CAIP-19 asset id.');
+      return;
+    }
+    if (!trimmedAmount) {
+      setSendOutput('Enter an amount.');
+      return;
+    }
+    if (!trimmedTo) {
+      setSendOutput('Enter a destination Stellar address.');
+      return;
+    }
+
+    const account = resolveSelectedAccount();
+    if (!account) {
+      setSendOutput(
+        'No keyring accounts found. Add a Stellar account in MetaMask first.',
+      );
+      return;
+    }
+
+    try {
+      const result = await invokeClientRequest('confirmSend', {
+        fromAccountId: account.id,
+        toAddress: trimmedTo,
+        assetId: trimmedAsset,
+        amount: trimmedAmount,
+      });
+      setSendOutput(JSON.stringify(result, null, 2));
+    } catch (sendError: unknown) {
+      const message =
+        sendError instanceof Error ? sendError.message : String(sendError);
+      setSendOutput(message);
+    }
+  };
+
   return (
     <Container>
       <Heading>
@@ -820,6 +947,64 @@ const Index = () => {
                     disabled={!installedSnap}
                   >
                     Remove trustline
+                  </SignOpsButton>
+                </TrustlineButtonRow>
+              </>
+            ),
+          }}
+          disabled={!installedSnap}
+          fullWidth
+        />
+
+        <Card
+          content={{
+            title: 'Send transaction (Unified Non-EVM Send)',
+            description:
+              'Exercises stellar_confirmSend, stellar_onAmountInput, and stellar_onAddressInput. confirmSend builds the payment, shows the Snap confirmation UI, signs, and submits. Uses the active keyring account above.',
+            button: (
+              <>
+                <MessageField
+                  aria-label="CAIP-19 asset id to send"
+                  value={sendAssetId}
+                  onChange={({ target }) => setSendAssetId(target.value)}
+                  disabled={!installedSnap}
+                />
+                <MessageField
+                  aria-label="Destination Stellar address"
+                  value={sendToAddress}
+                  onChange={({ target }) => setSendToAddress(target.value)}
+                  disabled={!installedSnap}
+                />
+                <MessageField
+                  aria-label="Amount to send"
+                  value={sendAmount}
+                  onChange={({ target }) => setSendAmount(target.value)}
+                  disabled={!installedSnap}
+                />
+                {sendOutput !== null && (
+                  <SignatureOutput>{sendOutput}</SignatureOutput>
+                )}
+                <TrustlineButtonRow>
+                  <SignOpsButton
+                    type="button"
+                    onClick={handleValidateSendAddress}
+                    disabled={!installedSnap}
+                  >
+                    Validate address
+                  </SignOpsButton>
+                  <SignOpsButton
+                    type="button"
+                    onClick={handleValidateSendAmount}
+                    disabled={!installedSnap}
+                  >
+                    Validate amount
+                  </SignOpsButton>
+                  <SignOpsButton
+                    type="button"
+                    onClick={handleConfirmSend}
+                    disabled={!installedSnap}
+                  >
+                    Confirm send
                   </SignOpsButton>
                 </TrustlineButtonRow>
               </>

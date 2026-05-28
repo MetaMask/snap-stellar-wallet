@@ -1,4 +1,3 @@
-import { parseCaipAssetType } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import type {
@@ -11,7 +10,6 @@ import {
   OnAmountInputJsonRpcResponseStruct,
 } from './api';
 import { BaseClientRequestHandler } from './base';
-import type { KnownCaip2ChainId } from '../../api';
 import type { AssetMetadataService } from '../../services/asset-metadata';
 import { AccountNotActivatedException } from '../../services/network/exceptions';
 import type { TransactionService } from '../../services/transaction';
@@ -73,7 +71,7 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
    * repeated amount checks stay responsive.
    *
    * @param resolved - Keyring account, persisted on-chain snapshot, and wallet.
-   * @param request - JSON-RPC request with `assetId`, `value` (positive amount string), and optional `to`.
+   * @param request - JSON-RPC request with `assetId`, `value` (positive amount string), and optional `to` (`scope` is derived from `assetId`).
    * @returns Validation result with `valid` and optional error codes.
    */
   protected async execute(
@@ -82,9 +80,7 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
   ): Promise<OnAmountInputJsonRpcResponse> {
     try {
       const { onChainAccount } = resolved;
-      const { assetId, value, to } = request.params;
-
-      const scope = parseCaipAssetType(assetId).chainId as KnownCaip2ChainId;
+      const { assetId, value, to, scope } = request.params;
       const { units } = await this.#assetMetadataService.resolve(assetId);
       const { decimals } = units[0];
 

@@ -22,6 +22,8 @@ import {
   updateInterfaceIfExists,
 } from '../../utils';
 import { STELLAR_IMAGE } from '../images/icon';
+import type { ConfirmSendTransactionProps } from './views/ConfirmSendTransaction/ConfirmSendTransaction';
+import { ConfirmSendTransaction } from './views/ConfirmSendTransaction/ConfirmSendTransaction';
 import {
   ConfirmSignAuthEntry,
   type ConfirmSignAuthEntryProps,
@@ -60,6 +62,11 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
   tokenPrices?: ContextWithPrices['tokenPrices'];
 };
 
+type ConfirmationDialogWithFee =
+  | ConfirmationInterfaceKey.SignTransaction
+  | ConfirmationInterfaceKey.ChangeTrustlineOptIn
+  | ConfirmationInterfaceKey.ChangeTrustlineOptOut
+  | ConfirmationInterfaceKey.ConfirmSendTransaction;
 /**
  * Discriminated union: confirmations that have a fee (example: sign transaction)
  * MUST provide one; fee-less confirmations (sign message, etc.) MUST NOT.
@@ -68,18 +75,13 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
  */
 type RenderConfirmationDialogParams<Props extends ConfirmationViewProps> =
   | (RenderConfirmationDialogCommon<Props> & {
-      interfaceKey:
-        | ConfirmationInterfaceKey.SignTransaction
-        | ConfirmationInterfaceKey.ChangeTrustlineOptIn
-        | ConfirmationInterfaceKey.ChangeTrustlineOptOut;
+      interfaceKey: ConfirmationDialogWithFee;
       fee: string;
     })
   | (RenderConfirmationDialogCommon<Props> & {
       interfaceKey: Exclude<
         ConfirmationInterfaceKey,
-        | ConfirmationInterfaceKey.SignTransaction
-        | ConfirmationInterfaceKey.ChangeTrustlineOptIn
-        | ConfirmationInterfaceKey.ChangeTrustlineOptOut
+        ConfirmationDialogWithFee
       >;
       fee?: never;
     });
@@ -275,6 +277,12 @@ export class ConfirmationUXController {
         return (
           <ConfirmSignAuthEntry
             {...(context as unknown as ConfirmSignAuthEntryProps)}
+          />
+        );
+      case ConfirmationInterfaceKey.ConfirmSendTransaction:
+        return (
+          <ConfirmSendTransaction
+            {...(context as unknown as ConfirmSendTransactionProps)}
           />
         );
       default: {

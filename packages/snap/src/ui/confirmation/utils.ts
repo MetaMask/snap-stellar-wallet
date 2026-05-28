@@ -12,8 +12,8 @@ import type { Locale } from '../../utils';
 import {
   FALLBACK_LANGUAGE,
   getPreferences,
-  normalizeAmount,
   parseClassicAssetCodeIssuer,
+  toDisplayBalance,
 } from '../../utils';
 import { xlmIcon } from '../images';
 
@@ -93,6 +93,18 @@ export async function getPreferencesWithFallback(): Promise<GetPreferencesResult
 }
 
 /**
+ * Gets the account explorer url for a given account address.
+ *
+ * @param address - The account address.
+ * @returns The account explorer url.
+ */
+export function getAccountExplorerUrl(address: string): string {
+  return `${
+    AppConfig.networks[AppConfig.selectedNetwork].explorerBaseUrl
+  }/account/${address}`;
+}
+
+/**
  * Gets the classic asset explorer url for a given asset reference.
  *
  * @param assetReference - The asset reference.
@@ -143,12 +155,12 @@ export function formatFeeData(
   amountInStroops: string,
 ): FeeData {
   const nativeAssetMetadata = getNativeAssetMetadata(scope);
-  const amountInLumen = normalizeAmount(new BigNumber(amountInStroops));
+  const amountInLumen = toDisplayBalance(new BigNumber(amountInStroops));
   return {
     assetId: nativeAssetMetadata.assetId,
     symbol: nativeAssetMetadata.symbol,
     iconUrl: nativeAssetMetadata.iconUrl,
-    amount: amountInLumen.toString(),
+    amount: amountInLumen,
   };
 }
 
