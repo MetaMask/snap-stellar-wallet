@@ -8,7 +8,10 @@ import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import { parseOperationAssetReference } from '../../services/transaction/utils';
-import type { TransactionScanResult } from '../../services/transaction-scan';
+import {
+  TransactionScanValidationType,
+  type TransactionScanResult,
+} from '../../services/transaction-scan';
 import type { Locale } from '../../utils';
 import {
   FALLBACK_LANGUAGE,
@@ -170,8 +173,21 @@ export function isConfirmDisabledByScan(params: {
   const { preferences, scan, scanFetchStatus } = params;
   return (
     scanFetchStatus === FetchStatus.Fetching ||
-    (preferences.useSecurityAlerts && scan?.validation?.type === 'Malicious')
+    (preferences.useSecurityAlerts &&
+      scan?.validation?.type === TransactionScanValidationType.Malicious)
   );
+}
+
+/**
+ * Determines whether transaction scan UI should be shown for the current preferences.
+ *
+ * @param preferences - User preferences controlling scan behavior.
+ * @returns True when either security validation alerts or simulation alerts are enabled.
+ */
+export function hasEnabledTransactionScan(
+  preferences: GetPreferencesResult,
+): boolean {
+  return preferences.useSecurityAlerts || preferences.simulateOnChainActions;
 }
 
 /**

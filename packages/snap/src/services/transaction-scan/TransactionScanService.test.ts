@@ -1,4 +1,4 @@
-import { TransactionScanOption } from './api';
+import { TransactionScanOption, TransactionScanValidationType } from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import { TransactionScanService } from './TransactionScanService';
 /* eslint-disable @typescript-eslint/naming-convention */
@@ -41,7 +41,7 @@ describe('TransactionScanService', () => {
     securityAlertsApiClient.scanTransaction.mockResolvedValue({
       validation: {
         status: 'Success',
-        result_type: 'Warning',
+        result_type: TransactionScanValidationType.Warning,
         reason: 'known_attacker',
         description: 'Known attacker involved',
       },
@@ -82,7 +82,7 @@ describe('TransactionScanService', () => {
         ],
       },
       validation: {
-        type: 'Warning',
+        type: TransactionScanValidationType.Warning,
         reason: 'known_attacker',
         description: 'Known attacker involved',
       },
@@ -168,7 +168,7 @@ describe('TransactionScanService', () => {
       simulation: null,
       validation: {
         status: 'Success',
-        result_type: 'Benign',
+        result_type: TransactionScanValidationType.Benign,
       },
     });
 
@@ -186,7 +186,7 @@ describe('TransactionScanService', () => {
         assets: [],
       },
       validation: {
-        type: 'Benign',
+        type: TransactionScanValidationType.Benign,
         reason: null,
         description: null,
       },

@@ -3,6 +3,7 @@ import type {
   GetPreferencesResult,
 } from '@metamask/snaps-sdk';
 
+import { TransactionScanValidationType } from '../../../services/transaction-scan';
 import { FetchStatus } from '../api';
 import { TransactionAlert } from './TransactionAlert';
 
@@ -20,14 +21,14 @@ const preferences: GetPreferencesResult = {
   showTestnets: true,
 };
 
-function getType(component: ComponentOrElement): string | undefined {
+function getType(component: ComponentOrElement | null): string | undefined {
   return typeof component === 'object' && component !== null
     ? component.type
     : undefined;
 }
 
 function getProps(
-  component: ComponentOrElement,
+  component: ComponentOrElement | null,
 ): Record<string, unknown> | undefined {
   const candidate = component as { props?: Record<string, unknown> };
   return typeof component === 'object' && component !== null
@@ -42,8 +43,6 @@ describe('TransactionAlert', () => {
       validation: null,
       error: null,
       scanFetchStatus: FetchStatus.Fetching,
-      showValidationAlert: true,
-      showSimulationError: true,
     });
 
     expect(getType(component)).toBe('Banner');
@@ -55,7 +54,10 @@ describe('TransactionAlert', () => {
 
   it('renders simulation errors when only simulation alerts are enabled', () => {
     const component = TransactionAlert({
-      preferences,
+      preferences: {
+        ...preferences,
+        useSecurityAlerts: false,
+      },
       validation: null,
       error: {
         type: 'simulation',
@@ -63,8 +65,6 @@ describe('TransactionAlert', () => {
         message: 'insufficient_balance',
       },
       scanFetchStatus: FetchStatus.Fetched,
-      showValidationAlert: false,
-      showSimulationError: true,
     });
 
     expect(getType(component)).toBe('Banner');
@@ -76,7 +76,10 @@ describe('TransactionAlert', () => {
 
   it('renders validation scan errors with validation failure copy', () => {
     const component = TransactionAlert({
-      preferences,
+      preferences: {
+        ...preferences,
+        simulateOnChainActions: false,
+      },
       validation: null,
       error: {
         type: 'validation',
@@ -84,8 +87,6 @@ describe('TransactionAlert', () => {
         message: 'invalid_transaction',
       },
       scanFetchStatus: FetchStatus.Fetched,
-      showValidationAlert: true,
-      showSimulationError: false,
     });
 
     expect(getType(component)).toBe('Banner');
@@ -97,7 +98,10 @@ describe('TransactionAlert', () => {
 
   it('renders response scan errors with incomplete scan copy', () => {
     const component = TransactionAlert({
-      preferences,
+      preferences: {
+        ...preferences,
+        simulateOnChainActions: false,
+      },
       validation: null,
       error: {
         type: 'response',
@@ -105,8 +109,6 @@ describe('TransactionAlert', () => {
         message: 'No scan results returned',
       },
       scanFetchStatus: FetchStatus.Fetched,
-      showValidationAlert: true,
-      showSimulationError: false,
     });
 
     expect(getType(component)).toBe('Banner');
@@ -118,33 +120,35 @@ describe('TransactionAlert', () => {
 
   it('does not render validation alerts when security alerts are disabled', () => {
     const component = TransactionAlert({
-      preferences,
+      preferences: {
+        ...preferences,
+        useSecurityAlerts: false,
+      },
       validation: {
-        type: 'Malicious',
+        type: TransactionScanValidationType.Malicious,
         reason: 'known_attacker',
         description: null,
       },
       error: null,
       scanFetchStatus: FetchStatus.Fetched,
-      showValidationAlert: false,
-      showSimulationError: true,
     });
 
-    expect(getType(component)).toBe('Box');
+    expect(component).toBeNull();
   });
 
   it('renders malicious validation alerts as danger banners', () => {
     const component = TransactionAlert({
-      preferences,
+      preferences: {
+        ...preferences,
+        simulateOnChainActions: false,
+      },
       validation: {
-        type: 'Malicious',
+        type: TransactionScanValidationType.Malicious,
         reason: 'known_attacker',
         description: null,
       },
       error: null,
       scanFetchStatus: FetchStatus.Fetched,
-      showValidationAlert: true,
-      showSimulationError: false,
     });
 
     expect(getType(component)).toBe('Banner');
@@ -156,16 +160,17 @@ describe('TransactionAlert', () => {
 
   it('renders warning validation alerts with softer warning copy', () => {
     const component = TransactionAlert({
-      preferences,
+      preferences: {
+        ...preferences,
+        simulateOnChainActions: false,
+      },
       validation: {
-        type: 'Warning',
+        type: TransactionScanValidationType.Warning,
         reason: 'suspicious_request',
         description: null,
       },
       error: null,
       scanFetchStatus: FetchStatus.Fetched,
-      showValidationAlert: true,
-      showSimulationError: false,
     });
 
     expect(getType(component)).toBe('Banner');
@@ -181,8 +186,6 @@ describe('TransactionAlert', () => {
       validation: null,
       error: null,
       scanFetchStatus: FetchStatus.Error,
-      showValidationAlert: false,
-      showSimulationError: true,
     });
 
     expect(getType(component)).toBe('Banner');
@@ -196,16 +199,37 @@ describe('TransactionAlert', () => {
     const component = TransactionAlert({
       preferences,
       validation: {
-        type: 'Benign',
+        type: TransactionScanValidationType.Benign,
         reason: null,
         description: null,
       },
       error: null,
       scanFetchStatus: FetchStatus.Fetched,
-      showValidationAlert: true,
-      showSimulationError: true,
     });
 
-    expect(getType(component)).toBe('Box');
+    expect(component).toBeNull();
+  });
+
+  it('renders scan errors before validation severity findings', () => {
+    const component = TransactionAlert({
+      preferences,
+      validation: {
+        type: TransactionScanValidationType.Malicious,
+        reason: 'known_attacker',
+        description: null,
+      },
+      error: {
+        type: 'simulation',
+        code: 'invalid_transaction',
+        message: 'invalid_transaction',
+      },
+      scanFetchStatus: FetchStatus.Fetched,
+    });
+
+    expect(getType(component)).toBe('Banner');
+    expect(getProps(component)).toMatchObject({
+      severity: 'warning',
+      title: 'This transaction was reverted during simulation.',
+    });
   });
 });

@@ -78,21 +78,14 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     ctx: ConfirmationDataContext,
   ): Promise<ConfirmationContextRefreshResult> {
     const scanCtx = ctx as SecurityScanContext;
-    const scanRequest = scanCtx.securityScanRequest;
-    if (!scanRequest) {
+    if (!this.shouldFetch(ctx)) {
       return this.recoveryResult(ctx);
     }
 
+    const scanRequest = scanCtx.securityScanRequest as NonNullable<
+      SecurityScanContext['securityScanRequest']
+    >;
     const options = this.#getScanOptions(scanCtx.preferences);
-    if (options.length === 0) {
-      return {
-        result: {
-          scan: null,
-          scanFetchStatus: FetchStatus.Fetched,
-        },
-        reschedule: false,
-      };
-    }
 
     try {
       const scan = await this.#transactionScanService.scanTransaction({

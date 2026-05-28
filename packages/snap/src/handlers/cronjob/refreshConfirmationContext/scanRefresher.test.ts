@@ -3,7 +3,10 @@ import { ConfirmationContextRefresherKey } from './api';
 import { ConfirmationScanRefresher } from './scanRefresher';
 import { KnownCaip2ChainId } from '../../../api';
 import type { TransactionScanService } from '../../../services/transaction-scan';
-import { TransactionScanOption } from '../../../services/transaction-scan';
+import {
+  TransactionScanOption,
+  TransactionScanValidationType,
+} from '../../../services/transaction-scan';
 import { FetchStatus } from '../../../ui/confirmation/api';
 import { logger } from '../../../utils/logger';
 
@@ -19,7 +22,7 @@ describe('ConfirmationScanRefresher', () => {
     status: 'SUCCESS' as const,
     estimatedChanges: { assets: [] },
     validation: {
-      type: 'Benign' as const,
+      type: TransactionScanValidationType.Benign,
       reason: null,
       description: null,
     },

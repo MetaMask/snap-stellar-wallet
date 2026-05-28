@@ -2,6 +2,7 @@ import type { GetPreferencesResult } from '@metamask/snaps-sdk';
 
 import { FetchStatus } from './api';
 import { isConfirmDisabledByScan } from './utils';
+import { TransactionScanValidationType } from '../../services/transaction-scan';
 
 const preferences: GetPreferencesResult = {
   locale: 'en',
@@ -37,7 +38,7 @@ describe('confirmation utils', () => {
             status: 'SUCCESS',
             estimatedChanges: { assets: [] },
             validation: {
-              type: 'Malicious',
+              type: TransactionScanValidationType.Malicious,
               reason: 'known_attacker',
               description: null,
             },
@@ -78,7 +79,7 @@ describe('confirmation utils', () => {
             status: 'SUCCESS',
             estimatedChanges: { assets: [] },
             validation: {
-              type: 'Malicious',
+              type: TransactionScanValidationType.Malicious,
               reason: 'known_attacker',
               description: null,
             },

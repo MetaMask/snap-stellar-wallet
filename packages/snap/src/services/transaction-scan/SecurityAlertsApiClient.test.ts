@@ -3,6 +3,7 @@ import {
   SecurityAlertsApiClient,
   TransactionScanException,
   TransactionScanOption,
+  TransactionScanValidationType,
 } from '.';
 import { KnownCaip2ChainId } from '../../api';
 import { logger } from '../../utils/logger';
@@ -37,7 +38,7 @@ describe('SecurityAlertsApiClient', () => {
     const { client, fetchMock } = setup({
       validation: {
         status: 'Success',
-        result_type: 'Benign',
+        result_type: TransactionScanValidationType.Benign,
       },
       simulation: null,
     });

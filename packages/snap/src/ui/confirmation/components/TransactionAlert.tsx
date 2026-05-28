@@ -1,7 +1,6 @@
 import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Banner,
-  Box,
   Icon,
   Link,
   Text as SnapText,
@@ -12,6 +11,7 @@ import type {
   TransactionScanError,
   TransactionScanValidation,
 } from '../../../services/transaction-scan';
+import { TransactionScanValidationType } from '../../../services/transaction-scan';
 import type { Locale, LocalizedMessage } from '../../../utils';
 import { i18n } from '../../../utils';
 import type { ConfirmationBaseProps } from '../api';
@@ -22,8 +22,6 @@ type TransactionAlertProps = {
   validation: TransactionScanValidation | null;
   error: TransactionScanError | null;
   scanFetchStatus: FetchStatus;
-  showValidationAlert: boolean;
-  showSimulationError: boolean;
 };
 
 const VALIDATION_TYPE_TO_ALERT: Partial<
@@ -36,12 +34,12 @@ const VALIDATION_TYPE_TO_ALERT: Partial<
     }
   >
 > = {
-  Malicious: {
+  [TransactionScanValidationType.Malicious]: {
     severity: 'danger',
     title: 'confirmation.validationErrorTitle',
     subtitle: 'confirmation.validationErrorSubtitle',
   },
-  Warning: {
+  [TransactionScanValidationType.Warning]: {
     severity: 'warning',
     title: 'confirmation.validationWarningTitle',
     subtitle: 'confirmation.validationWarningSubtitle',
@@ -96,9 +94,7 @@ export const TransactionAlert = ({
   validation,
   error,
   scanFetchStatus,
-  showValidationAlert,
-  showSimulationError,
-}: TransactionAlertProps): ComponentOrElement => {
+}: TransactionAlertProps): ComponentOrElement | null => {
   const translate = i18n(preferences.locale as Locale);
 
   if (scanFetchStatus === FetchStatus.Fetching) {
@@ -127,7 +123,22 @@ export const TransactionAlert = ({
     );
   }
 
-  if (validation?.type && showValidationAlert) {
+  // Match the extension confirmation pattern: show scan failures before severity findings.
+  if (error && shouldShowError(error, preferences)) {
+    const alert = getErrorAlert(error);
+
+    return (
+      <Banner title={translate(alert.title)} severity={alert.severity}>
+        <SnapText>
+          {translate(alert.subtitle, {
+            reason: getErrorMessage(error, preferences.locale),
+          })}
+        </SnapText>
+      </Banner>
+    );
+  }
+
+  if (validation?.type && preferences.useSecurityAlerts) {
     const alert = VALIDATION_TYPE_TO_ALERT[validation.type];
 
     if (alert) {
@@ -153,50 +164,33 @@ export const TransactionAlert = ({
         </Banner>
       );
     }
+
+    // Benign validation results intentionally render no banner.
   }
 
-  if (
-    error &&
-    shouldShowError(error, showSimulationError, showValidationAlert)
-  ) {
-    const alert = getErrorAlert(error);
-
-    return (
-      <Banner title={translate(alert.title)} severity={alert.severity}>
-        <SnapText>
-          {translate(alert.subtitle, {
-            reason: getErrorMessage(error, preferences.locale),
-          })}
-        </SnapText>
-      </Banner>
-    );
-  }
-
-  return <Box>{null}</Box>;
+  return null;
 };
 
 /**
  * Determines whether a scan error should be visible for the enabled alert type.
  *
  * @param error - The scan error to evaluate.
- * @param showSimulationError - Whether simulation errors are visible.
- * @param showValidationAlert - Whether validation errors are visible.
+ * @param preferences - User preferences controlling scan behavior.
  * @returns True when the error should be rendered.
  */
 function shouldShowError(
   error: TransactionScanError,
-  showSimulationError: boolean,
-  showValidationAlert: boolean,
+  preferences: ConfirmationBaseProps['preferences'],
 ): boolean {
   if (error.type === 'simulation') {
-    return showSimulationError;
+    return preferences.simulateOnChainActions;
   }
 
   if (error.type === 'validation') {
-    return showValidationAlert;
+    return preferences.useSecurityAlerts;
   }
 
-  return showSimulationError || showValidationAlert;
+  return preferences.simulateOnChainActions || preferences.useSecurityAlerts;
 }
 
 /**

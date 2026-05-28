@@ -10,6 +10,7 @@ import {
   formatFeeData,
   formatOrigin,
   getPreferencesWithFallback,
+  hasEnabledTransactionScan,
 } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import type { SecurityScanRequest } from '../../services/transaction-scan';
@@ -162,7 +163,7 @@ export class ConfirmationUXController {
 
       const enableSecurityScan =
         renderOptions.scanTxn &&
-        (preferences.useSecurityAlerts || preferences.simulateOnChainActions) &&
+        hasEnabledTransactionScan(preferences) &&
         params.securityScanRequest !== undefined;
 
       const defaultContext = {

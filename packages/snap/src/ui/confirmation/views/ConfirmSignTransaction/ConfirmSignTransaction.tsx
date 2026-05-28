@@ -31,6 +31,7 @@ import { TransactionAlert } from '../../components/TransactionAlert';
 import {
   getAccountName,
   getNetworkName,
+  hasEnabledTransactionScan,
   isConfirmDisabledByScan,
   resolveAssetDisplay,
 } from '../../utils';
@@ -185,14 +186,12 @@ export const ConfirmSignTransaction = ({
   return (
     <Container>
       <Box>
-        {preferences.useSecurityAlerts || preferences.simulateOnChainActions ? (
+        {hasEnabledTransactionScan(preferences) ? (
           <TransactionAlert
             scanFetchStatus={scanFetchStatus}
             validation={scan?.validation ?? null}
             error={scan?.error ?? null}
             preferences={preferences}
-            showValidationAlert={preferences.useSecurityAlerts}
-            showSimulationError={preferences.simulateOnChainActions}
           />
         ) : null}
         <Box alignment="center" center>

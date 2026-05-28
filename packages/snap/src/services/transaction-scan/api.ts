@@ -21,6 +21,12 @@ export enum TransactionScanOption {
   Validation = 'validation',
 }
 
+export enum TransactionScanValidationType {
+  Benign = 'Benign',
+  Warning = 'Warning',
+  Malicious = 'Malicious',
+}
+
 export type StellarSecurityAlertsChain = 'pubnet' | 'testnet' | 'futurenet';
 
 export type SecurityAlertsMetadata =
@@ -92,7 +98,7 @@ const StellarSimulationErrorStruct = type({
 
 const StellarValidationSuccessStruct = type({
   status: literal('Success'),
-  result_type: enums(['Benign', 'Warning', 'Malicious']),
+  result_type: enums(Object.values(TransactionScanValidationType)),
   classification: optional(string()),
   description: optional(string()),
   reason: optional(string()),
@@ -139,7 +145,7 @@ export type TransactionScanEstimatedChanges = {
 };
 
 export type TransactionScanValidation = {
-  type: 'Benign' | 'Warning' | 'Malicious' | null;
+  type: TransactionScanValidationType | null;
   reason: string | null;
   description: string | null;
 };
@@ -160,7 +166,7 @@ const TransactionScanAssetChangeStruct = type({
 });
 
 const TransactionScanValidationStruct = type({
-  type: nullable(enums(['Benign', 'Warning', 'Malicious'])),
+  type: nullable(enums(Object.values(TransactionScanValidationType))),
   reason: nullable(string()),
   description: nullable(string()),
 });

@@ -1,11 +1,12 @@
-import {
-  TransactionScanOption,
-  type StellarAssetDiff,
-  type StellarTransactionScanResponse,
-  type TransactionScanAssetChange,
-  type TransactionScanError,
-  type TransactionScanResult,
-  type TransactionScanValidation,
+import { TransactionScanOption } from './api';
+import type {
+  StellarAssetDiff,
+  StellarTransactionScanResponse,
+  TransactionScanAssetChange,
+  TransactionScanError,
+  TransactionScanResult,
+  TransactionScanValidation,
+  TransactionScanValidationType,
 } from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import type { KnownCaip2ChainId } from '../../api';
@@ -139,7 +140,7 @@ export class TransactionScanService {
     >,
   ): TransactionScanValidation {
     return {
-      type: validation.result_type,
+      type: validation.result_type as TransactionScanValidationType,
       reason: validation.reason ?? null,
       description: validation.description ?? null,
     };

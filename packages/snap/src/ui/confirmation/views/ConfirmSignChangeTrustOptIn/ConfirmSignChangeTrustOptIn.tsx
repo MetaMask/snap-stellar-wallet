@@ -30,6 +30,7 @@ import { Asset, AssetIcon, FeeRow, TransactionAlert } from '../../components';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
+  hasEnabledTransactionScan,
   isConfirmDisabledByScan,
   getNetworkName,
 } from '../../utils';
@@ -66,14 +67,12 @@ export const ConfirmSignChangeTrustOptIn = ({
   return (
     <Container>
       <Box>
-        {preferences.useSecurityAlerts || preferences.simulateOnChainActions ? (
+        {hasEnabledTransactionScan(preferences) ? (
           <TransactionAlert
             scanFetchStatus={scanFetchStatus}
             validation={scan?.validation ?? null}
             error={scan?.error ?? null}
             preferences={preferences}
-            showValidationAlert={preferences.useSecurityAlerts}
-            showSimulationError={preferences.simulateOnChainActions}
           />
         ) : null}
         <Box alignment="center" center>
