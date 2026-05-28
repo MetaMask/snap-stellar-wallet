@@ -605,7 +605,89 @@ describe('TransactionService', () => {
     });
   });
 
+  describe('createValidatedChangeTrustTransaction', () => {
+    it('reloads the source account when refreshAccount is true', async () => {
+      const { transactionService } = createMockTransactionService();
+      const scope = KnownCaip2ChainId.Mainnet;
+      const wallet = getTestWallet();
+      const staleAccount = createMockAccountWithBalances(wallet.address, '1', {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 500,
+      });
+      const freshAccount = createMockAccountWithBalances(wallet.address, '2', {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 500,
+      });
+      const staleOnChain = new OnChainAccount(
+        staleAccount,
+        scope,
+        horizonSource(staleAccount, scope),
+      );
+      const freshOnChain = new OnChainAccount(
+        freshAccount,
+        scope,
+        horizonSource(freshAccount, scope),
+      );
+      const loadOnChainAccountSpy = jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockResolvedValue(freshOnChain);
+      jest
+        .spyOn(NetworkService.prototype, 'getBaseFee')
+        .mockResolvedValue(new BigNumber('100'));
+
+      await transactionService.createValidatedChangeTrustTransaction({
+        onChainAccount: staleOnChain,
+        scope,
+        assetId: USDC_CLASSIC as KnownCaip19ClassicAssetId,
+        refreshAccount: true,
+      });
+
+      expect(loadOnChainAccountSpy).toHaveBeenCalledWith(wallet.address, scope);
+    });
+  });
+
   describe('createValidatedSendTransaction', () => {
+    it('reloads the source account when refreshAccount is true', async () => {
+      const { transactionService } = createMockTransactionService();
+      const scope = KnownCaip2ChainId.Mainnet;
+      const wallet = getTestWallet();
+      const staleAccount = createMockAccountWithBalances(wallet.address, '1', {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 500,
+      });
+      const freshAccount = createMockAccountWithBalances(wallet.address, '2', {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 500,
+      });
+      const staleOnChain = new OnChainAccount(
+        staleAccount,
+        scope,
+        horizonSource(staleAccount, scope),
+      );
+      const freshOnChain = new OnChainAccount(
+        freshAccount,
+        scope,
+        horizonSource(freshAccount, scope),
+      );
+      const loadOnChainAccountSpy = jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+        .mockResolvedValue(freshOnChain);
+      jest
+        .spyOn(NetworkService.prototype, 'getBaseFee')
+        .mockResolvedValue(new BigNumber('100'));
+
+      await transactionService.createValidatedSendTransaction({
+        onChainAccount: staleOnChain,
+        amount: new BigNumber('1000000'),
+        scope,
+        assetId: getSlip44AssetId(scope),
+        destination: wallet.address,
+        refreshAccount: true,
+      });
+
+      expect(loadOnChainAccountSpy).toHaveBeenCalledWith(wallet.address, scope);
+    });
+
     it('returns a payment transaction for native XLM to an activated destination', async () => {
       const { transactionService } = createMockTransactionService();
       const sourceWallet = getTestWallet();

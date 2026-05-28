@@ -84,7 +84,7 @@ export class TransactionService {
    * @param params.scope - The CAIP-2 chain ID.
    * @param params.assetId - The CAIP-19 classic asset ID.
    * @param params.limit - The limit for the trustline, 0 for delete trustline.
-   *
+   * @param params.refreshAccount - Whether to reload the source account before building the transaction.
    * @returns A promise that resolves to the validated transaction.
    */
   async createValidatedChangeTrustTransaction(params: {
@@ -92,8 +92,23 @@ export class TransactionService {
     scope: KnownCaip2ChainId;
     assetId: KnownCaip19ClassicAssetId;
     limit?: string;
+    refreshAccount?: boolean;
   }): Promise<Transaction> {
-    const { onChainAccount, scope, assetId, limit } = params;
+    const {
+      onChainAccount: initialOnChainAccount,
+      scope,
+      assetId,
+      limit,
+      refreshAccount = false,
+    } = params;
+    let onChainAccount = initialOnChainAccount;
+
+    if (refreshAccount) {
+      onChainAccount = await this.#networkService.loadOnChainAccount(
+        onChainAccount.accountId,
+        scope,
+      );
+    }
 
     const baseFee = await this.getBaseFee(scope);
 
@@ -122,6 +137,7 @@ export class TransactionService {
    * @param params.assetId - The CAIP-19 asset ID.
    * @param params.destination - The destination address.
    * @param params.useCache - Whether to use the cache.
+   * @param params.refreshAccount - Whether to reload the source account before building the transaction.
    * @returns A promise that resolves to the validated transaction.
    */
   async createValidatedSendTransaction(params: {
@@ -131,15 +147,26 @@ export class TransactionService {
     assetId: KnownCaip19AssetIdOrSlip44Id;
     destination: string;
     useCache?: boolean;
+    refreshAccount?: boolean;
   }): Promise<Transaction> {
     const {
-      onChainAccount,
+      onChainAccount: initialOnChainAccount,
       scope,
       assetId,
       amount,
       destination,
       useCache = false,
+      refreshAccount = false,
     } = params;
+    let onChainAccount = initialOnChainAccount;
+
+    // if we need to refresh the account, assume we don't use the cache.
+    if (refreshAccount) {
+      onChainAccount = await this.#networkService.loadOnChainAccount(
+        onChainAccount.accountId,
+        scope,
+      );
+    }
 
     let destinationAccount: OnChainAccount | null = null;
     if (onChainAccount.accountId === destination) {

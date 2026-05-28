@@ -140,6 +140,9 @@ describe('ChangeTrustOptHandler', () => {
     const networkSendSpy = jest
       .spyOn(NetworkService.prototype, 'send')
       .mockResolvedValue(transactionHash);
+    jest
+      .spyOn(NetworkService.prototype, 'loadOnChainAccount')
+      .mockResolvedValue(onChainAccount);
     const createValidatedChangeTrustTransaction = jest.spyOn(
       TransactionService.prototype,
       'createValidatedChangeTrustTransaction',
@@ -225,6 +228,13 @@ describe('ChangeTrustOptHandler', () => {
       assetId,
       scope,
       limit: '1.5',
+    });
+    expect(createValidatedChangeTrustTransaction).toHaveBeenNthCalledWith(2, {
+      onChainAccount,
+      assetId,
+      scope,
+      limit: '1.5',
+      refreshAccount: true,
     });
     expect(renderConfirmationDialog).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -336,6 +346,13 @@ describe('ChangeTrustOptHandler', () => {
       assetId,
       scope,
       limit: '0',
+    });
+    expect(createValidatedChangeTrustTransaction).toHaveBeenNthCalledWith(2, {
+      onChainAccount,
+      assetId,
+      scope,
+      limit: '0',
+      refreshAccount: true,
     });
     expect(renderConfirmationDialog).toHaveBeenCalledWith(
       expect.objectContaining({

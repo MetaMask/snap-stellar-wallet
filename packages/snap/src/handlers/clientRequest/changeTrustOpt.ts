@@ -137,13 +137,23 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       throw ensureError(new UserRejectedRequestError());
     }
 
-    wallet.signTransaction(transaction);
+    // refresh the account to get the latest balance and sequence to validate the transaction.
+    const finalizedTransaction =
+      await this.#transactionService.createValidatedChangeTrustTransaction({
+        onChainAccount,
+        scope,
+        assetId,
+        limit: limitForTx,
+        refreshAccount: true,
+      });
+
+    wallet.signTransaction(finalizedTransaction);
 
     const transactionId = await this.#transactionService.sendTransaction({
       wallet,
       onChainAccount,
       scope,
-      transaction,
+      transaction: finalizedTransaction,
     });
 
     await this.#savePendingTransaction({

@@ -247,6 +247,32 @@ describe('ConfirmSendHandler', () => {
       savePendingKeyringTransaction,
       scheduleBackgroundEvent,
     } = setup();
+    const finalizedTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: destinationAddress,
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            amount: '1',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '999',
+        },
+      },
+    );
+    createValidatedSendTransaction
+      .mockResolvedValueOnce(transaction)
+      .mockResolvedValueOnce(finalizedTransaction);
 
     const result = await handler.handle(baseRequest());
 
@@ -261,6 +287,14 @@ describe('ConfirmSendHandler', () => {
       assetId,
       amount: new BigNumber('10000000'),
       destination: destinationAddress,
+    });
+    expect(createValidatedSendTransaction).toHaveBeenNthCalledWith(2, {
+      onChainAccount,
+      scope,
+      assetId,
+      amount: new BigNumber('10000000'),
+      destination: destinationAddress,
+      refreshAccount: true,
     });
     expect(renderConfirmationDialog).toHaveBeenCalledWith({
       scope,
@@ -279,12 +313,12 @@ describe('ConfirmSendHandler', () => {
         [assetId]: null,
       },
     });
-    expect(signTransactionSpy).toHaveBeenCalledWith(transaction);
+    expect(signTransactionSpy).toHaveBeenCalledWith(finalizedTransaction);
     expect(sendTransaction).toHaveBeenCalledWith({
       wallet,
       onChainAccount,
       scope,
-      transaction,
+      transaction: finalizedTransaction,
       pollTransaction: false,
     });
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
