@@ -141,6 +141,8 @@ export const TransactionAlert = ({
   if (validation?.type && preferences.useSecurityAlerts) {
     const alert = VALIDATION_TYPE_TO_ALERT[validation.type];
 
+    // Only warning and malicious validation results map to banners. Benign
+    // or unsupported validation types intentionally fall through to `null`.
     if (alert) {
       const description = validation.description?.trim();
       const subtitle =
@@ -164,8 +166,6 @@ export const TransactionAlert = ({
         </Banner>
       );
     }
-
-    // Benign validation results intentionally render no banner.
   }
 
   return null;
