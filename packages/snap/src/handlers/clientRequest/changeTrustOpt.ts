@@ -143,6 +143,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       assetMetadata,
       fee: transaction.totalFee.toString(),
       action,
+      transaction,
     });
 
     if (!confirmed) {
@@ -231,6 +232,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     assetMetadata: StellarAssetMetadata;
     fee: string;
     action: ChangeTrustOptAction;
+    transaction: Transaction;
   }): Promise<boolean> {
     return params.action === ChangeTrustOptAction.Delete
       ? await this.#confirmSignChangeTrustOptOut(params)
@@ -242,6 +244,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     account: StellarKeyringAccount;
     assetMetadata: StellarAssetMetadata;
     fee: string;
+    transaction: Transaction;
   }): Promise<boolean> {
     return this.#confirmSignChangeTrust({
       ...params,
@@ -254,6 +257,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     account: StellarKeyringAccount;
     assetMetadata: StellarAssetMetadata;
     fee: string;
+    transaction: Transaction;
   }): Promise<boolean> {
     return this.#confirmSignChangeTrust({
       ...params,
@@ -266,6 +270,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     account: StellarKeyringAccount;
     assetMetadata: StellarAssetMetadata;
     fee: string;
+    transaction: Transaction;
     confirmationInterfaceKey:
       | ConfirmationInterfaceKey.ChangeTrustlineOptIn
       | ConfirmationInterfaceKey.ChangeTrustlineOptOut;
@@ -277,6 +282,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       account,
       assetMetadata,
       fee,
+      transaction,
       confirmationInterfaceKey,
     } = params;
 
@@ -292,6 +298,11 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
         interfaceKey: confirmationInterfaceKey,
         renderOptions: {
           loadPrice: true,
+          scanTxn: true,
+        },
+        securityScanRequest: {
+          accountAddress: account.address,
+          transaction: transaction.getRaw().toXDR(),
         },
       })) === true
     );

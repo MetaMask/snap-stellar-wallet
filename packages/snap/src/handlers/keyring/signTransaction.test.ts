@@ -146,6 +146,18 @@ describe('SignTransactionHandler', () => {
     const result = await handler.handle(buildRequest(mockAccount.id, xdr));
 
     expect(signSpy).toHaveBeenCalledWith(transaction);
+    expect(renderConfirmationDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        renderOptions: {
+          loadPrice: true,
+          scanTxn: true,
+        },
+        securityScanRequest: {
+          accountAddress: mockAccount.address,
+          transaction: expect.any(String),
+        },
+      }),
+    );
     expect(result).toStrictEqual({
       signedTxXdr: transaction.getRaw().toXDR(),
       signerAddress: wallet.address,

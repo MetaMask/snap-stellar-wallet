@@ -10,9 +10,11 @@ import {
   formatFeeData,
   formatOrigin,
   getPreferencesWithFallback,
+  hasEnabledTransactionScan,
 } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
+import type { SecurityScanRequest } from '../../services/transaction-scan';
 import type { ILogger, Locale } from '../../utils';
 import {
   createInterface,
@@ -60,6 +62,7 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
   renderContext: Props;
   origin?: string;
   renderOptions?: ConfirmationRenderOptions;
+  securityScanRequest?: Omit<SecurityScanRequest, 'origin' | 'scope'>;
   tokenPrices?: ContextWithPrices['tokenPrices'];
 };
 
@@ -125,11 +128,17 @@ export class ConfirmationUXController {
         renderContext,
         origin = METAMASK_ORIGIN,
         fee,
-        renderOptions = {
-          ...this.#defaultRenderOptions,
-          ...params.renderOptions,
-        },
       } = params;
+      const renderOptions = {
+        ...this.#defaultRenderOptions,
+        ...params.renderOptions,
+      };
+
+      if (renderOptions.scanTxn && params.securityScanRequest === undefined) {
+        throw new Error(
+          'Cannot scan a transaction confirmation without a security scan request.',
+        );
+      }
 
       const preferences = await getPreferencesWithFallback();
 
@@ -155,6 +164,11 @@ export class ConfirmationUXController {
         preferences.useExternalPricingData &&
         tokenPrices !== undefined;
 
+      const enableSecurityScan =
+        renderOptions.scanTxn &&
+        hasEnabledTransactionScan(preferences) &&
+        params.securityScanRequest !== undefined;
+
       const defaultContext = {
         // if pricing is disabled, mark as fetched immediately
         tokenPricesFetchStatus: enablePricing
@@ -167,6 +181,19 @@ export class ConfirmationUXController {
         currency: preferences.currency,
         scope,
         feeData: fee ? formatFeeData(scope, fee) : {},
+        scan: null,
+        scanFetchStatus: enableSecurityScan
+          ? FetchStatus.Fetching
+          : FetchStatus.Fetched,
+        ...(enableSecurityScan
+          ? {
+              securityScanRequest: {
+                ...params.securityScanRequest,
+                origin,
+                scope,
+              },
+            }
+          : {}),
         tokenPrices,
       };
 
@@ -183,9 +210,7 @@ export class ConfirmationUXController {
       );
       const dialogPromise = showDialog(id);
 
-      // 3. TODO: Perform security scan (always needed for estimated changes simulation)
-
-      // 4. Update interface with scan results after initial render (silently ignores if dismissed)
+      // 3. Update interface context after initial render (silently ignores if dismissed)
       const updated = await updateInterfaceIfExists(
         id,
         this.#renderConfirmationView(interfaceKey, context),
@@ -202,7 +227,9 @@ export class ConfirmationUXController {
       if (enablePricing) {
         refresherKeys.push(ConfirmationContextRefresherKey.Prices);
       }
-      // TODO: if (renderOptions.scanTxn) { refresherKeys.push(ConfirmationContextRefresherKey.Scan); }
+      if (enableSecurityScan) {
+        refresherKeys.push(ConfirmationContextRefresherKey.Scan);
+      }
 
       if (refresherKeys.length > 0) {
         await RefreshConfirmationContextHandler.scheduleBackgroundEvent(

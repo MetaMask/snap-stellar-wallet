@@ -19,6 +19,7 @@ import type { ICronjobRequestHandler } from './handlers/cronjob/api';
 import { BackgroundEventMethod } from './handlers/cronjob/api';
 import {
   ConfirmationPriceRefresher,
+  ConfirmationScanRefresher,
   RefreshConfirmationContextHandler,
 } from './handlers/cronjob/refreshConfirmationContext';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
@@ -49,6 +50,10 @@ import {
   TransactionRepository,
   TransactionService,
 } from './services/transaction';
+import {
+  SecurityAlertsApiClient,
+  TransactionScanService,
+} from './services/transaction-scan';
 import { WalletService } from './services/wallet';
 import { ConfirmationUXController } from './ui/confirmation/controller';
 import { logger, noOpLogger } from './utils';
@@ -111,6 +116,13 @@ const priceService = new PriceService({
   logger,
 });
 
+const transactionScanService = new TransactionScanService({
+  securityAlertsApiClient: new SecurityAlertsApiClient(
+    AppConfig.api.securityAlertsApi,
+  ),
+  logger,
+});
+
 /** UX Controller */
 const confirmationUIController = new ConfirmationUXController({
   logger,
@@ -170,11 +182,16 @@ const confirmationPriceRefresher = new ConfirmationPriceRefresher({
   priceService,
 });
 
+const confirmationScanRefresher = new ConfirmationScanRefresher({
+  logger,
+  transactionScanService,
+});
+
 const refreshConfirmationContextHandler = new RefreshConfirmationContextHandler(
   {
     logger,
     confirmationUIController,
-    refreshers: [confirmationPriceRefresher],
+    refreshers: [confirmationPriceRefresher, confirmationScanRefresher],
   },
 );
 

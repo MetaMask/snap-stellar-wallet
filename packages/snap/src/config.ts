@@ -20,6 +20,9 @@ import {
   KnownCaip2ChainId,
 } from './api';
 
+const DEFAULT_SECURITY_ALERTS_API_BASE_URL =
+  'https://security-alerts.api.cx.metamask.io';
+
 /**
  * A struct to parse an integer from a string.
  *
@@ -100,6 +103,9 @@ const ConfigStruct = object({
       baseUrl: UrlStruct,
       chunkSize: parseIntegerStruct(1, 20),
     }),
+    securityAlertsApi: object({
+      baseUrl: UrlStruct,
+    }),
   }),
   cache: object({
     ttlMilliseconds: object({
@@ -170,6 +176,13 @@ export const AppConfig = create(
       priceApi: {
         baseUrl: process.env.PRICE_API_BASE_URL,
         chunkSize: process.env.PRICE_API_CHUNK_SIZE,
+      },
+      securityAlertsApi: {
+        baseUrl:
+          process.env.SECURITY_ALERTS_API_BASE_URL === ''
+            ? DEFAULT_SECURITY_ALERTS_API_BASE_URL
+            : (process.env.SECURITY_ALERTS_API_BASE_URL ??
+              DEFAULT_SECURITY_ALERTS_API_BASE_URL),
       },
     },
     cache: {
