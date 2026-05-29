@@ -284,6 +284,7 @@ describe('ConfirmSendHandler', () => {
       scope,
       interfaceKey: ConfirmationInterfaceKey.ConfirmSendTransaction,
       fee: transaction.totalFee.toString(),
+      origin: METAMASK_ORIGIN,
       renderContext: {
         account,
         assetMetadata,
