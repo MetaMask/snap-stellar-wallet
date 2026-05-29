@@ -43,6 +43,9 @@
     "confirmation.cancelButton": {
       "message": "Cancel"
     },
+    "confirmation.closeButton": {
+      "message": "Close"
+    },
     "confirmation.signMessage.title": {
       "message": "Sign message"
     },
@@ -56,10 +59,13 @@
       "message": "You are authorizing a smart contract to act on your behalf. Only approve if you trust this site."
     },
     "confirmation.signAuthEntry.contract": {
-      "message": "Contract"
+      "message": "Contract ID"
     },
     "confirmation.signAuthEntry.function": {
-      "message": "Function"
+      "message": "Function Name"
+    },
+    "confirmation.signAuthEntry.parameters": {
+      "message": "Parameters"
     },
     "confirmation.signAuthEntry.expiresAt": {
       "message": "Expires at ledger"
@@ -75,6 +81,12 @@
     },
     "confirmation.account": {
       "message": "Account"
+    },
+    "confirmation.memo": {
+      "message": "Memo"
+    },
+    "confirmation.asset": {
+      "message": "Asset"
     },
     "confirmation.signTransaction.title": {
       "message": "Sign transaction"
@@ -142,6 +154,273 @@
     "confirmation.validationErrorSecurityAdviced": {
       "message": "Security advice by"
     },
+    "confirmation.transaction.accountmerge": {
+      "message": "Merge account"
+    },
+    "confirmation.transaction.allowtrust": {
+      "message": "Allow trust"
+    },
+    "confirmation.transaction.beginsponsoringfuturereserves": {
+      "message": "Begin sponsoring future reserves"
+    },
+    "confirmation.transaction.bumpsequence": {
+      "message": "Bump sequence"
+    },
+    "confirmation.transaction.changetrust": {
+      "message": "Change trust line"
+    },
+    "confirmation.transaction.claimclaimablebalance": {
+      "message": "Claim claimable balance"
+    },
+    "confirmation.transaction.clawback": {
+      "message": "Clawback"
+    },
+    "confirmation.transaction.clawbackclaimablebalance": {
+      "message": "Clawback claimable balance"
+    },
+    "confirmation.transaction.createaccount": {
+      "message": "Create account"
+    },
+    "confirmation.transaction.createclaimablebalance": {
+      "message": "Create claimable balance"
+    },
+    "confirmation.transaction.createpassiveselloffer": {
+      "message": "Create passive sell offer"
+    },
+    "confirmation.transaction.endsponsoringfuturereserves": {
+      "message": "End sponsoring future reserves"
+    },
+    "confirmation.transaction.extendfootprintttl": {
+      "message": "Extend footprint TTL"
+    },
+    "confirmation.transaction.inflation": {
+      "message": "Inflation"
+    },
+    "confirmation.transaction.invokehostfunction": {
+      "message": "Invoke host function"
+    },
+    "confirmation.transaction.liquiditypooldeposit": {
+      "message": "Liquidity pool deposit"
+    },
+    "confirmation.transaction.liquiditypoolwithdraw": {
+      "message": "Liquidity pool withdraw"
+    },
+    "confirmation.transaction.managedata": {
+      "message": "Manage data"
+    },
+    "confirmation.transaction.managebuyoffer": {
+      "message": "Manage buy offer"
+    },
+    "confirmation.transaction.manageselloffer": {
+      "message": "Manage sell offer"
+    },
+    "confirmation.transaction.pathpaymentstrictreceive": {
+      "message": "Path payment (strict receive)"
+    },
+    "confirmation.transaction.pathpaymentstrictsend": {
+      "message": "Path payment (strict send)"
+    },
+    "confirmation.transaction.payment": {
+      "message": "Payment"
+    },
+    "confirmation.transaction.restorefootprint": {
+      "message": "Restore footprint"
+    },
+    "confirmation.transaction.revokesponsorship": {
+      "message": "Revoke sponsorship"
+    },
+    "confirmation.transaction.setoptions": {
+      "message": "Set options"
+    },
+    "confirmation.transaction.settrustlineflags": {
+      "message": "Set trust line flags"
+    },
+    "confirmation.transaction.param.account": {
+      "message": "Account"
+    },
+    "confirmation.transaction.param.amount": {
+      "message": "Amount"
+    },
+    "confirmation.transaction.param.asset": {
+      "message": "Asset"
+    },
+    "confirmation.transaction.param.assetCode": {
+      "message": "Asset code"
+    },
+    "confirmation.transaction.param.authorize": {
+      "message": "Authorize"
+    },
+    "confirmation.transaction.param.balanceId": {
+      "message": "Balance ID"
+    },
+    "confirmation.transaction.param.buyAmount": {
+      "message": "Buy amount"
+    },
+    "confirmation.transaction.param.bumpTo": {
+      "message": "Bump to"
+    },
+    "confirmation.transaction.param.buying": {
+      "message": "Buying"
+    },
+    "confirmation.transaction.param.claimants": {
+      "message": "Claimants"
+    },
+    "confirmation.transaction.param.clearFlags": {
+      "message": "Clear flags"
+    },
+    "confirmation.transaction.param.contractId": {
+      "message": "Contract ID"
+    },
+    "confirmation.transaction.param.destAmount": {
+      "message": "Destination amount"
+    },
+    "confirmation.transaction.param.destAsset": {
+      "message": "Destination asset"
+    },
+    "confirmation.transaction.param.destMin": {
+      "message": "Destination minimum"
+    },
+    "confirmation.transaction.param.destination": {
+      "message": "Destination"
+    },
+    "confirmation.transaction.param.extendTo": {
+      "message": "Extend to"
+    },
+    "confirmation.transaction.param.flags": {
+      "message": "Flags"
+    },
+    "confirmation.transaction.param.functionName": {
+      "message": "Function"
+    },
+    "confirmation.transaction.param.arguments": {
+      "message": "Arguments"
+    },
+    "confirmation.transaction.param.from": {
+      "message": "From"
+    },
+    "confirmation.transaction.param.highThreshold": {
+      "message": "High threshold"
+    },
+    "confirmation.transaction.param.homeDomain": {
+      "message": "Home domain"
+    },
+    "confirmation.transaction.param.hostFunctionXdrBase64": {
+      "message": "Host function (XDR, base64)"
+    },
+    "confirmation.transaction.param.inflationDest": {
+      "message": "Inflation destination"
+    },
+    "confirmation.transaction.param.limit": {
+      "message": "Limit"
+    },
+    "confirmation.transaction.param.line": {
+      "message": "Trust line"
+    },
+    "confirmation.transaction.param.liquidityPoolId": {
+      "message": "Liquidity pool ID"
+    },
+    "confirmation.transaction.param.lowThreshold": {
+      "message": "Low threshold"
+    },
+    "confirmation.transaction.param.masterWeight": {
+      "message": "Master weight"
+    },
+    "confirmation.transaction.param.maxAmountA": {
+      "message": "Max amount A"
+    },
+    "confirmation.transaction.param.maxAmountB": {
+      "message": "Max amount B"
+    },
+    "confirmation.transaction.param.maxPrice": {
+      "message": "Max price"
+    },
+    "confirmation.transaction.param.medThreshold": {
+      "message": "Medium threshold"
+    },
+    "confirmation.transaction.param.minAmountA": {
+      "message": "Min amount A"
+    },
+    "confirmation.transaction.param.minAmountB": {
+      "message": "Min amount B"
+    },
+    "confirmation.transaction.param.minPrice": {
+      "message": "Min price"
+    },
+    "confirmation.transaction.param.name": {
+      "message": "Name"
+    },
+    "confirmation.transaction.param.note": {
+      "message": "Note"
+    },
+    "confirmation.transaction.param.offerId": {
+      "message": "Offer ID"
+    },
+    "confirmation.transaction.param.path": {
+      "message": "Path"
+    },
+    "confirmation.transaction.param.price": {
+      "message": "Price"
+    },
+    "confirmation.transaction.param.seller": {
+      "message": "Seller"
+    },
+    "confirmation.transaction.param.sendAmount": {
+      "message": "Send amount"
+    },
+    "confirmation.transaction.param.sendAsset": {
+      "message": "Send asset"
+    },
+    "confirmation.transaction.param.sendMax": {
+      "message": "Send max"
+    },
+    "confirmation.transaction.param.selling": {
+      "message": "Selling"
+    },
+    "confirmation.transaction.param.setFlags": {
+      "message": "Set flags"
+    },
+    "confirmation.transaction.param.signer": {
+      "message": "Signer"
+    },
+    "confirmation.transaction.param.signerEd25519": {
+      "message": "Signer (public key)"
+    },
+    "confirmation.transaction.param.signerSha256Hash": {
+      "message": "Signer (SHA-256)"
+    },
+    "confirmation.transaction.param.signerPreAuthTx": {
+      "message": "Signer (pre-auth tx)"
+    },
+    "confirmation.transaction.param.signerSignedPayload": {
+      "message": "Signer (signed payload)"
+    },
+    "confirmation.transaction.param.signerWeight": {
+      "message": "Signer weight"
+    },
+    "confirmation.transaction.param.sponsoredId": {
+      "message": "Sponsored account"
+    },
+    "confirmation.transaction.param.startingBalance": {
+      "message": "Starting balance"
+    },
+    "confirmation.transaction.param.source": {
+      "message": "Source"
+    },
+    "confirmation.transaction.param.trustor": {
+      "message": "Trustor"
+    },
+    "confirmation.transaction.param.valueBase64": {
+      "message": "Value (base64)"
+    },
+    "confirmation.signChangeTrustOptIn.title": {
+      "message": "Add {asset} trustline"
+    },
+    "confirmation.signChangeTrustOptIn.updateTitle": {
+      "message": "Update {asset} trustline limit"
+    },
+    "confirmation.signChangeTrustOptOut.title": {
+      "message": "Remove {asset} trustline"
+    },
     "transactionScan.errors.unknownError": {
       "message": "An unknown error occurred"
     },
@@ -159,6 +438,21 @@
     },
     "transactionScan.errors.unsupportedEIP712Message": {
       "message": "Unsupported method"
+    },
+    "confirmation.accountActivation.title": {
+      "message": "Activate Stellar Wallet"
+    },
+    "confirmation.accountActivation.description": {
+      "message": "On Stellar, your wallet must hold a minimum of 1 XLM before you can hold other assets."
+    },
+    "confirmation.accountActivation.callToAction": {
+      "message": "Add XLM to your wallet to get started."
+    },
+    "confirmation.accountActivation.address": {
+      "message": "Stellar address."
+    },
+    "confirmation.accountActivation.copyAddress": {
+      "message": "Copy Address"
     }
   }
 }
