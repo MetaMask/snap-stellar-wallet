@@ -1,17 +1,14 @@
 import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Box,
-  Button,
   Container,
   Copyable,
-  Footer,
   Heading,
   Image,
   Section,
   Text as SnapText,
 } from '@metamask/snaps-sdk/jsx';
 
-import { AccountActivationPromptFormNames } from './events';
 import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
 import { generateAddressQrCode } from '../../qrcode';
@@ -57,16 +54,11 @@ export const AccountActivationPrompt = ({
             <Box>{null}</Box>
             <Box>{null}</Box>
             <SnapText color="alternative" alignment="center">
-              {translate('confirmation.accountActivation.description2')}
+              {translate('confirmation.accountActivation.callToAction')}
             </SnapText>
           </Box>
         </Section>
       </Box>
-      <Footer>
-        <Button name={AccountActivationPromptFormNames.Close}>
-          {translate('confirmation.closeButton')}
-        </Button>
-      </Footer>
     </Container>
   );
 };

@@ -413,7 +413,7 @@
   "confirmation.accountActivation.description": {
     "message": "On Stellar, your wallet must hold a minimum of 1 XLM before you can hold other assets."
   },
-  "confirmation.accountActivation.description2": {
+  "confirmation.accountActivation.callToAction": {
     "message": "Add XLM to your wallet to get started."
   },
   "confirmation.accountActivation.address": {
