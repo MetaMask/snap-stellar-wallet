@@ -88,11 +88,29 @@
     "confirmation.estimatedChanges.unsupportedContract": {
       "message": "Unsupported contract for simulation"
     },
-    "confirmation.simulationTitleAPIError": {
-      "message": "Because of an error, we couldn't check for security alerts."
+    "confirmation.securityScanInProgressTitle": {
+      "message": "Checking for security issues"
     },
-    "confirmation.simulationMessageAPIError": {
+    "confirmation.securityScanInProgressMessage": {
+      "message": "This usually takes a few seconds."
+    },
+    "confirmation.securityScanAPIErrorTitle": {
+      "message": "Security scan failed"
+    },
+    "confirmation.securityScanAPIErrorMessage": {
       "message": "Only continue if you trust every address involved."
+    },
+    "confirmation.securityScanErrorTitle": {
+      "message": "Security scan failed"
+    },
+    "confirmation.securityScanErrorSubtitle": {
+      "message": "{reason}"
+    },
+    "confirmation.securityScanIncompleteTitle": {
+      "message": "Security scan incomplete"
+    },
+    "confirmation.securityScanIncompleteSubtitle": {
+      "message": "{reason}. Only continue if you trust every address involved."
     },
     "confirmation.simulationErrorTitle": {
       "message": "This transaction was reverted during simulation."
@@ -100,11 +118,23 @@
     "confirmation.simulationErrorSubtitle": {
       "message": "{reason}"
     },
+    "confirmation.validationScanErrorTitle": {
+      "message": "Security validation failed"
+    },
+    "confirmation.validationScanErrorSubtitle": {
+      "message": "{reason}"
+    },
     "confirmation.validationErrorTitle": {
       "message": "This is a deceptive request"
     },
     "confirmation.validationErrorSubtitle": {
       "message": "If you approve this request, a third party known for scams will take all your assets."
+    },
+    "confirmation.validationWarningTitle": {
+      "message": "This request may be risky"
+    },
+    "confirmation.validationWarningSubtitle": {
+      "message": "Security Alerts found potential risk. Only continue if you trust this site and every address involved."
     },
     "confirmation.validationErrorLearnMore": {
       "message": "Learn more"
