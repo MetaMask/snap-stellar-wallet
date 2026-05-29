@@ -411,10 +411,7 @@ const Index = () => {
       return;
     }
 
-    const accounts = (await invokeKeyring({
-      method: KeyringRpcMethod.ListAccounts,
-    })) as KeyringAccount[] | null;
-    const account = accounts?.[0];
+    const account = resolveSelectedAccount();
     if (!account) {
       setSignAndSendTxnOutput(
         'No keyring accounts found. Add a Stellar account in MetaMask first.',

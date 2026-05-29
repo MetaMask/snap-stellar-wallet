@@ -67,6 +67,10 @@ function isPathPaymentOperation(operationType: string | undefined): boolean {
  * - `invokeHostFunction`: Soroban swaps are assembled as a single contract
  * invocation; resource fee and authorization checks happen later in the
  * transaction flow.
+ * - `payment`: bridge deposit routes are represented on Stellar as a single
+ * payment to the bridge deposit account. Destination and memo expectations are
+ * owned by the CrossChain quote / approval layer; this struct only gates the
+ * operation shape before Stellar-level validation runs downstream.
  * - `pathPayment*`, `payment`: classic swaps use the path payment for the
  * asset exchange, followed by the fee-send payment appended to the route.
  * - `changeTrust`, `pathPayment*`, `payment`: same classic swap shape, with a
@@ -84,10 +88,11 @@ export const SwapTransactionXdrStruct = refine(
       const operationTypes = getTransactionOperationTypes(value);
       const [firstOperation, secondOperation, thirdOperation] = operationTypes;
 
-      // Soroban route: the swap is represented by one contract invocation.
+      // Soroban swap route or bridge deposit route.
       if (
         operationTypes.length === 1 &&
-        firstOperation === 'invokeHostFunction'
+        (firstOperation === 'invokeHostFunction' ||
+          firstOperation === 'payment')
       ) {
         return true;
       }

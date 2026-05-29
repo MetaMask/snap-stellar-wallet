@@ -40,6 +40,13 @@ export class TransactionScopeNotMatchException extends TransactionValidationExce
   }
 }
 
+export class TransactionExpireException extends TransactionValidationException {
+  constructor(expirationTime: number) {
+    super(`Transaction expired (maxTime: ${expirationTime})`);
+    this.name = 'TransactionExpireException';
+  }
+}
+
 export class UnsupportedOperationTypeException extends TransactionValidationException {
   constructor(operationType: string) {
     super(`Unsupported operation type: ${operationType}`);

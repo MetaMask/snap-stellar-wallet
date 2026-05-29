@@ -534,6 +534,7 @@ export class TransactionService {
    * @param onChainAccount - The on-chain account to validate against.
    * @param options - Optional options for the transaction validation {@link TransactionSimulatorOptions}.
    * @throws {TransactionScopeNotMatchException} When {@link OnChainAccount.scope} does not match {@link Transaction.scope}.
+   * @throws {TransactionExpireException} When the transaction time bound has passed.
    * @throws {TransactionValidationException} When the transaction cannot be validated.
    */
   validateTransaction(
