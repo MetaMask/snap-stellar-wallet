@@ -33,7 +33,7 @@ import {
 } from './exceptions';
 import { KeyringHandler } from './keyring';
 import { KnownCaip2ChainId } from '../../api';
-import { KEYRING_ACCOUNT_TYPE } from '../../constants';
+import { KEYRING_ACCOUNT_TYPE, METAMASK_ORIGIN } from '../../constants';
 import {
   AccountService,
   type StellarKeyringAccount,
@@ -161,7 +161,7 @@ describe('KeyringHandler', () => {
       const handleKeyringRequestSpy = jest.mocked(handleKeyringRequest);
       handleKeyringRequestSpy.mockResolvedValue([]);
 
-      const result = await keyringHandler.handle('metamask', request);
+      const result = await keyringHandler.handle(METAMASK_ORIGIN, request);
 
       expect(handleKeyringRequestSpy).toHaveBeenCalledWith(
         keyringHandler,
@@ -174,7 +174,7 @@ describe('KeyringHandler', () => {
       const handleKeyringRequestSpy = jest.mocked(handleKeyringRequest);
       handleKeyringRequestSpy.mockResolvedValue(null);
 
-      const result = await keyringHandler.handle('metamask', request);
+      const result = await keyringHandler.handle(METAMASK_ORIGIN, request);
 
       expect(handleKeyringRequestSpy).toHaveBeenCalledWith(
         keyringHandler,
@@ -861,7 +861,7 @@ describe('KeyringHandler', () => {
 
       const signMessagePayload = {
         id: keyringRequestId,
-        origin: 'metamask',
+        origin: METAMASK_ORIGIN,
         request: {
           method: MultichainMethod.SignMessage,
           params: {
@@ -901,7 +901,7 @@ describe('KeyringHandler', () => {
 
       const signTransactionPayload = {
         id: keyringRequestId,
-        origin: 'metamask',
+        origin: METAMASK_ORIGIN,
         request: {
           method: MultichainMethod.SignTransaction,
           params: { xdr },
@@ -940,7 +940,7 @@ describe('KeyringHandler', () => {
 
       const signAuthEntryPayload = {
         id: keyringRequestId,
-        origin: 'metamask',
+        origin: METAMASK_ORIGIN,
         request: {
           method: MultichainMethod.SignAuthEntry,
           params: { authEntry },
@@ -967,7 +967,7 @@ describe('KeyringHandler', () => {
       await expect(
         keyringHandler.submitRequest({
           id: keyringRequestId,
-          origin: 'metamask',
+          origin: METAMASK_ORIGIN,
           request: {
             method: 'invalid:method' as MultichainMethod,
             params: { message: 'Hello, world!' },
@@ -995,7 +995,7 @@ describe('KeyringHandler', () => {
 
       const signMessagePayload = {
         id: keyringRequestId,
-        origin: 'metamask',
+        origin: METAMASK_ORIGIN,
         request: {
           method: MultichainMethod.SignMessage,
           params: {
@@ -1031,7 +1031,7 @@ describe('KeyringHandler', () => {
 
       const signTransactionPayload = {
         id: keyringRequestId,
-        origin: 'metamask',
+        origin: METAMASK_ORIGIN,
         request: {
           method: MultichainMethod.SignTransaction,
           params: { xdr },
@@ -1065,7 +1065,7 @@ describe('KeyringHandler', () => {
 
       const signAuthEntryPayload = {
         id: keyringRequestId,
-        origin: 'metamask',
+        origin: METAMASK_ORIGIN,
         request: {
           method: MultichainMethod.SignAuthEntry,
           params: { authEntry },

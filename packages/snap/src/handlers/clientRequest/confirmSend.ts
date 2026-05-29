@@ -15,6 +15,7 @@ import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
 } from '../../api';
+import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
 import type {
   AssetMetadataService,
@@ -29,7 +30,13 @@ import {
 import type { TransactionService } from '../../services/transaction';
 import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
-import { hasDecimals, toSmallestUnit } from '../../utils';
+import {
+  hasDecimals,
+  toSmallestUnit,
+  trackTransactionAdded,
+  trackTransactionApproved,
+  trackTransactionRejected,
+} from '../../utils';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
 import type {
@@ -132,6 +139,12 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           destination: toAddress,
         });
 
+      await trackTransactionAdded({
+        origin: METAMASK_ORIGIN,
+        accountType: stellarKeyringAccount.type,
+        chainIdCaip: scope,
+      });
+
       if (
         !(await this.#confirmSend({
           request,
@@ -141,8 +154,19 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           fee: transaction.totalFee,
         }))
       ) {
+        await trackTransactionRejected({
+          origin: METAMASK_ORIGIN,
+          accountType: stellarKeyringAccount.type,
+          chainIdCaip: scope,
+        });
         throw ensureError(new UserRejectedRequestError());
       }
+
+      await trackTransactionApproved({
+        origin: METAMASK_ORIGIN,
+        accountType: stellarKeyringAccount.type,
+        chainIdCaip: scope,
+      });
 
       wallet.signTransaction(transaction);
 
@@ -223,6 +247,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
         scope,
+        origin: METAMASK_ORIGIN,
         renderContext: {
           account,
           assetMetadata,

@@ -9,6 +9,7 @@ import {
 } from './api';
 import { ChangeTrustOptHandler } from './changeTrustOpt';
 import { KnownCaip2ChainId, type KnownCaip19ClassicAssetId } from '../../api';
+import { METAMASK_ORIGIN } from '../../constants';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import type { StellarAssetMetadata } from '../../services/asset-metadata';
@@ -38,6 +39,7 @@ import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
+import * as snapUtils from '../../utils/snap';
 import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
@@ -175,6 +177,19 @@ describe('ChangeTrustOptHandler', () => {
       confirmationUIController,
     });
 
+    const trackTransactionAddedSpy = jest.spyOn(
+      snapUtils,
+      'trackTransactionAdded',
+    );
+    const trackTransactionRejectedSpy = jest.spyOn(
+      snapUtils,
+      'trackTransactionRejected',
+    );
+    const trackTransactionApprovedSpy = jest.spyOn(
+      snapUtils,
+      'trackTransactionApproved',
+    );
+
     return {
       handler,
       account,
@@ -194,6 +209,9 @@ describe('ChangeTrustOptHandler', () => {
       resolve,
       renderConfirmationDialog,
       signTransactionSpy,
+      trackTransactionAddedSpy,
+      trackTransactionRejectedSpy,
+      trackTransactionApprovedSpy,
     };
   }
 
@@ -420,5 +438,47 @@ describe('ChangeTrustOptHandler', () => {
     });
     expect(sendTransaction).toHaveBeenCalledTimes(1);
     expect(TrackTransactionHandler.scheduleBackgroundEvent).toHaveBeenCalled();
+  });
+
+  describe('tracks transaction events', () => {
+    it('tracks transaction added', async () => {
+      const { handler, account, trackTransactionAddedSpy } = setup();
+      await handler.handle(addRequest);
+      expect(trackTransactionAddedSpy).toHaveBeenCalledWith({
+        accountType: account.type,
+        chainIdCaip: scope,
+        origin: METAMASK_ORIGIN,
+      });
+    });
+
+    it('tracks transaction rejected', async () => {
+      const {
+        handler,
+        account,
+        trackTransactionRejectedSpy,
+        renderConfirmationDialog,
+      } = setup();
+      renderConfirmationDialog.mockResolvedValue(false);
+
+      await expect(handler.handle(addRequest)).rejects.toThrow(
+        UserRejectedRequestError,
+      );
+
+      expect(trackTransactionRejectedSpy).toHaveBeenCalledWith({
+        accountType: account.type,
+        chainIdCaip: scope,
+        origin: METAMASK_ORIGIN,
+      });
+    });
+
+    it('tracks transaction approved', async () => {
+      const { handler, account, trackTransactionApprovedSpy } = setup();
+      await handler.handle(addRequest);
+      expect(trackTransactionApprovedSpy).toHaveBeenCalledWith({
+        accountType: account.type,
+        chainIdCaip: scope,
+        origin: METAMASK_ORIGIN,
+      });
+    });
   });
 });

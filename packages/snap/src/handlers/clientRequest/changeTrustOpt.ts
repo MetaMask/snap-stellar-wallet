@@ -19,6 +19,7 @@ import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
 } from '../../api';
+import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
 import type {
   AssetMetadataService,
@@ -37,6 +38,11 @@ import type {
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { createPrefixedLogger, type ILogger } from '../../utils/logger';
+import {
+  trackTransactionAdded,
+  trackTransactionApproved,
+  trackTransactionRejected,
+} from '../../utils/snap';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 export class ChangeTrustOptHandler extends BaseClientRequestHandler<
@@ -125,6 +131,12 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       limit: limitForTx,
     });
 
+    await trackTransactionAdded({
+      origin: METAMASK_ORIGIN,
+      accountType: account.type,
+      chainIdCaip: scope,
+    });
+
     const confirmed = await this.#confirmChangeTrustOpt({
       request,
       account,
@@ -135,8 +147,19 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     });
 
     if (!confirmed) {
+      await trackTransactionRejected({
+        origin: METAMASK_ORIGIN,
+        accountType: account.type,
+        chainIdCaip: scope,
+      });
       throw ensureError(new UserRejectedRequestError());
     }
+
+    await trackTransactionApproved({
+      origin: METAMASK_ORIGIN,
+      accountType: account.type,
+      chainIdCaip: scope,
+    });
 
     wallet.signTransaction(transaction);
 
@@ -262,8 +285,10 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       transaction,
       confirmationInterfaceKey,
     } = params;
+
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
+        origin: METAMASK_ORIGIN,
         scope,
         renderContext: {
           account,
