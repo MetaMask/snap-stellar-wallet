@@ -18,7 +18,7 @@ export async function render(accountAddress: string): Promise<DialogResult> {
     {},
   );
 
-  const dialogPromise = showDialog(id);
+  const dialogPromise = showDialog(id, 'alert');
 
   return dialogPromise;
 }

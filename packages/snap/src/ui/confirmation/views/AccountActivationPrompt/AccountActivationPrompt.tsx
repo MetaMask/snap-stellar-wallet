@@ -14,12 +14,7 @@ import {
 import { AccountActivationPromptFormNames } from './events';
 import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
-import {
-  xlmIcon,
-  accountActiveMethod1Icon,
-  accountActiveMethod2Icon,
-} from '../../../images';
-import { AssetIcon } from '../../components/AssetIcon';
+import { generateAddressQrCode } from '../../qrcode';
 
 export type AccountActivationPromptProps = {
   accountAddress: string;
@@ -32,6 +27,8 @@ export const AccountActivationPrompt = ({
 }: AccountActivationPromptProps): ComponentOrElement => {
   const translate = i18n(locale);
 
+  const qrCode = generateAddressQrCode(accountAddress);
+
   return (
     <Container>
       <Box>
@@ -41,53 +38,27 @@ export const AccountActivationPrompt = ({
             {translate('confirmation.accountActivation.title')}
           </Heading>
           <Box>{null}</Box>
-          <Box>
-            <AssetIcon iconUrl={xlmIcon} size="xl" />
-          </Box>
-          <Box>
-            <SnapText>
-              {translate('confirmation.accountActivation.description')}
-            </SnapText>
-          </Box>
           <Box>{null}</Box>
           <Box>{null}</Box>
         </Box>
         <Section>
-          <Box alignment="space-between" direction="vertical">
-            <SnapText fontWeight="medium" color="alternative">
+          <Box direction="vertical" center>
+            {qrCode ? <Image src={qrCode} width={230} /> : null}
+            <SnapText fontWeight="bold" color="alternative" alignment="center">
               {translate('confirmation.accountActivation.address')}
             </SnapText>
+            <Box>{null}</Box>
             <Copyable value={accountAddress} />
-          </Box>
-        </Section>
-        <Section>
-          <Box alignment="start" direction="horizontal">
-            <Image src={accountActiveMethod1Icon} height={29} width={25} />
-            <Box alignment="space-around" direction="vertical">
-              <SnapText fontWeight="regular" color="alternative">
-                {translate('confirmation.accountActivation.method1.title')}
-              </SnapText>
-              <SnapText size="sm" fontWeight="regular" color="alternative">
-                {translate(
-                  'confirmation.accountActivation.method1.description',
-                )}
-              </SnapText>
-            </Box>
-          </Box>
-        </Section>
-        <Section>
-          <Box alignment="start" direction="horizontal">
-            <Image src={accountActiveMethod2Icon} height={22} width={25} />
-            <Box alignment="space-around" direction="vertical">
-              <SnapText fontWeight="regular" color="alternative">
-                {translate('confirmation.accountActivation.method2.title')}
-              </SnapText>
-              <SnapText size="sm" fontWeight="regular" color="alternative">
-                {translate(
-                  'confirmation.accountActivation.method2.description',
-                )}
-              </SnapText>
-            </Box>
+            <Box>{null}</Box>
+            <Box>{null}</Box>
+            <SnapText color="alternative" alignment="center">
+              {translate('confirmation.accountActivation.description')}
+            </SnapText>
+            <Box>{null}</Box>
+            <Box>{null}</Box>
+            <SnapText color="alternative" alignment="center">
+              {translate('confirmation.accountActivation.description2')}
+            </SnapText>
           </Box>
         </Section>
       </Box>

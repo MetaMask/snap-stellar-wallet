@@ -356,12 +356,19 @@ export async function updateInterfaceWithContext<
  * Shows a dialog using the provided ID.
  *
  * @param id - The ID for the dialog.
+ * @param type - The type of dialog to show. Defaults to 'custom'.
  * @returns A promise that resolves to a string.
  */
-export async function showDialog(id: string): Promise<DialogResult> {
+export async function showDialog(
+  id: string,
+  type?: 'alert' | 'prompt' | 'confirmation',
+): Promise<DialogResult> {
   return getSnapProvider().request({
     method: 'snap_dialog',
     params: {
+      // If type is not provided, it will default to 'custom'.
+      // @see https://docs.metamask.io/snaps/features/custom-ui/dialogs/#display-a-custom-dialog
+      ...(type ? { type } : {}),
       id,
     },
   });
