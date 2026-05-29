@@ -235,6 +235,14 @@ describe('ChangeTrustOptHandler', () => {
           account,
           assetMetadata,
         },
+        renderOptions: {
+          loadPrice: true,
+          scanTxn: true,
+        },
+        securityScanRequest: {
+          accountAddress: account.address,
+          transaction: expect.any(String),
+        },
       }),
     );
     const signedTransaction = signTransactionSpy.mock.calls[0]?.[0];
@@ -340,6 +348,14 @@ describe('ChangeTrustOptHandler', () => {
     expect(renderConfirmationDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         interfaceKey: ConfirmationInterfaceKey.ChangeTrustlineOptOut,
+        renderOptions: {
+          loadPrice: true,
+          scanTxn: true,
+        },
+        securityScanRequest: {
+          accountAddress: account.address,
+          transaction: expect.any(String),
+        },
       }),
     );
     expect(sendTransaction).toHaveBeenCalled();

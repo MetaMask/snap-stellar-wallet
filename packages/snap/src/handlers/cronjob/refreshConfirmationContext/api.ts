@@ -6,7 +6,6 @@ import type { ContextWithPrices } from '../../../ui/confirmation/api';
 /** Identifies which confirmation context refreshers to run for a cron cycle. */
 export enum ConfirmationContextRefresherKey {
   Prices = 'prices',
-  /** TODO: Reserved for security scan; wire in context when implemented. */
   Scan = 'scan',
 }
 

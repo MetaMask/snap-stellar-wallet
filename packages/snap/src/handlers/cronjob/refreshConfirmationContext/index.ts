@@ -1,5 +1,6 @@
 export { RefreshConfirmationContextHandler } from './handler';
 export { ConfirmationPriceRefresher } from './priceRefresher';
+export { ConfirmationScanRefresher } from './scanRefresher';
 export {
   ConfirmationContextRefresherKey,
   ConfirmationContextRefresherKeyStruct,
