@@ -1,3 +1,4 @@
+import type { Horizon } from '@stellar/stellar-sdk';
 import { Account, Keypair } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -20,6 +21,7 @@ import { OnChainAccountSerializableFullStruct } from './OnChainAccountSerializab
 import { calculateSpendableBalance, minimumBalanceStroops } from './utils';
 import type { KnownCaip19Sep41AssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
+import { ACCOUNT_REQUIRES_MEMO, MEMO_REQUIRED_KEY } from '../../constants';
 import {
   getSlip44AssetId,
   toCaip19ClassicAssetId,
@@ -36,6 +38,22 @@ function optionalBigNumberString(
   value: BigNumber | undefined,
 ): string | undefined {
   return value === undefined ? undefined : value.toString();
+}
+
+/**
+ * Attaches Horizon `data_attr` to a mock account for {@link OnChainAccount.fromHorizon} tests.
+ *
+ * @param mockAccount
+ * @param dataAttr
+ */
+function mockHorizonAccountResponse(
+  mockAccount: Account,
+  dataAttr: Record<string, string>,
+): Horizon.AccountResponse {
+  return Object.assign(mockAccount, {
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field
+    data_attr: dataAttr,
+  }) as unknown as Horizon.AccountResponse;
 }
 
 describe('OnChainAccount', () => {
@@ -443,6 +461,7 @@ describe('OnChainAccount', () => {
         subentryCount: onChainAccount.subentryCount,
         numSponsoring: onChainAccount.numSponsoring,
         numSponsored: onChainAccount.numSponsored,
+        dataEntries: {},
       });
       const nativeId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
       const usdcId = toCaip19ClassicAssetId(
@@ -502,6 +521,61 @@ describe('OnChainAccount', () => {
     });
   });
 
+  describe('requiresMemo and dataEntries', () => {
+    it('is true when Horizon data_attr has the SEP-29 memo_required flag', () => {
+      const accountId = Keypair.random().publicKey();
+      const mockAccount = createMockAccountWithBalances(
+        accountId,
+        '1',
+        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      );
+      const onChain = OnChainAccount.fromHorizon(
+        mockHorizonAccountResponse(mockAccount, {
+          [MEMO_REQUIRED_KEY]: ACCOUNT_REQUIRES_MEMO,
+        }),
+        KnownCaip2ChainId.Mainnet,
+      );
+
+      expect(onChain.requiresMemo).toBe(true);
+    });
+
+    it('is false when data_attr omits memo_required', () => {
+      const accountId = Keypair.random().publicKey();
+      const mockAccount = createMockAccountWithBalances(
+        accountId,
+        '1',
+        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      );
+      const onChain = OnChainAccount.fromHorizon(
+        mockHorizonAccountResponse(mockAccount, {}),
+        KnownCaip2ChainId.Mainnet,
+      );
+
+      expect(onChain.requiresMemo).toBe(false);
+    });
+
+    it('round-trips dataEntries and requiresMemo through toSerializable', () => {
+      const accountId = Keypair.random().publicKey();
+      const mockAccount = createMockAccountWithBalances(
+        accountId,
+        '1',
+        DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+      );
+      const ref = OnChainAccount.fromHorizon(
+        mockHorizonAccountResponse(mockAccount, {
+          [MEMO_REQUIRED_KEY]: ACCOUNT_REQUIRES_MEMO,
+        }),
+        KnownCaip2ChainId.Mainnet,
+      );
+      const restored = OnChainAccount.fromSerializable(ref.toSerializable());
+
+      expect(restored.requiresMemo).toBe(true);
+      expect(restored.toSerializableFull().meta.dataEntries).toStrictEqual({
+        [MEMO_REQUIRED_KEY]: ACCOUNT_REQUIRES_MEMO,
+      });
+    });
+  });
+
   describe('fromSerializable', () => {
     it('round-trips with toSerializable for Horizon-bound wallet', () => {
       const { onChainAccount: ref } = createTestWallet();
@@ -520,6 +594,7 @@ describe('OnChainAccount', () => {
         'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
       );
       expect(restored.getAsset(usdcId)).toStrictEqual(ref.getAsset(usdcId));
+      expect(restored.requiresMemo).toBe(ref.requiresMemo);
       expect(
         restored.getAsset(getSlip44AssetId(KnownCaip2ChainId.Mainnet)),
       ).toStrictEqual(

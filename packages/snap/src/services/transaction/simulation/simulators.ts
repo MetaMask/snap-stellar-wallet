@@ -2,7 +2,12 @@ import type { Operation } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import type { OperationSimulator, Context, AccountState } from './api';
+import type {
+  OperationSimulator,
+  ApplyContext,
+  ValidateContext,
+  AccountState,
+} from './api';
 import {
   getAccount,
   effectiveSource,
@@ -32,6 +37,7 @@ import {
   TrustlineNotFoundException,
   UpdateTrustlineException,
 } from '../exceptions';
+import { assertMemoWhenDestinationRequires } from '../utils';
 
 type ClassicAssetId = KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
 
@@ -209,7 +215,7 @@ function applyCredit(params: {
 }
 
 export class PaymentOPSimulator implements OperationSimulator {
-  validate(ctx: Context, op: Operation.Payment): void {
+  validate(ctx: ValidateContext, op: Operation.Payment): void {
     const payment = op;
     const { opIndex } = ctx;
     const { assetId, payAmt, source, dest, sourceId, destId } =
@@ -220,6 +226,12 @@ export class PaymentOPSimulator implements OperationSimulator {
         `Payment operation at index ${opIndex} has no amount`,
       );
     }
+
+    assertMemoWhenDestinationRequires(
+      ctx.transaction,
+      destId,
+      dest.requiresMemo,
+    );
 
     validateDebit({
       account: source,
@@ -250,7 +262,7 @@ export class PaymentOPSimulator implements OperationSimulator {
     });
   }
 
-  apply(ctx: Context, op: Operation.Payment): void {
+  apply(ctx: ApplyContext, op: Operation.Payment): void {
     const { assetId, payAmt, source, dest } = this.#getContextData(ctx, op);
 
     applyDebit({ account: source, assetId, amount: payAmt });
@@ -258,7 +270,7 @@ export class PaymentOPSimulator implements OperationSimulator {
   }
 
   #getContextData(
-    ctx: Context,
+    ctx: ApplyContext,
     op: Operation.Payment,
   ): {
     sourceId: string;
@@ -291,7 +303,7 @@ export class PaymentOPSimulator implements OperationSimulator {
 }
 
 export class PathPaymentOPSimulator implements OperationSimulator {
-  validate(ctx: Context, op: PathPaymentOP): void {
+  validate(ctx: ValidateContext, op: PathPaymentOP): void {
     const { source, sourceId, sendAssetId, sendAmount } = this.#sourceData(
       ctx,
       op,
@@ -299,6 +311,12 @@ export class PathPaymentOPSimulator implements OperationSimulator {
     const { dest, destId, destAssetId, destAmount } = this.#destinationData(
       ctx,
       op,
+    );
+
+    assertMemoWhenDestinationRequires(
+      ctx.transaction,
+      destId,
+      dest.requiresMemo,
     );
 
     validateDebit({
@@ -330,7 +348,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
     });
   }
 
-  apply(ctx: Context, op: PathPaymentOP): void {
+  apply(ctx: ApplyContext, op: PathPaymentOP): void {
     const { source, sendAssetId, sendAmount } = this.#sourceData(ctx, op);
     const { dest, destAssetId, destAmount } = this.#destinationData(ctx, op);
 
@@ -347,7 +365,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
   }
 
   #sourceData(
-    ctx: Context,
+    ctx: ApplyContext,
     op: PathPaymentOP,
   ): {
     source: AccountState;
@@ -371,7 +389,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
   }
 
   #destinationData(
-    ctx: Context,
+    ctx: ApplyContext,
     op: PathPaymentOP,
   ): {
     dest: AccountState;
@@ -396,7 +414,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
 }
 
 export class CreateAccountOPSimulator implements OperationSimulator {
-  validate(ctx: Context, op: Operation.CreateAccount): void {
+  validate(ctx: ValidateContext, op: Operation.CreateAccount): void {
     const { state, opIndex } = ctx;
     if (typeof op.destination !== 'string' || op.destination.length === 0) {
       throw new TransactionValidationException(
@@ -430,7 +448,7 @@ export class CreateAccountOPSimulator implements OperationSimulator {
     }
   }
 
-  apply(ctx: Context, op: Operation.CreateAccount): void {
+  apply(ctx: ApplyContext, op: Operation.CreateAccount): void {
     const { state } = ctx;
     const { source, destId, startingBalance } = this.#getContextData(ctx, op);
 
@@ -441,13 +459,14 @@ export class CreateAccountOPSimulator implements OperationSimulator {
       subentryCount: 0,
       numSponsoring: 0,
       numSponsored: 0,
+      requiresMemo: false,
       trustlines: new Map(),
       sep41Balances: new Map(),
     });
   }
 
   #getContextData(
-    ctx: Context,
+    ctx: ApplyContext,
     op: Operation.CreateAccount,
   ): { source: AccountState; destId: string; startingBalance: BigNumber } {
     const { txSource, state } = ctx;
@@ -460,7 +479,7 @@ export class CreateAccountOPSimulator implements OperationSimulator {
 }
 
 export class ChangeTrustOPSimulator implements OperationSimulator {
-  validate(ctx: Context, op: Operation.ChangeTrust): void {
+  validate(ctx: ValidateContext, op: Operation.ChangeTrust): void {
     const { opIndex } = ctx;
     if (
       op.limit === undefined ||
@@ -515,7 +534,7 @@ export class ChangeTrustOPSimulator implements OperationSimulator {
     }
   }
 
-  apply(ctx: Context, op: Operation.ChangeTrust): void {
+  apply(ctx: ApplyContext, op: Operation.ChangeTrust): void {
     const { source, assetId, trustlineLimit } = this.#getContextData(ctx, op);
 
     const sourceTrustline = source.trustlines.get(assetId);
@@ -555,7 +574,7 @@ export class ChangeTrustOPSimulator implements OperationSimulator {
   }
 
   #getContextData(
-    ctx: Context,
+    ctx: ApplyContext,
     op: Operation.ChangeTrust,
   ): {
     source: AccountState;
@@ -590,7 +609,7 @@ export class ChangeTrustOPSimulator implements OperationSimulator {
 }
 
 export class InvokeHostFunctionOPSimulator implements OperationSimulator {
-  validate(ctx: Context, op: Operation.InvokeHostFunction): void {
+  validate(ctx: ValidateContext, op: Operation.InvokeHostFunction): void {
     const { txSource, state, scope } = ctx;
     const sourceId = effectiveSource(op, txSource);
     // Contract transaction should always be sourced from the user wallet account
@@ -629,7 +648,7 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
     }
   }
 
-  apply(_ctx: Context, _op: Operation.InvokeHostFunction): void {
+  apply(_ctx: ApplyContext, _op: Operation.InvokeHostFunction): void {
     // InvokeHostFunction is a single operation transaction,
     // hence we don't need to apply any balance or trustline effects for Soroban invoke during simulation.
   }
