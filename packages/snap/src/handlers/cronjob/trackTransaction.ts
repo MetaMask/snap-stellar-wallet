@@ -19,6 +19,7 @@ import {
   TrackTransactionTrustlineAction,
 } from './trackTransactionHorizonTrustline';
 import type { KnownCaip2ChainId } from '../../api';
+import { KEYRING_ACCOUNT_TYPE, METAMASK_ORIGIN } from '../../constants';
 import type {
   AccountService,
   StellarKeyringAccount,
@@ -29,7 +30,11 @@ import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
-import { Duration, scheduleBackgroundEvent } from '../../utils/snap';
+import {
+  Duration,
+  scheduleBackgroundEvent,
+  trackTransactionFinalized,
+} from '../../utils/snap';
 
 /** Horizon trustline polls after RPC success (Soroban can lead Horizon indexing). */
 const HORIZON_TRUSTLINE_VERIFY_MAX_ATTEMPTS = 6;
@@ -127,6 +132,14 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
         scope,
       });
       keyringStatus = TransactionStatus.Confirmed;
+
+      // TODO: we hardcode the account type, and orgin for now,
+      // We will address it when this module is refactored.
+      await trackTransactionFinalized({
+        origin: METAMASK_ORIGIN,
+        accountType: KEYRING_ACCOUNT_TYPE,
+        chainIdCaip: scope,
+      });
     } catch (error: unknown) {
       if (error instanceof TransactionPollException) {
         if (error.status === 'unknown') {

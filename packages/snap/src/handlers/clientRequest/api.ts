@@ -16,6 +16,7 @@ import {
   integer,
   min,
   record,
+  coerce,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
@@ -44,6 +45,7 @@ export enum ClientRequestMethod {
   /** -------------------------------- Wallet Standard -------------------------------- */
   OnAddressInput = 'onAddressInput',
   OnAmountInput = 'onAmountInput',
+  ConfirmSend = 'confirmSend',
   // Standard multichain workflow for bridge
   SignAndSendTransaction = 'signAndSendTransaction',
   ComputeFee = 'computeFee',
@@ -221,26 +223,54 @@ export const OnAddressInputJsonRpcResponseStruct = object({
   ),
 });
 
-/**
- * Validation struct for the onAmountInput JSON-RPC request.
- */
-export const OnAmountInputJsonRpcRequestStruct = refine(
+const OnAmountInputParamsWireStruct = object({
+  accountId: UuidStruct,
+  assetId: union([
+    KnownCaip19ClassicAssetStruct,
+    KnownCaip19Sep41AssetStruct,
+    KnownCaip19Slip44IdStruct,
+  ]),
+  value: nonempty(string()),
+  to: optional(StellarAddressStruct),
+});
+
+const OnAmountInputParamsStruct = assign(
+  OnAmountInputParamsWireStruct,
+  object({
+    scope: KnownCaip2ChainIdStruct,
+  }),
+);
+
+const OnAmountInputJsonRpcRequestCoercedStruct = coerce(
   assign(
     JsonRpcRequestStruct,
     object({
       method: literal(ClientRequestMethod.OnAmountInput),
-      params: object({
-        accountId: UuidStruct,
-        assetId: union([
-          KnownCaip19ClassicAssetStruct,
-          KnownCaip19Sep41AssetStruct,
-          KnownCaip19Slip44IdStruct,
-        ]),
-        value: nonempty(string()),
-        to: optional(StellarAddressStruct),
-      }),
+      params: OnAmountInputParamsStruct,
     }),
   ),
+  assign(
+    JsonRpcRequestStruct,
+    object({
+      method: literal(ClientRequestMethod.OnAmountInput),
+      params: OnAmountInputParamsWireStruct,
+    }),
+  ),
+  (request) => ({
+    ...request,
+    params: {
+      ...request.params,
+      scope: parseCaipAssetType(request.params.assetId).chainId,
+    },
+  }),
+);
+
+/**
+ * Validation struct for the onAmountInput JSON-RPC request.
+ * Derives `scope` from `assetId` (clients do not send scope).
+ */
+export const OnAmountInputJsonRpcRequestStruct = refine(
+  OnAmountInputJsonRpcRequestCoercedStruct,
   'on-amount-input-request',
   ({ params }) => {
     if (
@@ -263,6 +293,79 @@ export const OnAmountInputJsonRpcResponseStruct = object({
       code: string(),
     }),
   ),
+});
+
+const ConfirmSendParamsStruct = object({
+  fromAccountId: UuidStruct,
+  toAddress: StellarAddressStruct,
+  assetId: union([
+    KnownCaip19ClassicAssetStruct,
+    KnownCaip19Sep41AssetStruct,
+    KnownCaip19Slip44IdStruct,
+  ]),
+  amount: nonempty(string()),
+});
+
+/**
+ * Validation struct for the confirmSend JSON-RPC request.
+ * Coerces `fromAccountId` to `accountId` and derives `scope` from `assetId` (clients do not send scope).
+ */
+export const ConfirmSendJsonRpcRequestCoercedStruct = coerce(
+  assign(
+    JsonRpcRequestStruct,
+    object({
+      method: literal(ClientRequestMethod.ConfirmSend),
+      params: assign(
+        ConfirmSendParamsStruct,
+        object({
+          accountId: UuidStruct,
+          scope: KnownCaip2ChainIdStruct,
+        }),
+      ),
+    }),
+  ),
+  assign(
+    JsonRpcRequestStruct,
+    object({
+      method: literal(ClientRequestMethod.ConfirmSend),
+      params: ConfirmSendParamsStruct,
+    }),
+  ),
+  (request) => ({
+    ...request,
+    params: {
+      ...request.params,
+      accountId: request.params.fromAccountId,
+      scope: parseCaipAssetType(request.params.assetId).chainId,
+    },
+  }),
+);
+
+export const ConfirmSendJsonRpcRequestStruct = refine(
+  ConfirmSendJsonRpcRequestCoercedStruct,
+  'confirm-send-request',
+  ({ params }) => {
+    if (
+      (isSep41Id(params.assetId) && ValidAmountStruct.is(params.amount)) ||
+      (!isSep41Id(params.assetId) && ValidStellarAmountStruct.is(params.amount))
+    ) {
+      return true;
+    }
+    return 'Invalid amount';
+  },
+);
+
+/**
+ * Validation struct for the confirmSend JSON-RPC response.
+ */
+export const ConfirmSendJsonRpcResponseStruct = object({
+  valid: boolean(),
+  errors: array(
+    object({
+      code: string(),
+    }),
+  ),
+  transactionId: optional(StellarTransactionHashStruct),
 });
 
 /**
@@ -357,6 +460,20 @@ export type OnAmountInputJsonRpcRequest = Infer<
  */
 export type OnAmountInputJsonRpcResponse = Infer<
   typeof OnAmountInputJsonRpcResponseStruct
+>;
+
+/**
+ * Type for the confirmSend JSON-RPC request.
+ */
+export type ConfirmSendJsonRpcRequest = Infer<
+  typeof ConfirmSendJsonRpcRequestStruct
+>;
+
+/**
+ * Type for the confirmSend JSON-RPC response.
+ */
+export type ConfirmSendJsonRpcResponse = Infer<
+  typeof ConfirmSendJsonRpcResponseStruct
 >;
 
 /**

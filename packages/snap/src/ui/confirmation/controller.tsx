@@ -10,8 +10,11 @@ import {
   formatFeeData,
   formatOrigin,
   getPreferencesWithFallback,
+  hasEnabledTransactionScan,
 } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
+import { METAMASK_ORIGIN } from '../../constants';
+import type { SecurityScanRequest } from '../../services/transaction-scan';
 import type { ILogger, Locale } from '../../utils';
 import {
   createInterface,
@@ -22,6 +25,8 @@ import {
   updateInterfaceIfExists,
 } from '../../utils';
 import { STELLAR_IMAGE } from '../images/icon';
+import type { ConfirmSendTransactionProps } from './views/ConfirmSendTransaction/ConfirmSendTransaction';
+import { ConfirmSendTransaction } from './views/ConfirmSendTransaction/ConfirmSendTransaction';
 import {
   ConfirmSignAuthEntry,
   type ConfirmSignAuthEntryProps,
@@ -57,9 +62,15 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
   renderContext: Props;
   origin?: string;
   renderOptions?: ConfirmationRenderOptions;
+  securityScanRequest?: Omit<SecurityScanRequest, 'origin' | 'scope'>;
   tokenPrices?: ContextWithPrices['tokenPrices'];
 };
 
+type ConfirmationDialogWithFee =
+  | ConfirmationInterfaceKey.SignTransaction
+  | ConfirmationInterfaceKey.ChangeTrustlineOptIn
+  | ConfirmationInterfaceKey.ChangeTrustlineOptOut
+  | ConfirmationInterfaceKey.ConfirmSendTransaction;
 /**
  * Discriminated union: confirmations that have a fee (example: sign transaction)
  * MUST provide one; fee-less confirmations (sign message, etc.) MUST NOT.
@@ -68,18 +79,13 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
  */
 type RenderConfirmationDialogParams<Props extends ConfirmationViewProps> =
   | (RenderConfirmationDialogCommon<Props> & {
-      interfaceKey:
-        | ConfirmationInterfaceKey.SignTransaction
-        | ConfirmationInterfaceKey.ChangeTrustlineOptIn
-        | ConfirmationInterfaceKey.ChangeTrustlineOptOut;
+      interfaceKey: ConfirmationDialogWithFee;
       fee: string;
     })
   | (RenderConfirmationDialogCommon<Props> & {
       interfaceKey: Exclude<
         ConfirmationInterfaceKey,
-        | ConfirmationInterfaceKey.SignTransaction
-        | ConfirmationInterfaceKey.ChangeTrustlineOptIn
-        | ConfirmationInterfaceKey.ChangeTrustlineOptOut
+        ConfirmationDialogWithFee
       >;
       fee?: never;
     });
@@ -107,7 +113,7 @@ export class ConfirmationUXController {
    * @param params.renderContext - The context for the render.
    * @param params.interfaceKey - The key of the interface to render.
    * @param params.fee - Fee in stroops, REQUIRED for SignTransaction, forbidden otherwise.
-   * @param params.origin - [Optional] The origin of the confirmation. Defaults to 'metamask'.
+   * @param params.origin - [Optional] The origin of the confirmation. Defaults to METAMASK_ORIGIN.
    * @param params.renderOptions - [Optional] The options for the render. Defaults to {@link #defaultRenderOptions}.
    * @param params.tokenPrices - [Optional] The token prices for the render {@link ContextWithPrices['tokenPrices']}.
    * @returns A promise that resolves to the dialog result.
@@ -120,13 +126,19 @@ export class ConfirmationUXController {
         interfaceKey,
         scope,
         renderContext,
-        origin = 'metamask',
+        origin = METAMASK_ORIGIN,
         fee,
-        renderOptions = {
-          ...this.#defaultRenderOptions,
-          ...params.renderOptions,
-        },
       } = params;
+      const renderOptions = {
+        ...this.#defaultRenderOptions,
+        ...params.renderOptions,
+      };
+
+      if (renderOptions.scanTxn && params.securityScanRequest === undefined) {
+        throw new Error(
+          'Cannot scan a transaction confirmation without a security scan request.',
+        );
+      }
 
       const preferences = await getPreferencesWithFallback();
 
@@ -152,6 +164,11 @@ export class ConfirmationUXController {
         preferences.useExternalPricingData &&
         tokenPrices !== undefined;
 
+      const enableSecurityScan =
+        renderOptions.scanTxn &&
+        hasEnabledTransactionScan(preferences) &&
+        params.securityScanRequest !== undefined;
+
       const defaultContext = {
         // if pricing is disabled, mark as fetched immediately
         tokenPricesFetchStatus: enablePricing
@@ -164,6 +181,19 @@ export class ConfirmationUXController {
         currency: preferences.currency,
         scope,
         feeData: fee ? formatFeeData(scope, fee) : {},
+        scan: null,
+        scanFetchStatus: enableSecurityScan
+          ? FetchStatus.Fetching
+          : FetchStatus.Fetched,
+        ...(enableSecurityScan
+          ? {
+              securityScanRequest: {
+                ...params.securityScanRequest,
+                origin,
+                scope,
+              },
+            }
+          : {}),
         tokenPrices,
       };
 
@@ -180,9 +210,7 @@ export class ConfirmationUXController {
       );
       const dialogPromise = showDialog(id);
 
-      // 3. TODO: Perform security scan (always needed for estimated changes simulation)
-
-      // 4. Update interface with scan results after initial render (silently ignores if dismissed)
+      // 3. Update interface context after initial render (silently ignores if dismissed)
       const updated = await updateInterfaceIfExists(
         id,
         this.#renderConfirmationView(interfaceKey, context),
@@ -199,7 +227,9 @@ export class ConfirmationUXController {
       if (enablePricing) {
         refresherKeys.push(ConfirmationContextRefresherKey.Prices);
       }
-      // TODO: if (renderOptions.scanTxn) { refresherKeys.push(ConfirmationContextRefresherKey.Scan); }
+      if (enableSecurityScan) {
+        refresherKeys.push(ConfirmationContextRefresherKey.Scan);
+      }
 
       if (refresherKeys.length > 0) {
         await RefreshConfirmationContextHandler.scheduleBackgroundEvent(
@@ -275,6 +305,12 @@ export class ConfirmationUXController {
         return (
           <ConfirmSignAuthEntry
             {...(context as unknown as ConfirmSignAuthEntryProps)}
+          />
+        );
+      case ConfirmationInterfaceKey.ConfirmSendTransaction:
+        return (
+          <ConfirmSendTransaction
+            {...(context as unknown as ConfirmSendTransactionProps)}
           />
         );
       default: {

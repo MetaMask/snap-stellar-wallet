@@ -70,3 +70,24 @@ export const MAX_INT64 = '9223372036854775807';
  * The type for the keyring account.
  */
 export const KEYRING_ACCOUNT_TYPE = XlmAccountType.Account;
+
+/**
+ * The origin for the MetaMask wallet.
+ */
+export const METAMASK_ORIGIN = 'metamask';
+
+/**
+ * The key for the memo required attribute.
+ * It is used to check if the account requires a memo based on the SEP-0029 standard.
+ *
+ * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0029.md
+ */
+export const MEMO_REQUIRED_KEY = 'config.memo_required';
+
+/**
+ * ACCOUNT_REQUIRES_MEMO is the base64 encoding of "1".
+ * SEP 29 uses this value to define transaction memo requirements for incoming payments.
+ *
+ * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0029.md
+ */
+export const ACCOUNT_REQUIRES_MEMO = 'MQ==';

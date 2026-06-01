@@ -56,6 +56,10 @@ const destinationAddress =
   'GDTF7ERUQVTX23ZD6NY5XRYC5IQAKWFVTQ6IXSMEZWGVNDDGPYCVHRZP';
 
 describe('OnAmountInputHandler', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   const accountId = '11111111-1111-4111-8111-111111111111';
   const assetId = USDC_CLASSIC as KnownCaip19ClassicAssetId;
   const scope = KnownCaip2ChainId.Mainnet;
@@ -131,10 +135,15 @@ describe('OnAmountInputHandler', () => {
   }
 
   function baseRequest(
-    overrides: Partial<OnAmountInputJsonRpcRequest['params']> = {},
-  ): OnAmountInputJsonRpcRequest {
+    overrides: Partial<
+      Pick<
+        OnAmountInputJsonRpcRequest['params'],
+        'accountId' | 'assetId' | 'value' | 'to'
+      >
+    > = {},
+  ) {
     return {
-      jsonrpc: '2.0',
+      jsonrpc: '2.0' as const,
       id: 1,
       method: ClientRequestMethod.OnAmountInput,
       params: {
@@ -168,11 +177,21 @@ describe('OnAmountInputHandler', () => {
   });
 
   it('returns valid when send validation succeeds', async () => {
-    const { handler, onChainAccount, createValidatedSendTransaction } = setup();
+    const {
+      handler,
+      account,
+      onChainAccount,
+      createValidatedSendTransaction,
+      resolveOnChainAccountByKeyringAccountIdSpy,
+    } = setup();
 
     const result = await handler.handle(baseRequest());
 
     expect(result).toStrictEqual({ valid: true, errors: [] });
+    expect(resolveOnChainAccountByKeyringAccountIdSpy).toHaveBeenCalledWith(
+      account.id,
+      scope,
+    );
     expect(createValidatedSendTransaction).toHaveBeenCalledWith({
       onChainAccount,
       scope,
@@ -181,6 +200,29 @@ describe('OnAmountInputHandler', () => {
       destination: onChainAccount.accountId,
       useCache: true,
     });
+  });
+
+  it('resolves on-chain account using scope derived from assetId', async () => {
+    const testnetAssetId = `${KnownCaip2ChainId.Testnet}/slip44:148`;
+    const {
+      handler,
+      account,
+      createValidatedSendTransaction,
+      resolveOnChainAccountByKeyringAccountIdSpy,
+    } = setup();
+
+    await handler.handle(baseRequest({ assetId: testnetAssetId }));
+
+    expect(resolveOnChainAccountByKeyringAccountIdSpy).toHaveBeenCalledWith(
+      account.id,
+      KnownCaip2ChainId.Testnet,
+    );
+    expect(createValidatedSendTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: KnownCaip2ChainId.Testnet,
+        assetId: testnetAssetId,
+      }),
+    );
   });
 
   it('passes explicit destination when params.to is set', async () => {

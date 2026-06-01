@@ -2,18 +2,22 @@ import type { GetPreferencesResult } from '@metamask/snaps-sdk';
 import type { CaipAccountId } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
-import type { FeeData } from './api';
+import { FetchStatus, type FeeData } from './api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import { parseOperationAssetReference } from '../../services/transaction/utils';
+import {
+  TransactionScanValidationType,
+  type TransactionScanResult,
+} from '../../services/transaction-scan';
 import type { Locale } from '../../utils';
 import {
   FALLBACK_LANGUAGE,
   getPreferences,
-  normalizeAmount,
   parseClassicAssetCodeIssuer,
+  toDisplayBalance,
 } from '../../utils';
 import { xlmIcon } from '../images';
 
@@ -93,6 +97,18 @@ export async function getPreferencesWithFallback(): Promise<GetPreferencesResult
 }
 
 /**
+ * Gets the account explorer url for a given account address.
+ *
+ * @param address - The account address.
+ * @returns The account explorer url.
+ */
+export function getAccountExplorerUrl(address: string): string {
+  return `${
+    AppConfig.networks[AppConfig.selectedNetwork].explorerBaseUrl
+  }/account/${address}`;
+}
+
+/**
  * Gets the classic asset explorer url for a given asset reference.
  *
  * @param assetReference - The asset reference.
@@ -143,13 +159,47 @@ export function formatFeeData(
   amountInStroops: string,
 ): FeeData {
   const nativeAssetMetadata = getNativeAssetMetadata(scope);
-  const amountInLumen = normalizeAmount(new BigNumber(amountInStroops));
+  const amountInLumen = toDisplayBalance(new BigNumber(amountInStroops));
   return {
     assetId: nativeAssetMetadata.assetId,
     symbol: nativeAssetMetadata.symbol,
     iconUrl: nativeAssetMetadata.iconUrl,
-    amount: amountInLumen.toString(),
+    amount: amountInLumen,
   };
+}
+
+/**
+ * Determines whether a transaction confirmation must be temporarily blocked by scan state.
+ *
+ * @param params - Scan and preference state.
+ * @param params.preferences - User preferences controlling scan behavior.
+ * @param params.scan - Latest transaction scan result.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @returns True when the confirm action should be disabled.
+ */
+export function isConfirmDisabledByScan(params: {
+  preferences: GetPreferencesResult;
+  scan?: TransactionScanResult | null;
+  scanFetchStatus: FetchStatus;
+}): boolean {
+  const { preferences, scan, scanFetchStatus } = params;
+  return (
+    scanFetchStatus === FetchStatus.Fetching ||
+    (preferences.useSecurityAlerts &&
+      scan?.validation?.type === TransactionScanValidationType.Malicious)
+  );
+}
+
+/**
+ * Determines whether transaction scan UI should be shown for the current preferences.
+ *
+ * @param preferences - User preferences controlling scan behavior.
+ * @returns True when either security validation alerts or simulation alerts are enabled.
+ */
+export function hasEnabledTransactionScan(
+  preferences: GetPreferencesResult,
+): boolean {
+  return preferences.useSecurityAlerts || preferences.simulateOnChainActions;
 }
 
 /**
