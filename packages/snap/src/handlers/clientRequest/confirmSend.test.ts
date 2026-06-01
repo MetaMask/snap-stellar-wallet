@@ -266,6 +266,9 @@ describe('ConfirmSendHandler', () => {
       scheduleBackgroundEvent,
     } = setup();
 
+    // Capture XDR before signing mutates the transaction.
+    const unsignedScanXdr = transaction.getRaw().toXDR();
+
     const result = await handler.handle(baseRequest());
 
     expect(result).toStrictEqual({
@@ -293,6 +296,11 @@ describe('ConfirmSendHandler', () => {
       },
       renderOptions: {
         loadPrice: true,
+        scanTxn: true,
+      },
+      securityScanRequest: {
+        accountAddress: account.address,
+        transaction: unsignedScanXdr,
       },
       tokenPrices: {
         [assetId]: null,

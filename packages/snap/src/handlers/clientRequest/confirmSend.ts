@@ -27,7 +27,10 @@ import {
   TransactionValidationException,
   KeyringTransactionType,
 } from '../../services/transaction';
-import type { TransactionService } from '../../services/transaction';
+import type {
+  Transaction,
+  TransactionService,
+} from '../../services/transaction';
 import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import {
@@ -152,6 +155,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           assetMetadata,
           scope,
           fee: transaction.totalFee,
+          transaction,
         }))
       ) {
         await trackTransactionRejected({
@@ -240,8 +244,9 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     assetMetadata: StellarAssetMetadata;
     scope: KnownCaip2ChainId;
     fee: BigNumber;
+    transaction: Transaction;
   }): Promise<boolean> {
-    const { request, account, assetMetadata, fee, scope } = params;
+    const { request, account, assetMetadata, fee, scope, transaction } = params;
     const { toAddress, amount, assetId } = request.params;
 
     return (
@@ -258,6 +263,11 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         interfaceKey: ConfirmationInterfaceKey.ConfirmSendTransaction,
         renderOptions: {
           loadPrice: true,
+          scanTxn: true,
+        },
+        securityScanRequest: {
+          accountAddress: account.address,
+          transaction: transaction.getRaw().toXDR(),
         },
         tokenPrices: {
           [assetId]: null,
