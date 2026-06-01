@@ -406,10 +406,6 @@ export class OnChainAccount {
   /**
    * Builds from a Horizon `loadAccount` response.
    * With a native balance line → full binding (includes `data_attr` as `meta.dataEntries`);
-   * otherwise → minimal binding (id, sequence, scope only — no balances or data entries).
-   *
-   * Any account that exists on the ledger has a native (XLM) balance line, so minimal binding
-   * is mainly for tests or malformed Horizon payloads, not normal `loadAccount` results.
    *
    * @param response - Horizon `loadAccount` payload.
    * @param scope - CAIP-2 network.
