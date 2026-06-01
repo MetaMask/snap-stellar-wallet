@@ -9,8 +9,8 @@ import {
   KnownCaip2ChainId,
 } from '../../api';
 import { AccountService } from '../../services/account';
+import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import { AccountAssetInfoService } from '../../services/account-asset-info';
-import { GetAccountAssetInfoException } from '../../services/account-asset-info/exceptions';
 import {
   createMockAssetMetadataService,
   generateMockKeyringAssetMetadata,
@@ -26,15 +26,20 @@ import {
   type MockAccountWithBalancesData,
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
+import { WalletService } from '../../services/wallet';
+import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { getSlip44AssetId } from '../../utils';
 import { logger } from '../../utils/logger';
+import { AccountResolver } from '../accountResolver';
 
 jest.mock('../../utils/logger');
+jest.mock('../../ui/confirmation/views/AccountActivationPrompt/render', () => ({
+  render: jest.fn().mockResolvedValue(undefined),
+}));
 
 describe('GetAccountAssetInfoHandler', () => {
   const mockAccountId = '11111111-1111-4111-8111-111111111111';
   const scope = KnownCaip2ChainId.Mainnet;
-  let handler: GetAccountAssetInfoHandler;
 
   const createTestOnChainAccount = (
     address: string,
@@ -48,11 +53,28 @@ describe('GetAccountAssetInfoHandler', () => {
     );
   };
 
-  beforeEach(() => {
-    jest.clearAllMocks();
+  function setup() {
+    const wallet = getTestWallet();
+    const account = generateStellarKeyringAccount(
+      mockAccountId,
+      'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+      'entropy-source-1',
+      0,
+    );
 
-    const { accountService, onChainAccountService } =
+    const { accountService, onChainAccountService, walletService } =
       mockOnChainAccountService();
+    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
+      account,
+    });
+    jest
+      .spyOn(WalletService.prototype, 'resolveWallet')
+      .mockResolvedValue(wallet);
+    const resolveOnChainAccountByKeyringAccountIdSpy = jest.spyOn(
+      OnChainAccountService.prototype,
+      'resolveOnChainAccountByKeyringAccountId',
+    );
+
     const { service: assetMetadataService, getAssetsMetadataByAssetIdsSpy } =
       createMockAssetMetadataService();
     const mockKeyringAssetMetadata = generateMockKeyringAssetMetadata();
@@ -74,19 +96,30 @@ describe('GetAccountAssetInfoHandler', () => {
       assetMetadataService,
     });
 
-    handler = new GetAccountAssetInfoHandler({
+    const accountResolver = new AccountResolver({
+      accountService,
+      onChainAccountService,
+      walletService,
+    });
+
+    const handler = new GetAccountAssetInfoHandler({
       logger,
+      accountResolver,
       accountAssetInfoService,
     });
+
+    return {
+      handler,
+      resolveOnChainAccountByKeyringAccountIdSpy,
+    };
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('returns metadata and trustline extra for a classic asset with limit', async () => {
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: {
-        id: mockAccountId,
-        address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
-      },
-    } as Awaited<ReturnType<AccountService['resolveAccount']>>);
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
       'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
     );
@@ -98,12 +131,9 @@ describe('GetAccountAssetInfoHandler', () => {
       sponsored: false,
       decimals: 7,
     });
-    jest
-      .spyOn(
-        OnChainAccountService.prototype,
-        'resolveOnChainAccountByKeyringAccountId',
-      )
-      .mockResolvedValue(onChainAccount);
+    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValue(
+      onChainAccount,
+    );
 
     const result = (await handler.handle({
       jsonrpc: '2.0',
@@ -127,12 +157,7 @@ describe('GetAccountAssetInfoHandler', () => {
   });
 
   it('returns extra with zero limit for classic tombstone rows', async () => {
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: {
-        id: mockAccountId,
-        address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
-      },
-    } as Awaited<ReturnType<AccountService['resolveAccount']>>);
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
       'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
     );
@@ -142,12 +167,9 @@ describe('GetAccountAssetInfoHandler', () => {
       limit: new BigNumber(0),
       decimals: 7,
     });
-    jest
-      .spyOn(
-        OnChainAccountService.prototype,
-        'resolveOnChainAccountByKeyringAccountId',
-      )
-      .mockResolvedValue(onChainAccount);
+    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValue(
+      onChainAccount,
+    );
 
     const result = (await handler.handle({
       jsonrpc: '2.0',
@@ -164,21 +186,13 @@ describe('GetAccountAssetInfoHandler', () => {
   });
 
   it('omits extra when classic asset has no on-chain row', async () => {
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: {
-        id: mockAccountId,
-        address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
-      },
-    } as Awaited<ReturnType<AccountService['resolveAccount']>>);
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
       'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
     );
-    jest
-      .spyOn(
-        OnChainAccountService.prototype,
-        'resolveOnChainAccountByKeyringAccountId',
-      )
-      .mockResolvedValue(onChainAccount);
+    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValue(
+      onChainAccount,
+    );
 
     const result = (await handler.handle({
       jsonrpc: '2.0',
@@ -196,18 +210,8 @@ describe('GetAccountAssetInfoHandler', () => {
   });
 
   it('tolerates unactivated accounts with null on-chain state', async () => {
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: {
-        id: mockAccountId,
-        address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
-      },
-    } as Awaited<ReturnType<AccountService['resolveAccount']>>);
-    jest
-      .spyOn(
-        OnChainAccountService.prototype,
-        'resolveOnChainAccountByKeyringAccountId',
-      )
-      .mockResolvedValue(null);
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
+    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValue(null);
 
     const result = (await handler.handle({
       jsonrpc: '2.0',
@@ -226,12 +230,7 @@ describe('GetAccountAssetInfoHandler', () => {
 
   it('returns native slip44 metadata when on-chain account exists', async () => {
     const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: {
-        id: mockAccountId,
-        address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
-      },
-    } as Awaited<ReturnType<AccountService['resolveAccount']>>);
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
       'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
       {
@@ -239,12 +238,9 @@ describe('GetAccountAssetInfoHandler', () => {
         nativeBalance: 1.000001,
       },
     );
-    jest
-      .spyOn(
-        OnChainAccountService.prototype,
-        'resolveOnChainAccountByKeyringAccountId',
-      )
-      .mockResolvedValue(onChainAccount);
+    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValue(
+      onChainAccount,
+    );
 
     const result = (await handler.handle({
       jsonrpc: '2.0',
@@ -260,19 +256,11 @@ describe('GetAccountAssetInfoHandler', () => {
     expect(result).toHaveProperty(slipId);
   });
 
-  it('throws when asset info resolution fails', async () => {
-    jest.spyOn(AccountService.prototype, 'resolveAccount').mockResolvedValue({
-      account: {
-        id: mockAccountId,
-        address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
-      },
-    } as Awaited<ReturnType<AccountService['resolveAccount']>>);
-    jest
-      .spyOn(
-        OnChainAccountService.prototype,
-        'resolveOnChainAccountByKeyringAccountId',
-      )
-      .mockRejectedValue(new Error('Horizon unavailable'));
+  it('throws when on-chain account resolution fails', async () => {
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
+    resolveOnChainAccountByKeyringAccountIdSpy.mockRejectedValue(
+      new Error('Horizon unavailable'),
+    );
 
     await expect(
       handler.handle({
@@ -285,6 +273,6 @@ describe('GetAccountAssetInfoHandler', () => {
           assets: [USDC_CLASSIC],
         },
       }),
-    ).rejects.toThrow(GetAccountAssetInfoException);
+    ).rejects.toThrow('Horizon unavailable');
   });
 });

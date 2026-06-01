@@ -34,6 +34,8 @@ export type GetAccountAssetInfoParams = {
   accountId: string;
   scope: KnownCaip2ChainId;
   assets: KnownCaip19AssetIdOrSlip44Id[];
+  /** When set, skips on-chain resolution and uses this snapshot (including `null`). */
+  onChainAccount?: OnChainAccount | null;
 };
 
 export class AccountAssetInfoService {
@@ -73,17 +75,22 @@ export class AccountAssetInfoService {
   async getAccountAssetInfo(
     params: GetAccountAssetInfoParams,
   ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoEntry>> {
-    const { accountId, scope, assets } = params;
+    const {
+      accountId,
+      scope,
+      assets,
+      onChainAccount: providedOnChainAccount,
+    } = params;
     const result = {} as Record<
       KnownCaip19AssetIdOrSlip44Id,
       AccountAssetInfoEntry
     >;
 
     try {
-      const onChainAccount = await this.#resolveOnChainAccount(
-        accountId,
-        scope,
-      );
+      const onChainAccount =
+        providedOnChainAccount === undefined
+          ? await this.#resolveOnChainAccount(accountId, scope)
+          : providedOnChainAccount;
 
       const assetsMetadata =
         await this.#assetMetadataService.getAssetsMetadataByAssetIds(assets);
