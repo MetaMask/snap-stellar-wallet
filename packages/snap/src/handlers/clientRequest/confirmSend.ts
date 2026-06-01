@@ -264,10 +264,16 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         renderOptions: {
           loadPrice: true,
           scanTxn: true,
+          validateTxn: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
           transaction: transaction.getRaw().toXDR(),
+        },
+        transactionValidationRequest: {
+          accountId: account.id,
+          transaction: transaction.getRaw().toXDR(),
+          request,
         },
         tokenPrices: {
           [assetId]: null,

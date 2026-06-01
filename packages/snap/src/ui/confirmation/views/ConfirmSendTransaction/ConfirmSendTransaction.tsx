@@ -27,7 +27,12 @@ import type {
   FeeData,
 } from '../../api';
 import { FetchStatus } from '../../api';
-import { Asset, FeeRow, TransactionAlert } from '../../components';
+import {
+  Asset,
+  FeeRow,
+  TransactionAlert,
+  TransactionValidationAlert,
+} from '../../components';
 import {
   getAccountExplorerUrl,
   getAccountName,
@@ -36,6 +41,7 @@ import {
   getSepAssetExplorerUrl,
   hasEnabledTransactionScan,
   isConfirmDisabledByScan,
+  isConfirmDisabledByTransactionValidation,
 } from '../../utils';
 
 export type ConfirmSendTransactionProps = ConfirmationBaseProps &
@@ -63,15 +69,17 @@ export const ConfirmSendTransaction = ({
   tokenPricesFetchStatus = FetchStatus.Initial,
   scan,
   scanFetchStatus = FetchStatus.Initial,
+  transactionsFetchStatus = FetchStatus.Initial,
 }: ConfirmSendTransactionProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
   const { assetId, symbol } = assetMetadata;
-  const shouldDisableConfirmButton = isConfirmDisabledByScan({
-    preferences,
-    scan,
-    scanFetchStatus,
-  });
+  const shouldDisableConfirmButton =
+    isConfirmDisabledByScan({
+      preferences,
+      scan,
+      scanFetchStatus,
+    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
   const parsedAsset = parseCaipAssetType(assetId);
   let assetLink: string | undefined;
   if (!isSlip44Id(assetId)) {
@@ -94,6 +102,10 @@ export const ConfirmSendTransaction = ({
             preferences={preferences}
           />
         ) : null}
+        <TransactionValidationAlert
+          preferences={preferences}
+          transactionsFetchStatus={transactionsFetchStatus}
+        />
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">{t(`confirmation.transaction.title`)}</Heading>

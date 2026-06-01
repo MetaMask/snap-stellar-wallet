@@ -20,7 +20,14 @@ import {
   KnownCaip19ClassicAssetStruct,
   KnownCaip19Sep41AssetStruct,
   KnownCaip19Slip44IdStruct,
+  KnownCaip2ChainIdStruct,
+  UuidStruct,
+  XdrStruct,
 } from '../../api';
+import {
+  ChangeTrustOptJsonRpcRequestStruct,
+  ConfirmSendJsonRpcRequestStruct,
+} from '../../handlers/clientRequest/api';
 import {
   SecurityScanRequestStruct,
   TransactionScanResultStruct,
@@ -76,6 +83,26 @@ export type ContextWithSecurityScan = Infer<
   typeof ContextWithSecurityScanStruct
 >;
 
+/**
+ * Context required to re-validate the pending transaction (time bounds, fees,
+ * balance) against the latest on-chain state while the confirmation dialog is open.
+ */
+export const ContextWithTransactionScanStruct = type({
+  transaction: nonempty(XdrStruct),
+  transactionsFetchStatus: enums(Object.values(FetchStatus)),
+  accountId: UuidStruct,
+  scope: KnownCaip2ChainIdStruct,
+  // Only send and change-trust transactions are re-validated.
+  request: union([
+    ConfirmSendJsonRpcRequestStruct,
+    ChangeTrustOptJsonRpcRequestStruct,
+  ]),
+});
+
+export type ContextWithTransactionScan = Infer<
+  typeof ContextWithTransactionScanStruct
+>;
+
 export enum ConfirmationInterfaceKey {
   ChangeTrustlineOptIn = 'ChangeTrustlineOptIn',
   ChangeTrustlineOptOut = 'ChangeTrustlineOptOut',
@@ -97,6 +124,7 @@ export type ConfirmationBaseProps = Partial<ContextWithPrices> & {
   scan?: TransactionScanResult | null;
   scanFetchStatus?: FetchStatus;
   securityScanRequest?: SecurityScanRequest;
+  transactionsFetchStatus?: FetchStatus;
   preferences: GetPreferencesResult;
   locale: string;
   scope: KnownCaip2ChainId;

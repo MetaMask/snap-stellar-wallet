@@ -297,10 +297,18 @@ describe('ConfirmSendHandler', () => {
       renderOptions: {
         loadPrice: true,
         scanTxn: true,
+        validateTxn: true,
       },
       securityScanRequest: {
         accountAddress: account.address,
         transaction: unsignedScanXdr,
+      },
+      transactionValidationRequest: {
+        accountId: account.id,
+        transaction: unsignedScanXdr,
+        request: expect.objectContaining({
+          method: ClientRequestMethod.ConfirmSend,
+        }),
       },
       tokenPrices: {
         [assetId]: null,

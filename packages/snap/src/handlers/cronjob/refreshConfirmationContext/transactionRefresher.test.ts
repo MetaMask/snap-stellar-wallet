@@ -1,0 +1,255 @@
+import { Networks } from '@stellar/stellar-sdk';
+
+import { createConfirmationDataContext } from './__fixtures__/context.fixtures';
+import { ConfirmationContextRefresherKey } from './api';
+import { ConfirmationTransactionRefresher } from './transactionRefresher';
+import { KnownCaip2ChainId } from '../../../api';
+import type { AssetMetadataService } from '../../../services/asset-metadata';
+import type {
+  Transaction,
+  TransactionBuilder,
+  TransactionService,
+} from '../../../services/transaction';
+import { buildMockClassicTransaction } from '../../../services/transaction/__mocks__/transaction.fixtures';
+import { FetchStatus } from '../../../ui/confirmation/api';
+import { getSlip44AssetId } from '../../../utils';
+import { logger } from '../../../utils/logger';
+import type { AccountResolver } from '../../accountResolver';
+import {
+  ChangeTrustOptAction,
+  ClientRequestMethod,
+} from '../../clientRequest/api';
+
+describe('ConfirmationTransactionRefresher', () => {
+  const scope = KnownCaip2ChainId.Testnet;
+  const accountId = '11111111-1111-4111-8111-111111111111';
+  const toAddress = 'GDPMFLKUGASUTWBN2XGYYKD27QGHCYH4BUFUTER4L23INYQ4JHDWFOIE';
+
+  const transaction = buildMockClassicTransaction(
+    [
+      {
+        type: 'payment',
+        params: { destination: toAddress, asset: 'native', amount: '1' },
+      },
+    ],
+    { networkPassphrase: Networks.TESTNET },
+  );
+  const transactionXdr = transaction.getRaw().toXDR();
+
+  const sendRequest = {
+    jsonrpc: '2.0' as const,
+    id: 1,
+    method: ClientRequestMethod.ConfirmSend,
+    params: {
+      scope,
+      accountId,
+      fromAccountId: accountId,
+      toAddress,
+      assetId: getSlip44AssetId(scope),
+      amount: '1',
+    },
+  };
+
+  const classicAssetId = `stellar:testnet/asset:USDC-${toAddress}`;
+
+  const changeTrustAddRequest = {
+    jsonrpc: '2.0' as const,
+    id: 1,
+    method: ClientRequestMethod.ChangeTrustOpt,
+    params: {
+      scope,
+      accountId,
+      assetId: classicAssetId,
+      action: ChangeTrustOptAction.Add,
+      limit: '1000',
+    },
+  };
+
+  const changeTrustDeleteRequest = {
+    jsonrpc: '2.0' as const,
+    id: 1,
+    method: ClientRequestMethod.ChangeTrustOpt,
+    params: {
+      scope,
+      accountId,
+      assetId: classicAssetId,
+      action: ChangeTrustOptAction.Delete,
+    },
+  };
+
+  function setup() {
+    const accountResolver = {
+      resolveAccount: jest
+        .fn()
+        .mockResolvedValue({ onChainAccount: { accountId, scope } }),
+    };
+    const transactionBuilder = {
+      deserialize: jest.fn().mockReturnValue(transaction),
+    };
+    const transactionService = {
+      createValidatedSendTransaction: jest.fn().mockResolvedValue(transaction),
+      createValidatedChangeTrustTransaction: jest
+        .fn()
+        .mockResolvedValue(transaction),
+    };
+    const assetMetadataService = {
+      resolve: jest.fn().mockResolvedValue({ units: [{ decimals: 7 }] }),
+    };
+
+    const refresher = new ConfirmationTransactionRefresher({
+      logger,
+      accountResolver: accountResolver as unknown as AccountResolver,
+      transactionBuilder: transactionBuilder as unknown as TransactionBuilder,
+      transactionService: transactionService as unknown as TransactionService,
+      assetMetadataService:
+        assetMetadataService as unknown as AssetMetadataService,
+    });
+
+    return {
+      refresher,
+      accountResolver,
+      transactionBuilder,
+      transactionService,
+      assetMetadataService,
+    };
+  }
+
+  function createTransactionContext(
+    overrides: Parameters<typeof createConfirmationDataContext>[0] = {},
+  ) {
+    return createConfirmationDataContext({
+      transaction: transactionXdr,
+      transactionsFetchStatus: FetchStatus.Fetched,
+      accountId,
+      scope,
+      request: sendRequest,
+      ...overrides,
+    });
+  }
+
+  it('uses the transaction refresher key', () => {
+    const { refresher } = setup();
+    expect(refresher.key).toBe(ConfirmationContextRefresherKey.Transaction);
+  });
+
+  it('re-validates the send transaction and returns no patch on success', async () => {
+    const { refresher, transactionService } = setup();
+
+    const result = await refresher.refresh(createTransactionContext());
+
+    expect(
+      transactionService.createValidatedSendTransaction,
+    ).toHaveBeenCalledWith({
+      onChainAccount: { accountId, scope },
+      scope,
+      assetId: sendRequest.params.assetId,
+      destination: toAddress,
+      amount: expect.anything(),
+    });
+    expect(result).toBeNull();
+  });
+
+  it('marks the transaction invalid when re-validation throws', async () => {
+    const { refresher, transactionService } = setup();
+    transactionService.createValidatedSendTransaction.mockRejectedValueOnce(
+      new Error('insufficient balance'),
+    );
+
+    const result = await refresher.refresh(createTransactionContext());
+
+    expect(result).toStrictEqual({
+      result: { transactionsFetchStatus: FetchStatus.Error },
+      reschedule: false,
+    });
+  });
+
+  it('re-validates a change-trust opt-in transaction', async () => {
+    const { refresher, transactionService } = setup();
+
+    const result = await refresher.refresh(
+      createTransactionContext({ request: changeTrustAddRequest }),
+    );
+
+    expect(
+      transactionService.createValidatedChangeTrustTransaction,
+    ).toHaveBeenCalledWith({
+      onChainAccount: { accountId, scope },
+      scope,
+      assetId: classicAssetId,
+      limit: '1000',
+    });
+    expect(
+      transactionService.createValidatedSendTransaction,
+    ).not.toHaveBeenCalled();
+    expect(result).toBeNull();
+  });
+
+  it('re-validates a change-trust opt-out transaction with a zero limit', async () => {
+    const { refresher, transactionService } = setup();
+
+    await refresher.refresh(
+      createTransactionContext({ request: changeTrustDeleteRequest }),
+    );
+
+    expect(
+      transactionService.createValidatedChangeTrustTransaction,
+    ).toHaveBeenCalledWith({
+      onChainAccount: { accountId, scope },
+      scope,
+      assetId: classicAssetId,
+      limit: '0',
+    });
+  });
+
+  it('marks the transaction invalid when the original envelope has expired', async () => {
+    const { refresher, transactionBuilder, transactionService } = setup();
+    // The stored XDR being signed is expired, even though the rebuilt draft would be valid.
+    // `expirationTime` is a Unix timestamp in seconds.
+    transactionBuilder.deserialize.mockReturnValueOnce({
+      expirationTime: Math.floor(Date.now() / 1000) - 1000,
+    } as unknown as Transaction);
+
+    const result = await refresher.refresh(createTransactionContext());
+
+    expect(
+      transactionService.createValidatedSendTransaction,
+    ).not.toHaveBeenCalled();
+    expect(result).toStrictEqual({
+      result: { transactionsFetchStatus: FetchStatus.Error },
+      reschedule: false,
+    });
+  });
+
+  it('does not re-fetch once the transaction is already marked invalid', () => {
+    const { refresher } = setup();
+
+    expect(
+      refresher.shouldFetch(
+        createTransactionContext({
+          transactionsFetchStatus: FetchStatus.Error,
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('does not re-fetch when the context is missing transaction fields', () => {
+    const { refresher } = setup();
+
+    expect(refresher.shouldFetch(createConfirmationDataContext())).toBe(false);
+  });
+
+  it('clears a stuck loading state via recovery', () => {
+    const { refresher } = setup();
+
+    expect(
+      refresher.recoveryResult(
+        createTransactionContext({
+          transactionsFetchStatus: FetchStatus.Fetching,
+        }),
+      ),
+    ).toStrictEqual({
+      result: { transactionsFetchStatus: FetchStatus.Fetched },
+      reschedule: false,
+    });
+  });
+});

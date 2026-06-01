@@ -7,7 +7,7 @@
     "url": "https://github.com/MetaMask/snap-stellar-wallet.git"
   },
   "source": {
-    "shasum": "/+8k8twVbD7js7193EMZ649KJ7LKbUlmVYpZvVEBmog=",
+    "shasum": "wkTOqfbQT4cVfywVvPWaHQckM/bx9gyYqVk9BazieX4=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",

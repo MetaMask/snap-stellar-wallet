@@ -26,12 +26,19 @@ import type {
   FeeData,
 } from '../../api';
 import { FetchStatus } from '../../api';
-import { Asset, AssetIcon, FeeRow, TransactionAlert } from '../../components';
+import {
+  Asset,
+  AssetIcon,
+  FeeRow,
+  TransactionAlert,
+  TransactionValidationAlert,
+} from '../../components';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
   hasEnabledTransactionScan,
   isConfirmDisabledByScan,
+  isConfirmDisabledByTransactionValidation,
   getNetworkName,
 } from '../../utils';
 
@@ -55,14 +62,16 @@ export const ConfirmSignChangeTrustOptIn = ({
   tokenPricesFetchStatus = FetchStatus.Initial,
   scan,
   scanFetchStatus = FetchStatus.Initial,
+  transactionsFetchStatus = FetchStatus.Initial,
 }: ConfirmSignChangeTrustOptInProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
-  const shouldDisableConfirmButton = isConfirmDisabledByScan({
-    preferences,
-    scan,
-    scanFetchStatus,
-  });
+  const shouldDisableConfirmButton =
+    isConfirmDisabledByScan({
+      preferences,
+      scan,
+      scanFetchStatus,
+    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
 
   return (
     <Container>
@@ -75,6 +84,10 @@ export const ConfirmSignChangeTrustOptIn = ({
             preferences={preferences}
           />
         ) : null}
+        <TransactionValidationAlert
+          preferences={preferences}
+          transactionsFetchStatus={transactionsFetchStatus}
+        />
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">
