@@ -155,16 +155,6 @@ export function assertTransactionTimeBound(transaction: Transaction): void {
 }
 
 /**
- * Return `true` when {@link Transaction.getMemo} is non-null and contains a non-whitespace character.
- *
- * @param transaction - Wrapped Stellar transaction.
- */
-export function envelopeHasUsableMemo(transaction: Transaction): boolean {
-  const memo = transaction.getMemo();
-  return memo !== null && /\S/.test(memo);
-}
-
-/**
  * Throws when `destRequiresMemo` is true and the envelope has no memo (SEP-29).
  *
  * @param transaction - Wrapped Stellar transaction.
@@ -177,7 +167,8 @@ export function assertMemoWhenDestinationRequires(
   destAccountId: string,
   destRequiresMemo: boolean,
 ): void {
-  if (!destRequiresMemo || envelopeHasUsableMemo(transaction)) {
+  const memo = transaction.getMemo();
+  if (!destRequiresMemo || (memo !== null && /\S/u.test(memo))) {
     return;
   }
   throw new RequiresMemoException(destAccountId);
