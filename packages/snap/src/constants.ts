@@ -84,6 +84,10 @@ export const METAMASK_ORIGIN = 'metamask';
  */
 export const MEMO_REQUIRED_KEY = 'config.memo_required';
 
-// ACCOUNT_REQUIRES_MEMO is the base64 encoding of "1".
-// SEP 29 uses this value to define transaction memo requirements for incoming payments.
+/**
+ * ACCOUNT_REQUIRES_MEMO is the base64 encoding of "1".
+ * SEP 29 uses this value to define transaction memo requirements for incoming payments.
+ *
+ * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0029.md
+ */
 export const ACCOUNT_REQUIRES_MEMO = 'MQ==';
