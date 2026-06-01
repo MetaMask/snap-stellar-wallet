@@ -168,6 +168,8 @@ export function assertMemoWhenDestinationRequires(
   destRequiresMemo: boolean,
 ): void {
   const memo = transaction.getMemo();
+  // Whitespace-only memos count as missing under SEP-29.
+  // Hence, we dont consider them.
   if (!destRequiresMemo || (memo !== null && /\S/u.test(memo))) {
     return;
   }
