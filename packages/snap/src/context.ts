@@ -200,6 +200,7 @@ const trackTransactionHandler = new TrackTransactionHandler({
   logger,
   networkService,
   onChainAccountService,
+  onChainAccountRepository,
   accountService,
   transactionService,
 });

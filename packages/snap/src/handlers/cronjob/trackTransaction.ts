@@ -10,8 +10,10 @@ import type {
 import {
   BackgroundEventMethod,
   TrackTransactionJsonRpcRequestStruct,
+  TrackTransactionOnChainReconciliation,
 } from './api';
 import { CronjobBaseHandler } from './base';
+import { reconcileAfterRpcSuccess } from './trackTransactionReconciliation';
 import type { KnownCaip2ChainId } from '../../api';
 import { KEYRING_ACCOUNT_TYPE, METAMASK_ORIGIN } from '../../constants';
 import type {
@@ -21,6 +23,7 @@ import type {
 import type { NetworkService } from '../../services/network';
 import { TransactionPollException } from '../../services/network/exceptions';
 import type { OnChainAccountService } from '../../services/on-chain-account';
+import type { OnChainAccountRepository } from '../../services/on-chain-account/OnChainAccountRepository';
 import type { TransactionService } from '../../services/transaction';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
@@ -31,9 +34,10 @@ import {
 } from '../../utils/snap';
 
 /**
- * Polls Soroban RPC for transaction settlement first, then updates keyring status and runs
- * {@link OnChainAccountService.synchronize}. The persisted keyring transaction in snap state
- * (by hash) is the source of truth for which account to sync.
+ * Polls Soroban RPC for transaction settlement first, optionally waits for Horizon-indexed
+ * account state, then updates keyring status and runs {@link OnChainAccountService.synchronize}.
+ * The persisted keyring transaction in snap state (by hash) is the source of truth for which
+ * account to sync.
  */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static async scheduleBackgroundEvent(
@@ -51,6 +55,8 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
 
   readonly #onChainAccountService: OnChainAccountService;
 
+  readonly #onChainAccountRepository: OnChainAccountRepository;
+
   readonly #accountService: AccountService;
 
   readonly #transactionService: TransactionService;
@@ -59,12 +65,14 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     logger,
     networkService,
     onChainAccountService,
+    onChainAccountRepository,
     accountService,
     transactionService,
   }: {
     logger: ILogger;
     networkService: NetworkService;
     onChainAccountService: OnChainAccountService;
+    onChainAccountRepository: OnChainAccountRepository;
     accountService: AccountService;
     transactionService: TransactionService;
   }) {
@@ -78,6 +86,7 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     });
     this.#networkService = networkService;
     this.#onChainAccountService = onChainAccountService;
+    this.#onChainAccountRepository = onChainAccountRepository;
     this.#accountService = accountService;
     this.#transactionService = transactionService;
   }
@@ -88,12 +97,20 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
   protected async handleCronJobRequest(
     request: TrackTransactionJsonRpcRequest,
   ): Promise<void> {
-    const { txId, scope, accountIds, attempt: attemptRaw } = request.params;
+    const {
+      txId,
+      scope,
+      accountIds,
+      attempt: attemptRaw,
+      onChainReconciliation,
+    } = request.params;
 
     this.logger.debug('Tracking transaction', {
       txId,
       scope,
       attempt: attemptRaw ?? 0,
+      onChainReconciliation:
+        onChainReconciliation ?? TrackTransactionOnChainReconciliation.None,
     });
 
     // When no row exists in snap state, we still poll (inclusion can still be observed) and
@@ -105,6 +122,10 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       await this.#transactionService.findKeyringTransactionByTransactionId(
         txId,
       );
+
+    const accountsToSync = await this.#resolveAccountsForSynchronize({
+      persistedKeyringTransaction,
+    });
 
     let keyringStatus:
       | TransactionStatus.Confirmed
@@ -148,18 +169,51 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       }
     }
 
+    const reconciliationMode =
+      onChainReconciliation ?? TrackTransactionOnChainReconciliation.None;
+
+    if (
+      keyringStatus === TransactionStatus.Confirmed &&
+      accountsToSync.length > 0
+    ) {
+      const account = accountsToSync[0];
+      if (account) {
+        const baselineSnapshot =
+          await this.#onChainAccountRepository.findByKeyringAccountId(
+            account.id,
+            scope,
+          );
+
+        await reconcileAfterRpcSuccess({
+          mode: reconciliationMode,
+          context: {
+            accountId: account.id,
+            scope,
+            baselineSequence: baselineSnapshot?.sequenceNumber ?? '0',
+          },
+          synchronize: async () => {
+            await this.#synchronizeAccounts(accountsToSync, scope);
+          },
+          readPersistedSequence: async () => {
+            return this.#readPersistedSequence(account.id, scope);
+          },
+          logger: this.logger,
+        });
+      }
+    }
+
     if (keyringStatus) {
       await this.#settleKeyringRow(txId, accountIds, keyringStatus);
     }
 
     // TODO: Consider skipping synchronize when the keyring row stayed
     // pending (no terminal poll result) to avoid redundant on-chain refreshes.
-    const accountsToSync = await this.#resolveAccountsForSynchronize({
-      persistedKeyringTransaction,
-    });
-    if (accountsToSync.length > 0) {
+    if (
+      accountsToSync.length > 0 &&
+      keyringStatus !== TransactionStatus.Confirmed
+    ) {
       await this.#synchronizeAccounts(accountsToSync, scope);
-    } else {
+    } else if (accountsToSync.length === 0) {
       this.logger.warn(
         'TrackTransaction: account not found when tracking the transaction, unable to sync',
         {
@@ -195,6 +249,18 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     }
 
     return [];
+  }
+
+  async #readPersistedSequence(
+    accountId: string,
+    scope: KnownCaip2ChainId,
+  ): Promise<string | null> {
+    const snapshot =
+      await this.#onChainAccountRepository.findByKeyringAccountId(
+        accountId,
+        scope,
+      );
+    return snapshot?.sequenceNumber ?? null;
   }
 
   async #synchronizeAccounts(

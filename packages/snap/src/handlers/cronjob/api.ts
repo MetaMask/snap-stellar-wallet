@@ -57,12 +57,31 @@ export const RefreshConfirmationContextJsonRpcRequestStruct = assign(
   }),
 );
 
+/**
+ * How {@link TrackTransactionHandler} refreshes on-chain state after Soroban RPC reports SUCCESS.
+ */
+export enum TrackTransactionOnChainReconciliation {
+  /** Sync once after RPC success (no Horizon wait loop). */
+  None = 'none',
+  /** Retry sync until persisted account sequence advances vs pre-sync baseline. */
+  WaitForAccountSequence = 'waitForAccountSequence',
+}
+
+export const TrackTransactionOnChainReconciliationStruct = enums(
+  Object.values(TrackTransactionOnChainReconciliation),
+);
+
 export const TrackTransactionParamsStruct = type({
   txId: nonempty(string()),
   scope: KnownCaip2ChainIdStruct,
   accountIds: nonempty(array(UuidStruct)),
   /** Reschedule counter; omitted on first schedule (treated as 0). */
   attempt: optional(size(integer(), 0, 30)),
+  /**
+   * When set to {@link TrackTransactionOnChainReconciliation.WaitForAccountSequence}, the handler
+   * retries sync until Horizon-indexed sequence advances before settling Confirmed.
+   */
+  onChainReconciliation: optional(TrackTransactionOnChainReconciliationStruct),
 });
 
 export const SyncAccountParamsStruct = object({

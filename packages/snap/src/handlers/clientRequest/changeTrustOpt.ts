@@ -43,6 +43,7 @@ import {
   trackTransactionApproved,
   trackTransactionRejected,
 } from '../../utils/snap';
+import { TrackTransactionOnChainReconciliation } from '../cronjob/api';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 export class ChangeTrustOptHandler extends BaseClientRequestHandler<
@@ -183,6 +184,8 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       txId: transactionId,
       scope,
       accountIds: [account.id],
+      onChainReconciliation:
+        TrackTransactionOnChainReconciliation.WaitForAccountSequence,
     });
 
     return {

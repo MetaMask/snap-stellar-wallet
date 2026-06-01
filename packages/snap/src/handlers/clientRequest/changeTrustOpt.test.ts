@@ -41,6 +41,7 @@ import { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
 import * as snapUtils from '../../utils/snap';
 import { AccountResolver } from '../accountResolver';
+import { TrackTransactionOnChainReconciliation } from '../cronjob/api';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 jest.mock('../../utils/logger');
@@ -289,6 +290,8 @@ describe('ChangeTrustOptHandler', () => {
       txId: '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
       scope,
       accountIds: [account.id],
+      onChainReconciliation:
+        TrackTransactionOnChainReconciliation.WaitForAccountSequence,
     });
   });
 
@@ -396,6 +399,8 @@ describe('ChangeTrustOptHandler', () => {
       txId: '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
       scope,
       accountIds: [account.id],
+      onChainReconciliation:
+        TrackTransactionOnChainReconciliation.WaitForAccountSequence,
     });
   });
 

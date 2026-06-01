@@ -8,6 +8,7 @@ import {
   SyncAccountJsonRpcRequestStruct,
   SyncAccountParamsStruct,
   TrackTransactionJsonRpcRequestStruct,
+  TrackTransactionOnChainReconciliation,
 } from './api';
 import { KnownCaip2ChainId } from '../../api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
@@ -173,6 +174,24 @@ describe('Cronjob API structs', () => {
           accountIds: ['4dd94666-52a0-4478-91f8-979292f91fae'],
         },
       });
+    });
+
+    it('accepts track transaction requests with optional onChainReconciliation', () => {
+      const value = {
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.TrackTransaction,
+        params: {
+          txId: 'tx-id',
+          scope: KnownCaip2ChainId.Mainnet,
+          accountIds: ['4dd94666-52a0-4478-91f8-979292f91fae'],
+          onChainReconciliation:
+            TrackTransactionOnChainReconciliation.WaitForAccountSequence,
+        },
+      };
+      assert(value, TrackTransactionJsonRpcRequestStruct);
+      expect(value.params.onChainReconciliation).toBe(
+        TrackTransactionOnChainReconciliation.WaitForAccountSequence,
+      );
     });
 
     it('rejects invalid accountIds values', () => {

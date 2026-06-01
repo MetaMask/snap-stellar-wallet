@@ -4,8 +4,12 @@ import {
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
 
-import { BackgroundEventMethod } from './api';
+import {
+  BackgroundEventMethod,
+  TrackTransactionOnChainReconciliation,
+} from './api';
 import { TrackTransactionHandler } from './trackTransaction';
+import * as trackTransactionReconciliation from './trackTransactionReconciliation';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
@@ -13,10 +17,14 @@ import { InMemoryCache } from '../../services/cache';
 import { NetworkService } from '../../services/network';
 import { TransactionPollException } from '../../services/network/exceptions';
 import { OnChainAccountService } from '../../services/on-chain-account';
+import type { OnChainAccountRepository } from '../../services/on-chain-account/OnChainAccountRepository';
 import { TransactionService } from '../../services/transaction';
 import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
 import { logger, noOpLogger } from '../../utils/logger';
 import { scheduleBackgroundEvent } from '../../utils/snap';
+
+const { reconcileAfterRpcSuccess: actualReconcileAfterRpcSuccess } =
+  jest.requireActual('./trackTransactionReconciliation');
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap', () => {
@@ -38,6 +46,18 @@ describe('TrackTransactionHandler', () => {
   beforeEach(() => {
     jest.mocked(scheduleBackgroundEvent).mockClear();
     jest.mocked(scheduleBackgroundEvent).mockResolvedValue('scheduled');
+    jest
+      .spyOn(trackTransactionReconciliation, 'reconcileAfterRpcSuccess')
+      .mockImplementation(async (params) =>
+        actualReconcileAfterRpcSuccess({
+          ...params,
+          delayFn: jest.fn().mockResolvedValue(undefined),
+        }),
+      );
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   function createPersistedKeyringTransaction(
@@ -57,13 +77,15 @@ describe('TrackTransactionHandler', () => {
     };
   }
 
-  function setup() {
+  function setup(options?: { initialSequence?: string }) {
     const account = generateStellarKeyringAccount(
       accountId,
       'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
       'entropy-source-1',
       0,
     );
+
+    let persistedSequence = options?.initialSequence ?? '100';
 
     const findByIds = jest
       .spyOn(AccountService.prototype, 'findByIds')
@@ -91,6 +113,16 @@ describe('TrackTransactionHandler', () => {
       .spyOn(TransactionService.prototype, 'updateKeyringTransactionStatus')
       .mockResolvedValue(undefined);
 
+    const findByKeyringAccountId = jest.fn(async () => ({
+      accountId: account.address,
+      sequenceNumber: persistedSequence,
+      scope,
+    }));
+
+    const onChainAccountRepository = {
+      findByKeyringAccountId,
+    } as unknown as OnChainAccountRepository;
+
     const { transactionService } = createMockTransactionService();
 
     findKeyringTransactionByTransactionId.mockResolvedValue(undefined);
@@ -106,6 +138,7 @@ describe('TrackTransactionHandler', () => {
         onChainAccountRepository: {} as never,
         assetMetadataService: {} as never,
       }),
+      onChainAccountRepository,
       accountService: new AccountService({
         logger,
         accountsRepository: {} as never,
@@ -113,6 +146,10 @@ describe('TrackTransactionHandler', () => {
       }),
       transactionService,
     });
+
+    const setPersistedSequence = (sequence: string): void => {
+      persistedSequence = sequence;
+    };
 
     return {
       handler,
@@ -123,6 +160,8 @@ describe('TrackTransactionHandler', () => {
       findKeyringTransactionByTransactionId,
       synchronize,
       updateKeyringTransactionStatus,
+      findByKeyringAccountId,
+      setPersistedSequence,
     };
   }
 
@@ -153,7 +192,7 @@ describe('TrackTransactionHandler', () => {
     expect(callOrder).toStrictEqual(['findPersisted', 'poll']);
   });
 
-  it('settles keyring row as confirmed when RPC poll succeeds', async () => {
+  it('settles keyring row as confirmed after sync when RPC poll succeeds', async () => {
     const {
       handler,
       account,
@@ -167,6 +206,14 @@ describe('TrackTransactionHandler', () => {
     );
     pollTransaction.mockResolvedValue(txId);
 
+    const callOrder: string[] = [];
+    synchronize.mockImplementation(async () => {
+      callOrder.push('sync');
+    });
+    updateKeyringTransactionStatus.mockImplementation(async () => {
+      callOrder.push('settle');
+    });
+
     await handler.handle({
       jsonrpc: '2.0',
       id: 1,
@@ -179,6 +226,7 @@ describe('TrackTransactionHandler', () => {
     });
 
     expect(pollTransaction).toHaveBeenCalledWith(txId, scope);
+    expect(callOrder).toStrictEqual(['sync', 'settle']);
     expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
       txId,
       accountIds: [accountId],
@@ -187,6 +235,96 @@ describe('TrackTransactionHandler', () => {
     expect(synchronize).toHaveBeenCalledTimes(1);
     expect(synchronize).toHaveBeenCalledWith([account], scope);
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
+  });
+
+  it('retries sync until sequence advances for WaitForAccountSequence reconciliation', async () => {
+    const {
+      handler,
+      pollTransaction,
+      synchronize,
+      updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
+      findByKeyringAccountId,
+    } = setup({ initialSequence: '100' });
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
+    pollTransaction.mockResolvedValue(txId);
+
+    const sequenceReads = ['100', '100', '101'] as const;
+    let readCall = 0;
+    findByKeyringAccountId.mockImplementation(async () => {
+      const sequenceNumber = sequenceReads[readCall] as string;
+      readCall += 1;
+      return {
+        accountId: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        sequenceNumber,
+        scope,
+      };
+    });
+
+    const callOrder: string[] = [];
+    synchronize.mockImplementation(async () => {
+      callOrder.push('sync');
+    });
+    updateKeyringTransactionStatus.mockImplementation(async () => {
+      callOrder.push('settle');
+    });
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+        onChainReconciliation:
+          TrackTransactionOnChainReconciliation.WaitForAccountSequence,
+      },
+    });
+
+    expect(synchronize).toHaveBeenCalledTimes(2);
+    expect(callOrder).toStrictEqual(['sync', 'sync', 'settle']);
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
+      txId,
+      accountIds: [accountId],
+      status: TransactionStatus.Confirmed,
+    });
+  });
+
+  it('settles confirmed after exhausting WaitForAccountSequence retries', async () => {
+    const {
+      handler,
+      pollTransaction,
+      synchronize,
+      updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
+    } = setup({ initialSequence: '100' });
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
+    pollTransaction.mockResolvedValue(txId);
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+        onChainReconciliation:
+          TrackTransactionOnChainReconciliation.WaitForAccountSequence,
+      },
+    });
+
+    expect(synchronize).toHaveBeenCalledTimes(6);
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
+      txId,
+      accountIds: [accountId],
+      status: TransactionStatus.Confirmed,
+    });
   });
 
   it('settles keyring row as failed for non-unknown poll status', async () => {
