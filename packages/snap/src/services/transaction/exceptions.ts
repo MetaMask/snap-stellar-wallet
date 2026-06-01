@@ -66,6 +66,13 @@ export class InvalidAssetForSep41TransferException extends TransactionValidation
   }
 }
 
+/** Thrown when the account requires a memo. */
+export class RequiresMemoException extends TransactionValidationException {
+  constructor(accountId: string) {
+    super(`Account ${accountId} requires a memo`);
+  }
+}
+
 /**
  * Thrown when `Operation.createAccount` starting balance is below 1 XLM (no sponsorship modeled).
  */

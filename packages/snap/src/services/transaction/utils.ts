@@ -3,6 +3,7 @@ import { Asset } from '@stellar/stellar-sdk';
 
 import {
   InvalidInvokeContractStructureException,
+  RequiresMemoException,
   TransactionExpireException,
   TransactionScopeNotMatchException,
   TransactionValidationException,
@@ -151,6 +152,28 @@ export function assertTransactionTimeBound(transaction: Transaction): void {
   if (expirationTime < Math.floor(Date.now() / 1000)) {
     throw new TransactionExpireException(expirationTime);
   }
+}
+
+/**
+ * Throws when `destRequiresMemo` is true and the envelope has no memo (SEP-29).
+ *
+ * @param transaction - Wrapped Stellar transaction.
+ * @param destAccountId - Payment or path-payment destination.
+ * @param destRequiresMemo - From {@link OnChainAccount.requiresMemo} or simulation state.
+ * @throws {RequiresMemoException} When a memo is required but missing or blank.
+ */
+export function assertMemoWhenDestinationRequires(
+  transaction: Transaction,
+  destAccountId: string,
+  destRequiresMemo: boolean,
+): void {
+  const memo = transaction.getMemo();
+  // Whitespace-only memos count as missing under SEP-29.
+  // Hence, we dont consider them.
+  if (!destRequiresMemo || (memo !== null && /\S/u.test(memo))) {
+    return;
+  }
+  throw new RequiresMemoException(destAccountId);
 }
 
 /**

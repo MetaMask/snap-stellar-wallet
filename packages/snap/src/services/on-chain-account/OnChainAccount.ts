@@ -27,7 +27,11 @@ import type {
   KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import {
+  ACCOUNT_REQUIRES_MEMO,
+  MEMO_REQUIRED_KEY,
+  NATIVE_ASSET_SYMBOL,
+} from '../../constants';
 import {
   getSlip44AssetId,
   isClassicAssetId,
@@ -53,6 +57,8 @@ export class OnChainAccount {
   #numSponsoring: number | undefined;
 
   #numSponsored: number | undefined;
+
+  #dataEntries: Record<string, string> | undefined;
 
   #rawNativeBalance: BigNumber | undefined;
 
@@ -123,6 +129,10 @@ export class OnChainAccount {
       return this.#numSponsored;
     }
     throw new OnChainAccountMetadataNotAvailableException(this.accountId);
+  }
+
+  get requiresMemo(): boolean {
+    return this.#dataEntries?.[MEMO_REQUIRED_KEY] === ACCOUNT_REQUIRES_MEMO;
   }
 
   /**
@@ -295,6 +305,7 @@ export class OnChainAccount {
     const subentryCount = this.#subentryCount;
     const numSponsoring = this.#numSponsoring;
     const numSponsored = this.#numSponsored;
+    const dataEntries = this.#dataEntries ?? {};
 
     if (
       subentryCount === undefined ||
@@ -364,6 +375,7 @@ export class OnChainAccount {
         subentryCount,
         numSponsoring,
         numSponsored,
+        dataEntries,
       },
       balances,
       rawNativeBalance: this.#rawNativeBalance.toFixed(0),
@@ -393,7 +405,7 @@ export class OnChainAccount {
 
   /**
    * Builds from a Horizon `loadAccount` response.
-   * With a native balance line → full binding; otherwise → minimal binding (sequence-only style).
+   * With a native balance line → full binding (includes `data_attr` as `meta.dataEntries`);
    *
    * @param response - Horizon `loadAccount` payload.
    * @param scope - CAIP-2 network.
@@ -410,7 +422,8 @@ export class OnChainAccount {
     const subentryCount = response.subentry_count ?? 0;
     const numSponsoring = response.num_sponsoring ?? 0;
     const numSponsored = response.num_sponsored ?? 0;
-    const meta = { subentryCount, numSponsoring, numSponsored };
+    const dataEntries = response.data_attr ?? {};
+    const meta = { subentryCount, numSponsoring, numSponsored, dataEntries };
     const balances: SerializableSpendableBalance[] = [];
 
     const horizonBalances = response.balances ?? [];
@@ -453,11 +466,9 @@ export class OnChainAccount {
     }
 
     if (rawNativeBalance === undefined) {
-      return new OnChainAccount(stellarAccount, scope, {
-        accountId: response.accountId(),
-        sequenceNumber: response.sequenceNumber(),
-        scope,
-      });
+      // this should never happen,
+      // as any account that exists on the ledger has a native (XLM) balance line
+      throw new OnChainAccountException('Native balance is not available');
     }
 
     const data: OnChainAccountSerializableFull = {
@@ -493,6 +504,7 @@ export class OnChainAccount {
       this.#subentryCount = meta.subentryCount;
       this.#numSponsoring = meta.numSponsoring;
       this.#numSponsored = meta.numSponsored;
+      this.#dataEntries = meta.dataEntries ?? {};
       this.#rawNativeBalance = new BigNumber(data.rawNativeBalance);
 
       const nativeId = getSlip44AssetId(scope);
