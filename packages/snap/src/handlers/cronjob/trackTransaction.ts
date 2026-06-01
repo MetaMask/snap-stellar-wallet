@@ -12,12 +12,6 @@ import {
   TrackTransactionJsonRpcRequestStruct,
 } from './api';
 import { CronjobBaseHandler } from './base';
-import type { TrackTransactionTrustlineVerification } from './trackTransactionHorizonTrustline';
-import {
-  delayMilliseconds,
-  isHorizonTrustlineMatchingExpectation,
-  TrackTransactionTrustlineAction,
-} from './trackTransactionHorizonTrustline';
 import type { KnownCaip2ChainId } from '../../api';
 import { KEYRING_ACCOUNT_TYPE, METAMASK_ORIGIN } from '../../constants';
 import type {
@@ -36,19 +30,10 @@ import {
   trackTransactionFinalized,
 } from '../../utils/snap';
 
-/** Horizon trustline polls after RPC success (Soroban can lead Horizon indexing). */
-const HORIZON_TRUSTLINE_VERIFY_MAX_ATTEMPTS = 6;
-
-/** Delay between Horizon verification sync attempts. */
-const HORIZON_TRUSTLINE_VERIFY_DELAY_MS = 2000;
-
 /**
  * Polls Soroban RPC for transaction settlement first, then updates keyring status and runs
  * {@link OnChainAccountService.synchronize}. The persisted keyring transaction in snap state
  * (by hash) is the source of truth for which account to sync.
- *
- * Change-trust jobs may pass `trustlineVerification`; those sync until a fresh Horizon load
- * matches the expected trustline before marking the keyring row Confirmed.
  */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static async scheduleBackgroundEvent(
@@ -163,44 +148,18 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       }
     }
 
-    const accountsToSync = await this.#resolveAccountsForSynchronize({
-      persistedKeyringTransaction,
-    });
-    const { trustlineVerification } = request.params;
-
-    if (accountsToSync.length > 0) {
-      if (
-        keyringStatus === TransactionStatus.Confirmed &&
-        trustlineVerification
-      ) {
-        await this.#synchronizeUntilHorizonTrustlineMatches({
-          accounts: accountsToSync,
-          scope,
-          verification: {
-            assetId: trustlineVerification.assetId,
-            action:
-              trustlineVerification.action === 'add'
-                ? TrackTransactionTrustlineAction.Add
-                : TrackTransactionTrustlineAction.Delete,
-          },
-        });
-      } else if (keyringStatus === TransactionStatus.Confirmed) {
-        await this.#synchronizeAccounts(accountsToSync, scope);
-      }
-    }
-
     if (keyringStatus) {
       await this.#settleKeyringRow(txId, accountIds, keyringStatus);
     }
 
-    if (
-      accountsToSync.length > 0 &&
-      keyringStatus !== TransactionStatus.Confirmed
-    ) {
+    // TODO: Consider skipping synchronize when the keyring row stayed
+    // pending (no terminal poll result) to avoid redundant on-chain refreshes.
+    const accountsToSync = await this.#resolveAccountsForSynchronize({
+      persistedKeyringTransaction,
+    });
+    if (accountsToSync.length > 0) {
       await this.#synchronizeAccounts(accountsToSync, scope);
-    }
-
-    if (accountsToSync.length === 0) {
+    } else {
       this.logger.warn(
         'TrackTransaction: account not found when tracking the transaction, unable to sync',
         {
@@ -243,79 +202,6 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     scope: KnownCaip2ChainId,
   ): Promise<void> {
     await this.#onChainAccountService.synchronize(accounts, scope);
-  }
-
-  /**
-   * Syncs and re-reads Horizon until trustline state matches `verification`, then stops.
-   *
-   * @param params - Sync and verification inputs.
-   * @param params.accounts - Keyring accounts to synchronize.
-   * @param params.scope - CAIP-2 network for Horizon loads.
-   * @param params.verification - Expected classic trustline outcome after the tx.
-   */
-  async #synchronizeUntilHorizonTrustlineMatches(params: {
-    accounts: StellarKeyringAccount[];
-    scope: KnownCaip2ChainId;
-    verification: TrackTransactionTrustlineVerification;
-  }): Promise<void> {
-    const { accounts, scope, verification } = params;
-    const account = accounts[0];
-    if (!account) {
-      return;
-    }
-
-    for (
-      let attempt = 0;
-      attempt < HORIZON_TRUSTLINE_VERIFY_MAX_ATTEMPTS;
-      attempt += 1
-    ) {
-      await this.#synchronizeAccounts(accounts, scope);
-
-      const horizonAccount =
-        await this.#onChainAccountService.resolveOnChainAccount(
-          account.address,
-          scope,
-        );
-
-      if (
-        isHorizonTrustlineMatchingExpectation(
-          horizonAccount,
-          verification.assetId,
-          verification.action,
-        )
-      ) {
-        this.logger.info(
-          'TrackTransaction: Horizon trustline matches expectation',
-          {
-            attempt,
-            assetId: verification.assetId,
-            action: verification.action,
-          },
-        );
-        return;
-      }
-
-      if (attempt < HORIZON_TRUSTLINE_VERIFY_MAX_ATTEMPTS - 1) {
-        this.logger.warn(
-          'TrackTransaction: Horizon trustline not yet consistent; retrying',
-          {
-            attempt,
-            assetId: verification.assetId,
-            action: verification.action,
-          },
-        );
-        await delayMilliseconds(HORIZON_TRUSTLINE_VERIFY_DELAY_MS);
-      }
-    }
-
-    this.logger.warn(
-      'TrackTransaction: Horizon trustline verification exhausted attempts',
-      {
-        assetId: verification.assetId,
-        action: verification.action,
-        maxAttempts: HORIZON_TRUSTLINE_VERIFY_MAX_ATTEMPTS,
-      },
-    );
   }
 
   async #settleKeyringRow(

@@ -18,7 +18,6 @@ import type { Json, JsonRpcRequest } from '@metamask/utils';
 
 import {
   JsonRpcRequestStruct,
-  KnownCaip19ClassicAssetStruct,
   KnownCaip2ChainIdStruct,
   UuidStruct,
 } from '../../api';
@@ -50,13 +49,6 @@ export const RefreshConfirmationContextParamsStruct = type({
   refresherKeys: nonempty(array(ConfirmationContextRefresherKeyStruct)),
 });
 
-export const TrackTransactionTrustlineActionStruct = enums(['add', 'delete']);
-
-export const TrackTransactionTrustlineVerificationStruct = object({
-  assetId: KnownCaip19ClassicAssetStruct,
-  action: TrackTransactionTrustlineActionStruct,
-});
-
 export const RefreshConfirmationContextJsonRpcRequestStruct = assign(
   JsonRpcRequestStruct,
   object({
@@ -71,11 +63,6 @@ export const TrackTransactionParamsStruct = type({
   accountIds: nonempty(array(UuidStruct)),
   /** Reschedule counter; omitted on first schedule (treated as 0). */
   attempt: optional(size(integer(), 0, 30)),
-  /**
-   * When set, {@link TrackTransactionHandler} syncs until a fresh Horizon load matches this
-   * trustline outcome before marking the keyring transaction Confirmed.
-   */
-  trustlineVerification: optional(TrackTransactionTrustlineVerificationStruct),
 });
 
 export const SyncAccountParamsStruct = object({
