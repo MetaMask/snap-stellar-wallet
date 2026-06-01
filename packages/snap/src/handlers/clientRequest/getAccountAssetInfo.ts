@@ -1,4 +1,6 @@
+import { FungibleAssetMetadataStruct } from '@metamask/snaps-sdk';
 import type { Json, JsonRpcRequest } from '@metamask/utils';
+import { ensureError } from '@metamask/utils';
 
 import type {
   GetAccountAssetInfoJsonRpcRequest,
@@ -9,9 +11,21 @@ import {
   GetAccountAssetInfoJsonRpcResponseStruct,
 } from './api';
 import { BaseClientRequestHandler } from './base';
-import type { AccountAssetInfoService } from '../../services/account-asset-info';
+import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
+import type { AccountAssetInfoEntry } from '../../services/account-asset-info';
+import type { AccountAssetInfoExtra } from '../../services/account-asset-info/api';
+import { GetAccountAssetInfoException } from '../../services/account-asset-info/exceptions';
+import type { AssetMetadataService } from '../../services/asset-metadata/AssetMetadataService';
 import type { AccountNotActivatedException } from '../../services/network/exceptions';
-import { createPrefixedLogger, type ILogger } from '../../utils/logger';
+import type { OnChainAccount } from '../../services/on-chain-account';
+import type { SpendableBalance } from '../../services/on-chain-account/api';
+import {
+  createPrefixedLogger,
+  isClassicAssetId,
+  isSep41Id,
+  toDisplayBalance,
+  type ILogger,
+} from '../../utils';
 import type {
   AccountResolver,
   ResolvedActivatedAccount,
@@ -22,27 +36,34 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   GetAccountAssetInfoJsonRpcRequest,
   GetAccountAssetInfoJsonRpcResponse
 > {
-  readonly #accountAssetInfoService: AccountAssetInfoService;
+  readonly #assetMetadataService: AssetMetadataService;
+
+  readonly #logger: ILogger;
 
   #pendingRequest?: GetAccountAssetInfoJsonRpcRequest;
 
   constructor({
     logger,
     accountResolver,
-    accountAssetInfoService,
+    assetMetadataService,
   }: {
     logger: ILogger;
     accountResolver: AccountResolver;
-    accountAssetInfoService: AccountAssetInfoService;
+    assetMetadataService: AssetMetadataService;
   }) {
+    const prefixedLogger = createPrefixedLogger(
+      logger,
+      '[📦 GetAccountAssetInfoHandler]',
+    );
     super({
-      logger: createPrefixedLogger(logger, '[📦 GetAccountAssetInfoHandler]'),
+      logger: prefixedLogger,
       accountResolver,
       requestStruct: GetAccountAssetInfoJsonRpcRequestStruct,
       responseStruct: GetAccountAssetInfoJsonRpcResponseStruct,
       resolveAccountOptions: RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE,
     });
-    this.#accountAssetInfoService = accountAssetInfoService;
+    this.#assetMetadataService = assetMetadataService;
+    this.#logger = prefixedLogger;
   }
 
   protected override async handleRequest(
@@ -67,13 +88,12 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     resolved: ResolvedActivatedAccount,
     request: GetAccountAssetInfoJsonRpcRequest,
   ): Promise<GetAccountAssetInfoJsonRpcResponse> {
-    const { scope, assets } = request.params;
-    return this.#accountAssetInfoService.getAccountAssetInfo({
-      accountId: resolved.account.id,
-      scope,
+    const { assets } = request.params;
+    return this.#buildAccountAssetInfoResponse(
+      resolved.account.id,
       assets,
-      onChainAccount: resolved.onChainAccount,
-    });
+      resolved.onChainAccount,
+    );
   }
 
   /**
@@ -92,13 +112,8 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
         'Missing request context for unactivated account handling',
       );
     }
-    const { accountId, scope, assets } = request.params;
-    return this.#accountAssetInfoService.getAccountAssetInfo({
-      accountId,
-      scope,
-      assets,
-      onChainAccount: null,
-    });
+    const { accountId, assets } = request.params;
+    return this.#buildAccountAssetInfoResponse(accountId, assets, null);
   }
 
   async handle(
@@ -106,4 +121,96 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   ): Promise<GetAccountAssetInfoJsonRpcResponse | Json> {
     return super.handle(request);
   }
+
+  async #buildAccountAssetInfoResponse(
+    accountId: string,
+    assets: KnownCaip19AssetIdOrSlip44Id[],
+    onChainAccount: OnChainAccount | null,
+  ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoEntry>> {
+    const result = {} as Record<
+      KnownCaip19AssetIdOrSlip44Id,
+      AccountAssetInfoEntry
+    >;
+
+    try {
+      const assetsMetadata =
+        await this.#assetMetadataService.getAssetsMetadataByAssetIds(assets);
+
+      for (const assetId of assets) {
+        const assetMetadata = assetsMetadata[assetId];
+        if (
+          assetMetadata === undefined ||
+          assetMetadata === null ||
+          !FungibleAssetMetadataStruct.is(assetMetadata) ||
+          assetMetadata.units[0]?.decimals === undefined
+        ) {
+          continue;
+        }
+
+        const onChainRow =
+          onChainAccount === null
+            ? undefined
+            : onChainAccount.getAsset(assetId);
+
+        if (isSep41Id(assetId) && !onChainRow?.balance.gt(0)) {
+          continue;
+        }
+
+        const { decimals } = assetMetadata.units[0];
+        const onChainRowForExtra =
+          onChainAccount === null || !isClassicAssetId(assetId)
+            ? onChainRow
+            : onChainAccount.getRawAsset(assetId);
+        const extra = buildAccountAssetInfoExtra(
+          assetId,
+          onChainRowForExtra,
+          decimals,
+        );
+
+        result[assetId] = {
+          metadata: assetMetadata,
+          ...(extra === undefined ? {} : { extra }),
+        };
+      }
+
+      return result;
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails(
+        'Failed to get account asset info',
+        ensureError(error).message,
+      );
+      throw new GetAccountAssetInfoException(accountId);
+    }
+  }
+}
+
+/**
+ * Builds optional trust-line extra fields for classic Stellar assets.
+ *
+ * @param assetId - CAIP-19 asset id.
+ * @param onChainRow - On-chain balance row, if any.
+ * @param decimals - Asset display decimals.
+ * @returns Trust-line extra fields, or undefined when not applicable.
+ */
+function buildAccountAssetInfoExtra(
+  assetId: KnownCaip19AssetIdOrSlip44Id,
+  onChainRow: SpendableBalance | undefined,
+  decimals: number,
+): AccountAssetInfoExtra | undefined {
+  if (!isClassicAssetId(assetId) || onChainRow === undefined) {
+    return undefined;
+  }
+  if (onChainRow.limit === undefined) {
+    return undefined;
+  }
+
+  return {
+    limit: toDisplayBalance(onChainRow.limit, decimals),
+    ...(onChainRow.authorized === undefined
+      ? {}
+      : { authorized: onChainRow.authorized }),
+    ...(onChainRow.sponsored === undefined
+      ? {}
+      : { sponsored: onChainRow.sponsored }),
+  };
 }

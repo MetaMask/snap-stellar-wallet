@@ -10,7 +10,6 @@ import {
 } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
-import { AccountAssetInfoService } from '../../services/account-asset-info';
 import {
   createMockAssetMetadataService,
   generateMockKeyringAssetMetadata,
@@ -89,13 +88,6 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     );
 
-    const accountAssetInfoService = new AccountAssetInfoService({
-      logger,
-      accountService,
-      onChainAccountService,
-      assetMetadataService,
-    });
-
     const accountResolver = new AccountResolver({
       accountService,
       onChainAccountService,
@@ -105,7 +97,7 @@ describe('GetAccountAssetInfoHandler', () => {
     const handler = new GetAccountAssetInfoHandler({
       logger,
       accountResolver,
-      accountAssetInfoService,
+      assetMetadataService,
     });
 
     return {

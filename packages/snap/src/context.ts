@@ -33,7 +33,6 @@ import {
   SignTransactionHandler,
 } from './handlers/keyring';
 import { AccountService, AccountsRepository } from './services/account';
-import { AccountAssetInfoService } from './services/account-asset-info';
 import {
   AssetMetadataRepository,
   AssetMetadataService,
@@ -103,13 +102,6 @@ const onChainAccountService = new OnChainAccountService({
   logger,
   networkService,
   onChainAccountRepository,
-  assetMetadataService,
-});
-
-const accountAssetInfoService = new AccountAssetInfoService({
-  logger,
-  accountService,
-  onChainAccountService,
   assetMetadataService,
 });
 
@@ -281,7 +273,8 @@ const computeFeeHandler = new ComputeFeeHandler({
 
 const getAccountAssetInfoHandler = new GetAccountAssetInfoHandler({
   logger,
-  accountAssetInfoService,
+  accountResolver,
+  assetMetadataService,
 });
 
 const clientRequestMethodHandlers: Record<
