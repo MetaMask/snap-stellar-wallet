@@ -13,9 +13,9 @@ import type {
   TransactionService,
 } from '../../../services/transaction';
 import { assertTransactionTimeBound } from '../../../services/transaction/utils';
-import type { ContextWithTransactionScan } from '../../../ui/confirmation/api';
+import type { ContextWithTransactionValidation } from '../../../ui/confirmation/api';
 import {
-  ContextWithTransactionScanStruct,
+  ContextWithTransactionValidationStruct,
   FetchStatus,
 } from '../../../ui/confirmation/api';
 import { toSmallestUnit } from '../../../utils/currency';
@@ -28,8 +28,8 @@ import {
   ClientRequestMethod,
 } from '../../clientRequest/api';
 
-type TransactionScanContext = ConfirmationDataContext &
-  ContextWithTransactionScan;
+type TransactionValidationContext = ConfirmationDataContext &
+  ContextWithTransactionValidation;
 
 /**
  * Re-validates the pending transaction while the sign confirmation dialog is open.
@@ -76,16 +76,16 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
     if (!this.isValidContext(ctx)) {
       return false;
     }
-    const scanCtx = ctx as TransactionScanContext;
+    const validationCtx = ctx as TransactionValidationContext;
     // A prior cycle already marked the transaction invalid; nothing to re-fetch.
-    return scanCtx.transactionsFetchStatus !== FetchStatus.Error;
+    return validationCtx.transactionsFetchStatus !== FetchStatus.Error;
   }
 
   recoveryResult(
     ctx: ConfirmationDataContext,
   ): ConfirmationContextRefreshResult {
-    const scanCtx = ctx as TransactionScanContext;
-    if (scanCtx.transactionsFetchStatus !== FetchStatus.Fetching) {
+    const validationCtx = ctx as TransactionValidationContext;
+    if (validationCtx.transactionsFetchStatus !== FetchStatus.Fetching) {
       return null;
     }
 
@@ -98,14 +98,14 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
   async refresh(
     ctx: ConfirmationDataContext,
   ): Promise<ConfirmationContextRefreshResult> {
-    const scanCtx = ctx as TransactionScanContext;
+    const validationCtx = ctx as TransactionValidationContext;
     try {
       const {
         request,
         accountId,
         scope,
         transaction: transactionXdr,
-      } = scanCtx;
+      } = validationCtx;
 
       // Load the sender from the network so validation uses current sequence and balances.
       const { onChainAccount } = await this.#accountResolver.resolveAccount({
@@ -185,6 +185,6 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
   }
 
   isValidContext(ctx: Record<string, Json>): boolean {
-    return ContextWithTransactionScanStruct.is(ctx);
+    return ContextWithTransactionValidationStruct.is(ctx);
   }
 }

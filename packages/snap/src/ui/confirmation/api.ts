@@ -87,7 +87,7 @@ export type ContextWithSecurityScan = Infer<
  * Context required to re-validate the pending transaction (time bounds, fees,
  * balance) against the latest on-chain state while the confirmation dialog is open.
  */
-export const ContextWithTransactionScanStruct = type({
+export const ContextWithTransactionValidationStruct = type({
   transaction: nonempty(XdrStruct),
   transactionsFetchStatus: enums(Object.values(FetchStatus)),
   accountId: UuidStruct,
@@ -99,8 +99,8 @@ export const ContextWithTransactionScanStruct = type({
   ]),
 });
 
-export type ContextWithTransactionScan = Infer<
-  typeof ContextWithTransactionScanStruct
+export type ContextWithTransactionValidation = Infer<
+  typeof ContextWithTransactionValidationStruct
 >;
 
 export enum ConfirmationInterfaceKey {

@@ -227,12 +227,12 @@ export class ConfirmationUXController {
         // Optimistic: tx was validated at build time, so keep confirm enabled; the
         // refresher flips to Error if it later drifts (submission rejects invalid txs too).
         // TODO(follow-up): re-validate synchronously right before signing.
-        ...(enableTransactionValidation
+        ...(renderOptions.validateTxn && params.transactionValidationRequest
           ? {
               transactionsFetchStatus: FetchStatus.Fetched,
-              accountId: params.transactionValidationRequest?.accountId,
-              transaction: params.transactionValidationRequest?.transaction,
-              request: params.transactionValidationRequest?.request,
+              accountId: params.transactionValidationRequest.accountId,
+              transaction: params.transactionValidationRequest.transaction,
+              request: params.transactionValidationRequest.request,
             }
           : {}),
         tokenPrices,
