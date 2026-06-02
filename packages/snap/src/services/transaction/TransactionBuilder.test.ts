@@ -269,28 +269,6 @@ describe('TransactionBuilder', () => {
     });
   });
 
-  describe('deserialize', () => {
-    it('builds a transaction from an XDR string', () => {
-      const transaction = transactionBuilder.changeTrust({
-        baseFee: '100',
-        scope: KnownCaip2ChainId.Mainnet,
-        assetId: testAsset,
-        onChainAccount: testOnChainAccount,
-      });
-
-      const fromXDRTransaction = transactionBuilder.deserialize({
-        xdr: transaction.getRaw().toXDR(),
-        scope: KnownCaip2ChainId.Mainnet,
-      });
-
-      expect(fromXDRTransaction).toBeInstanceOf(Transaction);
-      expect(fromXDRTransaction.totalFee).toStrictEqual(new BigNumber(100));
-      expect(fromXDRTransaction.operationCount).toBe(1);
-      expect(fromXDRTransaction.network).toStrictEqual(Networks.PUBLIC);
-      expect(fromXDRTransaction.getRaw()).toBeInstanceOf(StellarTransaction);
-    });
-  });
-
   describe('sep41Transfer', () => {
     const sep41AssetId =
       `stellar:pubnet/sep41:CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J` as const;

@@ -9,12 +9,9 @@ import type { AccountResolver } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
-import type {
-  Transaction,
-  TransactionBuilder,
-  TransactionService,
-} from '../../services/transaction';
 import { OperationMapper } from '../../services/transaction';
+import type { TransactionService } from '../../services/transaction';
+import { Transaction } from '../../services/transaction';
 import {
   assertAccountInvolvesTransaction,
   assertTransactionScope,
@@ -41,8 +38,6 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
   SignTransactionRequest,
   SignTransactionResponse
 > {
-  readonly #transactionBuilder: TransactionBuilder;
-
   readonly #transactionService: TransactionService;
 
   readonly #confirmationUIController: ConfirmationUXController;
@@ -50,13 +45,11 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
   constructor({
     logger,
     accountResolver,
-    transactionBuilder,
     transactionService,
     confirmationUIController,
   }: {
     logger: ILogger;
     accountResolver: AccountResolver;
-    transactionBuilder: TransactionBuilder;
     transactionService: TransactionService;
     confirmationUIController: ConfirmationUXController;
   }) {
@@ -67,7 +60,6 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       requestStruct: SignTransactionRequestStruct,
       responseStruct: SignTransactionResponseStruct,
     });
-    this.#transactionBuilder = transactionBuilder;
     this.#transactionService = transactionService;
     this.#confirmationUIController = confirmationUIController;
   }
@@ -83,7 +75,7 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
     // Deserializing validates that the transaction is well-formed and scope-compatible.
     // We intentionally skip balance and operation-level checks here;
     // callers must validate those before requesting a signature.
-    const transaction = this.#transactionBuilder.deserialize({ xdr, scope });
+    const transaction = Transaction.fromXdr({ xdr, scope });
 
     // verify the transaction scope matches the requested scope
     assertTransactionScope(transaction, scope);

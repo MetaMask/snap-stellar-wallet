@@ -2,6 +2,7 @@ import {
   Account,
   Asset,
   FeeBumpTransaction,
+  Horizon,
   Keypair,
   Memo,
   Networks,
@@ -10,7 +11,9 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { TransactionDeserializationException } from './exceptions';
 import { Transaction } from './Transaction';
+import { KnownCaip2ChainId } from '../../api';
 
 describe('Transaction', () => {
   it('reports operationCount equal to transactionOperations length for a classic transaction', () => {
@@ -262,6 +265,75 @@ describe('Transaction', () => {
         .build();
 
       expect(new Transaction(inner).expirationTime).toBeUndefined();
+    });
+  });
+
+  describe('factory methods', () => {
+    it('creates a transaction from XDR', () => {
+      const source = Keypair.random();
+      const dest = Keypair.random().publicKey();
+      const inner = new StellarTransactionBuilder(
+        new Account(source.publicKey(), '1'),
+        { fee: '100', networkPassphrase: Networks.TESTNET },
+      )
+        .addOperation(
+          Operation.payment({
+            destination: dest,
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        .setTimeout(60)
+        .build();
+
+      const wrapped = Transaction.fromXdr({
+        xdr: inner.toXDR(),
+        scope: KnownCaip2ChainId.Testnet,
+      });
+
+      expect(wrapped.id).toBe(inner.hash().toString('hex'));
+      expect(wrapped.totalFee.toFixed(0)).toBe('100');
+      expect(wrapped.feeCharged.toFixed(0)).toBe('100');
+    });
+
+    it('uses Horizon fee_charged when created from Horizon record', () => {
+      const source = Keypair.random();
+      const dest = Keypair.random().publicKey();
+      const inner = new StellarTransactionBuilder(
+        new Account(source.publicKey(), '1'),
+        { fee: '100', networkPassphrase: Networks.TESTNET },
+      )
+        .addOperation(
+          Operation.payment({
+            destination: dest,
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        .setTimeout(60)
+        .build();
+
+      const horizonRecord = {
+        envelope_xdr: inner.toXDR(),
+        fee_charged: '300',
+      } as Horizon.ServerApi.TransactionRecord;
+
+      const wrapped = Transaction.fromHorizon({
+        horizonTransaction: horizonRecord,
+        scope: KnownCaip2ChainId.Testnet,
+      });
+
+      expect(wrapped.totalFee.toFixed(0)).toBe('100');
+      expect(wrapped.feeCharged.toFixed(0)).toBe('300');
+    });
+
+    it('throws TransactionDeserializationException for invalid XDR', () => {
+      expect(() =>
+        Transaction.fromXdr({
+          xdr: 'not-an-xdr',
+          scope: KnownCaip2ChainId.Testnet,
+        }),
+      ).toThrow(TransactionDeserializationException);
     });
   });
 });

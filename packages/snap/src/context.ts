@@ -139,7 +139,6 @@ const accountResolver = new AccountResolver({
 const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountResolver,
-  transactionBuilder,
   transactionService,
   confirmationUIController,
 });

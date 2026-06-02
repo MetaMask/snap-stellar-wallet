@@ -75,3 +75,18 @@ export const KEYRING_ACCOUNT_TYPE = XlmAccountType.Account;
  * The origin for the MetaMask wallet.
  */
 export const METAMASK_ORIGIN = 'metamask';
+
+/**
+ * The maximum page size for the transactions.
+ * @see https://developers.stellar.org/docs/data/apis/horizon/api-reference/get-transactions-by-account-id
+ */
+export const MAX_TRANSACTIONS_PAGE_SIZE = 200;
+
+/**
+ * Maximum number of pages remaining to fetch in this run.
+ * This keeps scans responsive for high-activity accounts by avoiding full-history fetches at once.
+ * As long as the caller stores `nextScanToken`, later runs can continue from where this run stops.
+ *
+ * @see {@link NetworkService.getTransactions}
+ */
+export const MAX_TRANSACTION_SCAN_PAGES = 2;

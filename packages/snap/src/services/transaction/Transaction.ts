@@ -1,21 +1,25 @@
 import type {
   Transaction as StellarTransaction,
   Operation,
+  Horizon,
 } from '@stellar/stellar-sdk';
-import { FeeBumpTransaction } from '@stellar/stellar-sdk';
+import { FeeBumpTransaction, TransactionBuilder as StellarTransactionBuilder } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
 import { parseExpirationMaxTime } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { bufferToUint8Array } from '../../utils';
-import { networkToCaip2ChainId } from '../network/utils';
+import { caip2ChainIdToNetwork, networkToCaip2ChainId } from '../network/utils';
+import { TransactionDeserializationException } from './exceptions';
 
 /**
- * Wrapper around a Stellar transaction. Exposes fee, operation count, and network passphrase
- * for callers.
+ * Wrapper around a Stellar transaction. Exposes fees, operation metadata, and network/scope
+ * accessors for callers.
  */
 export class Transaction {
   readonly #inner: StellarTransaction | FeeBumpTransaction;
+
+  readonly #feeCharged: BigNumber;
 
   readonly #operationTypes: Set<string> = new Set<string>();
 
@@ -23,8 +27,13 @@ export class Transaction {
 
   readonly #invokedByAccounts: Set<string> = new Set<string>();
 
-  constructor(inner: StellarTransaction | FeeBumpTransaction) {
+  constructor(
+    inner: StellarTransaction | FeeBumpTransaction,
+    options?: { feeCharged?: BigNumber },
+  ) {
     this.#inner = inner;
+    // if the fee charged is not provided, use the fee of the transaction as default.
+    this.#feeCharged = options?.feeCharged ?? new BigNumber(inner.fee)
     this.#initialize();
   }
 
@@ -126,6 +135,17 @@ export class Transaction {
   }
 
   /**
+   * Actual fee charged by the network in stroops.
+   * For unsigned/local transactions this equals {@link totalFee}. For on-chain Horizon transactions
+   * this can be different and is sourced from `fee_charged`.
+   *
+   * @returns The actual charged fee as BigNumber.
+   */
+  get feeCharged(): BigNumber {
+    return this.#feeCharged;
+  }
+
+  /**
    * The number of operations on the wrapped envelope (inner transaction for fee bumps).
    * Uses the same source as {@link Transaction.transactionOperations} so counts stay aligned.
    *
@@ -218,6 +238,10 @@ export class Transaction {
     return Array.from(this.#participatingAccounts.values());
   }
 
+  get id(): string {
+    return this.#inner.hash().toString('hex');
+  }
+
   /**
    * Checks if the transaction is from the given account.
    *
@@ -270,5 +294,64 @@ export class Transaction {
       return raw.innerTransaction.operations;
     }
     return raw.operations;
+  }
+
+  /**
+   * Creates a wrapped transaction from a Stellar SDK transaction.
+   *
+   * @param transaction - Stellar SDK transaction.
+   * @returns Wrapped transaction.
+   */
+  static fromRaw(
+    transaction: StellarTransaction | FeeBumpTransaction,
+  ): Transaction {
+    return new Transaction(transaction);
+  }
+
+  /**
+   * Creates a wrapped transaction from envelope XDR.
+   *
+   * @param params - XDR parsing input.
+   * @param params.xdr - Envelope XDR.
+   * @param params.scope - CAIP-2 network scope.
+   * @returns Wrapped transaction.
+   */
+  static fromXdr(params: {
+    xdr: string;
+    scope: KnownCaip2ChainId;
+  }): Transaction {
+    const { xdr, scope } = params;
+    try {
+      const decoded = StellarTransactionBuilder.fromXDR(
+        xdr,
+        caip2ChainIdToNetwork(scope),
+      );
+      return Transaction.fromRaw(decoded);
+    } catch (error: unknown) {
+      throw new TransactionDeserializationException();
+    }
+  }
+
+  /**
+   * Creates a wrapped transaction from Horizon transaction record.
+   *
+   * @param params - Horizon parsing input.
+   * @param params.horizonTransaction - Horizon transaction record.
+   * @param params.scope - CAIP-2 network scope.
+   * @returns Wrapped transaction with `feeCharged` from Horizon.
+   */
+  static fromHorizon(params: {
+    horizonTransaction: Horizon.ServerApi.TransactionRecord;
+    scope: KnownCaip2ChainId;
+  }): Transaction {
+    const { horizonTransaction, scope } = params;
+    const wrapped = Transaction.fromXdr({
+      xdr: horizonTransaction.envelope_xdr,
+      scope,
+    });
+
+    return new Transaction(wrapped.getRaw(), {
+      feeCharged: new BigNumber(horizonTransaction.fee_charged),
+    });
   }
 }

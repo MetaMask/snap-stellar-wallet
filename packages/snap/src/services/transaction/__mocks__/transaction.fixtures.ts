@@ -4,6 +4,7 @@ import {
   Account,
   Asset,
   Contract,
+  Horizon,
   Keypair,
   nativeToScVal,
   Networks,
@@ -490,4 +491,65 @@ export function buildMockInvokeHostFunctionTransaction(
 
   const built = builder.setTimeout(options.timeout ?? 60).build();
   return new Transaction(built);
+}
+
+export type BuildMockHorizonTransactionRecordOptions = {
+  transaction?: Transaction;
+  sourceAccount?: string;
+  pagingToken?: string;
+  feeCharged?: string;
+};
+
+/**
+ * Builds a minimal Horizon transaction record for tests.
+ *
+ * @param options - Optional record overrides.
+ * @returns Horizon transaction record with envelope XDR and fee metadata.
+ */
+export function buildMockHorizonTransactionRecord(
+  options: BuildMockHorizonTransactionRecordOptions = {},
+): Horizon.ServerApi.TransactionRecord {
+  const transaction =
+    options.transaction ??
+    buildMockClassicTransaction([
+      {
+        type: 'payment',
+        params: {
+          destination: generateStellarAddress(),
+          asset: 'native',
+          amount: '1',
+        },
+      },
+    ]);
+
+  return {
+    envelope_xdr: transaction.getRaw().toXDR(),
+    fee_charged: options.feeCharged ?? transaction.totalFee.toFixed(0),
+    paging_token: options.pagingToken ?? '1',
+    source_account: options.sourceAccount ?? transaction.sourceAccount,
+  } as Horizon.ServerApi.TransactionRecord;
+}
+
+/**
+ * Builds a Horizon transaction page-like response for tests.
+ *
+ * @param records - Current page records.
+ * @param next - Optional function used by callers for pagination.
+ * @returns Transaction page response shape with `records` and `next`.
+ */
+export function buildMockHorizonTransactionPage(
+  records: Horizon.ServerApi.TransactionRecord[],
+  next?: () => Promise<{ records: Horizon.ServerApi.TransactionRecord[] }>,
+): {
+  records: Horizon.ServerApi.TransactionRecord[];
+  next: () => Promise<{ records: Horizon.ServerApi.TransactionRecord[] }>;
+} {
+  return {
+    records,
+    next:
+      next ??
+      (async () => {
+        return { records: [] };
+      }),
+  };
 }
