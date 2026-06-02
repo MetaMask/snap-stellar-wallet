@@ -32,3 +32,14 @@ export type AssetDataResponse = {
   // CAIP-19 classic asset id (`…/asset:CODE-ISSUER`) from RPC / Stellar asset contract
   assetId: KnownCaip19AssetId;
 };
+
+/**
+ * Horizon inclusion outcome for one track-transaction cron read. The handler reschedules when
+ * the status is `pending` and the attempt budget allows. The transaction hash is always the cron
+ * `txId` passed into {@link NetworkService.checkHorizonTransactionForTrack}.
+ */
+export type HorizonTransactionTrackCheckStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'failed'
+  | 'unavailable';

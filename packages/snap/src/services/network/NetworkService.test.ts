@@ -717,6 +717,60 @@ describe('NetworkService', () => {
     });
   });
 
+  describe('checkHorizonTransactionForTrack', () => {
+    it('returns confirmed when Horizon reports success', async () => {
+      jest
+        .spyOn(networkService, 'getHorizonTransactionInclusionStatus')
+        .mockResolvedValue('success');
+
+      const result = await networkService.checkHorizonTransactionForTrack(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('confirmed');
+    });
+
+    it('returns pending when Horizon has not indexed the tx', async () => {
+      jest
+        .spyOn(networkService, 'getHorizonTransactionInclusionStatus')
+        .mockResolvedValue('pending');
+
+      const result = await networkService.checkHorizonTransactionForTrack(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('pending');
+    });
+
+    it('returns failed when Horizon reports a failed ledger outcome', async () => {
+      jest
+        .spyOn(networkService, 'getHorizonTransactionInclusionStatus')
+        .mockResolvedValue('failed');
+
+      const result = await networkService.checkHorizonTransactionForTrack(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('failed');
+    });
+
+    it('returns unavailable when Horizon check throws', async () => {
+      jest
+        .spyOn(networkService, 'getHorizonTransactionInclusionStatus')
+        .mockRejectedValue(new Error('timeout'));
+
+      const result = await networkService.checkHorizonTransactionForTrack(
+        testTransactionHash,
+        scope,
+      );
+
+      expect(result).toBe('unavailable');
+    });
+  });
+
   describe('send', () => {
     it('returns transaction hash when pollTransaction is false', async () => {
       const { sendTransactionSpy, pollTransactionSpy } = getRpcServerSpies();

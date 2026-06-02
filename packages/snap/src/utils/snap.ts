@@ -16,6 +16,7 @@ import { type Serializable, serialize, deserialize } from './serialization';
 
 export enum Duration {
   OneSecond = 'PT1S',
+  TwoSeconds = 'PT2S',
   FiveSeconds = 'PT5S',
   TwentySeconds = 'PT20S',
   ThirtySeconds = 'PT30S',

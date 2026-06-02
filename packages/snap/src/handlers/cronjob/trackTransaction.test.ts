@@ -7,16 +7,16 @@ import {
 import { BackgroundEventMethod } from './api';
 import { TrackTransactionHandler } from './trackTransaction';
 import { KnownCaip2ChainId } from '../../api';
+import { AppConfig } from '../../config';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import { InMemoryCache } from '../../services/cache';
 import { NetworkService } from '../../services/network';
-import { TransactionPollException } from '../../services/network/exceptions';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import { TransactionService } from '../../services/transaction';
 import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
 import { logger, noOpLogger } from '../../utils/logger';
-import { scheduleBackgroundEvent } from '../../utils/snap';
+import { Duration, scheduleBackgroundEvent } from '../../utils/snap';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap', () => {
@@ -73,9 +73,9 @@ describe('TrackTransactionHandler', () => {
       .spyOn(AccountService.prototype, 'findById')
       .mockResolvedValue(account);
 
-    const pollTransaction = jest.spyOn(
+    const checkHorizonTransactionForTrack = jest.spyOn(
       NetworkService.prototype,
-      'pollTransaction',
+      'checkHorizonTransactionForTrack',
     );
 
     const findKeyringTransactionByTransactionId = jest.spyOn(
@@ -119,24 +119,27 @@ describe('TrackTransactionHandler', () => {
       account,
       findByIds,
       findById,
-      pollTransaction,
+      checkHorizonTransactionForTrack,
       findKeyringTransactionByTransactionId,
       synchronize,
       updateKeyringTransactionStatus,
     };
   }
 
-  it('loads persisted keyring transaction from state before Soroban poll', async () => {
-    const { handler, pollTransaction, findKeyringTransactionByTransactionId } =
-      setup();
+  it('loads persisted keyring transaction from state before Horizon track check', async () => {
+    const {
+      handler,
+      checkHorizonTransactionForTrack,
+      findKeyringTransactionByTransactionId,
+    } = setup();
     const callOrder: string[] = [];
     findKeyringTransactionByTransactionId.mockImplementation(async () => {
       callOrder.push('findPersisted');
       return undefined;
     });
-    pollTransaction.mockImplementation(async () => {
-      callOrder.push('poll');
-      return txId;
+    checkHorizonTransactionForTrack.mockImplementation(async () => {
+      callOrder.push('horizon');
+      return 'confirmed';
     });
 
     await handler.handle({
@@ -150,14 +153,14 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(callOrder).toStrictEqual(['findPersisted', 'poll']);
+    expect(callOrder).toStrictEqual(['findPersisted', 'horizon']);
   });
 
-  it('settles keyring row as confirmed when RPC poll succeeds', async () => {
+  it('syncs before settling confirmed when Horizon track check confirms', async () => {
     const {
       handler,
       account,
-      pollTransaction,
+      checkHorizonTransactionForTrack,
       synchronize,
       updateKeyringTransactionStatus,
       findKeyringTransactionByTransactionId,
@@ -165,7 +168,15 @@ describe('TrackTransactionHandler', () => {
     findKeyringTransactionByTransactionId.mockResolvedValue(
       createPersistedKeyringTransaction(),
     );
-    pollTransaction.mockResolvedValue(txId);
+    checkHorizonTransactionForTrack.mockResolvedValue('confirmed');
+
+    const callOrder: string[] = [];
+    synchronize.mockImplementation(async () => {
+      callOrder.push('sync');
+    });
+    updateKeyringTransactionStatus.mockImplementation(async () => {
+      callOrder.push('settle');
+    });
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -178,7 +189,8 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(pollTransaction).toHaveBeenCalledWith(txId, scope);
+    expect(checkHorizonTransactionForTrack).toHaveBeenCalledWith(txId, scope);
+    expect(callOrder).toStrictEqual(['sync', 'settle']);
     expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
       txId,
       accountIds: [accountId],
@@ -189,10 +201,10 @@ describe('TrackTransactionHandler', () => {
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
-  it('settles keyring row as failed for non-unknown poll status', async () => {
+  it('reschedules when Horizon track check returns pending on first attempt', async () => {
     const {
       handler,
-      pollTransaction,
+      checkHorizonTransactionForTrack,
       synchronize,
       updateKeyringTransactionStatus,
       findKeyringTransactionByTransactionId,
@@ -200,9 +212,137 @@ describe('TrackTransactionHandler', () => {
     findKeyringTransactionByTransactionId.mockResolvedValue(
       createPersistedKeyringTransaction(),
     );
-    pollTransaction.mockRejectedValue(
-      new TransactionPollException(txId, 'failed', scope),
+    checkHorizonTransactionForTrack.mockResolvedValue('pending');
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+      },
+    });
+
+    expect(updateKeyringTransactionStatus).not.toHaveBeenCalled();
+    expect(synchronize).not.toHaveBeenCalled();
+    expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+        attempt: 1,
+      },
+      duration: Duration.TwoSeconds,
+    });
+  });
+
+  it('settles confirmed after reschedule then confirmed across cron runs', async () => {
+    const {
+      handler,
+      checkHorizonTransactionForTrack,
+      synchronize,
+      updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
+    } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
     );
+    checkHorizonTransactionForTrack
+      .mockResolvedValueOnce('pending')
+      .mockResolvedValueOnce('confirmed');
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+      },
+    });
+
+    expect(checkHorizonTransactionForTrack).toHaveBeenCalledTimes(1);
+    expect(updateKeyringTransactionStatus).not.toHaveBeenCalled();
+    expect(scheduleBackgroundEvent).toHaveBeenCalledTimes(1);
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 2,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIds: [accountId],
+        attempt: 1,
+      },
+    });
+
+    expect(checkHorizonTransactionForTrack).toHaveBeenCalledTimes(2);
+    expect(synchronize).toHaveBeenCalledTimes(1);
+    expect(updateKeyringTransactionStatus).toHaveBeenCalledWith({
+      txId,
+      accountIds: [accountId],
+      status: TransactionStatus.Confirmed,
+    });
+  });
+
+  it('leaves pending when Horizon keeps returning pending after max reschedules', async () => {
+    const {
+      handler,
+      checkHorizonTransactionForTrack,
+      synchronize,
+      updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
+    } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
+    checkHorizonTransactionForTrack.mockResolvedValue('pending');
+
+    for (
+      let attempt = 0;
+      attempt <= AppConfig.transaction.trackTransactionMaxReschedules;
+      attempt += 1
+    ) {
+      await handler.handle({
+        jsonrpc: '2.0',
+        id: attempt + 1,
+        method: BackgroundEventMethod.TrackTransaction,
+        params: {
+          txId,
+          scope,
+          accountIds: [accountId],
+          attempt,
+        },
+      });
+    }
+
+    expect(checkHorizonTransactionForTrack).toHaveBeenCalledTimes(
+      AppConfig.transaction.trackTransactionMaxReschedules + 1,
+    );
+    expect(scheduleBackgroundEvent).toHaveBeenCalledTimes(
+      AppConfig.transaction.trackTransactionMaxReschedules,
+    );
+    expect(updateKeyringTransactionStatus).not.toHaveBeenCalled();
+    expect(synchronize).toHaveBeenCalledTimes(1);
+  });
+
+  it('settles keyring row as failed when Horizon track check reports failed', async () => {
+    const {
+      handler,
+      checkHorizonTransactionForTrack,
+      synchronize,
+      updateKeyringTransactionStatus,
+      findKeyringTransactionByTransactionId,
+    } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(),
+    );
+    checkHorizonTransactionForTrack.mockResolvedValue('failed');
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -224,10 +364,10 @@ describe('TrackTransactionHandler', () => {
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
-  it('leaves pending when poll status is unknown and still synchronizes', async () => {
+  it('leaves pending on unavailable Horizon track check and still synchronizes', async () => {
     const {
       handler,
-      pollTransaction,
+      checkHorizonTransactionForTrack,
       synchronize,
       updateKeyringTransactionStatus,
       findKeyringTransactionByTransactionId,
@@ -235,9 +375,7 @@ describe('TrackTransactionHandler', () => {
     findKeyringTransactionByTransactionId.mockResolvedValue(
       createPersistedKeyringTransaction(),
     );
-    pollTransaction.mockRejectedValue(
-      new TransactionPollException(txId, 'unknown', scope),
-    );
+    checkHorizonTransactionForTrack.mockResolvedValue('unavailable');
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -255,41 +393,13 @@ describe('TrackTransactionHandler', () => {
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
-  it('leaves pending on unexpected poll error and still synchronizes', async () => {
-    const {
-      handler,
-      pollTransaction,
-      synchronize,
-      updateKeyringTransactionStatus,
-      findKeyringTransactionByTransactionId,
-    } = setup();
-    findKeyringTransactionByTransactionId.mockResolvedValue(
-      createPersistedKeyringTransaction(),
-    );
-    pollTransaction.mockRejectedValue(new Error('unexpected poll failure'));
-
-    await handler.handle({
-      jsonrpc: '2.0',
-      id: 1,
-      method: BackgroundEventMethod.TrackTransaction,
-      params: {
-        txId,
-        scope,
-        accountIds: [accountId],
-      },
-    });
-
-    expect(updateKeyringTransactionStatus).not.toHaveBeenCalled();
-    expect(synchronize).toHaveBeenCalledTimes(1);
-  });
-
   it('syncs from persisted keyring transaction account without findByIds', async () => {
     const {
       handler,
       account,
       findByIds,
       findById,
-      pollTransaction,
+      checkHorizonTransactionForTrack,
       findKeyringTransactionByTransactionId,
       synchronize,
       updateKeyringTransactionStatus,
@@ -298,7 +408,7 @@ describe('TrackTransactionHandler', () => {
     findKeyringTransactionByTransactionId.mockResolvedValue(persisted);
     findByIds.mockResolvedValue([]);
     findById.mockResolvedValue(account);
-    pollTransaction.mockResolvedValue(txId);
+    checkHorizonTransactionForTrack.mockResolvedValue('confirmed');
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -326,7 +436,7 @@ describe('TrackTransactionHandler', () => {
       handler,
       findByIds,
       findById,
-      pollTransaction,
+      checkHorizonTransactionForTrack,
       findKeyringTransactionByTransactionId,
       synchronize,
     } = setup();
@@ -334,7 +444,7 @@ describe('TrackTransactionHandler', () => {
       createPersistedKeyringTransaction('deadbeef-dead-4ead-8ead-deadbeefdead'),
     );
     findById.mockResolvedValue(undefined);
-    pollTransaction.mockResolvedValue(txId);
+    checkHorizonTransactionForTrack.mockResolvedValue('confirmed');
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -352,8 +462,8 @@ describe('TrackTransactionHandler', () => {
   });
 
   it('skips sync when no persisted row exists', async () => {
-    const { handler, pollTransaction, synchronize } = setup();
-    pollTransaction.mockResolvedValue(txId);
+    const { handler, checkHorizonTransactionForTrack, synchronize } = setup();
+    checkHorizonTransactionForTrack.mockResolvedValue('confirmed');
 
     await handler.handle({
       jsonrpc: '2.0',
@@ -366,7 +476,7 @@ describe('TrackTransactionHandler', () => {
       },
     });
 
-    expect(pollTransaction).toHaveBeenCalledWith(txId, scope);
+    expect(checkHorizonTransactionForTrack).toHaveBeenCalledWith(txId, scope);
     expect(synchronize).not.toHaveBeenCalled();
   });
 });

@@ -13,13 +13,13 @@ import {
 } from './api';
 import { CronjobBaseHandler } from './base';
 import type { KnownCaip2ChainId } from '../../api';
+import { AppConfig } from '../../config';
 import { KEYRING_ACCOUNT_TYPE, METAMASK_ORIGIN } from '../../constants';
 import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
 import type { NetworkService } from '../../services/network';
-import { TransactionPollException } from '../../services/network/exceptions';
 import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction';
 import type { ILogger } from '../../utils/logger';
@@ -31,14 +31,16 @@ import {
 } from '../../utils/snap';
 
 /**
- * Polls Soroban RPC for transaction settlement first, then updates keyring status and runs
- * {@link OnChainAccountService.synchronize}. The persisted keyring transaction in snap state
- * (by hash) is the source of truth for which account to sync.
+ * Tracks transaction settlement via Horizon inclusion. Each cron run calls
+ * {@link NetworkService.checkHorizonTransactionForTrack} once; reschedules via
+ * `scheduleBackgroundEvent` when the result is `'pending'`, then syncs before settling
+ * Confirmed. The persisted keyring transaction in snap state (by hash) is the source of truth for
+ * which account to sync.
  */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static async scheduleBackgroundEvent(
     params: TrackTransactionParams,
-    duration: Duration = Duration.OneSecond,
+    duration: Duration = Duration.TwoSeconds,
   ): Promise<void> {
     await scheduleBackgroundEvent({
       method: BackgroundEventMethod.TrackTransaction,
@@ -88,33 +90,55 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
   protected async handleCronJobRequest(
     request: TrackTransactionJsonRpcRequest,
   ): Promise<void> {
-    const { txId, scope, accountIds, attempt: attemptRaw } = request.params;
+    const { txId, scope, accountIds, attempt = 0 } = request.params;
 
     this.logger.debug('Tracking transaction', {
       txId,
       scope,
-      attempt: attemptRaw ?? 0,
+      attempt,
     });
 
-    // When no row exists in snap state, we still poll (inclusion can still be observed) and
-    // `updateKeyringTransactionStatus` still runs via cron `accountIds` when the poll is
-    // terminal. Whether to short-circuit or reschedule in that case is unresolved.
+    // When no row exists in snap state, we still check Horizon (inclusion can still be observed)
+    // and `updateKeyringTransactionStatus` still runs via cron `accountIds` when terminal.
     // TODO: Revisit behavior when `findKeyringTransactionByTransactionId`
-    // returns undefined (e.g. early-exit poll, stronger logging, or reschedule policy).
+    // returns undefined (e.g. early-exit, stronger logging, or reschedule policy).
     const persistedKeyringTransaction =
       await this.#transactionService.findKeyringTransactionByTransactionId(
         txId,
       );
 
+    const accountsToSync = await this.#resolveAccountsForSynchronize({
+      persistedKeyringTransaction,
+    });
+
+    const trackStatus =
+      await this.#networkService.checkHorizonTransactionForTrack(txId, scope);
+
+    if (trackStatus === 'pending') {
+      const rescheduled = await this.#rescheduleWhenHorizonNotIndexed({
+        txId,
+        scope,
+        accountIds,
+        attempt,
+      });
+      if (rescheduled) {
+        return;
+      }
+    }
+
     let keyringStatus:
       | TransactionStatus.Confirmed
       | TransactionStatus.Failed
       | null = null;
-    try {
-      await this.#networkService.pollTransaction(txId, scope);
-      this.logger.info('TrackTransaction: RPC settled; synchronizing', {
+
+    if (trackStatus === 'confirmed') {
+      this.logger.info('TrackTransaction: Horizon settled; synchronizing', {
         txId,
         scope,
+      });
+      await this.#synchronizeIfNeeded(accountsToSync, scope, {
+        txId,
+        persistedAccountId: persistedKeyringTransaction?.account,
       });
       keyringStatus = TransactionStatus.Confirmed;
 
@@ -125,50 +149,81 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
         accountType: KEYRING_ACCOUNT_TYPE,
         chainIdCaip: scope,
       });
-    } catch (error: unknown) {
-      if (error instanceof TransactionPollException) {
-        if (error.status === 'unknown') {
-          this.logger.warn(
-            'TrackTransaction: poll status unknown; leaving keyring transaction pending',
-            { txId, scope },
-          );
-        } else {
-          this.logger.warn('TrackTransaction: poll settled as failed', {
-            txId,
-            scope,
-            status: error.status,
-          });
-          keyringStatus = TransactionStatus.Failed;
-        }
-      } else {
-        this.logger.logErrorWithDetails(
-          'TrackTransaction: unexpected poll error; leaving keyring transaction pending',
-          error,
-        );
-      }
+    } else if (trackStatus === 'failed') {
+      this.logger.warn('TrackTransaction: Horizon settled as failed', {
+        txId,
+        scope,
+      });
+      await this.#synchronizeIfNeeded(accountsToSync, scope, {
+        txId,
+        persistedAccountId: persistedKeyringTransaction?.account,
+      });
+      keyringStatus = TransactionStatus.Failed;
+    } else {
+      this.logger.warn(
+        'TrackTransaction: leaving keyring transaction pending after Horizon track check',
+        {
+          txId,
+          scope,
+          attempt,
+          outcome: trackStatus === 'pending' ? 'notIndexed' : 'unavailable',
+        },
+      );
     }
 
     if (keyringStatus) {
       await this.#settleKeyringRow(txId, accountIds, keyringStatus);
-    }
-
-    // TODO: Consider skipping synchronize when the keyring row stayed
-    // pending (no terminal poll result) to avoid redundant on-chain refreshes.
-    const accountsToSync = await this.#resolveAccountsForSynchronize({
-      persistedKeyringTransaction,
-    });
-    if (accountsToSync.length > 0) {
+    } else if (accountsToSync.length > 0) {
       await this.#synchronizeAccounts(accountsToSync, scope);
-    } else {
-      this.logger.warn(
-        'TrackTransaction: account not found when tracking the transaction, unable to sync',
+    }
+  }
+
+  /**
+   * Reschedules the track job when Horizon has not indexed the tx yet and budget remains.
+   *
+   * @param params - Inputs for the follow-up background event.
+   * @param params.txId - Transaction hash to keep tracking.
+   * @param params.scope - CAIP-2 chain id for the network.
+   * @param params.accountIds - Keyring account ids passed through to settlement.
+   * @param params.attempt - Current track cron attempt (matches serialized `attempt` param).
+   * @returns True when a follow-up background event was scheduled.
+   */
+  async #rescheduleWhenHorizonNotIndexed(params: {
+    txId: string;
+    scope: KnownCaip2ChainId;
+    accountIds: readonly string[];
+    attempt: number;
+  }): Promise<boolean> {
+    const { txId, scope, accountIds, attempt } = params;
+    const maxReschedules = AppConfig.transaction.trackTransactionMaxReschedules;
+
+    if (attempt < maxReschedules) {
+      this.logger.debug(
+        'TrackTransaction: Horizon not indexed; scheduling reschedule',
+        { txId, scope, attempt, maxReschedules },
+      );
+      await TrackTransactionHandler.scheduleBackgroundEvent(
         {
           txId,
           scope,
-          persistedAccountId: persistedKeyringTransaction?.account,
+          accountIds: [...accountIds],
+          attempt: attempt + 1,
         },
+        Duration.TwoSeconds,
       );
+      return true;
     }
+
+    this.logger.warn(
+      'TrackTransaction: Horizon not indexed after max reschedules; leaving keyring transaction pending',
+      {
+        txId,
+        scope,
+        attempt,
+        maxReschedules,
+      },
+    );
+    return false;
   }
 
   /**
@@ -195,6 +250,26 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
     }
 
     return [];
+  }
+
+  async #synchronizeIfNeeded(
+    accounts: StellarKeyringAccount[],
+    scope: KnownCaip2ChainId,
+    context: { txId: string; persistedAccountId: string | undefined },
+  ): Promise<void> {
+    if (accounts.length > 0) {
+      await this.#synchronizeAccounts(accounts, scope);
+      return;
+    }
+
+    this.logger.warn(
+      'TrackTransaction: account not found when tracking the transaction, unable to sync',
+      {
+        txId: context.txId,
+        scope,
+        persistedAccountId: context.persistedAccountId,
+      },
+    );
   }
 
   async #synchronizeAccounts(
