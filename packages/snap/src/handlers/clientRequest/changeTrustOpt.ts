@@ -284,6 +284,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       confirmationInterfaceKey,
     } = params;
     const { scope } = request.params;
+    const xdr = transaction.getRaw().toXDR();
 
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
@@ -302,11 +303,11 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
         },
         securityScanRequest: {
           accountAddress: account.address,
-          transaction: transaction.getRaw().toXDR(),
+          transaction: xdr,
         },
         transactionValidationRequest: {
           accountId: account.id,
-          transaction: transaction.getRaw().toXDR(),
+          transaction: xdr,
           request,
         },
       })) === true

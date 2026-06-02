@@ -248,6 +248,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
   }): Promise<boolean> {
     const { request, account, assetMetadata, fee, scope, transaction } = params;
     const { toAddress, amount, assetId } = request.params;
+    const xdr = transaction.getRaw().toXDR();
 
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
@@ -268,11 +269,11 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         },
         securityScanRequest: {
           accountAddress: account.address,
-          transaction: transaction.getRaw().toXDR(),
+          transaction: xdr,
         },
         transactionValidationRequest: {
           accountId: account.id,
-          transaction: transaction.getRaw().toXDR(),
+          transaction: xdr,
           request,
         },
         tokenPrices: {
