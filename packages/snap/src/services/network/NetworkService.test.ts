@@ -19,6 +19,7 @@ import {
   BaseFeeFetchException,
   NetworkServiceException,
   SimulationException,
+  TransactionNotFoundException,
   TransactionPollException,
   TransactionRetryableException,
   TransactionSendException,
@@ -746,8 +747,10 @@ describe('NetworkService', () => {
       transactionsSpy.mockRestore();
     });
 
-    it('throws TransactionPollException when Horizon fetch fails', async () => {
-      const call = jest.fn().mockRejectedValue(new Error('Horizon error'));
+    it('throws TransactionNotFoundException when record is not found', async () => {
+      const call = jest
+        .fn()
+        .mockRejectedValue(new NotFoundError('not found', {}));
       const transactionsSpy = jest
         .spyOn(StellarHorizon.Server.prototype, 'transactions')
         .mockReturnValue({
@@ -756,11 +759,7 @@ describe('NetworkService', () => {
 
       await expect(
         networkService.getTransaction(testTransactionHash, scope),
-      ).rejects.toMatchObject({
-        transactionHash: testTransactionHash,
-        status: 'unknown',
-        scope,
-      });
+      ).rejects.toThrow(TransactionNotFoundException);
 
       transactionsSpy.mockRestore();
     });

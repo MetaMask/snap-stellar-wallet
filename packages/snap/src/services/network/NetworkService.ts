@@ -17,6 +17,7 @@ import {
   BaseFeeFetchException,
   NetworkServiceException,
   SimulationException,
+  TransactionNotFoundException,
   TransactionPollException,
   TransactionRetryableException,
   TransactionSendException,
@@ -800,7 +801,7 @@ export class NetworkService {
    * @param transactionHash - Stellar transaction hash (`hex`).
    * @param scope - CAIP-2 network scope used to choose the Horizon client and decode envelope XDR.
    * @returns The mapped {@link Transaction}.
-   * @throws {TransactionPollException} When the transaction cannot be fetched or mapped.
+   * @throws {NetworkServiceException} When the transaction cannot be fetched or mapped.
    */
   async getTransaction(
     transactionHash: string,
@@ -815,10 +816,11 @@ export class NetworkService {
       return this.#toTransaction(result, scope);
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to fetch transaction', error);
-      return rethrowIfInstanceElseThrow(
-        error,
-        [TransactionPollException],
-        new TransactionPollException(transactionHash, 'unknown', scope),
+      if (error instanceof NotFoundError) {
+        throw new TransactionNotFoundException(transactionHash);
+      }
+      throw new NetworkServiceException(
+        `Failed to fetch transaction ${transactionHash}`,
       );
     }
   }
