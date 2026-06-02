@@ -39,7 +39,11 @@ import type {
 import { KnownCaip2ChainId } from '../../api';
 import type { NetworkConfig } from '../../config';
 import { AppConfig } from '../../config';
-import { MAX_TRANSACTION_SCAN_PAGES, MAX_TRANSACTIONS_PAGE_SIZE, STELLAR_DECIMAL_PLACES } from '../../constants';
+import {
+  MAX_TRANSACTION_SCAN_PAGES,
+  MAX_TRANSACTIONS_PAGE_SIZE,
+  STELLAR_DECIMAL_PLACES,
+} from '../../constants';
 import type { ILogger, Serializable } from '../../utils';
 import {
   isSameStr,
@@ -804,7 +808,10 @@ export class NetworkService {
   ): Promise<Transaction> {
     try {
       const client = this.#getHorizonClient(scope);
-      const result = await client.transactions().transaction(transactionHash).call();
+      const result = await client
+        .transactions()
+        .transaction(transactionHash)
+        .call();
       return this.#toTransaction(result, scope);
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to fetch transaction', error);
@@ -845,7 +852,15 @@ export class NetworkService {
     transactions: Transaction[];
     nextScanToken: string;
   }> {
-    const { accountAddress, lastScanToken, scope, order = 'asc', pageSize = MAX_TRANSACTIONS_PAGE_SIZE, maxScan = MAX_TRANSACTION_SCAN_PAGES, includeSelfTransactionsOnly = true } = params;
+    const {
+      accountAddress,
+      lastScanToken,
+      scope,
+      order = 'asc',
+      pageSize = MAX_TRANSACTIONS_PAGE_SIZE,
+      maxScan = MAX_TRANSACTION_SCAN_PAGES,
+      includeSelfTransactionsOnly = true,
+    } = params;
 
     let maxScanRemaining = maxScan;
     let nextScanToken: string = lastScanToken;
@@ -853,13 +868,26 @@ export class NetworkService {
     try {
       const client = this.#getHorizonClient(scope);
 
-      const transactionsResponse = await client.transactions().forAccount(accountAddress).order(order).cursor(lastScanToken).limit(pageSize).call();
+      const transactionsResponse = await client
+        .transactions()
+        .forAccount(accountAddress)
+        .order(order)
+        .cursor(lastScanToken)
+        .limit(pageSize)
+        .call();
 
-      const transactions = this.#toTransactions(transactionsResponse.records, scope, accountAddress, includeSelfTransactionsOnly);
+      const transactions = this.#toTransactions(
+        transactionsResponse.records,
+        scope,
+        accountAddress,
+        includeSelfTransactionsOnly,
+      );
 
       maxScanRemaining -= 1;
-      nextScanToken = transactionsResponse.records[transactionsResponse.records.length - 1]?.paging_token ?? '';
-      
+      nextScanToken =
+        transactionsResponse.records[transactionsResponse.records.length - 1]
+          ?.paging_token ?? '';
+
       // When a page is full, Horizon likely has more records available.
       // Continue pagination (bounded by `maxScan`) to advance the scan window.
       if (transactionsResponse.records.length === pageSize) {
@@ -868,16 +896,26 @@ export class NetworkService {
         while (maxScanRemaining > 0) {
           const nextTransactionsResponse = await transactionsResponse.next();
 
-          transactions.concat(this.#toTransactions(nextTransactionsResponse.records, scope, accountAddress, includeSelfTransactionsOnly));
-          
+          transactions.concat(
+            this.#toTransactions(
+              nextTransactionsResponse.records,
+              scope,
+              accountAddress,
+              includeSelfTransactionsOnly,
+            ),
+          );
+
           maxScanRemaining -= 1;
-          nextScanToken = nextTransactionsResponse.records[nextTransactionsResponse.records.length - 1]?.paging_token ?? '';
+          nextScanToken =
+            nextTransactionsResponse.records[
+              nextTransactionsResponse.records.length - 1
+            ]?.paging_token ?? '';
         }
       }
 
       return {
         transactions,
-        nextScanToken: nextScanToken,
+        nextScanToken,
       };
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to fetch transactions', error);
@@ -889,11 +927,20 @@ export class NetworkService {
     }
   }
 
-  #toTransactions(transactions: StellarHorizon.ServerApi.TransactionRecord[], scope: KnownCaip2ChainId, accountAddress: string, includeSelfTransactionsOnly: boolean): Transaction[] {
+  #toTransactions(
+    transactions: StellarHorizon.ServerApi.TransactionRecord[],
+    scope: KnownCaip2ChainId,
+    accountAddress: string,
+    includeSelfTransactionsOnly: boolean,
+  ): Transaction[] {
     const result: Transaction[] = [];
-    
+
     for (const transaction of transactions) {
-      if ((includeSelfTransactionsOnly && transaction.source_account === accountAddress) || !includeSelfTransactionsOnly) {
+      if (
+        (includeSelfTransactionsOnly &&
+          transaction.source_account === accountAddress) ||
+        !includeSelfTransactionsOnly
+      ) {
         result.push(this.#toTransaction(transaction, scope));
       }
     }

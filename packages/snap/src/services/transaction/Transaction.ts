@@ -3,14 +3,17 @@ import type {
   Operation,
   Horizon,
 } from '@stellar/stellar-sdk';
-import { FeeBumpTransaction, TransactionBuilder as StellarTransactionBuilder } from '@stellar/stellar-sdk';
+import {
+  FeeBumpTransaction,
+  TransactionBuilder as StellarTransactionBuilder,
+} from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { TransactionDeserializationException } from './exceptions';
 import { parseExpirationMaxTime } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { bufferToUint8Array } from '../../utils';
 import { caip2ChainIdToNetwork, networkToCaip2ChainId } from '../network/utils';
-import { TransactionDeserializationException } from './exceptions';
 
 /**
  * Wrapper around a Stellar transaction. Exposes fees, operation metadata, and network/scope
@@ -33,7 +36,7 @@ export class Transaction {
   ) {
     this.#inner = inner;
     // if the fee charged is not provided, use the fee of the transaction as default.
-    this.#feeCharged = options?.feeCharged ?? new BigNumber(inner.fee)
+    this.#feeCharged = options?.feeCharged ?? new BigNumber(inner.fee);
     this.#initialize();
   }
 
@@ -327,7 +330,7 @@ export class Transaction {
         caip2ChainIdToNetwork(scope),
       );
       return Transaction.fromRaw(decoded);
-    } catch (error: unknown) {
+    } catch {
       throw new TransactionDeserializationException();
     }
   }

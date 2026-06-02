@@ -96,18 +96,21 @@ describe('NetworkService', () => {
     'stellar:pubnet/sep41:CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J' as KnownCaip19Sep41AssetId;
 
   const createMockTransaction = (accountId?: string) => {
-    return buildMockClassicTransaction([
-      {
-        type: 'payment',
-        params: {
-          destination: accountId ?? generateStellarAddress(),
-          asset: 'native',
-          amount: '1',
+    return buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: accountId ?? generateStellarAddress(),
+            asset: 'native',
+            amount: '1',
+          },
         },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
       },
-    ], {
-      networkPassphrase: Networks.PUBLIC,
-    });
+    );
   };
 
   const createMockInvokeHostFunctionTransaction = (accountId?: string) => {

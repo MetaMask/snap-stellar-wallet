@@ -1,8 +1,8 @@
+import type { Horizon } from '@stellar/stellar-sdk';
 import {
   Account,
   Asset,
   FeeBumpTransaction,
-  Horizon,
   Keypair,
   Memo,
   Networks,
@@ -314,7 +314,9 @@ describe('Transaction', () => {
         .build();
 
       const horizonRecord = {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         envelope_xdr: inner.toXDR(),
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         fee_charged: '300',
       } as Horizon.ServerApi.TransactionRecord;
 

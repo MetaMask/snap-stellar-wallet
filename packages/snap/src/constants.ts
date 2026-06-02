@@ -78,6 +78,7 @@ export const METAMASK_ORIGIN = 'metamask';
 
 /**
  * The maximum page size for the transactions.
+ *
  * @see https://developers.stellar.org/docs/data/apis/horizon/api-reference/get-transactions-by-account-id
  */
 export const MAX_TRANSACTIONS_PAGE_SIZE = 200;

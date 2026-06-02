@@ -1,10 +1,10 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
-import {
+import type {
+  Horizon,
   Account,
   Asset,
   Contract,
-  Horizon,
   Keypair,
   nativeToScVal,
   Networks,
@@ -522,12 +522,14 @@ export function buildMockHorizonTransactionRecord(
       },
     ]);
 
+  /* eslint-disable @typescript-eslint/naming-convention */
   return {
     envelope_xdr: transaction.getRaw().toXDR(),
     fee_charged: options.feeCharged ?? transaction.totalFee.toFixed(0),
     paging_token: options.pagingToken ?? '1',
     source_account: options.sourceAccount ?? transaction.sourceAccount,
   } as Horizon.ServerApi.TransactionRecord;
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 /**

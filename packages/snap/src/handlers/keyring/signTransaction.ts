@@ -9,9 +9,8 @@ import type { AccountResolver } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
-import { OperationMapper } from '../../services/transaction';
 import type { TransactionService } from '../../services/transaction';
-import { Transaction } from '../../services/transaction';
+import { OperationMapper, Transaction } from '../../services/transaction';
 import {
   assertAccountInvolvesTransaction,
   assertTransactionScope,

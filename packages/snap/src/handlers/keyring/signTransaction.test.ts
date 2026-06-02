@@ -9,8 +9,10 @@ import { generateStellarKeyringAccount } from '../../services/account/__mocks__/
 import { SimulationException } from '../../services/network/exceptions';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import type { Transaction } from '../../services/transaction';
-import { TransactionService } from '../../services/transaction';
-import { Transaction as WrappedTransaction } from '../../services/transaction';
+import {
+  TransactionService,
+  Transaction as WrappedTransaction,
+} from '../../services/transaction';
 import {
   buildMockClassicTransaction,
   createMockTransactionService,
@@ -127,12 +129,8 @@ describe('SignTransactionHandler', () => {
   });
 
   it('returns signedTxXdr and signerAddress on confirm', async () => {
-    const {
-      handler,
-      mockAccount,
-      wallet,
-      renderConfirmationDialog,
-    } = setupHandler();
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
 
     const transaction = buildMainnetPaymentFromWallet(wallet.address);
     const xdr = transaction.getRaw().toXDR();
@@ -194,12 +192,8 @@ describe('SignTransactionHandler', () => {
   });
 
   it('returns error -3 when the transaction scope does not match the request scope', async () => {
-    const {
-      handler,
-      mockAccount,
-      wallet,
-      renderConfirmationDialog,
-    } = setupHandler();
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
 
     // Build a TESTNET transaction but request signing on MAINNET scope.
     const testnetTx = buildMockClassicTransaction(
@@ -232,11 +226,7 @@ describe('SignTransactionHandler', () => {
   });
 
   it('returns error -3 when the wallet does not participate in the transaction', async () => {
-    const {
-      handler,
-      mockAccount,
-      renderConfirmationDialog,
-    } = setupHandler();
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
 
     const strangerTx = buildMockClassicTransaction(
       [

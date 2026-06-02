@@ -1,14 +1,11 @@
 import { nonempty, refine, string } from '@metamask/superstruct';
 import { base64 } from '@metamask/utils';
-import {
-  hash,
-  xdr,
-} from '@stellar/stellar-sdk';
+import { hash, xdr } from '@stellar/stellar-sdk';
 
-import { Transaction } from '../services/transaction/Transaction';
-import { bufferToUint8Array } from '../utils/buffer';
 import { AppConfig } from '../config';
 import { caip2ChainIdToNetwork } from '../services/network/utils';
+import { Transaction } from '../services/transaction/Transaction';
+import { bufferToUint8Array } from '../utils/buffer';
 
 /**
  * Validation struct for XDR: must be a valid base64 encoded XDR string.
@@ -122,7 +119,9 @@ export const SwapTransactionXdrStruct = refine(
 // doesn't re-hash on every validation. This is the value the network compares
 // against when verifying a Soroban authorization signature, so the embedded
 // `networkId` of any preimage we agree to sign must equal it.
-const MAINNET_NETWORK_ID = hash(bufferToUint8Array(caip2ChainIdToNetwork(AppConfig.selectedNetwork), 'utf8'));
+const MAINNET_NETWORK_ID = hash(
+  bufferToUint8Array(caip2ChainIdToNetwork(AppConfig.selectedNetwork), 'utf8'),
+);
 
 /**
  * Validation struct for a SEP-43 `signAuthEntry` payload: a base64-encoded
