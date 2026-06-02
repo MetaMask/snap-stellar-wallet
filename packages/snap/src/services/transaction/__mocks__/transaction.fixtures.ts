@@ -1,7 +1,7 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
-import type {
-  Horizon,
+import type { AuthFlag, Horizon } from '@stellar/stellar-sdk';
+import {
   Account,
   Asset,
   Contract,
@@ -10,7 +10,6 @@ import type {
   Networks,
   Operation,
   TransactionBuilder as StellarTransactionBuilder,
-  type AuthFlag,
 } from '@stellar/stellar-sdk';
 
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';

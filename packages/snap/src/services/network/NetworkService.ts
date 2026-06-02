@@ -844,7 +844,7 @@ export class NetworkService {
     accountAddress: string;
     lastScanToken: string;
     scope: KnownCaip2ChainId;
-    order: 'asc' | 'desc';
+    order?: 'asc' | 'desc';
     pageSize?: number;
     maxScan?: number;
     includeSelfTransactionsOnly?: boolean;
