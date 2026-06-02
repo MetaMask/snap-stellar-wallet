@@ -922,6 +922,74 @@ describe('NetworkService', () => {
       transactionsSpy.mockRestore();
     });
 
+    it('returns transactions from up to maxScan pages in one call', async () => {
+      const accountAddress = generateStellarAddress();
+      const txA = createMockTransaction(accountAddress);
+      const txB = createMockTransaction(accountAddress);
+      const txC = createMockTransaction(accountAddress);
+
+      const page1Records = [
+        buildMockHorizonTransactionRecord({
+          transaction: txA,
+          pagingToken: '11',
+        }),
+      ];
+      const page2Records = [
+        buildMockHorizonTransactionRecord({
+          transaction: txB,
+          pagingToken: '22',
+        }),
+      ];
+      const page3Records = [
+        buildMockHorizonTransactionRecord({
+          transaction: txC,
+          pagingToken: '33',
+        }),
+      ];
+
+      const page3Next = jest
+        .fn()
+        .mockResolvedValue(buildMockHorizonTransactionPage([]));
+      const page3 = buildMockHorizonTransactionPage(page3Records, page3Next);
+      const page2Next = jest.fn().mockResolvedValue(page3);
+      const page2 = buildMockHorizonTransactionPage(page2Records, page2Next);
+      const page1Next = jest.fn().mockResolvedValue(page2);
+      const page1 = buildMockHorizonTransactionPage(page1Records, page1Next);
+
+      const call = jest.fn().mockResolvedValue(page1);
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          forAccount: jest.fn().mockReturnValue({
+            order: jest.fn().mockReturnValue({
+              cursor: jest.fn().mockReturnValue({
+                limit: jest.fn().mockReturnValue({ call }),
+              }),
+            }),
+          }),
+        } as never);
+
+      const result = await networkService.getTransactions({
+        accountAddress,
+        lastScanToken: '',
+        scope,
+        order: 'asc',
+        includeSelfTransactionsOnly: false,
+        pageSize: 1,
+        maxScan: 3,
+      });
+
+      expect(result.transactions).toHaveLength(3);
+      expect(
+        result.transactions.map((transaction) => transaction.id),
+      ).toStrictEqual([txA.id, txB.id, txC.id]);
+      expect(result.nextScanToken).toBe('33');
+      expect(page1Next).toHaveBeenCalledTimes(1);
+      expect(page2Next).toHaveBeenCalledTimes(1);
+      expect(page3Next).not.toHaveBeenCalled();
+      transactionsSpy.mockRestore();
+    });
+
     it('throws NetworkServiceException when Horizon page fetch fails', async () => {
       const call = jest.fn().mockRejectedValue(new Error('Horizon error'));
       const transactionsSpy = jest

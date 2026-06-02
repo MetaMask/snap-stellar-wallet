@@ -868,7 +868,7 @@ export class NetworkService {
     try {
       const client = this.#getHorizonClient(scope);
 
-      const transactionsResponse = await client
+      const initialTransactionsResponse = await client
         .transactions()
         .forAccount(accountAddress)
         .order(order)
@@ -876,8 +876,8 @@ export class NetworkService {
         .limit(pageSize)
         .call();
 
-      const transactions = this.#toTransactions(
-        transactionsResponse.records,
+      let transactions = this.#toTransactions(
+        initialTransactionsResponse.records,
         scope,
         accountAddress,
         includeSelfTransactionsOnly,
@@ -885,32 +885,36 @@ export class NetworkService {
 
       maxScanRemaining -= 1;
       nextScanToken =
-        transactionsResponse.records[transactionsResponse.records.length - 1]
-          ?.paging_token ?? '';
+        initialTransactionsResponse.records[
+          initialTransactionsResponse.records.length - 1
+        ]?.paging_token ?? '';
 
       // When a page is full, Horizon likely has more records available.
-      // Continue pagination (bounded by `maxScan`) to advance the scan window.
-      if (transactionsResponse.records.length === pageSize) {
-        // Keep this call bounded for sync responsiveness.
-        // Remaining pages are fetched in future runs using `nextScanToken`.
-        while (maxScanRemaining > 0) {
-          const nextTransactionsResponse = await transactionsResponse.next();
+      // Continue pagination (bounded by `maxScan`) and aggregate those pages.
+      let currentResponse = initialTransactionsResponse;
+      while (
+        maxScanRemaining > 0 &&
+        currentResponse.records.length === pageSize
+      ) {
+        currentResponse = await currentResponse.next();
 
-          transactions.concat(
-            this.#toTransactions(
-              nextTransactionsResponse.records,
-              scope,
-              accountAddress,
-              includeSelfTransactionsOnly,
-            ),
-          );
-
-          maxScanRemaining -= 1;
-          nextScanToken =
-            nextTransactionsResponse.records[
-              nextTransactionsResponse.records.length - 1
-            ]?.paging_token ?? '';
+        if (currentResponse.records.length === 0) {
+          break;
         }
+
+        transactions = transactions.concat(
+          this.#toTransactions(
+            currentResponse.records,
+            scope,
+            accountAddress,
+            includeSelfTransactionsOnly,
+          ),
+        );
+
+        nextScanToken =
+          currentResponse.records[currentResponse.records.length - 1]
+            ?.paging_token ?? '';
+        maxScanRemaining -= 1;
       }
 
       return {
