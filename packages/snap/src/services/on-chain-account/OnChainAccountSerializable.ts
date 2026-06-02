@@ -7,6 +7,7 @@ import {
   number,
   object,
   optional,
+  record,
   string,
   union,
 } from '@metamask/superstruct';
@@ -91,6 +92,7 @@ export const OnChainAccountSerializableFullStruct = assign(
       subentryCount: number(),
       numSponsoring: number(),
       numSponsored: number(),
+      dataEntries: optional(record(string(), string())),
     }),
     balances: array(SerializableSpendableBalanceStruct),
     rawNativeBalance: string(),

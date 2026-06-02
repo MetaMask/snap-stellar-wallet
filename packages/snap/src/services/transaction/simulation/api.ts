@@ -5,6 +5,7 @@ import type {
   KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../../api';
+import type { Transaction } from '../Transaction';
 
 /**
  * Trustline row for simulation. `sponsored` mirrors Horizon: non-empty `balance.sponsor` means reserve is sponsored.
@@ -30,6 +31,7 @@ export type AccountState = {
   subentryCount: number;
   numSponsoring: number;
   numSponsored: number;
+  requiresMemo: boolean;
   trustlines: Map<KnownCaip19ClassicAssetId, TrustlineState>;
   /**
    * SEP-41 contract token balances from the wallet snapshot (smallest units), keyed by CAIP-19 SEP-41 id.
@@ -47,14 +49,17 @@ export type SimulationState = {
   accounts: Map<string, AccountState>;
 };
 
-/**
- * Context for validating one classic operation against the current simulation snapshot.
- */
-export type Context = {
+/** Per-operation context for balance / trustline apply steps. */
+export type ApplyContext = {
   state: SimulationState;
   txSource: string;
   scope: KnownCaip2ChainId;
   opIndex: number;
+};
+
+/** Extends {@link ApplyContext} with the envelope (e.g. memo checks on payment validation). */
+export type ValidateContext = ApplyContext & {
+  transaction: Transaction;
 };
 
 /**
@@ -62,9 +67,9 @@ export type Context = {
  */
 export type OperationSimulator = {
   validate(
-    ctx: Context,
+    ctx: ValidateContext,
     op: Operation,
     allOperations?: readonly Operation[],
   ): void;
-  apply(ctx: Context, op: Operation): void;
+  apply(ctx: ApplyContext, op: Operation): void;
 };

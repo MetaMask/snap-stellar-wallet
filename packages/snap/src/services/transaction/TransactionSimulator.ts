@@ -87,6 +87,8 @@ export class TransactionSimulator {
    * then runs ordered simulation for supported ops; classic ops update balances / trustlines.
    * Soroban `invokeHostFunction` is only allowed as a single-op tx and is a no-op for state.
    * All involved accounts must be known from the wallet snapshot (or {@link TransactionSimulatorOptions.preloadedAccounts}).
+   * Payment and path-payment destinations must appear in that set (or preloads) so balances and SEP-29
+   * `requiresMemo` can be read; otherwise simulation fails with “account not loaded” before memo checks run.
    * For a sole SEP-41 `transfer` invoke, the sender's contract token balance must appear on that account's {@link OnChainAccount} snapshot (e.g. {@link OnChainAccount.setAsset}).
    *
    * @param transaction - Wrapped Stellar transaction.
@@ -156,6 +158,7 @@ export class TransactionSimulator {
           txSource,
           scope,
           operations,
+          transaction,
         });
         this.#applyOP({ op, state, txSource, scope, opIndex });
         stack.push(state);
@@ -248,6 +251,7 @@ export class TransactionSimulator {
       subentryCount: account.subentryCount,
       numSponsoring: account.numSponsoring,
       numSponsored: account.numSponsored,
+      requiresMemo: account.requiresMemo,
       trustlines,
       sep41Balances,
     };
@@ -317,8 +321,10 @@ export class TransactionSimulator {
     txSource: string;
     scope: KnownCaip2ChainId;
     operations: readonly Operation[];
+    transaction: Transaction;
   }): void {
-    const { op, opIndex, state, txSource, scope, operations } = params;
+    const { op, opIndex, state, txSource, scope, operations, transaction } =
+      params;
     const operationType = this.#getSupportedOperationType(op);
 
     this.#operationSimulator[operationType].validate(
@@ -327,6 +333,7 @@ export class TransactionSimulator {
         txSource,
         scope,
         opIndex,
+        transaction,
       },
       op,
       operations,
@@ -364,8 +371,13 @@ export class TransactionSimulator {
   #cloneAccountState(accountState: AccountState): AccountState {
     const trustlines = new Map<KnownCaip19ClassicAssetId, TrustlineState>();
     const sep41Balances = new Map<KnownCaip19Sep41AssetId, BigNumber>();
-    const { nativeRawBalance, subentryCount, numSponsoring, numSponsored } =
-      accountState;
+    const {
+      nativeRawBalance,
+      subentryCount,
+      numSponsoring,
+      numSponsored,
+      requiresMemo,
+    } = accountState;
     for (const [assetId, trustline] of accountState.trustlines) {
       trustlines.set(assetId, {
         balance: new BigNumber(trustline.balance.toString()),
@@ -382,6 +394,7 @@ export class TransactionSimulator {
       subentryCount,
       numSponsoring,
       numSponsored,
+      requiresMemo,
       trustlines,
       sep41Balances,
     };

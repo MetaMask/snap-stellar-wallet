@@ -3,6 +3,7 @@ import {
   Account,
   Asset,
   Keypair,
+  Memo,
   nativeToScVal,
   Networks,
   Operation as StellarOperation,
@@ -17,6 +18,7 @@ import {
   InvalidAmountForCreateAccountException,
   InvalidInvokeContractStructureException,
   RemoveTrustlineWithNonZeroBalanceException,
+  RequiresMemoException,
   TransactionExpireException,
   TransactionScopeNotMatchException,
   TransactionValidationException,
@@ -31,6 +33,7 @@ import {
   TransactionSimulator,
 } from './TransactionSimulator';
 import { KnownCaip2ChainId } from '../../api';
+import { ACCOUNT_REQUIRES_MEMO, MEMO_REQUIRED_KEY } from '../../constants';
 import { caip2ChainIdToNetwork } from '../network/utils';
 import {
   createMockAccountWithBalances,
@@ -207,6 +210,27 @@ function destOnChainAccount(destPublicKey: string): OnChainAccount {
         balance: 0,
       },
     ],
+  });
+}
+
+/**
+ * Destination account with SEP-29 `config.memo_required` set.
+ *
+ * @param destPublicKey - Payment destination Stellar account id (G…).
+ * @returns Preload account that {@link OnChainAccount.requiresMemo} treats as memo-required.
+ */
+function destOnChainAccountRequiresMemo(destPublicKey: string): OnChainAccount {
+  const account = destOnChainAccount(destPublicKey);
+  const serializable = account.toSerializableFull();
+  return OnChainAccount.fromSerializable({
+    ...serializable,
+    meta: {
+      ...serializable.meta,
+      dataEntries: {
+        ...serializable.meta.dataEntries,
+        [MEMO_REQUIRED_KEY]: ACCOUNT_REQUIRES_MEMO,
+      },
+    },
   });
 }
 
@@ -501,6 +525,112 @@ describe('TransactionSimulator', () => {
       expect(stack).toHaveLength(2);
     });
 
+    it('throws when destination requires memo and payment envelope has no memo', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              source: wallet.address,
+              destination: destinationAddress,
+              asset: 'native',
+              amount: '10',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(() =>
+        simulator.simulate(tx, onChainAccount, {
+          preloadedAccounts: [
+            destOnChainAccountRequiresMemo(destinationAddress),
+          ],
+        }),
+      ).toThrow(RequiresMemoException);
+    });
+
+    it('succeeds when destination requires memo and payment envelope has a text memo', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+
+      const tx = buildEnvelopeTransaction(
+        wallet.address,
+        '1',
+        (tb) =>
+          tb
+            .addOperation(
+              StellarOperation.payment({
+                source: wallet.address,
+                destination: destinationAddress,
+                asset: Asset.native(),
+                amount: '10',
+              }),
+            )
+            .addMemo(Memo.text('deposit-ref')),
+        { feeStroops: '100', scope: KnownCaip2ChainId.Mainnet },
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccount, {
+          preloadedAccounts: [
+            destOnChainAccountRequiresMemo(destinationAddress),
+          ],
+        }),
+      ).toHaveLength(2);
+    });
+
+    it.each([
+      { label: 'empty text', memo: Memo.text('') },
+      { label: 'whitespace-only text', memo: Memo.text('   ') },
+    ])(
+      'throws when destination requires memo and payment has $label',
+      ({ memo }: { label: string; memo: Memo }) => {
+        const wallet = getTestWallet();
+        const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+          nativeBalance: 500,
+          subentryCount: 0,
+          assets: [],
+        });
+
+        const tx = buildEnvelopeTransaction(
+          wallet.address,
+          '1',
+          (tb) =>
+            tb
+              .addOperation(
+                StellarOperation.payment({
+                  source: wallet.address,
+                  destination: destinationAddress,
+                  asset: Asset.native(),
+                  amount: '10',
+                }),
+              )
+              .addMemo(memo),
+          { feeStroops: '100', scope: KnownCaip2ChainId.Mainnet },
+        );
+
+        expect(() =>
+          simulator.simulate(tx, onChainAccount, {
+            preloadedAccounts: [
+              destOnChainAccountRequiresMemo(destinationAddress),
+            ],
+          }),
+        ).toThrow(RequiresMemoException);
+      },
+    );
+
     it('throws when destination account is not in the simulation set', () => {
       const walletKey = Keypair.random().publicKey();
       const external = Keypair.random().publicKey();
@@ -704,6 +834,82 @@ describe('TransactionSimulator', () => {
   });
 
   describe('pathPayment', () => {
+    it('throws when destination requires memo and path payment envelope has no memo', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'pathPaymentStrictSend',
+            params: {
+              source: wallet.address,
+              sendAsset: 'native',
+              sendAmount: '10',
+              destination: destinationAddress,
+              destAsset: MOCK_USDC_ASSET,
+              destMin: '5',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(() =>
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.PathPayment],
+          preloadedAccounts: [
+            destOnChainAccountRequiresMemo(destinationAddress),
+          ],
+        }),
+      ).toThrow(RequiresMemoException);
+    });
+
+    it('succeeds when destination requires memo and path payment envelope has a text memo', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+
+      const tx = buildEnvelopeTransaction(
+        wallet.address,
+        '1',
+        (tb) =>
+          tb
+            .addOperation(
+              StellarOperation.pathPaymentStrictSend({
+                source: wallet.address,
+                sendAsset: Asset.native(),
+                sendAmount: '10',
+                destination: destinationAddress,
+                destAsset: new Asset(
+                  MOCK_USDC_ASSET.code,
+                  MOCK_USDC_ASSET.issuer,
+                ),
+                destMin: '5',
+                path: [],
+              }),
+            )
+            .addMemo(Memo.text('swap-ref')),
+        { feeStroops: '100', scope: KnownCaip2ChainId.Mainnet },
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.PathPayment],
+          preloadedAccounts: [
+            destOnChainAccountRequiresMemo(destinationAddress),
+          ],
+        }),
+      ).toHaveLength(2);
+    });
+
     it('succeeds for strict send when source pays native and destination receives a credit asset', () => {
       const wallet = getTestWallet();
       const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
