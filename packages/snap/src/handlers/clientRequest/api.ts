@@ -1,4 +1,5 @@
 import { AssetStruct, FeeType } from '@metamask/keyring-api';
+import type { FungibleAssetMetadata } from '@metamask/snaps-sdk';
 import type { Infer } from '@metamask/superstruct';
 import {
   enums,
@@ -35,7 +36,6 @@ import {
   ValidStellarAmountStruct,
   SwapTransactionXdrStruct,
 } from '../../api';
-import { AccountAssetInfoEntryStruct } from '../../services/account-asset-info';
 import { isSep41Id } from '../../utils';
 
 /**
@@ -139,6 +139,27 @@ export const ChangeTrustOptJsonRpcRequestStruct = refine(
 export const ChangeTrustOptJsonRpcResponseStruct = object({
   status: boolean(),
   transactionId: optional(StellarTransactionHashStruct),
+});
+
+/**
+ * Optional per-asset fields for chains that use trust lines (Stellar classic).
+ */
+export const AccountAssetInfoExtraStruct = object({
+  limit: optional(string()),
+  authorized: optional(boolean()),
+  sponsored: optional(boolean()),
+});
+
+export type AccountAssetInfoExtra = Infer<typeof AccountAssetInfoExtraStruct>;
+
+export type AccountAssetInfoEntry = {
+  metadata: FungibleAssetMetadata;
+  extra?: AccountAssetInfoExtra;
+};
+
+export const AccountAssetInfoEntryStruct = object({
+  metadata: type({}),
+  extra: optional(AccountAssetInfoExtraStruct),
 });
 
 const GetAccountAssetInfoParamsStruct = object({

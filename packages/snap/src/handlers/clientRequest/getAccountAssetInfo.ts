@@ -1,8 +1,9 @@
 import { FungibleAssetMetadataStruct } from '@metamask/snaps-sdk';
-import type { Json, JsonRpcRequest } from '@metamask/utils';
+import type { Json } from '@metamask/utils';
 import { ensureError } from '@metamask/utils';
 
 import type {
+  AccountAssetInfoEntry,
   GetAccountAssetInfoJsonRpcRequest,
   GetAccountAssetInfoJsonRpcResponse,
 } from './api';
@@ -12,13 +13,9 @@ import {
 } from './api';
 import { BaseClientRequestHandler } from './base';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
-import type { AccountAssetInfoEntry } from '../../services/account-asset-info';
-import type { AccountAssetInfoExtra } from '../../services/account-asset-info/api';
-import { GetAccountAssetInfoException } from '../../services/account-asset-info/exceptions';
 import type { AssetMetadataService } from '../../services/asset-metadata/AssetMetadataService';
 import type { AccountNotActivatedException } from '../../services/network/exceptions';
 import type { OnChainAccount } from '../../services/on-chain-account';
-import type { SpendableBalance } from '../../services/on-chain-account/api';
 import {
   createPrefixedLogger,
   isClassicAssetId,
@@ -31,6 +28,13 @@ import type {
   ResolvedActivatedAccount,
 } from '../accountResolver';
 import { RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE } from '../accountResolver';
+
+class GetAccountAssetInfoException extends Error {
+  constructor(accountId: string) {
+    super(`Failed to get account asset info for account ${accountId}`);
+    this.name = 'GetAccountAssetInfoException';
+  }
+}
 
 export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   GetAccountAssetInfoJsonRpcRequest,
@@ -116,12 +120,6 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     return this.#buildAccountAssetInfoResponse(accountId, assets, null);
   }
 
-  async handle(
-    request: GetAccountAssetInfoJsonRpcRequest | JsonRpcRequest | Json,
-  ): Promise<GetAccountAssetInfoJsonRpcResponse | Json> {
-    return super.handle(request);
-  }
-
   async #buildAccountAssetInfoResponse(
     accountId: string,
     assets: KnownCaip19AssetIdOrSlip44Id[],
@@ -161,11 +159,22 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
           onChainAccount === null || !isClassicAssetId(assetId)
             ? onChainRow
             : onChainAccount.getRawAsset(assetId);
-        const extra = buildAccountAssetInfoExtra(
-          assetId,
-          onChainRowForExtra,
-          decimals,
-        );
+
+        let extra: AccountAssetInfoEntry['extra'];
+        if (
+          isClassicAssetId(assetId) &&
+          onChainRowForExtra?.limit !== undefined
+        ) {
+          extra = {
+            limit: toDisplayBalance(onChainRowForExtra.limit, decimals),
+            ...(onChainRowForExtra.authorized === undefined
+              ? {}
+              : { authorized: onChainRowForExtra.authorized }),
+            ...(onChainRowForExtra.sponsored === undefined
+              ? {}
+              : { sponsored: onChainRowForExtra.sponsored }),
+          };
+        }
 
         result[assetId] = {
           metadata: assetMetadata,
@@ -182,35 +191,4 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
       throw new GetAccountAssetInfoException(accountId);
     }
   }
-}
-
-/**
- * Builds optional trust-line extra fields for classic Stellar assets.
- *
- * @param assetId - CAIP-19 asset id.
- * @param onChainRow - On-chain balance row, if any.
- * @param decimals - Asset display decimals.
- * @returns Trust-line extra fields, or undefined when not applicable.
- */
-function buildAccountAssetInfoExtra(
-  assetId: KnownCaip19AssetIdOrSlip44Id,
-  onChainRow: SpendableBalance | undefined,
-  decimals: number,
-): AccountAssetInfoExtra | undefined {
-  if (!isClassicAssetId(assetId) || onChainRow === undefined) {
-    return undefined;
-  }
-  if (onChainRow.limit === undefined) {
-    return undefined;
-  }
-
-  return {
-    limit: toDisplayBalance(onChainRow.limit, decimals),
-    ...(onChainRow.authorized === undefined
-      ? {}
-      : { authorized: onChainRow.authorized }),
-    ...(onChainRow.sponsored === undefined
-      ? {}
-      : { sponsored: onChainRow.sponsored }),
-  };
 }
