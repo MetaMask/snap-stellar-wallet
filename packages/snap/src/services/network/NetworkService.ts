@@ -837,7 +837,7 @@ export class NetworkService {
    * @param params.scope - CAIP-2 network scope.
    * @param params.order - Horizon sort order (`asc` for catch-up scans, `desc` for initial recent-first scans).
    * @param params.pageSize - Maximum records per page (`MAX_TRANSACTIONS_PAGE_SIZE` by default).
-   * @param params.maxScan - Maximum page count to fetch in this call (`MAX_TRANSACTION_SCAN_PAGES` by default). @see {@link MAX_TRANSACTION_SCAN_PAGES}
+   * @param params.maxScan - Maximum page count to fetch in this call (`MAX_TRANSACTION_SCAN_PAGES` by default). Values below 1 still fetch one page. @see {@link MAX_TRANSACTION_SCAN_PAGES}
    * @param params.includeSelfTransactionsOnly - Whether to keep only records whose source account matches `accountAddress`.
    * @param params.includeFailed - Whether to include failed transactions. Defaults to true.
    * @returns Mapped transaction list plus `nextScanToken` for the next incremental fetch.
@@ -867,7 +867,8 @@ export class NetworkService {
       includeFailed = true,
     } = params;
 
-    let maxScanRemaining = maxScan;
+    // Clamp so callers cannot skip the initial Horizon request (e.g. maxScan: 0).
+    let maxScanRemaining = Math.max(maxScan, 1);
     let nextScanToken: string = lastScanToken;
 
     try {
@@ -890,10 +891,9 @@ export class NetworkService {
       );
 
       maxScanRemaining -= 1;
-      nextScanToken =
-        initialTransactionsResponse.records[
-          initialTransactionsResponse.records.length - 1
-        ]?.paging_token ?? '';
+      // Empty page: keep the incoming cursor so incremental sync does not skip ahead.
+      const lastInitialRecord = initialTransactionsResponse.records.at(-1);
+      nextScanToken = lastInitialRecord?.paging_token ?? lastScanToken;
 
       // When a page is full, Horizon likely has more records available.
       // Continue pagination (bounded by `maxScan`) and aggregate those pages.
@@ -917,9 +917,9 @@ export class NetworkService {
           ),
         );
 
-        nextScanToken =
-          currentResponse.records[currentResponse.records.length - 1]
-            ?.paging_token ?? '';
+        // Non-empty page from `next()` should always expose a paging token on the last row.
+        const lastPageRecord = currentResponse.records.at(-1);
+        nextScanToken = lastPageRecord?.paging_token ?? '';
         maxScanRemaining -= 1;
       }
 

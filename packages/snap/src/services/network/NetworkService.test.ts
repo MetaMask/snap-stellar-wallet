@@ -118,17 +118,19 @@ describe('NetworkService', () => {
   const mockHorizonAccountTransactions = (
     call: jest.Mock,
   ): jest.SpyInstance => {
-    return jest.spyOn(StellarHorizon.Server.prototype, 'transactions').mockReturnValue({
-      forAccount: jest.fn().mockReturnValue({
-        order: jest.fn().mockReturnValue({
-          cursor: jest.fn().mockReturnValue({
-            limit: jest.fn().mockReturnValue({
-              includeFailed: jest.fn().mockReturnValue({ call }),
+    return jest
+      .spyOn(StellarHorizon.Server.prototype, 'transactions')
+      .mockReturnValue({
+        forAccount: jest.fn().mockReturnValue({
+          order: jest.fn().mockReturnValue({
+            cursor: jest.fn().mockReturnValue({
+              limit: jest.fn().mockReturnValue({
+                includeFailed: jest.fn().mockReturnValue({ call }),
+              }),
             }),
           }),
         }),
-      }),
-    } as never);
+      } as never);
   };
 
   const createMockInvokeHostFunctionTransaction = (accountId?: string) => {
@@ -974,6 +976,57 @@ describe('NetworkService', () => {
       expect(page1Next).toHaveBeenCalledTimes(1);
       expect(page2Next).toHaveBeenCalledTimes(1);
       expect(page3Next).not.toHaveBeenCalled();
+      transactionsSpy.mockRestore();
+    });
+
+    it('keeps lastScanToken as nextScanToken when the first page has no records', async () => {
+      const accountAddress = generateStellarAddress();
+      const lastScanToken = 'cursor-abc';
+      const call = jest
+        .fn()
+        .mockResolvedValue(buildMockHorizonTransactionPage([]));
+      const transactionsSpy = mockHorizonAccountTransactions(call);
+
+      const result = await networkService.getTransactions({
+        accountAddress,
+        lastScanToken,
+        scope,
+        order: 'asc',
+        maxScan: 1,
+      });
+
+      expect(result.transactions).toHaveLength(0);
+      expect(result.nextScanToken).toBe(lastScanToken);
+      transactionsSpy.mockRestore();
+    });
+
+    it('fetches one page when maxScan is zero', async () => {
+      const accountAddress = generateStellarAddress();
+      const tx = createMockTransaction(accountAddress);
+      const records = [
+        buildMockHorizonTransactionRecord({
+          transaction: tx,
+          sourceAccount: accountAddress,
+          pagingToken: '55',
+        }),
+      ];
+      const call = jest
+        .fn()
+        .mockResolvedValue(buildMockHorizonTransactionPage(records));
+      const transactionsSpy = mockHorizonAccountTransactions(call);
+
+      const result = await networkService.getTransactions({
+        accountAddress,
+        lastScanToken: '',
+        scope,
+        order: 'asc',
+        pageSize: 10,
+        maxScan: 0,
+      });
+
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(result.transactions).toHaveLength(1);
+      expect(result.nextScanToken).toBe('55');
       transactionsSpy.mockRestore();
     });
 
