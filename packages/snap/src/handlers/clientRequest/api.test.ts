@@ -696,10 +696,7 @@ describe('GetAccountAssetInfoJsonRpcResponseStruct', () => {
     expect(() =>
       assert(
         {
-          [classicAssetId]: {
-            metadata: { name: 'USD Coin', symbol: 'USDC', units: [] },
-            extra: { limit: '1' },
-          },
+          [classicAssetId]: { limit: '1' },
         },
         GetAccountAssetInfoJsonRpcResponseStruct,
       ),

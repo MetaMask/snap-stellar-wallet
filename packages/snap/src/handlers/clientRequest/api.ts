@@ -1,5 +1,4 @@
 import { AssetStruct, FeeType } from '@metamask/keyring-api';
-import type { FungibleAssetMetadata } from '@metamask/snaps-sdk';
 import type { Infer } from '@metamask/superstruct';
 import {
   enums,
@@ -152,16 +151,6 @@ export const AccountAssetInfoExtraStruct = object({
 
 export type AccountAssetInfoExtra = Infer<typeof AccountAssetInfoExtraStruct>;
 
-export type AccountAssetInfoEntry = {
-  metadata: FungibleAssetMetadata;
-  extra?: AccountAssetInfoExtra;
-};
-
-export const AccountAssetInfoEntryStruct = object({
-  metadata: type({}),
-  extra: optional(AccountAssetInfoExtraStruct),
-});
-
 const GetAccountAssetInfoParamsStruct = object({
   accountId: UuidStruct,
   scope: KnownCaip2ChainIdStruct,
@@ -190,7 +179,7 @@ export const GetAccountAssetInfoJsonRpcRequestStruct = assign(
  */
 export const GetAccountAssetInfoJsonRpcResponseStruct = record(
   string(),
-  AccountAssetInfoEntryStruct,
+  AccountAssetInfoExtraStruct,
 );
 
 /**
