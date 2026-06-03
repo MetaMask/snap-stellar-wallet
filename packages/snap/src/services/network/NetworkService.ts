@@ -839,6 +839,7 @@ export class NetworkService {
    * @param params.pageSize - Maximum records per page (`MAX_TRANSACTIONS_PAGE_SIZE` by default).
    * @param params.maxScan - Maximum page count to fetch in this call (`MAX_TRANSACTION_SCAN_PAGES` by default). @see {@link MAX_TRANSACTION_SCAN_PAGES}
    * @param params.includeSelfTransactionsOnly - Whether to keep only records whose source account matches `accountAddress`.
+   * @param params.includeFailed - Whether to include failed transactions. Defaults to true.
    * @returns Mapped transaction list plus `nextScanToken` for the next incremental fetch.
    * @throws {NetworkServiceException} When Horizon fetch fails.
    */
@@ -850,6 +851,7 @@ export class NetworkService {
     pageSize?: number;
     maxScan?: number;
     includeSelfTransactionsOnly?: boolean;
+    includeFailed?: boolean;
   }): Promise<{
     transactions: Transaction[];
     nextScanToken: string;
@@ -862,6 +864,7 @@ export class NetworkService {
       pageSize = MAX_TRANSACTIONS_PAGE_SIZE,
       maxScan = MAX_TRANSACTION_SCAN_PAGES,
       includeSelfTransactionsOnly = true,
+      includeFailed = true,
     } = params;
 
     let maxScanRemaining = maxScan;
@@ -876,6 +879,7 @@ export class NetworkService {
         .order(order)
         .cursor(lastScanToken)
         .limit(pageSize)
+        .includeFailed(includeFailed)
         .call();
 
       let transactions = this.#toTransactions(

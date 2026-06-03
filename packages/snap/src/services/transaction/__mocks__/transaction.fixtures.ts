@@ -497,6 +497,7 @@ export type BuildMockHorizonTransactionRecordOptions = {
   sourceAccount?: string;
   pagingToken?: string;
   feeCharged?: string;
+  successful?: boolean;
 };
 
 /**
@@ -527,6 +528,7 @@ export function buildMockHorizonTransactionRecord(
     fee_charged: options.feeCharged ?? transaction.totalFee.toFixed(0),
     paging_token: options.pagingToken ?? '1',
     source_account: options.sourceAccount ?? transaction.sourceAccount,
+    successful: options.successful ?? true,
   } as Horizon.ServerApi.TransactionRecord;
   /* eslint-enable @typescript-eslint/naming-convention */
 }

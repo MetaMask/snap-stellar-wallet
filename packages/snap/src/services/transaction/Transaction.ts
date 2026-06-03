@@ -1,3 +1,4 @@
+import { TransactionStatus } from '@metamask/keyring-api';
 import type {
   Transaction as StellarTransaction,
   Operation,
@@ -30,13 +31,16 @@ export class Transaction {
 
   readonly #invokedByAccounts: Set<string> = new Set<string>();
 
+  readonly #status: TransactionStatus = TransactionStatus.Submitted;
+
   constructor(
     inner: StellarTransaction | FeeBumpTransaction,
-    options?: { feeCharged?: BigNumber },
+    options?: { feeCharged?: BigNumber; status?: TransactionStatus },
   ) {
     this.#inner = inner;
     // if the fee charged is not provided, use the fee of the transaction as default.
     this.#feeCharged = options?.feeCharged ?? new BigNumber(inner.fee);
+    this.#status = options?.status ?? TransactionStatus.Submitted;
     this.#initialize();
   }
 
@@ -241,8 +245,24 @@ export class Transaction {
     return Array.from(this.#participatingAccounts.values());
   }
 
+  /**
+   * The transaction ID.
+   * Equivalent to TransactionHash.
+   *
+   * @returns The transaction ID.
+   */
   get id(): string {
     return this.#inner.hash().toString('hex');
+  }
+
+  /**
+   * Keyring transaction status for this envelope.
+   * Defaults to {@link TransactionStatus.Submitted} for unsigned/local envelopes;
+   * {@link Transaction.fromHorizon} sets {@link TransactionStatus.Confirmed} or
+   * {@link TransactionStatus.Failed} from the Horizon record.
+   */
+  get status(): TransactionStatus {
+    return this.#status;
   }
 
   /**
@@ -341,7 +361,7 @@ export class Transaction {
    * @param params - Horizon parsing input.
    * @param params.horizonTransaction - Horizon transaction record.
    * @param params.scope - CAIP-2 network scope.
-   * @returns Wrapped transaction with `feeCharged` from Horizon.
+   * @returns Wrapped transaction with `feeCharged` and `status` from Horizon.
    */
   static fromHorizon(params: {
     horizonTransaction: Horizon.ServerApi.TransactionRecord;
@@ -353,8 +373,13 @@ export class Transaction {
       scope,
     });
 
+    const status = horizonTransaction.successful
+      ? TransactionStatus.Confirmed
+      : TransactionStatus.Failed;
+
     return new Transaction(wrapped.getRaw(), {
       feeCharged: new BigNumber(horizonTransaction.fee_charged),
+      status,
     });
   }
 }

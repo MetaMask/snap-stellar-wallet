@@ -1,3 +1,4 @@
+import { TransactionStatus } from '@metamask/keyring-api';
 import {
   Account,
   Contract,
@@ -112,6 +113,22 @@ describe('NetworkService', () => {
         networkPassphrase: Networks.PUBLIC,
       },
     );
+  };
+
+  const mockHorizonAccountTransactions = (
+    call: jest.Mock,
+  ): jest.SpyInstance => {
+    return jest.spyOn(StellarHorizon.Server.prototype, 'transactions').mockReturnValue({
+      forAccount: jest.fn().mockReturnValue({
+        order: jest.fn().mockReturnValue({
+          cursor: jest.fn().mockReturnValue({
+            limit: jest.fn().mockReturnValue({
+              includeFailed: jest.fn().mockReturnValue({ call }),
+            }),
+          }),
+        }),
+      }),
+    } as never);
   };
 
   const createMockInvokeHostFunctionTransaction = (accountId?: string) => {
@@ -744,6 +761,7 @@ describe('NetworkService', () => {
       expect(result).toBeInstanceOf(Transaction);
       expect(result.id).toBe(tx.id);
       expect(result.feeCharged.toFixed(0)).toBe('321');
+      expect(result.status).toBe(TransactionStatus.Confirmed);
       transactionsSpy.mockRestore();
     });
 
@@ -816,17 +834,7 @@ describe('NetworkService', () => {
       const call = jest
         .fn()
         .mockResolvedValue(buildMockHorizonTransactionPage(records));
-      const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          forAccount: jest.fn().mockReturnValue({
-            order: jest.fn().mockReturnValue({
-              cursor: jest.fn().mockReturnValue({
-                limit: jest.fn().mockReturnValue({ call }),
-              }),
-            }),
-          }),
-        } as never);
+      const transactionsSpy = mockHorizonAccountTransactions(call);
 
       const result = await networkService.getTransactions({
         accountAddress,
@@ -894,17 +902,7 @@ describe('NetworkService', () => {
       const call = jest
         .fn()
         .mockResolvedValue(buildMockHorizonTransactionPage(records));
-      const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          forAccount: jest.fn().mockReturnValue({
-            order: jest.fn().mockReturnValue({
-              cursor: jest.fn().mockReturnValue({
-                limit: jest.fn().mockReturnValue({ call }),
-              }),
-            }),
-          }),
-        } as never);
+      const transactionsSpy = mockHorizonAccountTransactions(call);
 
       const result = await networkService.getTransactions({
         accountAddress,
@@ -956,17 +954,7 @@ describe('NetworkService', () => {
       const page1 = buildMockHorizonTransactionPage(page1Records, page1Next);
 
       const call = jest.fn().mockResolvedValue(page1);
-      const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          forAccount: jest.fn().mockReturnValue({
-            order: jest.fn().mockReturnValue({
-              cursor: jest.fn().mockReturnValue({
-                limit: jest.fn().mockReturnValue({ call }),
-              }),
-            }),
-          }),
-        } as never);
+      const transactionsSpy = mockHorizonAccountTransactions(call);
 
       const result = await networkService.getTransactions({
         accountAddress,
@@ -991,17 +979,7 @@ describe('NetworkService', () => {
 
     it('throws NetworkServiceException when Horizon page fetch fails', async () => {
       const call = jest.fn().mockRejectedValue(new Error('Horizon error'));
-      const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          forAccount: jest.fn().mockReturnValue({
-            order: jest.fn().mockReturnValue({
-              cursor: jest.fn().mockReturnValue({
-                limit: jest.fn().mockReturnValue({ call }),
-              }),
-            }),
-          }),
-        } as never);
+      const transactionsSpy = mockHorizonAccountTransactions(call);
 
       await expect(
         networkService.getTransactions({

@@ -1,3 +1,4 @@
+import { TransactionStatus } from '@metamask/keyring-api';
 import type { Horizon } from '@stellar/stellar-sdk';
 import {
   Account,
@@ -318,6 +319,7 @@ describe('Transaction', () => {
         envelope_xdr: inner.toXDR(),
         // eslint-disable-next-line @typescript-eslint/naming-convention
         fee_charged: '300',
+        successful: true,
       } as Horizon.ServerApi.TransactionRecord;
 
       const wrapped = Transaction.fromHorizon({
@@ -327,6 +329,62 @@ describe('Transaction', () => {
 
       expect(wrapped.totalFee.toFixed(0)).toBe('100');
       expect(wrapped.feeCharged.toFixed(0)).toBe('300');
+      expect(wrapped.status).toBe(TransactionStatus.Confirmed);
+    });
+
+    it('maps Horizon successful flag to failed status', () => {
+      const source = Keypair.random();
+      const dest = Keypair.random().publicKey();
+      const inner = new StellarTransactionBuilder(
+        new Account(source.publicKey(), '1'),
+        { fee: '100', networkPassphrase: Networks.TESTNET },
+      )
+        .addOperation(
+          Operation.payment({
+            destination: dest,
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        .setTimeout(60)
+        .build();
+
+      const horizonRecord = {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        envelope_xdr: inner.toXDR(),
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        fee_charged: '100',
+        successful: false,
+      } as Horizon.ServerApi.TransactionRecord;
+
+      const wrapped = Transaction.fromHorizon({
+        horizonTransaction: horizonRecord,
+        scope: KnownCaip2ChainId.Testnet,
+      });
+
+      expect(wrapped.status).toBe(TransactionStatus.Failed);
+    });
+
+    it('defaults status to submitted for unsigned envelopes', () => {
+      const source = Keypair.random();
+      const dest = Keypair.random().publicKey();
+      const inner = new StellarTransactionBuilder(
+        new Account(source.publicKey(), '1'),
+        { fee: '100', networkPassphrase: Networks.TESTNET },
+      )
+        .addOperation(
+          Operation.payment({
+            destination: dest,
+            asset: Asset.native(),
+            amount: '1',
+          }),
+        )
+        .setTimeout(60)
+        .build();
+
+      expect(Transaction.fromRaw(inner).status).toBe(
+        TransactionStatus.Submitted,
+      );
     });
 
     it('throws TransactionDeserializationException for invalid XDR', () => {
