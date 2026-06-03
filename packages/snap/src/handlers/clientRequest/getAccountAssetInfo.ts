@@ -1,9 +1,8 @@
-import { FungibleAssetMetadataStruct } from '@metamask/snaps-sdk';
 import type { Json } from '@metamask/utils';
 import { ensureError } from '@metamask/utils';
 
 import type {
-  AccountAssetInfoEntry,
+  AccountAssetInfoExtra,
   GetAccountAssetInfoJsonRpcRequest,
   GetAccountAssetInfoJsonRpcResponse,
 } from './api';
@@ -13,13 +12,12 @@ import {
 } from './api';
 import { BaseClientRequestHandler } from './base';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
-import type { AssetMetadataService } from '../../services/asset-metadata/AssetMetadataService';
+import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { AccountNotActivatedException } from '../../services/network/exceptions';
 import type { OnChainAccount } from '../../services/on-chain-account';
 import {
   createPrefixedLogger,
   isClassicAssetId,
-  isSep41Id,
   toDisplayBalance,
   type ILogger,
 } from '../../utils';
@@ -40,8 +38,6 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   GetAccountAssetInfoJsonRpcRequest,
   GetAccountAssetInfoJsonRpcResponse
 > {
-  readonly #assetMetadataService: AssetMetadataService;
-
   readonly #logger: ILogger;
 
   #pendingRequest?: GetAccountAssetInfoJsonRpcRequest;
@@ -49,11 +45,9 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   constructor({
     logger,
     accountResolver,
-    assetMetadataService,
   }: {
     logger: ILogger;
     accountResolver: AccountResolver;
-    assetMetadataService: AssetMetadataService;
   }) {
     const prefixedLogger = createPrefixedLogger(
       logger,
@@ -66,7 +60,6 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
       responseStruct: GetAccountAssetInfoJsonRpcResponseStruct,
       resolveAccountOptions: RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE,
     });
-    this.#assetMetadataService = assetMetadataService;
     this.#logger = prefixedLogger;
   }
 
@@ -82,11 +75,11 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   }
 
   /**
-   * Returns fungible metadata and optional trust-line fields for the requested assets.
+   * Returns trust-line fields for requested Stellar classic assets.
    *
    * @param resolved - Keyring account and persisted on-chain snapshot.
    * @param request - JSON-RPC request with accountId, scope, and assets.
-   * @returns Per-asset metadata and optional trust-line extra fields.
+   * @returns Per-asset trust-line fields keyed by classic asset id.
    */
   protected async execute(
     resolved: ResolvedActivatedAccount,
@@ -101,11 +94,11 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   }
 
   /**
-   * Returns fungible metadata without trust-line extras when the account is not activated.
+   * Returns empty trust-line entries when the account is not activated.
    * Tolerates unactivated accounts for portfolio-import UX instead of showing the activation prompt.
    *
    * @param _error - The account not activated error.
-   * @returns Per-asset metadata without on-chain trust-line fields.
+   * @returns Per-asset trust-line fields without on-chain data.
    */
   protected override async handleAccountNotActivatedError(
     _error: AccountNotActivatedException,
@@ -124,61 +117,37 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     accountId: string,
     assets: KnownCaip19AssetIdOrSlip44Id[],
     onChainAccount: OnChainAccount | null,
-  ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoEntry>> {
+  ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoExtra>> {
     const result = {} as Record<
       KnownCaip19AssetIdOrSlip44Id,
-      AccountAssetInfoEntry
+      AccountAssetInfoExtra
     >;
 
     try {
-      const assetsMetadata =
-        await this.#assetMetadataService.getAssetsMetadataByAssetIds(assets);
-
       for (const assetId of assets) {
-        const assetMetadata = assetsMetadata[assetId];
-        if (
-          assetMetadata === undefined ||
-          assetMetadata === null ||
-          !FungibleAssetMetadataStruct.is(assetMetadata) ||
-          assetMetadata.units[0]?.decimals === undefined
-        ) {
+        if (!isClassicAssetId(assetId)) {
           continue;
         }
 
-        const onChainRow =
+        const assetData =
           onChainAccount === null
             ? undefined
-            : onChainAccount.getAsset(assetId);
+            : onChainAccount.getRawAsset(assetId);
 
-        if (isSep41Id(assetId) && !onChainRow?.balance.gt(0)) {
+        if (assetData?.limit === undefined) {
+          result[assetId] = {};
           continue;
         }
 
-        const { decimals } = assetMetadata.units[0];
-        const onChainRowForExtra =
-          onChainAccount === null || !isClassicAssetId(assetId)
-            ? onChainRow
-            : onChainAccount.getRawAsset(assetId);
-
-        let extra: AccountAssetInfoEntry['extra'];
-        if (
-          isClassicAssetId(assetId) &&
-          onChainRowForExtra?.limit !== undefined
-        ) {
-          extra = {
-            limit: toDisplayBalance(onChainRowForExtra.limit, decimals),
-            ...(onChainRowForExtra.authorized === undefined
-              ? {}
-              : { authorized: onChainRowForExtra.authorized }),
-            ...(onChainRowForExtra.sponsored === undefined
-              ? {}
-              : { sponsored: onChainRowForExtra.sponsored }),
-          };
-        }
-
+        const decimals = assetData.decimals ?? STELLAR_DECIMAL_PLACES;
         result[assetId] = {
-          metadata: assetMetadata,
-          ...(extra === undefined ? {} : { extra }),
+          limit: toDisplayBalance(assetData.limit, decimals),
+          ...(assetData.authorized === undefined
+            ? {}
+            : { authorized: assetData.authorized }),
+          ...(assetData.sponsored === undefined
+            ? {}
+            : { sponsored: assetData.sponsored }),
         };
       }
 
