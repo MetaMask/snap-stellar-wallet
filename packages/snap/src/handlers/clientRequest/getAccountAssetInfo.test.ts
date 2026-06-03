@@ -3,19 +3,10 @@ import { BigNumber } from 'bignumber.js';
 import type { GetAccountAssetInfoJsonRpcResponse } from './api';
 import { ClientRequestMethod } from './api';
 import { GetAccountAssetInfoHandler } from './getAccountAssetInfo';
-import {
-  type KnownCaip19AssetIdOrSlip44Id,
-  type KnownCaip19ClassicAssetId,
-  KnownCaip2ChainId,
-} from '../../api';
+import { type KnownCaip19ClassicAssetId, KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
-import {
-  createMockAssetMetadataService,
-  generateMockKeyringAssetMetadata,
-  USDC_CLASSIC,
-} from '../../services/asset-metadata/__mocks__/assets.fixtures';
-import type { KeyringAssetMetadataByAssetId } from '../../services/asset-metadata/api';
+import { USDC_CLASSIC } from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { OnChainAccountService } from '../../services/on-chain-account';
 import {
   createMockAccountWithBalances,
@@ -74,20 +65,6 @@ describe('GetAccountAssetInfoHandler', () => {
       'resolveOnChainAccountByKeyringAccountId',
     );
 
-    const { service: assetMetadataService, getAssetsMetadataByAssetIdsSpy } =
-      createMockAssetMetadataService();
-    const mockKeyringAssetMetadata = generateMockKeyringAssetMetadata();
-    getAssetsMetadataByAssetIdsSpy.mockImplementation(
-      async (assetIds: KnownCaip19AssetIdOrSlip44Id[]) => {
-        const metadataByAssetId = {} as KeyringAssetMetadataByAssetId;
-        for (const assetId of assetIds) {
-          metadataByAssetId[assetId] =
-            mockKeyringAssetMetadata[assetId] ?? null;
-        }
-        return metadataByAssetId;
-      },
-    );
-
     const accountResolver = new AccountResolver({
       accountService,
       onChainAccountService,
@@ -97,7 +74,6 @@ describe('GetAccountAssetInfoHandler', () => {
     const handler = new GetAccountAssetInfoHandler({
       logger,
       accountResolver,
-      assetMetadataService,
     });
 
     return {
@@ -110,7 +86,7 @@ describe('GetAccountAssetInfoHandler', () => {
     jest.restoreAllMocks();
   });
 
-  it('returns metadata and trustline extra for a classic asset with limit', async () => {
+  it('returns trustline fields for a classic asset with limit', async () => {
     const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
       'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
@@ -138,17 +114,14 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     })) as GetAccountAssetInfoJsonRpcResponse;
 
-    expect(result[USDC_CLASSIC]).toMatchObject({
-      metadata: { symbol: 'USDC' },
-      extra: {
-        limit: '1',
-        authorized: true,
-        sponsored: false,
-      },
+    expect(result[USDC_CLASSIC]).toStrictEqual({
+      limit: '1',
+      authorized: true,
+      sponsored: false,
     });
   });
 
-  it('returns extra with zero limit for classic tombstone rows', async () => {
+  it('returns zero limit for classic tombstone rows', async () => {
     const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
       'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
@@ -174,10 +147,10 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     })) as GetAccountAssetInfoJsonRpcResponse;
 
-    expect(result[USDC_CLASSIC]?.extra).toStrictEqual({ limit: '0' });
+    expect(result[USDC_CLASSIC]).toStrictEqual({ limit: '0' });
   });
 
-  it('omits extra when classic asset has no on-chain row', async () => {
+  it('returns empty trustline entry when classic asset has no on-chain row', async () => {
     const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
       'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
@@ -197,8 +170,7 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     })) as GetAccountAssetInfoJsonRpcResponse;
 
-    expect(result[USDC_CLASSIC]?.metadata).toBeDefined();
-    expect(result[USDC_CLASSIC]?.extra).toBeUndefined();
+    expect(result[USDC_CLASSIC]).toStrictEqual({});
   });
 
   it('tolerates unactivated accounts with null on-chain state', async () => {
@@ -216,11 +188,10 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     })) as GetAccountAssetInfoJsonRpcResponse;
 
-    expect(result[USDC_CLASSIC]?.metadata).toBeDefined();
-    expect(result[USDC_CLASSIC]?.extra).toBeUndefined();
+    expect(result[USDC_CLASSIC]).toStrictEqual({});
   });
 
-  it('returns native slip44 metadata when on-chain account exists', async () => {
+  it('omits non-classic assets from the response', async () => {
     const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
     const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
@@ -245,7 +216,7 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     })) as GetAccountAssetInfoJsonRpcResponse;
 
-    expect(result).toHaveProperty(slipId);
+    expect(result).toStrictEqual({});
   });
 
   it('throws when on-chain account resolution fails', async () => {

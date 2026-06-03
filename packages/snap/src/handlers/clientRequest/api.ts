@@ -35,7 +35,6 @@ import {
   ValidStellarAmountStruct,
   SwapTransactionXdrStruct,
 } from '../../api';
-import { AccountAssetInfoEntryStruct } from '../../services/account-asset-info';
 import { isSep41Id } from '../../utils';
 
 /**
@@ -141,6 +140,17 @@ export const ChangeTrustOptJsonRpcResponseStruct = object({
   transactionId: optional(StellarTransactionHashStruct),
 });
 
+/**
+ * Optional per-asset fields for chains that use trust lines (Stellar classic).
+ */
+export const AccountAssetInfoExtraStruct = object({
+  limit: optional(string()),
+  authorized: optional(boolean()),
+  sponsored: optional(boolean()),
+});
+
+export type AccountAssetInfoExtra = Infer<typeof AccountAssetInfoExtraStruct>;
+
 const GetAccountAssetInfoParamsStruct = object({
   accountId: UuidStruct,
   scope: KnownCaip2ChainIdStruct,
@@ -169,7 +179,7 @@ export const GetAccountAssetInfoJsonRpcRequestStruct = assign(
  */
 export const GetAccountAssetInfoJsonRpcResponseStruct = record(
   string(),
-  AccountAssetInfoEntryStruct,
+  AccountAssetInfoExtraStruct,
 );
 
 /**

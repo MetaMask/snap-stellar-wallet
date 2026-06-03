@@ -274,7 +274,6 @@ const computeFeeHandler = new ComputeFeeHandler({
 const getAccountAssetInfoHandler = new GetAccountAssetInfoHandler({
   logger,
   accountResolver,
-  assetMetadataService,
 });
 
 const clientRequestMethodHandlers: Record<
