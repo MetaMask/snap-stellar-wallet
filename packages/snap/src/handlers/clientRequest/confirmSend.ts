@@ -310,10 +310,12 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
    * Instead of showing the account not activated alert, it returns an invalid response.
    *
    * @param _error - The error to handle.
+   * @param _request - The JSON-RPC request (unused for this handler).
    * @returns The invalid response when the account is not activated.
    */
   protected override async handleAccountNotActivatedError(
     _error: AccountNotActivatedException,
+    _request: ConfirmSendJsonRpcRequest,
   ): Promise<ConfirmSendJsonRpcResponse> {
     return {
       valid: false,

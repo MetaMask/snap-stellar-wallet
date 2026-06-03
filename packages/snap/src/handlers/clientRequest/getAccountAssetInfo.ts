@@ -1,6 +1,3 @@
-import type { Json } from '@metamask/utils';
-import { ensureError } from '@metamask/utils';
-
 import type {
   AccountAssetInfoExtra,
   GetAccountAssetInfoJsonRpcRequest,
@@ -27,20 +24,11 @@ import type {
 } from '../accountResolver';
 import { RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE } from '../accountResolver';
 
-class GetAccountAssetInfoException extends Error {
-  constructor(accountId: string) {
-    super(`Failed to get account asset info for account ${accountId}`);
-    this.name = 'GetAccountAssetInfoException';
-  }
-}
-
 export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   GetAccountAssetInfoJsonRpcRequest,
   GetAccountAssetInfoJsonRpcResponse
 > {
   readonly #logger: ILogger;
-
-  #pendingRequest?: GetAccountAssetInfoJsonRpcRequest;
 
   constructor({
     logger,
@@ -63,17 +51,6 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     this.#logger = prefixedLogger;
   }
 
-  protected override async handleRequest(
-    request: GetAccountAssetInfoJsonRpcRequest,
-  ): Promise<GetAccountAssetInfoJsonRpcResponse | Json> {
-    this.#pendingRequest = request;
-    try {
-      return await super.handleRequest(request);
-    } finally {
-      this.#pendingRequest = undefined;
-    }
-  }
-
   /**
    * Returns trust-line fields for requested Stellar classic assets.
    *
@@ -86,11 +63,7 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     request: GetAccountAssetInfoJsonRpcRequest,
   ): Promise<GetAccountAssetInfoJsonRpcResponse> {
     const { assets } = request.params;
-    return this.#buildAccountAssetInfoResponse(
-      resolved.account.id,
-      assets,
-      resolved.onChainAccount,
-    );
+    return this.#buildAccountAssetInfoResponse(resolved.onChainAccount, assets);
   }
 
   /**
@@ -98,66 +71,83 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
    * Tolerates unactivated accounts for portfolio-import UX instead of showing the activation prompt.
    *
    * @param _error - The account not activated error.
+   * @param request - The JSON-RPC request with assets to describe.
    * @returns Per-asset trust-line fields without on-chain data.
    */
   protected override async handleAccountNotActivatedError(
     _error: AccountNotActivatedException,
+    request: GetAccountAssetInfoJsonRpcRequest,
   ): Promise<GetAccountAssetInfoJsonRpcResponse> {
-    const request = this.#pendingRequest;
-    if (request === undefined) {
-      throw new Error(
-        'Missing request context for unactivated account handling',
-      );
-    }
-    const { accountId, assets } = request.params;
-    return this.#buildAccountAssetInfoResponse(accountId, assets, null);
+    const { assets } = request.params;
+    return this.#buildEmptyTrustLineEntries(assets);
   }
 
-  async #buildAccountAssetInfoResponse(
-    accountId: string,
+  #buildEmptyTrustLineEntries(
     assets: KnownCaip19AssetIdOrSlip44Id[],
-    onChainAccount: OnChainAccount | null,
-  ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoExtra>> {
+  ): Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoExtra> {
     const result = {} as Record<
       KnownCaip19AssetIdOrSlip44Id,
       AccountAssetInfoExtra
     >;
 
-    try {
-      for (const assetId of assets) {
-        if (!isClassicAssetId(assetId)) {
-          continue;
-        }
+    for (const assetId of assets) {
+      if (!isClassicAssetId(assetId)) {
+        continue;
+      }
+      result[assetId] = {};
+    }
 
-        const assetData =
-          onChainAccount === null
-            ? undefined
-            : onChainAccount.getRawAsset(assetId);
+    return result;
+  }
 
-        if (assetData?.limit === undefined) {
-          result[assetId] = {};
-          continue;
-        }
+  #buildAccountAssetInfoResponse(
+    onChainAccount: OnChainAccount,
+    assets: KnownCaip19AssetIdOrSlip44Id[],
+  ): Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoExtra> {
+    const result = {} as Record<
+      KnownCaip19AssetIdOrSlip44Id,
+      AccountAssetInfoExtra
+    >;
 
-        const decimals = assetData.decimals ?? STELLAR_DECIMAL_PLACES;
-        result[assetId] = {
-          limit: toDisplayBalance(assetData.limit, decimals),
-          ...(assetData.authorized === undefined
-            ? {}
-            : { authorized: assetData.authorized }),
-          ...(assetData.sponsored === undefined
-            ? {}
-            : { sponsored: assetData.sponsored }),
-        };
+    for (const assetId of assets) {
+      if (!isClassicAssetId(assetId)) {
+        continue;
       }
 
-      return result;
-    } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to get account asset info',
-        ensureError(error).message,
-      );
-      throw new GetAccountAssetInfoException(accountId);
+      // Use getRawAsset (not getAsset): trust-line UX needs tombstones and
+      // zero-limit rows that getAsset filters out for spendable-balance flows.
+      const assetData = onChainAccount.getRawAsset(assetId);
+
+      if (assetData?.limit === undefined) {
+        this.#logger.logErrorWithDetails(
+          'Data error: classic asset missing trust-line limit in on-chain snapshot',
+          {
+            assetId,
+            reason:
+              assetData === undefined
+                ? 'No stored row for this classic asset id (not synced or never trusted)'
+                : 'Stored row exists but limit field is undefined',
+            remark:
+              'Returning empty trust-line entry; portfolio may treat asset as untrusted',
+            todo: 'Todo: re-fetch from horizon',
+          },
+        );
+        result[assetId] = {};
+        continue;
+      }
+
+      const decimals = assetData.decimals ?? STELLAR_DECIMAL_PLACES;
+      result[assetId] = {
+        limit: toDisplayBalance(assetData.limit, decimals),
+        ...(assetData.authorized === undefined
+          ? {}
+          : { authorized: assetData.authorized }),
+        ...(assetData.sponsored === undefined
+          ? {}
+          : { sponsored: assetData.sponsored }),
+      };
     }
+
+    return result;
   }
 }
