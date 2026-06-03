@@ -260,6 +260,8 @@ export class Transaction {
    * Defaults to {@link TransactionStatus.Submitted} for unsigned/local envelopes;
    * {@link Transaction.fromHorizon} sets {@link TransactionStatus.Confirmed} or
    * {@link TransactionStatus.Failed} from the Horizon record.
+   *
+   * @returns The transaction status.
    */
   get status(): TransactionStatus {
     return this.#status;
