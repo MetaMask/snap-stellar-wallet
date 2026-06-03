@@ -94,7 +94,12 @@ export const ConfirmSendTransaction = ({
   return (
     <Container>
       <Box>
-        {hasEnabledTransactionScan(preferences) ? (
+        <TransactionValidationAlert
+          preferences={preferences}
+          transactionsFetchStatus={transactionsFetchStatus}
+        />
+        {transactionsFetchStatus !== FetchStatus.Error &&
+        hasEnabledTransactionScan(preferences) ? (
           <TransactionAlert
             scanFetchStatus={scanFetchStatus}
             validation={scan?.validation ?? null}
@@ -102,10 +107,6 @@ export const ConfirmSendTransaction = ({
             preferences={preferences}
           />
         ) : null}
-        <TransactionValidationAlert
-          preferences={preferences}
-          transactionsFetchStatus={transactionsFetchStatus}
-        />
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">{t(`confirmation.transaction.title`)}</Heading>
