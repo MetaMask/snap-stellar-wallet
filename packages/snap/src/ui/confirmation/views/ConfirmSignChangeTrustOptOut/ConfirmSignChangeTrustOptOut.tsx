@@ -26,12 +26,19 @@ import type {
   FeeData,
 } from '../../api';
 import { FetchStatus } from '../../api';
-import { Asset, AssetIcon, FeeRow, TransactionAlert } from '../../components';
+import {
+  Asset,
+  AssetIcon,
+  FeeRow,
+  TransactionAlert,
+  TransactionValidationAlert,
+} from '../../components';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
   hasEnabledTransactionScan,
   isConfirmDisabledByScan,
+  isConfirmDisabledByTransactionValidation,
   getNetworkName,
 } from '../../utils';
 
@@ -55,19 +62,26 @@ export const ConfirmSignChangeTrustOptOut = ({
   tokenPricesFetchStatus = FetchStatus.Initial,
   scan,
   scanFetchStatus = FetchStatus.Initial,
+  transactionsFetchStatus = FetchStatus.Initial,
 }: ConfirmSignChangeTrustOptOutProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
-  const shouldDisableConfirmButton = isConfirmDisabledByScan({
-    preferences,
-    scan,
-    scanFetchStatus,
-  });
+  const shouldDisableConfirmButton =
+    isConfirmDisabledByScan({
+      preferences,
+      scan,
+      scanFetchStatus,
+    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
 
   return (
     <Container>
       <Box>
-        {hasEnabledTransactionScan(preferences) ? (
+        <TransactionValidationAlert
+          preferences={preferences}
+          transactionsFetchStatus={transactionsFetchStatus}
+        />
+        {transactionsFetchStatus !== FetchStatus.Error &&
+        hasEnabledTransactionScan(preferences) ? (
           <TransactionAlert
             scanFetchStatus={scanFetchStatus}
             validation={scan?.validation ?? null}

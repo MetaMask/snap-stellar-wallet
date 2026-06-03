@@ -276,15 +276,15 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       | ConfirmationInterfaceKey.ChangeTrustlineOptOut;
   }): Promise<boolean> {
     const {
-      request: {
-        params: { scope },
-      },
+      request,
       account,
       assetMetadata,
       fee,
       transaction,
       confirmationInterfaceKey,
     } = params;
+    const { scope } = request.params;
+    const xdr = transaction.getRaw().toXDR();
 
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
@@ -299,10 +299,16 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
         renderOptions: {
           loadPrice: true,
           scanTxn: true,
+          validateTxn: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
-          transaction: transaction.getRaw().toXDR(),
+          transaction: xdr,
+        },
+        transactionValidationRequest: {
+          accountId: account.id,
+          transaction: xdr,
+          request,
         },
       })) === true
     );

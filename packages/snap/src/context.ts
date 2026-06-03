@@ -20,6 +20,7 @@ import { BackgroundEventMethod } from './handlers/cronjob/api';
 import {
   ConfirmationPriceRefresher,
   ConfirmationScanRefresher,
+  ConfirmationTransactionRefresher,
   RefreshConfirmationContextHandler,
 } from './handlers/cronjob/refreshConfirmationContext';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
@@ -187,11 +188,23 @@ const confirmationScanRefresher = new ConfirmationScanRefresher({
   transactionScanService,
 });
 
+const confirmationTransactionRefresher = new ConfirmationTransactionRefresher({
+  logger,
+  transactionService,
+  transactionBuilder,
+  assetMetadataService,
+  accountResolver,
+});
+
 const refreshConfirmationContextHandler = new RefreshConfirmationContextHandler(
   {
     logger,
     confirmationUIController,
-    refreshers: [confirmationPriceRefresher, confirmationScanRefresher],
+    refreshers: [
+      confirmationPriceRefresher,
+      confirmationScanRefresher,
+      confirmationTransactionRefresher,
+    ],
   },
 );
 

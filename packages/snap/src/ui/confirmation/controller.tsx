@@ -14,6 +14,10 @@ import {
 } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
+import type {
+  ChangeTrustOptJsonRpcRequest,
+  ConfirmSendJsonRpcRequest,
+} from '../../handlers/clientRequest/api';
 import type { SecurityScanRequest } from '../../services/transaction-scan';
 import type { ILogger, Locale } from '../../utils';
 import {
@@ -54,6 +58,17 @@ type ConfirmationViewProps = Record<string, Json>;
 type ConfirmationRenderOptions = {
   loadPrice?: boolean;
   scanTxn?: boolean;
+  validateTxn?: boolean;
+};
+
+/**
+ * Context needed to re-validate the pending transaction against latest on-chain
+ * state while the confirmation dialog is open.
+ */
+type TransactionValidationRequest = {
+  accountId: string;
+  transaction: string;
+  request: ConfirmSendJsonRpcRequest | ChangeTrustOptJsonRpcRequest;
 };
 
 /** Common params accepted by every {@link ConfirmationUXController.renderConfirmationDialog} call. */
@@ -63,6 +78,7 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
   origin?: string;
   renderOptions?: ConfirmationRenderOptions;
   securityScanRequest?: Omit<SecurityScanRequest, 'origin' | 'scope'>;
+  transactionValidationRequest?: TransactionValidationRequest;
   tokenPrices?: ContextWithPrices['tokenPrices'];
 };
 
@@ -96,6 +112,7 @@ export class ConfirmationUXController {
   readonly #defaultRenderOptions: ConfirmationRenderOptions = {
     loadPrice: false,
     scanTxn: false,
+    validateTxn: false,
   };
 
   constructor({ logger }: { logger: ILogger }) {
@@ -140,6 +157,15 @@ export class ConfirmationUXController {
         );
       }
 
+      if (
+        renderOptions.validateTxn &&
+        params.transactionValidationRequest === undefined
+      ) {
+        throw new Error(
+          'Cannot re-validate a transaction confirmation without a transaction validation request.',
+        );
+      }
+
       const preferences = await getPreferencesWithFallback();
 
       const defaultTokenPrices = fee
@@ -169,6 +195,10 @@ export class ConfirmationUXController {
         hasEnabledTransactionScan(preferences) &&
         params.securityScanRequest !== undefined;
 
+      const enableTransactionValidation =
+        renderOptions.validateTxn &&
+        params.transactionValidationRequest !== undefined;
+
       const defaultContext = {
         // if pricing is disabled, mark as fetched immediately
         tokenPricesFetchStatus: enablePricing
@@ -192,6 +222,17 @@ export class ConfirmationUXController {
                 origin,
                 scope,
               },
+            }
+          : {}),
+        // Optimistic: tx was validated at build time, so keep confirm enabled; the
+        // refresher flips to Error if it later drifts (submission rejects invalid txs too).
+        // TODO(follow-up): re-validate synchronously right before signing.
+        ...(renderOptions.validateTxn && params.transactionValidationRequest
+          ? {
+              transactionsFetchStatus: FetchStatus.Fetched,
+              accountId: params.transactionValidationRequest.accountId,
+              transaction: params.transactionValidationRequest.transaction,
+              request: params.transactionValidationRequest.request,
             }
           : {}),
         tokenPrices,
@@ -229,6 +270,9 @@ export class ConfirmationUXController {
       }
       if (enableSecurityScan) {
         refresherKeys.push(ConfirmationContextRefresherKey.Scan);
+      }
+      if (enableTransactionValidation) {
+        refresherKeys.push(ConfirmationContextRefresherKey.Transaction);
       }
 
       if (refresherKeys.length > 0) {
