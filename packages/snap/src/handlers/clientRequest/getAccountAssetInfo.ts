@@ -119,6 +119,7 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
       const assetData = onChainAccount.getRawAsset(assetId);
 
       if (assetData?.limit === undefined) {
+        // TODO: re-fetch from horizon when classic asset row is missing or has no limit.
         this.#logger.logErrorWithDetails(
           'Data error: classic asset missing trust-line limit in on-chain snapshot',
           {
@@ -129,7 +130,6 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
                 : 'Stored row exists but limit field is undefined',
             remark:
               'Returning empty trust-line entry; portfolio may treat asset as untrusted',
-            todo: 'Todo: re-fetch from horizon',
           },
         );
         result[assetId] = {};
