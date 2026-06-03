@@ -30,10 +30,14 @@ import {
 } from '../../handlers/clientRequest/api';
 import {
   SecurityScanRequestStruct,
+  TokenScanResultStruct,
+  TokenSecurityScanRequestStruct,
   TransactionScanResultStruct,
 } from '../../services/transaction-scan';
 import type {
   SecurityScanRequest,
+  TokenScanResult,
+  TokenSecurityScanRequest,
   TransactionScanResult,
 } from '../../services/transaction-scan';
 
@@ -83,6 +87,15 @@ export type ContextWithSecurityScan = Infer<
   typeof ContextWithSecurityScanStruct
 >;
 
+export const ContextWithTokenScanStruct = type({
+  preferences: SecurityScanPreferencesStruct,
+  tokenScan: optional(nullable(TokenScanResultStruct)),
+  tokenScanFetchStatus: enums(Object.values(FetchStatus)),
+  tokenScanRequest: optional(TokenSecurityScanRequestStruct),
+});
+
+export type ContextWithTokenScan = Infer<typeof ContextWithTokenScanStruct>;
+
 /**
  * Context required to re-validate the pending transaction (time bounds, fees,
  * balance) against the latest on-chain state while the confirmation dialog is open.
@@ -124,6 +137,9 @@ export type ConfirmationBaseProps = Partial<ContextWithPrices> & {
   scan?: TransactionScanResult | null;
   scanFetchStatus?: FetchStatus;
   securityScanRequest?: SecurityScanRequest;
+  tokenScan?: TokenScanResult | null;
+  tokenScanFetchStatus?: FetchStatus;
+  tokenScanRequest?: TokenSecurityScanRequest;
   transactionsFetchStatus?: FetchStatus;
   preferences: GetPreferencesResult;
   locale: string;

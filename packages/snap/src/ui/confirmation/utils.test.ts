@@ -3,9 +3,13 @@ import type { GetPreferencesResult } from '@metamask/snaps-sdk';
 import { FetchStatus } from './api';
 import {
   isConfirmDisabledByScan,
+  isConfirmDisabledByTokenScan,
   isConfirmDisabledByTransactionValidation,
 } from './utils';
-import { TransactionScanValidationType } from '../../services/transaction-scan';
+import {
+  TokenScanResultType,
+  TransactionScanValidationType,
+} from '../../services/transaction-scan';
 
 const preferences: GetPreferencesResult = {
   locale: 'en',
@@ -89,6 +93,78 @@ describe('confirmation utils', () => {
             error: null,
           },
           scanFetchStatus: FetchStatus.Fetched,
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe('isConfirmDisabledByTokenScan', () => {
+    it('disables confirm while token scan is fetching', () => {
+      expect(
+        isConfirmDisabledByTokenScan({
+          preferences,
+          tokenScan: null,
+          tokenScanFetchStatus: FetchStatus.Fetching,
+        }),
+      ).toBe(true);
+    });
+
+    it.each([
+      {
+        resultType: TokenScanResultType.Malicious,
+        isMalicious: true,
+        isWarning: false,
+      },
+      {
+        resultType: TokenScanResultType.Warning,
+        isMalicious: false,
+        isWarning: true,
+      },
+    ])('disables confirm for $resultType token scans', (tokenScan) => {
+      expect(
+        isConfirmDisabledByTokenScan({
+          preferences,
+          tokenScan: {
+            ...tokenScan,
+            name: 'USD Coin',
+            symbol: 'USDC',
+          },
+          tokenScanFetchStatus: FetchStatus.Fetched,
+        }),
+      ).toBe(true);
+    });
+
+    it('does not disable confirm for benign token scans', () => {
+      expect(
+        isConfirmDisabledByTokenScan({
+          preferences,
+          tokenScan: {
+            resultType: TokenScanResultType.Benign,
+            isMalicious: false,
+            isWarning: false,
+            name: 'USD Coin',
+            symbol: 'USDC',
+          },
+          tokenScanFetchStatus: FetchStatus.Fetched,
+        }),
+      ).toBe(false);
+    });
+
+    it('does not disable confirm when Security Alerts are disabled', () => {
+      expect(
+        isConfirmDisabledByTokenScan({
+          preferences: {
+            ...preferences,
+            useSecurityAlerts: false,
+          },
+          tokenScan: {
+            resultType: TokenScanResultType.Malicious,
+            isMalicious: true,
+            isWarning: false,
+            name: 'USD Coin',
+            symbol: 'USDC',
+          },
+          tokenScanFetchStatus: FetchStatus.Fetched,
         }),
       ).toBe(false);
     });

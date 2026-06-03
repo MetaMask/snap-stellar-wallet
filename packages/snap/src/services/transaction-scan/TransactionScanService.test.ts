@@ -1,4 +1,8 @@
-import { TransactionScanOption, TransactionScanValidationType } from './api';
+import {
+  TokenScanResultType,
+  TransactionScanOption,
+  TransactionScanValidationType,
+} from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import { TransactionScanService } from './TransactionScanService';
 /* eslint-disable @typescript-eslint/naming-convention */
@@ -10,6 +14,8 @@ jest.mock('../../utils/logger');
 describe('TransactionScanService', () => {
   const accountAddress =
     'GDPMFLKUGASUTWBN2XGYYKD27QGHCYH4BUFUTER4L23INYQ4JHDWFOIE';
+  const assetReference =
+    'USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
   const scanParams = {
     accountAddress,
     origin: 'https://example.com',
@@ -17,12 +23,18 @@ describe('TransactionScanService', () => {
     transaction: 'AAAAAgAAAAA=',
     options: [TransactionScanOption.Validation],
   };
+  const tokenScanParams = {
+    assetReference,
+    origin: 'https://example.com',
+    scope: KnownCaip2ChainId.Mainnet,
+  };
 
   function setup() {
     const securityAlertsApiClient: jest.Mocked<
-      Pick<SecurityAlertsApiClient, 'scanTransaction'>
+      Pick<SecurityAlertsApiClient, 'scanTransaction' | 'scanToken'>
     > = {
       scanTransaction: jest.fn(),
+      scanToken: jest.fn(),
     };
     const service = new TransactionScanService({
       securityAlertsApiClient:
@@ -223,6 +235,94 @@ describe('TransactionScanService', () => {
     );
 
     const result = await service.scanTransaction(scanParams);
+    expect(result).toBeNull();
+  });
+
+  it('maps malicious token scan responses', async () => {
+    const { service, securityAlertsApiClient } = setup();
+    securityAlertsApiClient.scanToken.mockResolvedValue({
+      result_type: TokenScanResultType.Malicious,
+      malicious_score: 1,
+      chain: 'stellar',
+      address: assetReference,
+      metadata: {
+        name: 'USD Coin',
+        symbol: 'USDC',
+      },
+      features: [],
+    });
+
+    const result = await service.scanToken(tokenScanParams);
+
+    expect(securityAlertsApiClient.scanToken).toHaveBeenCalledWith({
+      chain: 'stellar',
+      address: assetReference,
+      origin: 'https://example.com',
+    });
+    expect(result).toStrictEqual({
+      resultType: TokenScanResultType.Malicious,
+      isMalicious: true,
+      isWarning: false,
+      name: 'USD Coin',
+      symbol: 'USDC',
+    });
+  });
+
+  it('maps warning token scan responses', async () => {
+    const { service, securityAlertsApiClient } = setup();
+    securityAlertsApiClient.scanToken.mockResolvedValue({
+      result_type: TokenScanResultType.Warning,
+      chain: 'stellar',
+      address: assetReference,
+      metadata: {
+        symbol: 'USDC',
+      },
+      features: [],
+    });
+
+    const result = await service.scanToken(tokenScanParams);
+
+    expect(result).toStrictEqual({
+      resultType: TokenScanResultType.Warning,
+      isMalicious: false,
+      isWarning: true,
+      name: null,
+      symbol: 'USDC',
+    });
+  });
+
+  it.each([
+    TokenScanResultType.Benign,
+    TokenScanResultType.Verified,
+    TokenScanResultType.Trusted,
+  ])('maps %s token scan responses as safe', async (resultType) => {
+    const { service, securityAlertsApiClient } = setup();
+    securityAlertsApiClient.scanToken.mockResolvedValue({
+      result_type: resultType,
+      chain: 'stellar',
+      address: assetReference,
+      metadata: {},
+      features: [],
+    });
+
+    const result = await service.scanToken(tokenScanParams);
+
+    expect(result).toStrictEqual({
+      resultType,
+      isMalicious: false,
+      isWarning: false,
+      name: null,
+      symbol: null,
+    });
+  });
+
+  it('returns null when the token client throws', async () => {
+    const { service, securityAlertsApiClient } = setup();
+    securityAlertsApiClient.scanToken.mockRejectedValue(
+      new Error('network error'),
+    );
+
+    const result = await service.scanToken(tokenScanParams);
     expect(result).toBeNull();
   });
 });

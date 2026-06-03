@@ -30,16 +30,19 @@ import {
   Asset,
   AssetIcon,
   FeeRow,
+  TokenScanAlert,
   TransactionAlert,
   TransactionValidationAlert,
 } from '../../components';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
-  hasEnabledTransactionScan,
-  isConfirmDisabledByScan,
-  isConfirmDisabledByTransactionValidation,
   getNetworkName,
+  hasEnabledTransactionScan,
+  hasVisibleTransactionAlert,
+  isConfirmDisabledByScan,
+  isConfirmDisabledByTokenScan,
+  isConfirmDisabledByTransactionValidation,
 } from '../../utils';
 
 export type ConfirmSignChangeTrustOptOutProps = ConfirmationBaseProps &
@@ -62,16 +65,34 @@ export const ConfirmSignChangeTrustOptOut = ({
   tokenPricesFetchStatus = FetchStatus.Initial,
   scan,
   scanFetchStatus = FetchStatus.Initial,
+  tokenScan,
+  tokenScanFetchStatus = FetchStatus.Initial,
   transactionsFetchStatus = FetchStatus.Initial,
 }: ConfirmSignChangeTrustOptOutProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
+  const hasTransactionValidationError =
+    transactionsFetchStatus === FetchStatus.Error;
+  const showTransactionScanAlert =
+    !hasTransactionValidationError &&
+    hasEnabledTransactionScan(preferences) &&
+    hasVisibleTransactionAlert({
+      preferences,
+      scan,
+      scanFetchStatus,
+    });
   const shouldDisableConfirmButton =
     isConfirmDisabledByScan({
       preferences,
       scan,
       scanFetchStatus,
-    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
+    }) ||
+    isConfirmDisabledByTokenScan({
+      preferences,
+      tokenScan,
+      tokenScanFetchStatus,
+    }) ||
+    isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
 
   return (
     <Container>
@@ -80,12 +101,18 @@ export const ConfirmSignChangeTrustOptOut = ({
           preferences={preferences}
           transactionsFetchStatus={transactionsFetchStatus}
         />
-        {transactionsFetchStatus !== FetchStatus.Error &&
-        hasEnabledTransactionScan(preferences) ? (
+        {showTransactionScanAlert ? (
           <TransactionAlert
             scanFetchStatus={scanFetchStatus}
             validation={scan?.validation ?? null}
             error={scan?.error ?? null}
+            preferences={preferences}
+          />
+        ) : null}
+        {!hasTransactionValidationError && !showTransactionScanAlert ? (
+          <TokenScanAlert
+            tokenScanFetchStatus={tokenScanFetchStatus}
+            tokenScan={tokenScan ?? null}
             preferences={preferences}
           />
         ) : null}

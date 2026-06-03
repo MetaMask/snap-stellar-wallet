@@ -19,4 +19,20 @@ describe('ConfirmationUXController', () => {
       'Cannot scan a transaction confirmation without a security scan request.',
     );
   });
+
+  it('throws when token scanning is enabled without a token scan request', async () => {
+    const controller = new ConfirmationUXController({ logger: noOpLogger });
+
+    await expect(
+      controller.renderConfirmationDialog({
+        scope: KnownCaip2ChainId.Mainnet,
+        interfaceKey: ConfirmationInterfaceKey.ChangeTrustlineOptIn,
+        fee: '100',
+        renderContext: {},
+        renderOptions: { scanToken: true },
+      }),
+    ).rejects.toThrow(
+      'Cannot scan a token confirmation without a token scan request.',
+    );
+  });
 });

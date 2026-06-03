@@ -18,7 +18,10 @@ import type {
   ChangeTrustOptJsonRpcRequest,
   ConfirmSendJsonRpcRequest,
 } from '../../handlers/clientRequest/api';
-import type { SecurityScanRequest } from '../../services/transaction-scan';
+import type {
+  SecurityScanRequest,
+  TokenSecurityScanRequest,
+} from '../../services/transaction-scan';
 import type { ILogger, Locale } from '../../utils';
 import {
   createInterface,
@@ -57,6 +60,7 @@ type ConfirmationViewProps = Record<string, Json>;
 
 type ConfirmationRenderOptions = {
   loadPrice?: boolean;
+  scanToken?: boolean;
   scanTxn?: boolean;
   validateTxn?: boolean;
 };
@@ -78,6 +82,7 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
   origin?: string;
   renderOptions?: ConfirmationRenderOptions;
   securityScanRequest?: Omit<SecurityScanRequest, 'origin' | 'scope'>;
+  tokenScanRequest?: Omit<TokenSecurityScanRequest, 'origin' | 'scope'>;
   transactionValidationRequest?: TransactionValidationRequest;
   tokenPrices?: ContextWithPrices['tokenPrices'];
 };
@@ -111,6 +116,7 @@ export class ConfirmationUXController {
 
   readonly #defaultRenderOptions: ConfirmationRenderOptions = {
     loadPrice: false,
+    scanToken: false,
     scanTxn: false,
     validateTxn: false,
   };
@@ -157,6 +163,12 @@ export class ConfirmationUXController {
         );
       }
 
+      if (renderOptions.scanToken && params.tokenScanRequest === undefined) {
+        throw new Error(
+          'Cannot scan a token confirmation without a token scan request.',
+        );
+      }
+
       if (
         renderOptions.validateTxn &&
         params.transactionValidationRequest === undefined
@@ -195,6 +207,11 @@ export class ConfirmationUXController {
         hasEnabledTransactionScan(preferences) &&
         params.securityScanRequest !== undefined;
 
+      const enableTokenScan =
+        renderOptions.scanToken &&
+        preferences.useSecurityAlerts &&
+        params.tokenScanRequest !== undefined;
+
       const enableTransactionValidation =
         renderOptions.validateTxn &&
         params.transactionValidationRequest !== undefined;
@@ -215,10 +232,23 @@ export class ConfirmationUXController {
         scanFetchStatus: enableSecurityScan
           ? FetchStatus.Fetching
           : FetchStatus.Fetched,
+        tokenScan: null,
+        tokenScanFetchStatus: enableTokenScan
+          ? FetchStatus.Fetching
+          : FetchStatus.Fetched,
         ...(enableSecurityScan
           ? {
               securityScanRequest: {
                 ...params.securityScanRequest,
+                origin,
+                scope,
+              },
+            }
+          : {}),
+        ...(enableTokenScan
+          ? {
+              tokenScanRequest: {
+                ...params.tokenScanRequest,
                 origin,
                 scope,
               },
@@ -270,6 +300,9 @@ export class ConfirmationUXController {
       }
       if (enableSecurityScan) {
         refresherKeys.push(ConfirmationContextRefresherKey.Scan);
+      }
+      if (enableTokenScan) {
+        refresherKeys.push(ConfirmationContextRefresherKey.TokenScan);
       }
       if (enableTransactionValidation) {
         refresherKeys.push(ConfirmationContextRefresherKey.Transaction);

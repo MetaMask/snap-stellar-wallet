@@ -9,6 +9,7 @@ import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import { parseOperationAssetReference } from '../../services/transaction/utils';
 import {
+  type TokenScanResult,
   TransactionScanValidationType,
   type TransactionScanResult,
 } from '../../services/transaction-scan';
@@ -187,6 +188,71 @@ export function isConfirmDisabledByScan(params: {
     scanFetchStatus === FetchStatus.Fetching ||
     (preferences.useSecurityAlerts &&
       scan?.validation?.type === TransactionScanValidationType.Malicious)
+  );
+}
+
+/**
+ * Determines whether a change-trust confirmation must be blocked by token scan state.
+ *
+ * @param params - Token scan and preference state.
+ * @param params.preferences - User preferences controlling security alerts.
+ * @param params.tokenScan - Latest token scan result.
+ * @param params.tokenScanFetchStatus - Latest token scan fetch status.
+ * @returns True when the confirm action should be disabled.
+ */
+export function isConfirmDisabledByTokenScan(params: {
+  preferences: GetPreferencesResult;
+  tokenScan?: TokenScanResult | null;
+  tokenScanFetchStatus: FetchStatus;
+}): boolean {
+  const { preferences, tokenScan, tokenScanFetchStatus } = params;
+  return (
+    preferences.useSecurityAlerts &&
+    (tokenScanFetchStatus === FetchStatus.Fetching ||
+      tokenScan?.isMalicious === true ||
+      tokenScan?.isWarning === true)
+  );
+}
+
+/**
+ * Determines whether the transaction scan alert would render.
+ *
+ * @param params - Scan and preference state.
+ * @param params.preferences - User preferences controlling scan behavior.
+ * @param params.scan - Latest transaction scan result.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @returns True when the transaction scan banner should take priority.
+ */
+export function hasVisibleTransactionAlert(params: {
+  preferences: GetPreferencesResult;
+  scan?: TransactionScanResult | null;
+  scanFetchStatus: FetchStatus;
+}): boolean {
+  const { preferences, scan, scanFetchStatus } = params;
+
+  if (
+    scanFetchStatus === FetchStatus.Fetching ||
+    scanFetchStatus === FetchStatus.Error
+  ) {
+    return true;
+  }
+
+  if (scan?.error) {
+    if (scan.error.type === 'simulation') {
+      return preferences.simulateOnChainActions;
+    }
+
+    if (scan.error.type === 'validation') {
+      return preferences.useSecurityAlerts;
+    }
+
+    return hasEnabledTransactionScan(preferences);
+  }
+
+  return (
+    preferences.useSecurityAlerts &&
+    (scan?.validation?.type === TransactionScanValidationType.Malicious ||
+      scan?.validation?.type === TransactionScanValidationType.Warning)
   );
 }
 

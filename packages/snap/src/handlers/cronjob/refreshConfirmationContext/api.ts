@@ -7,6 +7,7 @@ import type { ContextWithPrices } from '../../../ui/confirmation/api';
 export enum ConfirmationContextRefresherKey {
   Prices = 'prices',
   Scan = 'scan',
+  TokenScan = 'tokenScan',
   Transaction = 'transaction',
 }
 

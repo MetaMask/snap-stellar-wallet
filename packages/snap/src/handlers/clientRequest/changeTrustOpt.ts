@@ -1,5 +1,5 @@
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
-import { ensureError } from '@metamask/utils';
+import { ensureError, parseCaipAssetType } from '@metamask/utils';
 
 import type {
   ChangeTrustOptJsonRpcRequest,
@@ -283,8 +283,9 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       transaction,
       confirmationInterfaceKey,
     } = params;
-    const { scope } = request.params;
+    const { assetId, scope } = request.params;
     const xdr = transaction.getRaw().toXDR();
+    const { assetReference } = parseCaipAssetType(assetId);
 
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
@@ -298,6 +299,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
         interfaceKey: confirmationInterfaceKey,
         renderOptions: {
           loadPrice: true,
+          scanToken: true,
           scanTxn: true,
           validateTxn: true,
         },
@@ -309,6 +311,9 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
           accountId: account.id,
           transaction: xdr,
           request,
+        },
+        tokenScanRequest: {
+          assetReference,
         },
       })) === true
     );
