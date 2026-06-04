@@ -27,13 +27,21 @@ import type {
   FeeData,
 } from '../../api';
 import { FetchStatus } from '../../api';
-import { Asset, FeeRow } from '../../components';
+import {
+  Asset,
+  FeeRow,
+  TransactionAlert,
+  TransactionValidationAlert,
+} from '../../components';
 import {
   getAccountExplorerUrl,
   getAccountName,
   getClassicAssetExplorerUrl,
   getNetworkName,
   getSepAssetExplorerUrl,
+  hasEnabledTransactionScan,
+  isConfirmDisabledByScan,
+  isConfirmDisabledByTransactionValidation,
 } from '../../utils';
 
 export type ConfirmSendTransactionProps = ConfirmationBaseProps &
@@ -59,10 +67,19 @@ export const ConfirmSendTransaction = ({
   origin,
   preferences,
   tokenPricesFetchStatus = FetchStatus.Initial,
+  scan,
+  scanFetchStatus = FetchStatus.Initial,
+  transactionsFetchStatus = FetchStatus.Initial,
 }: ConfirmSendTransactionProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
   const { assetId, symbol } = assetMetadata;
+  const shouldDisableConfirmButton =
+    isConfirmDisabledByScan({
+      preferences,
+      scan,
+      scanFetchStatus,
+    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
   const parsedAsset = parseCaipAssetType(assetId);
   let assetLink: string | undefined;
   if (!isSlip44Id(assetId)) {
@@ -77,13 +94,24 @@ export const ConfirmSendTransaction = ({
   return (
     <Container>
       <Box>
+        <TransactionValidationAlert
+          preferences={preferences}
+          transactionsFetchStatus={transactionsFetchStatus}
+        />
+        {transactionsFetchStatus !== FetchStatus.Error &&
+        hasEnabledTransactionScan(preferences) ? (
+          <TransactionAlert
+            scanFetchStatus={scanFetchStatus}
+            validation={scan?.validation ?? null}
+            error={scan?.error ?? null}
+            preferences={preferences}
+          />
+        ) : null}
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">{t(`confirmation.transaction.title`)}</Heading>
           <Box>{null}</Box>
         </Box>
-
-        {/* TODO: add security alert / transaction simulation result */}
 
         <Section>
           {origin ? (
@@ -173,7 +201,10 @@ export const ConfirmSendTransaction = ({
         <Button name={ConfirmSendTransactionFormNames.Cancel}>
           {t('confirmation.cancelButton')}
         </Button>
-        <Button name={ConfirmSendTransactionFormNames.Confirm}>
+        <Button
+          name={ConfirmSendTransactionFormNames.Confirm}
+          disabled={shouldDisableConfirmButton}
+        >
           {t('confirmation.confirmButton')}
         </Button>
       </Footer>

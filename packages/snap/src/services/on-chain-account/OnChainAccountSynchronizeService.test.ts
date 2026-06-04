@@ -17,6 +17,7 @@ import {
 import { OnChainAccount } from './OnChainAccount';
 import { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
+import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import { bufferToUint8Array } from '../../utils/buffer';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
 import {
@@ -29,6 +30,9 @@ import {
 import type { StellarAssetMetadata } from '../asset-metadata/api';
 import { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
 import { AccountNotActivatedException, NetworkService } from '../network';
+
+const isKeyringEmitCall = (call: unknown[], event: KeyringEvent): boolean =>
+  (call[1] as KeyringEvent) === event;
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
@@ -343,6 +347,7 @@ describe('OnChainAccountSynchronizeService', () => {
       expect.objectContaining({
         balances: {
           [keyringAccount.id]: expect.objectContaining({
+            [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
             [sep41Id]: { unit: 'USDC', amount: '5' },
           }),
         },
@@ -354,7 +359,10 @@ describe('OnChainAccountSynchronizeService', () => {
       KeyringEvent.AccountAssetListUpdated,
       {
         assets: {
-          [keyringAccount.id]: { added: [sep41Id], removed: [] },
+          [keyringAccount.id]: {
+            added: expect.arrayContaining([NATIVE, sep41Id]),
+            removed: [],
+          },
         },
       },
     );
@@ -422,7 +430,7 @@ describe('OnChainAccountSynchronizeService', () => {
       KeyringEvent.AccountAssetListUpdated,
       {
         assets: {
-          [keyringAccount.id]: { added: [], removed: [sep41Id] },
+          [keyringAccount.id]: { added: [NATIVE], removed: [sep41Id] },
         },
       },
     );
@@ -485,7 +493,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
 
     const balanceEventCalls = emitSnapKeyringEventSpy.mock.calls.filter(
-      (call) => call[1] === KeyringEvent.AccountBalancesUpdated,
+      (call) => isKeyringEmitCall(call, KeyringEvent.AccountBalancesUpdated),
     );
     expect(balanceEventCalls).toHaveLength(4);
     expect(balanceEventCalls[3]?.[2]).toStrictEqual(
@@ -624,7 +632,9 @@ describe('OnChainAccountSynchronizeService', () => {
     ); // sync 4
 
     const balanceEventCalls = emitSnapKeyringEventSpy.mock.calls
-      .filter((call) => call[1] === KeyringEvent.AccountBalancesUpdated)
+      .filter((call) =>
+        isKeyringEmitCall(call, KeyringEvent.AccountBalancesUpdated),
+      )
       .map((call) => call[2]);
     expect(balanceEventCalls).toHaveLength(4);
     const sync1Payload = balanceEventCalls[0] as {
@@ -812,8 +822,8 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(saveManySpy).toHaveBeenCalledTimes(4);
     expect(emitSnapKeyringEventSpy).toHaveBeenCalledTimes(6);
 
-    const balanceCalls = emitSnapKeyringEventSpy.mock.calls.filter(
-      (call) => call[1] === KeyringEvent.AccountBalancesUpdated,
+    const balanceCalls = emitSnapKeyringEventSpy.mock.calls.filter((call) =>
+      isKeyringEmitCall(call, KeyringEvent.AccountBalancesUpdated),
     );
     expect(balanceCalls).toHaveLength(4);
 
@@ -856,8 +866,8 @@ describe('OnChainAccountSynchronizeService', () => {
       [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
     });
 
-    const assetListCalls = emitSnapKeyringEventSpy.mock.calls.filter(
-      (call) => call[1] === KeyringEvent.AccountAssetListUpdated,
+    const assetListCalls = emitSnapKeyringEventSpy.mock.calls.filter((call) =>
+      isKeyringEmitCall(call, KeyringEvent.AccountAssetListUpdated),
     );
     expect(assetListCalls).toHaveLength(2);
 
@@ -877,13 +887,13 @@ describe('OnChainAccountSynchronizeService', () => {
 
     // 1st `AccountAssetListUpdated` (after sync 1): USDC trustline becomes visible (limit > 0, balance 0).
     expect(assetListDeltaFromNthAssetEmit(0)).toStrictEqual({
-      added: [USDC_CLASSIC],
+      added: expect.arrayContaining([NATIVE, USDC_CLASSIC]),
       removed: [],
     });
 
     // 2nd `AccountAssetListUpdated` (after sync 4): stale baseline vs current → EURC added, USDC removed from list.
     expect(assetListDeltaFromNthAssetEmit(1)).toStrictEqual({
-      added: [EURC_CLASSIC],
+      added: expect.arrayContaining([NATIVE, EURC_CLASSIC]),
       removed: [USDC_CLASSIC],
     });
   });

@@ -203,6 +203,19 @@ export function hasEnabledTransactionScan(
 }
 
 /**
+ * Determines whether the confirm action must be blocked because background
+ * re-validation found the pending transaction is no longer valid.
+ *
+ * @param transactionsFetchStatus - Latest transaction validation fetch status.
+ * @returns True when the confirm action should be disabled.
+ */
+export function isConfirmDisabledByTransactionValidation(
+  transactionsFetchStatus: FetchStatus | undefined,
+): boolean {
+  return transactionsFetchStatus === FetchStatus.Error;
+}
+
+/**
  * Display-friendly resolution of a Stellar operation `asset` reference.
  * Used by the confirmation UI to render assets and to look up prices.
  */

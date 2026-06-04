@@ -12,6 +12,7 @@ import {
 } from './handlers/clientRequest';
 import { ComputeFeeHandler } from './handlers/clientRequest/computeFee';
 import { ConfirmSendHandler } from './handlers/clientRequest/confirmSend';
+import { GetAccountAssetInfoHandler } from './handlers/clientRequest/getAccountAssetInfo';
 import { OnAddressInputHandler } from './handlers/clientRequest/onAddressInput';
 import { OnAmountInputHandler } from './handlers/clientRequest/onAmountInput';
 import { SignAndSendTransactionHandler } from './handlers/clientRequest/signAndSendTransaction';
@@ -20,6 +21,7 @@ import { BackgroundEventMethod } from './handlers/cronjob/api';
 import {
   ConfirmationPriceRefresher,
   ConfirmationScanRefresher,
+  ConfirmationTransactionRefresher,
   RefreshConfirmationContextHandler,
 } from './handlers/cronjob/refreshConfirmationContext';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
@@ -186,11 +188,23 @@ const confirmationScanRefresher = new ConfirmationScanRefresher({
   transactionScanService,
 });
 
+const confirmationTransactionRefresher = new ConfirmationTransactionRefresher({
+  logger,
+  transactionService,
+  transactionBuilder,
+  assetMetadataService,
+  accountResolver,
+});
+
 const refreshConfirmationContextHandler = new RefreshConfirmationContextHandler(
   {
     logger,
     confirmationUIController,
-    refreshers: [confirmationPriceRefresher, confirmationScanRefresher],
+    refreshers: [
+      confirmationPriceRefresher,
+      confirmationScanRefresher,
+      confirmationTransactionRefresher,
+    ],
   },
 );
 
@@ -269,11 +283,17 @@ const computeFeeHandler = new ComputeFeeHandler({
   transactionService,
 });
 
+const getAccountAssetInfoHandler = new GetAccountAssetInfoHandler({
+  logger,
+  accountResolver,
+});
+
 const clientRequestMethodHandlers: Record<
   ClientRequestMethod,
   IClientRequestHandler
 > = {
   [ClientRequestMethod.ChangeTrustOpt]: changeTrustOptHandler,
+  [ClientRequestMethod.GetAccountAssetInfo]: getAccountAssetInfoHandler,
   [ClientRequestMethod.OnAddressInput]: onAddressInputHandler,
   [ClientRequestMethod.OnAmountInput]: onAmountInputHandler,
   [ClientRequestMethod.ConfirmSend]: confirmSendHandler,

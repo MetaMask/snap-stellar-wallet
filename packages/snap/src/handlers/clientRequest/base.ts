@@ -93,7 +93,7 @@ export abstract class BaseClientRequestHandler<
       return await this.execute(resolvedAccount, request);
     } catch (error: unknown) {
       if (error instanceof AccountNotActivatedException) {
-        return this.handleAccountNotActivatedError(error);
+        return this.handleAccountNotActivatedError(error, request);
       }
       throw error;
     }
@@ -118,9 +118,11 @@ export abstract class BaseClientRequestHandler<
    * Rethrows the error to be handled by the caller.
    *
    * @param error - The account not activated error.
+   * @param _request - The JSON-RPC request that triggered resolution.
    */
   protected async handleAccountNotActivatedError(
     error: AccountNotActivatedException,
+    _request: RequestType,
   ): Promise<Json> {
     await this.#showAccountNotActivatedAlert(error.address);
     throw error;

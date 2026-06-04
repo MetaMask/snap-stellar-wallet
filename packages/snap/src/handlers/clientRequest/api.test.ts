@@ -12,6 +12,8 @@ import {
   ClientRequestMethod,
   ClientRequestMethodStruct,
   JsonRpcRequestWithAccountStruct,
+  GetAccountAssetInfoJsonRpcRequestStruct,
+  GetAccountAssetInfoJsonRpcResponseStruct,
   OnAddressInputJsonRpcRequestStruct,
   OnAddressInputJsonRpcResponseStruct,
   OnAmountInputJsonRpcRequestStruct,
@@ -650,6 +652,56 @@ describe('OnAmountInputJsonRpcResponseStruct', () => {
       ).toThrow(StructError);
     },
   );
+});
+
+describe('GetAccountAssetInfoJsonRpcRequestStruct', () => {
+  it('accepts a valid getAccountAssetInfo JSON-RPC request', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: ClientRequestMethod.GetAccountAssetInfo,
+          params: {
+            accountId,
+            scope,
+            assets: [classicAssetId],
+          },
+        },
+        GetAccountAssetInfoJsonRpcRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects getAccountAssetInfo when scope is missing', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: ClientRequestMethod.GetAccountAssetInfo,
+          params: {
+            accountId,
+            assets: [classicAssetId],
+          },
+        },
+        GetAccountAssetInfoJsonRpcRequestStruct,
+      ),
+    ).toThrow(StructError);
+  });
+});
+
+describe('GetAccountAssetInfoJsonRpcResponseStruct', () => {
+  it('accepts a valid getAccountAssetInfo JSON-RPC response', () => {
+    expect(() =>
+      assert(
+        {
+          [classicAssetId]: { limit: '1' },
+        },
+        GetAccountAssetInfoJsonRpcResponseStruct,
+      ),
+    ).not.toThrow();
+  });
 });
 
 describe('ConfirmSendJsonRpcRequestStruct', () => {
