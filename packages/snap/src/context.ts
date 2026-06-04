@@ -191,7 +191,6 @@ const confirmationScanRefresher = new ConfirmationScanRefresher({
 const confirmationTransactionRefresher = new ConfirmationTransactionRefresher({
   logger,
   transactionService,
-  transactionBuilder,
   assetMetadataService,
   accountResolver,
 });
