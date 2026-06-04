@@ -243,14 +243,14 @@ describe('confirmation utils', () => {
       ).toBe(false);
     });
 
-    it('returns false while token scan is fetching', () => {
+    it('returns true while token scan is fetching', () => {
       expect(
         hasVisibleTokenScanAlert({
           preferences,
-          tokenScan: maliciousTokenScan,
+          tokenScan: null,
           tokenScanFetchStatus: FetchStatus.Fetching,
         }),
-      ).toBe(false);
+      ).toBe(true);
     });
 
     it('returns false when Security Alerts are disabled', () => {
@@ -309,6 +309,19 @@ describe('confirmation utils', () => {
         ).toBe(ConfirmationBanner.TokenScan);
       },
     );
+
+    it('returns token scan while token scan is fetching', () => {
+      expect(
+        resolveConfirmationBanner({
+          preferences,
+          transactionsFetchStatus: FetchStatus.Fetched,
+          scan: benignTransactionScan,
+          scanFetchStatus: FetchStatus.Fetched,
+          tokenScan: null,
+          tokenScanFetchStatus: FetchStatus.Fetching,
+        }),
+      ).toBe(ConfirmationBanner.TokenScan);
+    });
 
     it('returns none when token args are omitted and nothing else is visible', () => {
       expect(

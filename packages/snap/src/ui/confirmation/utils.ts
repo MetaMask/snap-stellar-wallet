@@ -206,7 +206,9 @@ export function isConfirmDisabledByTokenScan(params: {
   tokenScanFetchStatus: FetchStatus;
 }): boolean {
   const { preferences, tokenScan, tokenScanFetchStatus } = params;
-  // Token-scan/API errors fail open by design, matching the Tron snap; unlike transaction validation, a scan Error must not block legitimate trustline ops.
+  // Token-scan/API errors fail open by design, matching the Tron snap.
+  // Unlike transaction validation, a scan Error must not block legitimate
+  // trustline ops.
   return (
     preferences.useSecurityAlerts &&
     (tokenScanFetchStatus === FetchStatus.Fetching ||
@@ -232,8 +234,9 @@ export function hasVisibleTokenScanAlert(params: {
   const { preferences, tokenScan, tokenScanFetchStatus } = params;
   return (
     preferences.useSecurityAlerts &&
-    tokenScanFetchStatus === FetchStatus.Fetched &&
-    (tokenScan?.isMalicious === true || tokenScan?.isWarning === true)
+    (tokenScanFetchStatus === FetchStatus.Fetching ||
+      (tokenScanFetchStatus === FetchStatus.Fetched &&
+        (tokenScan?.isMalicious === true || tokenScan?.isWarning === true)))
   );
 }
 

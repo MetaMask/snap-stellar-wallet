@@ -4,7 +4,8 @@ import { Banner, Text as SnapText } from '@metamask/snaps-sdk/jsx';
 import type { TokenScanResult } from '../../../services/transaction-scan';
 import type { Locale } from '../../../utils';
 import { i18n } from '../../../utils';
-import type { ConfirmationBaseProps, FetchStatus } from '../api';
+import type { ConfirmationBaseProps } from '../api';
+import { FetchStatus } from '../api';
 import { hasVisibleTokenScanAlert } from '../utils';
 
 type TokenScanAlertProps = {
@@ -24,12 +25,30 @@ export const TokenScanAlert = ({
       tokenScan,
       tokenScanFetchStatus,
     }) ||
-    tokenScan === null
+    (tokenScanFetchStatus === FetchStatus.Fetched && tokenScan === null)
   ) {
     return null;
   }
 
   const translate = i18n(preferences.locale as Locale);
+
+  if (tokenScanFetchStatus === FetchStatus.Fetching) {
+    return (
+      <Banner
+        title={translate('confirmation.securityScanInProgressTitle')}
+        severity="info"
+      >
+        <SnapText>
+          {translate('confirmation.securityScanInProgressMessage')}
+        </SnapText>
+      </Banner>
+    );
+  }
+
+  if (tokenScan === null) {
+    return null;
+  }
+
   const asset =
     tokenScan.symbol ?? tokenScan.name ?? translate('confirmation.asset');
 

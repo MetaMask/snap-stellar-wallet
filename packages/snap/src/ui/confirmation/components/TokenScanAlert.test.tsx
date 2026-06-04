@@ -116,13 +116,17 @@ describe('TokenScanAlert', () => {
     expect(component).toBeNull();
   });
 
-  it('renders nothing while fetching', () => {
+  it('renders an info banner while fetching', () => {
     const component = TokenScanAlert({
       preferences,
       tokenScanFetchStatus: FetchStatus.Fetching,
       tokenScan: null,
     });
 
-    expect(component).toBeNull();
+    expect(getType(component)).toBe('Banner');
+    expect(getProps(component)).toMatchObject({
+      severity: 'info',
+      title: 'Checking for security issues',
+    });
   });
 });
