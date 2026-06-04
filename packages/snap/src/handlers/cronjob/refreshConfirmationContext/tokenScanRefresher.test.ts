@@ -58,9 +58,10 @@ describe('ConfirmationTokenScanRefresher', () => {
 
     const result = await refresher.refresh(createTokenScanContext());
 
-    expect(transactionScanService.scanToken).toHaveBeenCalledWith(
-      tokenScanRequest,
-    );
+    expect(transactionScanService.scanToken).toHaveBeenCalledWith({
+      assetReference: tokenScanRequest.assetReference,
+      origin: tokenScanRequest.origin,
+    });
     expect(result).toStrictEqual({
       result: {
         tokenScan: tokenScanResult,

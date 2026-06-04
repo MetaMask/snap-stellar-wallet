@@ -75,13 +75,17 @@ export class ConfirmationTokenScanRefresher implements IConfirmationContextRefre
     ctx: ConfirmationDataContext,
   ): Promise<ConfirmationContextRefreshResult> {
     const scanCtx = ctx as TokenScanContext;
-    const tokenScanRequest = scanCtx.tokenScanRequest as NonNullable<
-      TokenScanContext['tokenScanRequest']
-    >;
+    const { tokenScanRequest } = scanCtx;
+
+    if (!tokenScanRequest) {
+      return this.recoveryResult(ctx);
+    }
 
     try {
-      const tokenScan =
-        await this.#transactionScanService.scanToken(tokenScanRequest);
+      const tokenScan = await this.#transactionScanService.scanToken({
+        assetReference: tokenScanRequest.assetReference,
+        origin: tokenScanRequest.origin,
+      });
 
       return {
         result: {

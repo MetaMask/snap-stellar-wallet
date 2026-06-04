@@ -206,11 +206,34 @@ export function isConfirmDisabledByTokenScan(params: {
   tokenScanFetchStatus: FetchStatus;
 }): boolean {
   const { preferences, tokenScan, tokenScanFetchStatus } = params;
+  // Token-scan/API errors fail open by design, matching the Tron snap; unlike transaction validation, a scan Error must not block legitimate trustline ops.
   return (
     preferences.useSecurityAlerts &&
     (tokenScanFetchStatus === FetchStatus.Fetching ||
       tokenScan?.isMalicious === true ||
       tokenScan?.isWarning === true)
+  );
+}
+
+/**
+ * Determines whether the token scan alert would render.
+ *
+ * @param params - Token scan and preference state.
+ * @param params.preferences - User preferences controlling security alerts.
+ * @param params.tokenScan - Latest token scan result.
+ * @param params.tokenScanFetchStatus - Latest token scan fetch status.
+ * @returns True when the token scan banner should be visible.
+ */
+export function hasVisibleTokenScanAlert(params: {
+  preferences: GetPreferencesResult;
+  tokenScan?: TokenScanResult | null;
+  tokenScanFetchStatus: FetchStatus;
+}): boolean {
+  const { preferences, tokenScan, tokenScanFetchStatus } = params;
+  return (
+    preferences.useSecurityAlerts &&
+    tokenScanFetchStatus === FetchStatus.Fetched &&
+    (tokenScan?.isMalicious === true || tokenScan?.isWarning === true)
   );
 }
 
@@ -254,6 +277,69 @@ export function hasVisibleTransactionAlert(params: {
     (scan?.validation?.type === TransactionScanValidationType.Malicious ||
       scan?.validation?.type === TransactionScanValidationType.Warning)
   );
+}
+
+export enum ConfirmationBanner {
+  None = 'none',
+  ValidationError = 'validationError',
+  TransactionScan = 'transactionScan',
+  TokenScan = 'tokenScan',
+}
+
+/**
+ * Resolves the single confirmation banner to render. Banners are mutually
+ * exclusive and use this priority: transaction validation error, transaction
+ * scan alert, then token scan alert.
+ *
+ * @param params - Confirmation banner source state.
+ * @param params.preferences - User preferences controlling scan behavior.
+ * @param params.transactionsFetchStatus - Latest transaction validation fetch status.
+ * @param params.scan - Latest transaction scan result.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @param params.tokenScan - Latest token scan result.
+ * @param params.tokenScanFetchStatus - Latest token scan fetch status.
+ * @returns The highest-priority banner to render.
+ */
+export function resolveConfirmationBanner(params: {
+  preferences: GetPreferencesResult;
+  transactionsFetchStatus: FetchStatus;
+  scan?: TransactionScanResult | null;
+  scanFetchStatus: FetchStatus;
+  tokenScan?: TokenScanResult | null;
+  tokenScanFetchStatus?: FetchStatus;
+}): ConfirmationBanner {
+  const {
+    preferences,
+    transactionsFetchStatus,
+    scan,
+    scanFetchStatus,
+    tokenScan,
+    tokenScanFetchStatus,
+  } = params;
+
+  if (transactionsFetchStatus === FetchStatus.Error) {
+    return ConfirmationBanner.ValidationError;
+  }
+
+  if (
+    hasEnabledTransactionScan(preferences) &&
+    hasVisibleTransactionAlert({ preferences, scan, scanFetchStatus })
+  ) {
+    return ConfirmationBanner.TransactionScan;
+  }
+
+  if (
+    tokenScanFetchStatus !== undefined &&
+    hasVisibleTokenScanAlert({
+      preferences,
+      tokenScan,
+      tokenScanFetchStatus,
+    })
+  ) {
+    return ConfirmationBanner.TokenScan;
+  }
+
+  return ConfirmationBanner.None;
 }
 
 /**

@@ -4,8 +4,8 @@ import { Banner, Text as SnapText } from '@metamask/snaps-sdk/jsx';
 import type { TokenScanResult } from '../../../services/transaction-scan';
 import type { Locale } from '../../../utils';
 import { i18n } from '../../../utils';
-import type { ConfirmationBaseProps } from '../api';
-import { FetchStatus } from '../api';
+import type { ConfirmationBaseProps, FetchStatus } from '../api';
+import { hasVisibleTokenScanAlert } from '../utils';
 
 type TokenScanAlertProps = {
   preferences: ConfirmationBaseProps['preferences'];
@@ -19,10 +19,12 @@ export const TokenScanAlert = ({
   tokenScanFetchStatus,
 }: TokenScanAlertProps): ComponentOrElement | null => {
   if (
-    !preferences.useSecurityAlerts ||
-    tokenScanFetchStatus !== FetchStatus.Fetched ||
-    tokenScan === null ||
-    (!tokenScan.isMalicious && !tokenScan.isWarning)
+    !hasVisibleTokenScanAlert({
+      preferences,
+      tokenScan,
+      tokenScanFetchStatus,
+    }) ||
+    tokenScan === null
   ) {
     return null;
   }

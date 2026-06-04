@@ -26,7 +26,6 @@ describe('TransactionScanService', () => {
   const tokenScanParams = {
     assetReference,
     origin: 'https://example.com',
-    scope: KnownCaip2ChainId.Mainnet,
   };
 
   function setup() {

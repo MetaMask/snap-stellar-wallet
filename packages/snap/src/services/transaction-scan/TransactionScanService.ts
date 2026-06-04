@@ -68,7 +68,6 @@ export class TransactionScanService {
     origin,
   }: {
     assetReference: string;
-    scope: KnownCaip2ChainId;
     origin: string;
   }): Promise<TokenScanResult | null> {
     try {
