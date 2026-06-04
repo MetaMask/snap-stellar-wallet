@@ -1,5 +1,6 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
+import type { AuthFlag, Horizon } from '@stellar/stellar-sdk';
 import {
   Account,
   Asset,
@@ -9,7 +10,6 @@ import {
   Networks,
   Operation,
   TransactionBuilder as StellarTransactionBuilder,
-  type AuthFlag,
 } from '@stellar/stellar-sdk';
 
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';
@@ -490,4 +490,69 @@ export function buildMockInvokeHostFunctionTransaction(
 
   const built = builder.setTimeout(options.timeout ?? 60).build();
   return new Transaction(built);
+}
+
+export type BuildMockHorizonTransactionRecordOptions = {
+  transaction?: Transaction;
+  sourceAccount?: string;
+  pagingToken?: string;
+  feeCharged?: string;
+  successful?: boolean;
+};
+
+/**
+ * Builds a minimal Horizon transaction record for tests.
+ *
+ * @param options - Optional record overrides.
+ * @returns Horizon transaction record with envelope XDR and fee metadata.
+ */
+export function buildMockHorizonTransactionRecord(
+  options: BuildMockHorizonTransactionRecordOptions = {},
+): Horizon.ServerApi.TransactionRecord {
+  const transaction =
+    options.transaction ??
+    buildMockClassicTransaction([
+      {
+        type: 'payment',
+        params: {
+          destination: generateStellarAddress(),
+          asset: 'native',
+          amount: '1',
+        },
+      },
+    ]);
+
+  /* eslint-disable @typescript-eslint/naming-convention */
+  return {
+    envelope_xdr: transaction.getRaw().toXDR(),
+    fee_charged: options.feeCharged ?? transaction.totalFee.toFixed(0),
+    paging_token: options.pagingToken ?? '1',
+    source_account: options.sourceAccount ?? transaction.sourceAccount,
+    successful: options.successful ?? true,
+  } as Horizon.ServerApi.TransactionRecord;
+  /* eslint-enable @typescript-eslint/naming-convention */
+}
+
+/**
+ * Builds a Horizon transaction page-like response for tests.
+ *
+ * @param records - Current page records.
+ * @param next - Optional function used by callers for pagination.
+ * @returns Transaction page response shape with `records` and `next`.
+ */
+export function buildMockHorizonTransactionPage(
+  records: Horizon.ServerApi.TransactionRecord[],
+  next?: () => Promise<{ records: Horizon.ServerApi.TransactionRecord[] }>,
+): {
+  records: Horizon.ServerApi.TransactionRecord[];
+  next: () => Promise<{ records: Horizon.ServerApi.TransactionRecord[] }>;
+} {
+  return {
+    records,
+    next:
+      next ??
+      (async () => {
+        return { records: [] };
+      }),
+  };
 }

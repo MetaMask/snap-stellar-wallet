@@ -294,37 +294,6 @@ export class TransactionBuilder {
   }
 
   /**
-   * Deserializes a transaction from XDR.
-   *
-   * @param params - Options object.
-   * @param params.xdr - The XDR string.
-   * @param params.scope - The CAIP-2 chain ID.
-   * @returns A transaction.
-   * @throws {TransactionBuilderException} If deserializing fails.
-   */
-  deserialize(params: { xdr: string; scope: KnownCaip2ChainId }): Transaction {
-    try {
-      const { xdr, scope } = params;
-      const decodedTransaction = StellarSdkTransactionBuilder.fromXDR(
-        xdr,
-        caip2ChainIdToNetwork(scope),
-      );
-
-      const transaction = new Transaction(decodedTransaction);
-
-      return transaction;
-    } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to deserialize transaction',
-        error,
-      );
-      throw new TransactionBuilderException(
-        'Failed to deserialize transaction',
-      );
-    }
-  }
-
-  /**
    * Rebuilds a transaction with a new sequence number (e.g. after `txBadSeq`).
    *
    * @param params - Options object.

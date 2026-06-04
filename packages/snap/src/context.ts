@@ -141,7 +141,6 @@ const accountResolver = new AccountResolver({
 const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountResolver,
-  transactionBuilder,
   transactionService,
   confirmationUIController,
 });
@@ -192,7 +191,6 @@ const confirmationScanRefresher = new ConfirmationScanRefresher({
 const confirmationTransactionRefresher = new ConfirmationTransactionRefresher({
   logger,
   transactionService,
-  transactionBuilder,
   assetMetadataService,
   accountResolver,
 });

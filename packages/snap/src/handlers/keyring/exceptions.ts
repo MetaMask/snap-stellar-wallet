@@ -20,6 +20,7 @@ import {
   TransactionSendException,
 } from '../../services/network/exceptions';
 import {
+  TransactionDeserializationException,
   TransactionScopeNotMatchException,
   TransactionValidationException,
 } from '../../services/transaction/exceptions';
@@ -123,6 +124,7 @@ export function toSep43Error(error: unknown): Sep43Error {
     // (both extend AccountServiceException) — typically caused by a bad
     // `opts.address` from the dapp.
     wrapped instanceof AccountServiceException ||
+    wrapped instanceof TransactionDeserializationException ||
     wrapped instanceof TransactionValidationException ||
     wrapped instanceof TransactionScopeNotMatchException
   ) {

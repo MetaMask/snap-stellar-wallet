@@ -8,7 +8,7 @@ import { groupBy } from 'lodash';
 
 import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
 import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
-import type { Transaction } from './Transaction';
+import { Transaction } from './Transaction';
 import type { TransactionBuilder } from './TransactionBuilder';
 import type { TransactionRepository } from './TransactionRepository';
 import type {
@@ -358,7 +358,7 @@ export class TransactionService {
   }): Promise<Transaction> {
     const { onChainAccount, scope, xdr } = params;
 
-    const transaction = this.#transactionBuilder.deserialize({
+    const transaction = Transaction.fromXdr({
       xdr,
       scope,
     });

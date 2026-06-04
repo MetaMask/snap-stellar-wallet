@@ -5,11 +5,7 @@ import { ConfirmationContextRefresherKey } from './api';
 import { ConfirmationTransactionRefresher } from './transactionRefresher';
 import { KnownCaip2ChainId } from '../../../api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
-import type {
-  Transaction,
-  TransactionBuilder,
-  TransactionService,
-} from '../../../services/transaction';
+import type { TransactionService } from '../../../services/transaction';
 import { buildMockClassicTransaction } from '../../../services/transaction/__mocks__/transaction.fixtures';
 import { FetchStatus } from '../../../ui/confirmation/api';
 import { getSlip44AssetId } from '../../../utils';
@@ -83,9 +79,6 @@ describe('ConfirmationTransactionRefresher', () => {
         .fn()
         .mockResolvedValue({ onChainAccount: { accountId, scope } }),
     };
-    const transactionBuilder = {
-      deserialize: jest.fn().mockReturnValue(transaction),
-    };
     const transactionService = {
       createValidatedSendTransaction: jest.fn().mockResolvedValue(transaction),
       createValidatedChangeTrustTransaction: jest
@@ -99,7 +92,6 @@ describe('ConfirmationTransactionRefresher', () => {
     const refresher = new ConfirmationTransactionRefresher({
       logger,
       accountResolver: accountResolver as unknown as AccountResolver,
-      transactionBuilder: transactionBuilder as unknown as TransactionBuilder,
       transactionService: transactionService as unknown as TransactionService,
       assetMetadataService:
         assetMetadataService as unknown as AssetMetadataService,
@@ -108,7 +100,6 @@ describe('ConfirmationTransactionRefresher', () => {
     return {
       refresher,
       accountResolver,
-      transactionBuilder,
       transactionService,
       assetMetadataService,
     };
@@ -202,22 +193,40 @@ describe('ConfirmationTransactionRefresher', () => {
   });
 
   it('marks the transaction invalid when the original envelope has expired', async () => {
-    const { refresher, transactionBuilder, transactionService } = setup();
+    const { refresher, transactionService } = setup();
     // The stored XDR being signed is expired, even though the rebuilt draft would be valid.
-    // `expirationTime` is a Unix timestamp in seconds.
-    transactionBuilder.deserialize.mockReturnValueOnce({
-      expirationTime: Math.floor(Date.now() / 1000) - 1000,
-    } as unknown as Transaction);
+    const mockNow = 1_700_000_000_000;
+    jest.useFakeTimers();
+    jest.setSystemTime(mockNow);
 
-    const result = await refresher.refresh(createTransactionContext());
+    try {
+      const expiredTransaction = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: { destination: toAddress, asset: 'native', amount: '1' },
+          },
+        ],
+        { networkPassphrase: Networks.TESTNET, timeout: 1 },
+      );
+      jest.advanceTimersByTime(2000);
 
-    expect(
-      transactionService.createValidatedSendTransaction,
-    ).not.toHaveBeenCalled();
-    expect(result).toStrictEqual({
-      result: { transactionsFetchStatus: FetchStatus.Error },
-      reschedule: false,
-    });
+      const result = await refresher.refresh(
+        createTransactionContext({
+          transaction: expiredTransaction.getRaw().toXDR(),
+        }),
+      );
+
+      expect(
+        transactionService.createValidatedSendTransaction,
+      ).not.toHaveBeenCalled();
+      expect(result).toStrictEqual({
+        result: { transactionsFetchStatus: FetchStatus.Error },
+        reschedule: false,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('does not re-fetch once the transaction is already marked invalid', () => {

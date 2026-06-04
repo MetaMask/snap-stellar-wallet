@@ -8,9 +8,9 @@ import {
   type IConfirmationContextRefresher,
 } from './api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
-import type {
-  TransactionBuilder,
-  TransactionService,
+import {
+  Transaction,
+  type TransactionService,
 } from '../../../services/transaction';
 import { assertTransactionTimeBound } from '../../../services/transaction/utils';
 import type { ContextWithTransactionValidation } from '../../../ui/confirmation/api';
@@ -41,8 +41,6 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
 
   readonly #transactionService: TransactionService;
 
-  readonly #transactionBuilder: TransactionBuilder;
-
   readonly #assetMetadataService: AssetMetadataService;
 
   readonly #accountResolver: AccountResolver;
@@ -52,18 +50,15 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
   constructor({
     logger,
     transactionService,
-    transactionBuilder,
     assetMetadataService,
     accountResolver,
   }: {
     logger: ILogger;
     transactionService: TransactionService;
-    transactionBuilder: TransactionBuilder;
     assetMetadataService: AssetMetadataService;
     accountResolver: AccountResolver;
   }) {
     this.#transactionService = transactionService;
-    this.#transactionBuilder = transactionBuilder;
     this.#assetMetadataService = assetMetadataService;
     this.#accountResolver = accountResolver;
     this.#logger = createPrefixedLogger(
@@ -123,7 +118,7 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
       // Deserialize the envelope awaiting signature and assert its own time bound.
       // The draft rebuilt below gets a fresh timeout, so validating that draft would
       // miss expiry of the transaction the user is actually looking at.
-      const transaction = this.#transactionBuilder.deserialize({
+      const transaction = Transaction.fromXdr({
         xdr: transactionXdr,
         scope,
       });
