@@ -828,8 +828,14 @@ export class NetworkService {
   /**
    * Scans account transactions from Horizon with cursor-based pagination.
    *
-   * The scan starts at `lastScanToken`, fetches up to `maxScan` pages, and returns
-   * both mapped transactions and the next cursor token for incremental sync.
+   * The scan starts at `lastScanToken` and fetches up to `maxScan` pages. Each
+   * {@link Transaction} includes the source Horizon record on {@link Transaction.rawData}
+   * (including `paging_token`) so callers can choose which cursor to persist for the next run.
+   *
+   * When `includeSelfTransactionsOnly` is true, filtered rows are omitted from the result;
+   * callers that need a scan cursor must derive it from returned transactions (or pass
+   * `includeSelfTransactionsOnly: false` and filter locally). An empty result does not
+   * expose a paging token — callers should retain their previous cursor in that case.
    *
    * @param params - Scan parameters.
    * @param params.accountAddress - Stellar account id (`G...`) to query.
@@ -840,7 +846,7 @@ export class NetworkService {
    * @param params.maxScan - Maximum page count to fetch in this call (`MAX_TRANSACTION_SCAN_PAGES` by default). Values below 1 still fetch one page. @see {@link MAX_TRANSACTION_SCAN_PAGES}
    * @param params.includeSelfTransactionsOnly - Whether to keep only records whose source account matches `accountAddress`.
    * @param params.includeFailed - Whether to include failed transactions. Defaults to true.
-   * @returns Mapped transaction list plus `nextScanToken` for the next incremental fetch.
+   * @returns Mapped transactions with optional Horizon metadata on each item.
    * @throws {NetworkServiceException} When Horizon fetch fails.
    */
   async getTransactions(params: {
@@ -852,10 +858,7 @@ export class NetworkService {
     maxScan?: number;
     includeSelfTransactionsOnly?: boolean;
     includeFailed?: boolean;
-  }): Promise<{
-    transactions: Transaction[];
-    nextScanToken: string;
-  }> {
+  }): Promise<Transaction[]> {
     const {
       accountAddress,
       lastScanToken,
@@ -869,7 +872,6 @@ export class NetworkService {
 
     // Clamp so callers cannot skip the initial Horizon request (e.g. maxScan: 0).
     let maxScanRemaining = Math.max(maxScan, 1);
-    let nextScanToken: string = lastScanToken;
 
     try {
       const client = this.#getHorizonClient(scope);
@@ -891,9 +893,6 @@ export class NetworkService {
       );
 
       maxScanRemaining -= 1;
-      // Empty page: keep the incoming cursor so incremental sync does not skip ahead.
-      const lastInitialRecord = initialTransactionsResponse.records.at(-1);
-      nextScanToken = lastInitialRecord?.paging_token ?? lastScanToken;
 
       // When a page is full, Horizon likely has more records available.
       // Continue pagination (bounded by `maxScan`) and aggregate those pages.
@@ -917,16 +916,10 @@ export class NetworkService {
           ),
         );
 
-        // Non-empty page from `next()` should always expose a paging token on the last row.
-        const lastPageRecord = currentResponse.records.at(-1);
-        nextScanToken = lastPageRecord?.paging_token ?? '';
         maxScanRemaining -= 1;
       }
 
-      return {
-        transactions,
-        nextScanToken,
-      };
+      return transactions;
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to fetch transactions', error);
       return rethrowIfInstanceElseThrow(

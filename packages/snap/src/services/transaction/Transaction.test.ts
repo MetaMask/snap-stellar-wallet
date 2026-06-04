@@ -330,6 +330,7 @@ describe('Transaction', () => {
       expect(wrapped.totalFee.toFixed(0)).toBe('100');
       expect(wrapped.feeCharged.toFixed(0)).toBe('300');
       expect(wrapped.status).toBe(TransactionStatus.Confirmed);
+      expect(wrapped.rawData).toBe(horizonRecord);
     });
 
     it('maps Horizon successful flag to failed status', () => {

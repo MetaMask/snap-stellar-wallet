@@ -848,9 +848,9 @@ describe('NetworkService', () => {
         maxScan: 1,
       });
 
-      expect(result.transactions).toHaveLength(1);
-      expect(result.transactions[0]?.sourceAccount).toBe(accountAddress);
-      expect(result.nextScanToken).toBe('22');
+      expect(result).toHaveLength(1);
+      expect(result[0]?.sourceAccount).toBe(accountAddress);
+      expect(result[0]?.rawData?.paging_token).toBe('11');
       transactionsSpy.mockRestore();
     });
 
@@ -916,8 +916,8 @@ describe('NetworkService', () => {
         maxScan: 1,
       });
 
-      expect(result.transactions).toHaveLength(2);
-      expect(result.nextScanToken).toBe('44');
+      expect(result).toHaveLength(2);
+      expect(result.at(-1)?.rawData?.paging_token).toBe('44');
       transactionsSpy.mockRestore();
     });
 
@@ -968,18 +968,20 @@ describe('NetworkService', () => {
         maxScan: 3,
       });
 
-      expect(result.transactions).toHaveLength(3);
-      expect(
-        result.transactions.map((transaction) => transaction.id),
-      ).toStrictEqual([txA.id, txB.id, txC.id]);
-      expect(result.nextScanToken).toBe('33');
+      expect(result).toHaveLength(3);
+      expect(result.map((transaction) => transaction.id)).toStrictEqual([
+        txA.id,
+        txB.id,
+        txC.id,
+      ]);
+      expect(result.at(-1)?.rawData?.paging_token).toBe('33');
       expect(page1Next).toHaveBeenCalledTimes(1);
       expect(page2Next).toHaveBeenCalledTimes(1);
       expect(page3Next).not.toHaveBeenCalled();
       transactionsSpy.mockRestore();
     });
 
-    it('keeps lastScanToken as nextScanToken when the first page has no records', async () => {
+    it('returns empty array when the first page has no records', async () => {
       const accountAddress = generateStellarAddress();
       const lastScanToken = 'cursor-abc';
       const call = jest
@@ -995,8 +997,7 @@ describe('NetworkService', () => {
         maxScan: 1,
       });
 
-      expect(result.transactions).toHaveLength(0);
-      expect(result.nextScanToken).toBe(lastScanToken);
+      expect(result).toHaveLength(0);
       transactionsSpy.mockRestore();
     });
 
@@ -1025,8 +1026,8 @@ describe('NetworkService', () => {
       });
 
       expect(call).toHaveBeenCalledTimes(1);
-      expect(result.transactions).toHaveLength(1);
-      expect(result.nextScanToken).toBe('55');
+      expect(result).toHaveLength(1);
+      expect(result[0]?.rawData?.paging_token).toBe('55');
       transactionsSpy.mockRestore();
     });
 

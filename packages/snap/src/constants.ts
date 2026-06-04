@@ -86,7 +86,7 @@ export const MAX_TRANSACTIONS_PAGE_SIZE = 200;
 /**
  * Maximum number of pages remaining to fetch in this run.
  * This keeps scans responsive for high-activity accounts by avoiding full-history fetches at once.
- * As long as the caller stores `nextScanToken`, later runs can continue from where this run stops.
+ * Callers persist a Horizon paging token (from {@link Transaction.rawData}) between runs to continue incremental sync.
  *
  * @see {@link NetworkService.getTransactions}
  */

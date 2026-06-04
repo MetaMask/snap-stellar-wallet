@@ -33,14 +33,21 @@ export class Transaction {
 
   readonly #status: TransactionStatus = TransactionStatus.Submitted;
 
+  readonly #rawData: Horizon.ServerApi.TransactionRecord | undefined;
+
   constructor(
     inner: StellarTransaction | FeeBumpTransaction,
-    options?: { feeCharged?: BigNumber; status?: TransactionStatus },
+    options?: {
+      feeCharged?: BigNumber;
+      status?: TransactionStatus;
+      rawData?: Horizon.ServerApi.TransactionRecord;
+    },
   ) {
     this.#inner = inner;
     // if the fee charged is not provided, use the fee of the transaction as default.
     this.#feeCharged = options?.feeCharged ?? new BigNumber(inner.fee);
     this.#status = options?.status ?? TransactionStatus.Submitted;
+    this.#rawData = options?.rawData;
     this.#initialize();
   }
 
@@ -268,6 +275,16 @@ export class Transaction {
   }
 
   /**
+   * Horizon transaction record when built via {@link Transaction.fromHorizon}.
+   * Includes `paging_token` for cursor-based scans. Undefined for unsigned/XDR envelopes.
+   *
+   * @returns The raw Horizon transaction response, if available.
+   */
+  get rawData(): Horizon.ServerApi.TransactionRecord | undefined {
+    return this.#rawData;
+  }
+
+  /**
    * Checks if the transaction is from the given account.
    *
    * @param accountId - The account ID to check.
@@ -382,6 +399,7 @@ export class Transaction {
     return new Transaction(wrapped.getRaw(), {
       feeCharged: new BigNumber(horizonTransaction.fee_charged),
       status,
+      rawData: horizonTransaction,
     });
   }
 }
