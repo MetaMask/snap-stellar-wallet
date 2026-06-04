@@ -193,10 +193,12 @@ export const SignAndSendTransactionJsonRpcRequestStruct = assign(
       transaction: SwapTransactionXdrStruct,
       accountId: UuidStruct,
       scope: KnownCaip2ChainIdStruct,
-      options: object({
-        visible: optional(boolean()),
-        type: string(),
-      }),
+      options: optional(
+        object({
+          visible: optional(boolean()),
+          type: optional(string()),
+        }),
+      ),
     }),
   }),
 );
@@ -389,11 +391,13 @@ export const ComputeFeeJsonRpcRequestStruct = assign(
       transaction: SwapTransactionXdrStruct,
       accountId: UuidStruct,
       scope: KnownCaip2ChainIdStruct,
-      options: object({
-        visible: optional(boolean()),
-        type: string(),
-        feeLimit: optional(min(integer(), 0)),
-      }),
+      options: optional(
+        object({
+          visible: optional(boolean()),
+          type: optional(string()),
+          feeLimit: optional(min(integer(), 0)),
+        }),
+      ),
     }),
   }),
 );

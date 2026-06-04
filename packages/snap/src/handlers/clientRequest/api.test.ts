@@ -172,7 +172,7 @@ describe('SignAndSendTransactionJsonRpcResponseStruct', () => {
 describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
   const transaction = buildTestInvokeXdr();
 
-  it('accepts a valid signAndSendTransaction JSON-RPC request', () => {
+  it('accepts a valid signAndSendTransaction JSON-RPC request without options', () => {
     expect(() =>
       assert(
         {
@@ -183,9 +183,6 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
             accountId,
             scope,
             transaction,
-            options: {
-              type: 'swap',
-            },
           },
         },
         SignAndSendTransactionJsonRpcRequestStruct,
@@ -193,7 +190,7 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
     ).not.toThrow();
   });
 
-  it('accepts an empty transaction type', () => {
+  it('accepts a signAndSendTransaction JSON-RPC request without an options type', () => {
     expect(() =>
       assert(
         {
@@ -205,7 +202,7 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
             scope,
             transaction,
             options: {
-              type: '',
+              visible: false,
             },
           },
         },
@@ -242,7 +239,25 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
 describe('ComputeFeeJsonRpcRequestStruct', () => {
   const transaction = buildTestInvokeXdr();
 
-  it('accepts an empty transaction type', () => {
+  it('accepts a computeFee JSON-RPC request without options', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'computeFee',
+          params: {
+            accountId,
+            scope,
+            transaction,
+          },
+        },
+        ComputeFeeJsonRpcRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
+  it('accepts a computeFee JSON-RPC request without an options type', () => {
     expect(() =>
       assert(
         {
@@ -254,7 +269,7 @@ describe('ComputeFeeJsonRpcRequestStruct', () => {
             scope,
             transaction,
             options: {
-              type: '',
+              feeLimit: 1,
             },
           },
         },

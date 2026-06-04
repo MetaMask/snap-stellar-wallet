@@ -106,10 +106,6 @@ describe('ComputeFeeHandler', () => {
         accountId,
         scope,
         transaction: xdr,
-        options: {
-          type: '',
-          feeLimit: 1,
-        },
       },
     };
 
