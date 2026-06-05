@@ -831,6 +831,32 @@ describe('TransactionSimulator', () => {
         }),
       ).toHaveLength(2);
     });
+
+    it('succeeds for self-payment when destination account requires memo and envelope has no memo', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = destOnChainAccountRequiresMemo(wallet.address);
+
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              source: wallet.address,
+              destination: wallet.address,
+              asset: 'native',
+              amount: '10',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccount, {
+          expectedOPTypes: [SupportedOperations.Payment],
+        }),
+      ).toHaveLength(2);
+    });
   });
 
   describe('pathPayment', () => {
@@ -906,6 +932,36 @@ describe('TransactionSimulator', () => {
           preloadedAccounts: [
             destOnChainAccountRequiresMemo(destinationAddress),
           ],
+        }),
+      ).toHaveLength(2);
+    });
+
+    it('succeeds for self path payment when destination account requires memo and envelope has no memo', () => {
+      const wallet = getTestWallet();
+      const onChainAccountRequiresMemo = destOnChainAccountRequiresMemo(
+        wallet.address,
+      );
+
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'pathPaymentStrictSend',
+            params: {
+              source: wallet.address,
+              sendAsset: 'native',
+              sendAmount: '10',
+              destination: wallet.address,
+              destAsset: MOCK_USDC_ASSET,
+              destMin: '5',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      expect(
+        simulator.simulate(tx, onChainAccountRequiresMemo, {
+          expectedOPTypes: [SupportedOperations.PathPayment],
         }),
       ).toHaveLength(2);
     });
