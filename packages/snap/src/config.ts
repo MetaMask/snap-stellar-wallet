@@ -170,6 +170,8 @@ export const AppConfig = create(
       pollingAttempts: process.env.TRANSACTION_POLLING_ATTEMPTS,
       baseFeeMultiplier: process.env.BASE_FEE_MULTIPLIER,
       simulationFeeMultiplier: process.env.SIMULATION_FEE_MULTIPLIER,
+      trackTransactionMaxReschedules:
+        process.env.TRACK_TRANSACTION_MAX_RESCHEDULES,
     },
     api: {
       tokenApi: {
