@@ -227,11 +227,14 @@ export class PaymentOPSimulator implements OperationSimulator {
       );
     }
 
-    assertMemoWhenDestinationRequires(
-      ctx.transaction,
-      destId,
-      dest.requiresMemo,
-    );
+    // SEP-29 memo_required applies to inbound payments from other accounts; skip for self-payments.
+    if (sourceId !== destId) {
+      assertMemoWhenDestinationRequires(
+        ctx.transaction,
+        destId,
+        dest.requiresMemo,
+      );
+    }
 
     validateDebit({
       account: source,
@@ -313,11 +316,14 @@ export class PathPaymentOPSimulator implements OperationSimulator {
       op,
     );
 
-    assertMemoWhenDestinationRequires(
-      ctx.transaction,
-      destId,
-      dest.requiresMemo,
-    );
+    // SEP-29 memo_required applies to inbound payments from other accounts; skip for self-payments.
+    if (sourceId !== destId) {
+      assertMemoWhenDestinationRequires(
+        ctx.transaction,
+        destId,
+        dest.requiresMemo,
+      );
+    }
 
     validateDebit({
       account: source,
