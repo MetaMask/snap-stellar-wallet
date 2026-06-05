@@ -59,10 +59,54 @@ describe('SwapTransactionXdrStruct', () => {
         destAsset: usdc,
         destMin: '5',
       }),
+    ]),
+    buildTransactionXdr([
+      Operation.pathPaymentStrictReceive({
+        sendAsset: Asset.native(),
+        sendMax: '10',
+        destination,
+        destAsset: usdc,
+        destAmount: '5',
+      }),
+    ]),
+    buildTransactionXdr([
+      Operation.pathPaymentStrictSend({
+        sendAsset: Asset.native(),
+        sendAmount: '10',
+        destination,
+        destAsset: usdc,
+        destMin: '5',
+      }),
       Operation.payment({
         destination: feeDestination,
         asset: Asset.native(),
         amount: '1',
+      }),
+    ]),
+    buildTransactionXdr([
+      Operation.changeTrust({
+        asset: usdc,
+        limit: '1000',
+      }),
+      Operation.pathPaymentStrictSend({
+        sendAsset: Asset.native(),
+        sendAmount: '10',
+        destination: sourceAddress,
+        destAsset: usdc,
+        destMin: '5',
+      }),
+    ]),
+    buildTransactionXdr([
+      Operation.changeTrust({
+        asset: usdc,
+        limit: '1000',
+      }),
+      Operation.pathPaymentStrictReceive({
+        sendAsset: Asset.native(),
+        sendMax: '10',
+        destination: sourceAddress,
+        destAsset: usdc,
+        destAmount: '5',
       }),
     ]),
     buildTransactionXdr([
@@ -89,28 +133,6 @@ describe('SwapTransactionXdrStruct', () => {
 
   it.each([
     'not-xdr',
-    buildTransactionXdr([
-      Operation.pathPaymentStrictSend({
-        sendAsset: Asset.native(),
-        sendAmount: '10',
-        destination,
-        destAsset: usdc,
-        destMin: '5',
-      }),
-    ]),
-    buildTransactionXdr([
-      Operation.changeTrust({
-        asset: usdc,
-        limit: '1000',
-      }),
-      Operation.pathPaymentStrictSend({
-        sendAsset: Asset.native(),
-        sendAmount: '10',
-        destination: sourceAddress,
-        destAsset: usdc,
-        destMin: '5',
-      }),
-    ]),
     buildTransactionXdr([
       Operation.pathPaymentStrictSend({
         sendAsset: Asset.native(),
