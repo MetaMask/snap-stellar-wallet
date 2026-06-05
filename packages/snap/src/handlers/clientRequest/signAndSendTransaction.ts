@@ -133,11 +133,13 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
       transaction,
     });
 
-    // Track the transaction after a transaction
+    // Schedule the track-transaction background event.
     await TrackTransactionHandler.scheduleBackgroundEvent({
       scope,
       txId: transactionHash,
-      accountIds: [account.id],
+      // Same-chain swaps reuse the sender address as the receiver; cross-chain swaps
+      // use a non-Stellar receiver, so only the sender account id is tracked.
+      accountIdsOrAddresses: [account.id],
     });
 
     return {
@@ -169,7 +171,7 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
         'Failed to save pending transaction',
         error,
       );
-      // we should not throw error here, as we want to continue the flow even if the pending transaction is not saved
+      // Do not throw here; continue even if the pending transaction was not saved.
     }
   }
 

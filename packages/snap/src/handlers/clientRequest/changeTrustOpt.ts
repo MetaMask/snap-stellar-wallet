@@ -15,10 +15,6 @@ import {
   type ResolvedActivatedAccount,
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
-import type {
-  KnownCaip19AssetIdOrSlip44Id,
-  KnownCaip2ChainId,
-} from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
 import type {
@@ -170,60 +166,33 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       transaction,
     });
 
-    await this.#savePendingTransaction({
-      transactionId,
-      scope,
-      assetId,
-      account,
-      assetMetadata,
-      action,
+    await this.#transactionService.savePendingKeyringTransactionSafe({
+      type:
+        action === ChangeTrustOptAction.Add
+          ? KeyringTransactionType.ChangeTrustOptIn
+          : KeyringTransactionType.ChangeTrustOptOut,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        asset: {
+          type: assetId,
+          symbol: assetMetadata.symbol,
+        },
+      },
     });
 
     await TrackTransactionHandler.scheduleBackgroundEvent({
       txId: transactionId,
+      // Change trust affects only the sender account.
+      accountIdsOrAddresses: [account.id],
       scope,
-      accountIds: [account.id],
     });
 
     return {
       status: true,
       transactionId,
     };
-  }
-
-  async #savePendingTransaction(params: {
-    transactionId: string;
-    scope: KnownCaip2ChainId;
-    assetId: KnownCaip19AssetIdOrSlip44Id;
-    account: StellarKeyringAccount;
-    assetMetadata: StellarAssetMetadata;
-    action: ChangeTrustOptAction;
-  }): Promise<void> {
-    try {
-      const { transactionId, scope, assetId, account, assetMetadata, action } =
-        params;
-      await this.#transactionService.savePendingKeyringTransaction({
-        type:
-          action === ChangeTrustOptAction.Add
-            ? KeyringTransactionType.ChangeTrustOptIn
-            : KeyringTransactionType.ChangeTrustOptOut,
-        request: {
-          txId: transactionId,
-          account,
-          scope,
-          asset: {
-            type: assetId,
-            symbol: assetMetadata.symbol,
-          },
-        },
-      });
-    } catch (error: unknown) {
-      this.logger.logErrorWithDetails(
-        'Failed to save pending transaction',
-        error,
-      );
-      // we should not throw error here, as we want to continue the flow even if the pending transaction is not saved
-    }
   }
 
   async #confirmChangeTrustOpt(params: {

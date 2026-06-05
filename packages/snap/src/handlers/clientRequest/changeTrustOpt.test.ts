@@ -152,7 +152,7 @@ describe('ChangeTrustOptHandler', () => {
     );
     const savePendingKeyringTransaction = jest.spyOn(
       TransactionService.prototype,
-      'savePendingKeyringTransaction',
+      'savePendingKeyringTransactionSafe',
     );
 
     const { service: assetMetadataService } = createMockAssetMetadataService();
@@ -296,7 +296,7 @@ describe('ChangeTrustOptHandler', () => {
     ).toHaveBeenCalledWith({
       txId: '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
       scope,
-      accountIds: [account.id],
+      accountIdsOrAddresses: [account.id],
     });
   });
 
@@ -411,7 +411,7 @@ describe('ChangeTrustOptHandler', () => {
     ).toHaveBeenCalledWith({
       txId: '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1',
       scope,
-      accountIds: [account.id],
+      accountIdsOrAddresses: [account.id],
     });
   });
 

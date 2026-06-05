@@ -1,7 +1,4 @@
-import {
-  TransactionStatus,
-  type Transaction as KeyringTransaction,
-} from '@metamask/keyring-api';
+import { TransactionStatus } from '@metamask/keyring-api';
 
 import type {
   TrackTransactionJsonRpcRequest,
@@ -12,14 +9,15 @@ import {
   TrackTransactionJsonRpcRequestStruct,
 } from './api';
 import { CronjobBaseHandler } from './base';
-import type { KnownCaip2ChainId } from '../../api';
-import { KEYRING_ACCOUNT_TYPE, METAMASK_ORIGIN } from '../../constants';
-import type {
-  AccountService,
-  StellarKeyringAccount,
-} from '../../services/account';
-import type { NetworkService } from '../../services/network';
-import { TransactionPollException } from '../../services/network/exceptions';
+import { type KnownCaip2ChainId } from '../../api';
+import { AppConfig } from '../../config';
+import { METAMASK_ORIGIN } from '../../constants';
+import type { AccountService } from '../../services/account';
+import {
+  NetworkServiceException,
+  TransactionNotFoundException,
+  type NetworkService,
+} from '../../services/network';
 import type { OnChainAccountService } from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction';
 import type { ILogger } from '../../utils/logger';
@@ -31,14 +29,16 @@ import {
 } from '../../utils/snap';
 
 /**
- * Polls Soroban RPC for transaction settlement first, then updates keyring status and runs
- * {@link OnChainAccountService.synchronize}. The persisted keyring transaction in snap state
- * (by hash) is the source of truth for which account to sync.
+ * Tracks transaction settlement via Horizon. Each cron run fetches the transaction once
+ * via {@link NetworkService.getTransaction}, reschedules via `scheduleBackgroundEvent`
+ * when Horizon has not indexed it yet or the request fails, then synchronizes keyring
+ * accounts when the status is terminal ({@link TransactionStatus.Confirmed} or
+ * {@link TransactionStatus.Failed}).
  */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static async scheduleBackgroundEvent(
     params: TrackTransactionParams,
-    duration: Duration = Duration.OneSecond,
+    duration: Duration = Duration.TwoSeconds,
   ): Promise<void> {
     await scheduleBackgroundEvent({
       method: BackgroundEventMethod.TrackTransaction,
@@ -83,143 +83,197 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
   }
 
   /**
-   * @param request - Cron job JSON-RPC request carrying `txId`, `scope`, and `accountIds`.
+   * @param request - Cron job JSON-RPC request carrying `txId`, `scope`, and `accountIdsOrAddresses`.
    */
   protected async handleCronJobRequest(
     request: TrackTransactionJsonRpcRequest,
   ): Promise<void> {
-    const { txId, scope, accountIds, attempt: attemptRaw } = request.params;
+    // Superstruct has already validated accountIdsOrAddresses: the first entry is the sender UUID.
+    const { scope, txId, accountIdsOrAddresses, attempt = 0 } = request.params;
 
     this.logger.debug('Tracking transaction', {
       txId,
       scope,
-      attempt: attemptRaw ?? 0,
+      attempt,
     });
 
-    // When no row exists in snap state, we still poll (inclusion can still be observed) and
-    // `updateKeyringTransactionStatus` still runs via cron `accountIds` when the poll is
-    // terminal. Whether to short-circuit or reschedule in that case is unresolved.
-    // TODO: Revisit behavior when `findKeyringTransactionByTransactionId`
-    // returns undefined (e.g. early-exit poll, stronger logging, or reschedule policy).
-    const persistedKeyringTransaction =
-      await this.#transactionService.findKeyringTransactionByTransactionId(
-        txId,
-      );
-
-    let keyringStatus:
-      | TransactionStatus.Confirmed
-      | TransactionStatus.Failed
-      | null = null;
     try {
-      await this.#networkService.pollTransaction(txId, scope);
-      this.logger.info('TrackTransaction: RPC settled; synchronizing', {
+      // getTransaction throws TransactionNotFoundException when Horizon has not indexed the tx yet.
+      const transaction = await this.#networkService.getTransaction(
         txId,
         scope,
-      });
-      keyringStatus = TransactionStatus.Confirmed;
+      );
 
-      // TODO: we hardcode the account type, and orgin for now,
-      // We will address it when this module is refactored.
-      await trackTransactionFinalized({
-        origin: METAMASK_ORIGIN,
-        accountType: KEYRING_ACCOUNT_TYPE,
-        chainIdCaip: scope,
-      });
-    } catch (error: unknown) {
-      if (error instanceof TransactionPollException) {
-        if (error.status === 'unknown') {
-          this.logger.warn(
-            'TrackTransaction: poll status unknown; leaving keyring transaction pending',
-            { txId, scope },
-          );
-        } else {
-          this.logger.warn('TrackTransaction: poll settled as failed', {
+      // Only synchronize once Horizon reports a terminal status.
+      if (
+        transaction.status === TransactionStatus.Confirmed ||
+        transaction.status === TransactionStatus.Failed
+      ) {
+        await this.#synchronize(
+          scope,
+          transaction.status,
+          txId,
+          accountIdsOrAddresses,
+        );
+      } else {
+        this.logger.warn(
+          'Transaction is neither confirmed nor failed; skipping synchronization',
+          {
             txId,
             scope,
-            status: error.status,
-          });
-          keyringStatus = TransactionStatus.Failed;
-        }
-      } else {
-        this.logger.logErrorWithDetails(
-          'TrackTransaction: unexpected poll error; leaving keyring transaction pending',
-          error,
+            status: transaction.status,
+          },
         );
       }
-    }
-
-    if (keyringStatus) {
-      await this.#settleKeyringRow(txId, accountIds, keyringStatus);
-    }
-
-    // TODO: Consider skipping synchronize when the keyring row stayed
-    // pending (no terminal poll result) to avoid redundant on-chain refreshes.
-    const accountsToSync = await this.#resolveAccountsForSynchronize({
-      persistedKeyringTransaction,
-    });
-    if (accountsToSync.length > 0) {
-      await this.#synchronizeAccounts(accountsToSync, scope);
-    } else {
-      this.logger.warn(
-        'TrackTransaction: account not found when tracking the transaction, unable to sync',
-        {
+    } catch (error: unknown) {
+      // Reschedule only when the transaction is not found or the network request fails.
+      if (
+        error instanceof TransactionNotFoundException ||
+        error instanceof NetworkServiceException
+      ) {
+        await this.#rescheduleWhenHorizonNotIndexed({
           txId,
           scope,
-          persistedAccountId: persistedKeyringTransaction?.account,
+          accountIdsOrAddresses,
+          attempt,
+        });
+        return;
+      }
+      // For other errors, stop here; the synchronize cron job can recover later.
+      this.logger.logErrorWithDetails(
+        'Unexpected error when tracking transaction',
+        {
+          error,
+          txId,
+          scope,
+          attempt,
         },
       );
     }
   }
 
   /**
-   * Resolves keyring accounts to sync from the persisted keyring transaction only.
+   * Reschedules the track job when Horizon has not indexed the tx yet and budget remains.
    *
-   * @param params - Resolution inputs.
-   * @param params.persistedKeyringTransaction - Pending row from snap state, if any.
-   * @returns Accounts to pass to {@link OnChainAccountService.synchronize}.
+   * @param params - Inputs for the follow-up background event.
+   * @param params.txId - Transaction hash to keep tracking.
+   * @param params.scope - CAIP-2 chain id for the network.
+   * @param params.accountIdsOrAddresses - Sender account id and optional receiver address passed through to settlement.
+   * @param params.attempt - Current track cron attempt (matches serialized `attempt` param).
    */
-  async #resolveAccountsForSynchronize(params: {
-    persistedKeyringTransaction: KeyringTransaction | undefined;
-  }): Promise<StellarKeyringAccount[]> {
-    const { persistedKeyringTransaction } = params;
-
-    if (!persistedKeyringTransaction) {
-      return [];
-    }
-
-    const account = await this.#accountService.findById(
-      persistedKeyringTransaction.account,
-    );
-    if (account) {
-      return [account];
-    }
-
-    return [];
-  }
-
-  async #synchronizeAccounts(
-    accounts: StellarKeyringAccount[],
-    scope: KnownCaip2ChainId,
+  async #rescheduleWhenHorizonNotIndexed(
+    params: TrackTransactionParams,
   ): Promise<void> {
-    await this.#onChainAccountService.synchronize(accounts, scope);
-  }
+    const { txId, scope, attempt = 0, accountIdsOrAddresses } = params;
+    const maxReschedules = AppConfig.transaction.trackTransactionMaxReschedules;
 
-  async #settleKeyringRow(
-    txId: string,
-    accountIds: readonly string[],
-    keyringStatus: TransactionStatus.Confirmed | TransactionStatus.Failed,
-  ): Promise<void> {
-    try {
-      await this.#transactionService.updateKeyringTransactionStatus({
+    if (attempt < maxReschedules) {
+      this.logger.debug('Retrying transaction tracking job', {
         txId,
-        accountIds,
-        status: keyringStatus,
+        scope,
+        attempt,
+        maxReschedules,
       });
-    } catch (error: unknown) {
-      this.logger.logErrorWithDetails(
-        'TrackTransaction: failed to update keyring transaction status',
-        error,
+
+      await TrackTransactionHandler.scheduleBackgroundEvent(
+        {
+          txId,
+          scope,
+          accountIdsOrAddresses,
+          attempt: attempt + 1,
+        },
+        Duration.TwoSeconds,
       );
+      return;
     }
+
+    this.logger.warn('Max tracking attempts reached', {
+      txId,
+      scope,
+      attempt,
+      maxReschedules,
+    });
+  }
+
+  async #synchronize(
+    scope: KnownCaip2ChainId,
+    status: TransactionStatus.Confirmed | TransactionStatus.Failed,
+    txId: string,
+    accountIdsOrAddresses: TrackTransactionParams['accountIdsOrAddresses'],
+  ): Promise<void> {
+    // TODO: Consider removing this transaction status update later; the synchronize cron job may handle it.
+    await this.#updateKeyringTransactionStatus(txId, status);
+
+    // The first entry is the sender account UUID (validated by Superstruct).
+    const senderAccountId = accountIdsOrAddresses[0];
+    const senderAccount = await this.#accountService.findById(senderAccountId);
+    if (!senderAccount) {
+      this.logger.warn('Sender account not found, skipping synchronization', {
+        txId,
+        scope,
+        senderAccountId,
+      });
+      return;
+    }
+
+    await trackTransactionFinalized({
+      origin: METAMASK_ORIGIN,
+      accountType: senderAccount.type,
+      chainIdCaip: scope,
+    });
+
+    const accountsToSynchronize = [senderAccount];
+
+    // The optional second entry is the receiver Stellar address.
+    const receiverAccountAddress = accountIdsOrAddresses[1];
+    if (
+      receiverAccountAddress &&
+      receiverAccountAddress !== senderAccount.address
+    ) {
+      const receiverAccount = await this.#accountService.findByAddressAndScope(
+        receiverAccountAddress,
+        scope,
+      );
+      // The receiver may not be in the keyring; absence is not an error.
+      if (receiverAccount) {
+        accountsToSynchronize.push(receiverAccount);
+      }
+    }
+
+    await this.#onChainAccountService.synchronize(accountsToSynchronize, scope);
+  }
+
+  async #updateKeyringTransactionStatus(
+    txId: string,
+    status: TransactionStatus.Confirmed | TransactionStatus.Failed,
+  ): Promise<void> {
+    const keyringTransaction =
+      await this.#transactionService.findKeyringTransactionByTransactionId(
+        txId,
+      );
+
+    if (
+      keyringTransaction === null ||
+      keyringTransaction.status === TransactionStatus.Confirmed ||
+      keyringTransaction.status === TransactionStatus.Failed
+    ) {
+      this.logger.warn(
+        'Keyring transaction not found or already confirmed or failed; skipping transaction status update',
+        {
+          txId,
+          status,
+        },
+      );
+      return;
+    }
+
+    await this.#transactionService.save({
+      ...keyringTransaction,
+      status,
+      events: [
+        ...keyringTransaction.events,
+        { status, timestamp: Math.floor(Date.now() / 1000) },
+      ],
+    });
   }
 }

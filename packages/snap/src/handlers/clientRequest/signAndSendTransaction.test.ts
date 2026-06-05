@@ -209,7 +209,7 @@ describe('SignAndSendTransactionHandler', () => {
     expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
       scope,
       txId: transactionId,
-      accountIds: [account.id],
+      accountIdsOrAddresses: [account.id],
     });
   });
 
@@ -247,7 +247,7 @@ describe('SignAndSendTransactionHandler', () => {
     expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
       scope,
       txId: transactionId,
-      accountIds: [account.id],
+      accountIdsOrAddresses: [account.id],
     });
   });
 

@@ -11,6 +11,7 @@ import {
   optional,
   size,
   string,
+  tuple,
   type,
   union,
 } from '@metamask/superstruct';
@@ -19,9 +20,12 @@ import type { Json, JsonRpcRequest } from '@metamask/utils';
 import {
   JsonRpcRequestStruct,
   KnownCaip2ChainIdStruct,
+  StellarAddressStruct,
+  StellarTransactionHashStruct,
   UuidStruct,
 } from '../../api';
 import { ConfirmationContextRefresherKeyStruct } from './refreshConfirmationContext/api';
+import { AppConfig } from '../../config';
 import { ConfirmationInterfaceKeyStruct } from '../../ui/confirmation/api';
 
 /**
@@ -58,11 +62,17 @@ export const RefreshConfirmationContextJsonRpcRequestStruct = assign(
 );
 
 export const TrackTransactionParamsStruct = type({
-  txId: nonempty(string()),
+  txId: StellarTransactionHashStruct,
+  // First entry: sender account UUID. Optional second entry: receiver Stellar address.
+  accountIdsOrAddresses: union([
+    nonempty(tuple([UuidStruct])),
+    nonempty(tuple([UuidStruct, StellarAddressStruct])),
+  ]),
   scope: KnownCaip2ChainIdStruct,
-  accountIds: nonempty(array(UuidStruct)),
   /** Reschedule counter; omitted on first schedule (treated as 0). */
-  attempt: optional(size(integer(), 0, 30)),
+  attempt: optional(
+    size(integer(), 0, AppConfig.transaction.trackTransactionMaxReschedules),
+  ),
 });
 
 export const SyncAccountParamsStruct = object({
