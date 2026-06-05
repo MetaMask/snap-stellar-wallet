@@ -832,7 +832,7 @@ describe('TransactionSimulator', () => {
       ).toHaveLength(2);
     });
 
-    it('succeeds for self-payment when source account requires memo and envelope has no memo', () => {
+    it('succeeds for self-payment when destination account requires memo and envelope has no memo', () => {
       const wallet = getTestWallet();
       const onChainAccount = destOnChainAccountRequiresMemo(wallet.address);
 
@@ -936,7 +936,7 @@ describe('TransactionSimulator', () => {
       ).toHaveLength(2);
     });
 
-    it('succeeds for self path payment when source account requires memo and envelope has no memo', () => {
+    it('succeeds for self path payment when destination account requires memo and envelope has no memo', () => {
       const wallet = getTestWallet();
       const onChainAccountRequiresMemo = destOnChainAccountRequiresMemo(
         wallet.address,
