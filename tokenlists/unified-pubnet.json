@@ -1,0 +1,307 @@
+{
+  "name": "Unified Stellar Assets List",
+  "description": "Comprehensive list of Stellar assets from CoinGecko, StellarExpert, Soroswap, and LOBSTR with icons",
+  "version": "1.0.0",
+  "assets": [
+    {
+      "code": "yUSDC",
+      "issuer": "GDGTVWSM4MGS4T7Z6W4RPWOCHE2I6RDFCIFZGS3DOA63LWQTRNZNTTFF",
+      "contract": "CDOFW7HNKLUZRLFZST4EW7V3AV4JI5IHMT6BPXXSY2IEFZ4NE5TWU2P4",
+      "name": "yUSDC",
+      "org": "Ultra Capital LLC dba Ultra Capital",
+      "domain": "ultracapital.xyz",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmTmcN7qNDkcfaawoJCUv31aWjwT75KjKAX4zC7JFrE2Xr",
+      "decimals": 7
+    },
+    {
+      "code": "USDC",
+      "issuer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      "contract": "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+      "name": "USDC",
+      "org": "Circle Internet Financial, LLC",
+      "domain": "circle.com",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmXPqPAv3oRiQFehNB8Lw25DLuDz8irZwpfU7e6hPsr2qS",
+      "decimals": 7
+    },
+    {
+      "code": "SSLX",
+      "issuer": "GBHFGY3ZNEJWLNO4LBUKLYOCEK4V7ENEBJGPRHHX7JU47GWHBREH37UR",
+      "contract": "CBHBD77PWZ3AXPQVYVDBHDKEMVNOR26UZUZHWCB6QC7J5SETQPRUQAS4",
+      "name": "SSLX",
+      "org": "Cassator Corp.",
+      "domain": "sslx.sl8.online",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmYkosLbMRMPZSiRZBUuCBaGRbaxiuxPmXeFfs6QYeSWCY",
+      "decimals": 7
+    },
+    {
+      "code": "AQUA",
+      "issuer": "GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA",
+      "contract": "CAUIKL3IYGMERDRUN6YSCLWVAKIFG5Q4YJHUKM4S4NJZQIA3BAS6OJPK",
+      "name": "AQUA",
+      "org": "Aquarius dba AQUA token",
+      "domain": "aqua.network",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmTqE6DhQftp51YXXL8HtkEBhr1PpW6F8W1NxnVoyK6G93",
+      "decimals": 7
+    },
+    {
+      "code": "yETH",
+      "issuer": "GDYQNEF2UWTK4L6HITMT53MZ6F5QWO3Q4UVE6SCGC4OMEQIZQQDERQFD",
+      "contract": "CDYEOOVL6WV4JRY45CXQKOBJFFAPOM5KNQCCDNM333L6RM2L4RO3LKYG",
+      "name": "yETH",
+      "org": "Ultra Capital LLC dba Ultra Capital",
+      "domain": "ultracapital.xyz",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmavC22bVfCkzHX2AJQZAh6Vbw83JtKDZhKZFUcktomdQn",
+      "decimals": 7
+    },
+    {
+      "code": "EURC",
+      "issuer": "GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2",
+      "contract": "CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV",
+      "name": "EURC",
+      "org": "Circle Internet Financial, LLC",
+      "domain": "circle.com",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmeRk7LG85cozSNey9QGARgbxYi1cG1dA1G6SNJGMTMdF2",
+      "decimals": 7
+    },
+    {
+      "code": "CETES",
+      "issuer": "GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+      "contract": "CAL6ER2TI6CTRAY6BFXWNWA7WTYXUXTQCHUBCIBU5O6KM3HJFG6Z6VXV",
+      "name": "Etherfuse CETES",
+      "org": "Etherfuse dba Etherfuse",
+      "domain": "etherfuse.com",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmeiTXsP3D2icaUGVtzYekaDCpBKJ4SRHUVMNw9Qynuq4i",
+      "decimals": 7
+    },
+    {
+      "code": "MOBI",
+      "issuer": "GA6HCMBLTZS5VYYBCATRBRZ3BZJMAFUDKYYF6AH6MVCMGWMRDNSWJPIH",
+      "contract": "CATHRLMZW3JUIYSXYE4YAI3SBBBQGXYAP674RINGUBQLNFTCZHMI5XZJ",
+      "name": "Mobius",
+      "org": "Mochi, Inc. dba Mobius Network",
+      "domain": "mobius.network",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmPW6Jr278WMrFzyQt96E21iDoXaLiG36Xkc44jYGnaQz9",
+      "decimals": 7
+    },
+    {
+      "code": "SCOP",
+      "issuer": "GC6OYQJIZF3HFXCYPFCBXYXNGIBQ4TNSFUBUXQJOZWIP6F3YZK4QH3VQ",
+      "contract": "CCJVS6IVXAAXWCMFVK6QLWHZHR4RTVRSEZRQ53GOAEDN3VY2BLPVY72J",
+      "name": "Scopuly",
+      "org": "Scopuly",
+      "domain": "scopuly.com",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmXUQsnLxb5PA7iPby2JnP23mCHSbXxf7Kr5QdfmhYzaDQ",
+      "decimals": 7
+    },
+    {
+      "code": "AFR",
+      "issuer": "GBX6YI45VU7WNAAKA3RBFDR3I3UKNFHTJPQ5F6KOOKSGYIAM4TRQN54W",
+      "contract": "CCG27OZ5AV4WUXS6XTECWAXEY5UOMEFI2CWFA3LHZGBTLYZWTJF3MJYQ",
+      "name": "AFREUM",
+      "org": "Afreum DAO dba Afreum",
+      "domain": "afreum.com",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmRGezPHkaVJuqxDebHrfqEeESLbEDY3m596wnCWrdCaXw",
+      "decimals": 7
+    },
+    {
+      "code": "LSP",
+      "issuer": "GAB7STHVD5BDH3EEYXPI3OM7PCS4V443PYB5FNT6CFGJVPDLMKDM24WK",
+      "contract": "CBXE6V454EUYWVQCI4TCSOG4CSNPQ2BLYOTKAKXYFHO3KNVX4CXYCY2T",
+      "name": "Lumenswap asset",
+      "org": "Lumenswap LLC dba Lumenswap",
+      "domain": "lumenswap.io",
+      "icon": "https://stellar.myfilebase.com/ipfs/QmUxVdZomJzT5AQpS9iCuV2h9DTWhy4mh9naMghiHnXRSv",
+      "decimals": 7
+    },
+    {
+      "code": "TFT",
+      "issuer": "GBOVQKJYHXRR3DX6NOX2RRYFRCUMSADGDESTDNBDS6CDVLGVESRTAC47",
+      "contract": "CCXY3CNHSU2DPUOZFKNNH67IVRMBRCATX4SABDSLBY5LAJI66LRLHTJQ",
+      "name": "Threefold Token",
+      "org": "Threefold foundation",
+      "domain": "threefold.io",
+      "icon": "https://stellar.myfilebase.com/ipfs/Qmb1bNmAaXCmTWPqE9s1QUg1jmpkkoyzakzdFQUpRLyB2z",
+      "decimals": 7
+    },
+    {
+      "name": "Glo Dollar",
+      "code": "USDGLO",
+      "issuer": "GBBS25EGYQPGEZCGCFBKG4OAGFXU6DSOQBGTHELLJT3HZXZJ34HWS6XV",
+      "contract": "CB226ZOEYXTBPD3QEGABTJYSKZVBP2PASEISLG3SBMTN5CE4QZUVZ3CE",
+      "org": "Glo Development Foundation",
+      "domain": "app.glodollar.org",
+      "icon": "https://app.glodollar.org/glo-logo.png",
+      "decimals": 7
+    },
+    {
+      "name": "Ondo U.S. Dollar Yield",
+      "code": "USDY",
+      "issuer": "GAJMPX5NBOG6TQFPQGRABJEEB2YE7RFRLUKJDZAZGAD5GFX4J7TADAZ6",
+      "contract": "CB3YA656OYIHU57657I5KGSBRHE5I3OZU4VFC22PYAOANFZHEWNYGAGP",
+      "org": "Ondo Finance",
+      "domain": "ondo.finance",
+      "icon": "https://cdn.ondo.finance/brand/logos/ondo-icon-black_160x160.png",
+      "decimals": 7
+    },
+    {
+      "name": "PYUSD",
+      "code": "PYUSD",
+      "issuer": "GDQE7IXJ4HUHV6RQHIUPRJSEZE4DRS5WY577O2FY6YQ5LVWZ7JZTU2V5",
+      "contract": "CCCRWH6Q3FNP3I2I57BDLM5AFAT7O6OF6GKQOC6SSJNDAVRZ57SPHGU2",
+      "org": "www.paxos.com",
+      "domain": "token-metadata.paxos.com",
+      "icon": "https://424565.fs1.hubspotusercontent-na1.net/hubfs/424565/PYUSDLOGO.png",
+      "decimals": 7
+    },
+    {
+      "code": "VELO",
+      "issuer": "GDM4RQUQQUVSKQA7S6EM7XBZP3FCGH4Q7CL6TABQ7B2BEJ5ERARM2M5M",
+      "contract": "CAESLMGW5LYTIEJI7FJHK6SFSWRELLNVX5Q4WR4UZEALMTRWQDBKDPAG",
+      "name": "VELO",
+      "org": "unknown",
+      "icon": "https://assets.coingecko.com/coins/images/12538/thumb/Logo_200x_200.png?1696512350",
+      "decimals": 7
+    },
+    {
+      "code": "GYEN",
+      "issuer": "GDF6VOEGRWLOZ64PQQGKD2IYWA22RLT37GJKS2EJXZHT2VLAGWLC5TOB",
+      "contract": "CA67EQNWGPGXHVT6E4HQ65WEV54KFDB6HJDHVCJM33VKZ7XKR5MN3KPJ",
+      "name": "GYEN",
+      "org": "stablecoin.z.com",
+      "icon": "https://assets.coingecko.com/coins/images/14191/thumb/icon_gyen_200_200.png?1696513909",
+      "decimals": 7
+    },
+    {
+      "code": "AUDD",
+      "issuer": "GDC7X2MXTYSAKUUGAIQ7J7RPEIM7GXSAIWFYWWH4GLNFECQVJJLB2EEU",
+      "contract": "CACXKRVCW7I6CWX6RS6ANFDKVCOUI2PB6LTDUROL3J3FMJCRZ4ZLQRF6",
+      "name": "AUDD",
+      "org": "Australian Digital Dollar",
+      "icon": "https://assets.coingecko.com/coins/images/33263/thumb/AUDD-Logo-Blue_512.png?1701319895",
+      "decimals": 7
+    },
+    {
+      "code": "USDM1",
+      "issuer": "GDM5QWWXCMDTQMZAKMYTCI52LA7FWBHAZMU5NJLMIFHDJISJRP2ZWPKC",
+      "contract": "CAC743NYRBMS76L2DCPAXZTOEF6EJPKPVEC5OX2SXY7HOWNXISSLUE2C",
+      "name": "USDM1",
+      "icon": "https://assets.coingecko.com/coins/images/102171740/thumb/usdm1-avatar.png?1769505390",
+      "decimals": 7
+    },
+    {
+      "code":"VEUR",
+      "issuer": "GDXLSLCOPPHTWOQXLLKSVN4VN3G67WD2ENU7UMVAROEYVJLSPSEWXIZN",
+      "contract": "CDHNIO6IJ7EBFUDVALSE347YYNV3RKFB3Y5NZ3W4RH4QP4IS56MGSI5E",
+      "name": "VNX EURO",
+      "symbol": "VEUR",
+      "icon": "https://assets.coingecko.com/coins/images/29351/thumb/VNXEUR_%281%29.png?1696528300",
+      "decimals": 7
+    },
+    {
+      "code":"MXNe",
+      "issuer": "GCQCNWT22JDLENQAVIE6DRJGHWAQ6EX2H5ABGPV55EJUPPZM5UA7KHZR",
+      "contract":"CAPW7JXJ6H6SGJ5MVM25356FAYOVT3ICZUIZRT4KGZHLUNMTWNMUI3RM",
+      "name": "Real MXN",
+      "symbol": "MXNE",
+      "icon": "https://assets.coingecko.com/coins/images/54735/thumb/mxne-logo-200.png?1741253834",
+      "decimals": 7
+    },
+    {
+      "code": "VCHF",
+      "issuer": "GDXLSLCOPPHTWOQXLLKSVN4VN3G67WD2ENU7UMVAROEYVJLSPSEWXIZN",
+      "contract": "CDOZE45WZ67M6DNO577SKX3AG6N3I3Y6HZNA63APVYEAF2X6Q6P6V5G6",
+      "name": "VNX Swiss Franc",
+      "icon": "https://assets.coingecko.com/coins/images/29547/thumb/VNXCHF_%282%29.png?1696528488",
+      "decimals": 7
+    },
+    {
+      "code": "EURCV",
+      "issuer":"GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G",
+      "contract": "CANKBYNNAYKEZXLB655F2UPNTAZFK5HILZUXL7ZTFR3NF6LKDSVY7KFH",
+      "name": "EUR CoinVertible",
+      "icon": "https://assets.coingecko.com/coins/images/33415/thumb/eurcv_%281%29.png?1701752017",
+      "decimals": 7
+    },
+    {
+      "code": "KTB",
+      "issuer": "GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
+      "contract":"CBAECV6UVDS6ZKPMC63MUYY4V7Q3KTHR7NLUFGVVGK7K3AQT475QTETP",
+      "name": "Etherfuse KTB",
+      "icon": "https://assets.coingecko.com/coins/images/102172092/thumb/KTB_Image.png?1771517177",
+      "decimals": 7
+    },
+    {
+      "code": "SAFO",
+      "issuer": "",
+      "contract": "CDGSC6BA4TCAOVSFQCUEHDMOIIHYYVNYBT6YEARS4MX3ITAHUINVGQHX",
+      "name": "Spiko Amundi Overnight Swap Fund",
+      "icon": "https://assets.coingecko.com/coins/images/102172590/thumb/Fund_usdSAFO.png?1774104804",
+      "decimals": 5
+    },
+    {
+      "code": "UKTBL",
+      "issuer": "",
+      "contract": "CDT3KU6TQZNOHKNOHNAFFDQZDURVC3MSTL4ML7TUTZGNOPBZCLABP4FR",
+      "name": "Spiko UK T-Bills Money Market Fund",
+      "icon": "https://assets.coingecko.com/coins/images/102172855/thumb/Fund_UKTBL-4.png?1776258706",
+      "decimals": 5
+    },
+    {
+      "code": "CHFSAFO",
+      "issuer": "",
+      "contract": "CAJD2IBSP7VO2VYJQUYJSOGPJINTUYV7MQITINXVPTIH3CCLCUENNMW4",
+      "name": "Spiko Amundi Overnight Swap Fund (CHF)",
+      "icon": "https://assets.coingecko.com/coins/images/102172593/thumb/Fund_chfSAFO.png?1774104821",
+      "decimals": 5
+    },
+    {
+      "code": "GBPSAFO",
+      "issuer": "",
+      "contract": "CAGYRRKPFSWKM6SJOE4QAAVYMOSHMDS5WOQ4T5A2E6XNCU7LZZKUNQKP",
+      "name": "Spiko Amundi Overnight Swap Fund (GBP)", 
+      "icon": "https://assets.coingecko.com/coins/images/102172592/thumb/Fund_gbpSAFO.png?1774104818",
+      "decimals": 5
+    },
+    {
+      "code": "EURAU",
+      "issuer": "",
+      "contract": "CB44W727WSLHPXJ47A6DHF5D34RKWSOZAMEDXO3CF5TEEEQ2ZX4V3VRI",
+      "name": "AllUnity EUR",
+      "icon": "https://assets.coingecko.com/coins/images/68076/thumb/EURAU_black.png?1780039468",
+      "decimals": 4
+    },
+    {
+      "code": "SOLVBTC",
+      "issuer":"",
+      "contract": "CBIJBDNZNF4X35BJ4FFZWCDBSCKOP5NB4PLG4SNENRMLAPYG4P5FM6VN",
+      "name": "Solv Protocol BTC",
+      "icon": "https://assets.coingecko.com/coins/images/36800/thumb/solvBTC.png?1719810684",
+      "decimals": 8
+    },
+    {
+      "code": "XSOLVBTC",
+      "issuer":"",
+      "contract": "CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J",
+      "name": "Solv Protocol Staked BTC",
+      "icon": "https://assets.coingecko.com/coins/images/39384/thumb/xSolvBTC.png?1744170824",
+      "decimals": 8
+    },
+    {
+      "code": "EURSAFO",
+      "issuer": "",
+      "contract": "CBOOCGZSVRSZFRE4U2NWR2B4RXYVJWRCBTGOUD2JPI2TDJPWMTJX7FZP",
+      "name": "Spiko Amundi Overnight Swap Fund (EUR)",
+      "symbol": "EURSAFO",
+      "icon": "https://assets.coingecko.com/coins/images/102172591/thumb/Fund_eurSAF0.png?1774104814",
+      "decimals": 5
+    },
+    {
+      "code": "EUTBL",
+      "issuer": "",      
+      "contract": "CBGV2QFQBBGEQRUKUMCPO3SZOHDDYO6SCP5CH6TW7EALKVHCXTMWDDOF",
+      "name": "Spiko EU T-Bills Money Market Fund",
+      "icon": "https://assets.coingecko.com/coins/images/39657/thumb/EUTBL.png?1723517425",
+      "decimals": 5
+    }
+  ]
+}
