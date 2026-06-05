@@ -18,10 +18,7 @@ export class BaseFeeFetchException extends NetworkServiceException {
   }
 }
 
-/**
- * Thrown when Soroban RPC {@link NetworkService.pollTransaction} does not result in SUCCESS
- * (e.g. failed or unknown status).
- */
+/** Thrown when transaction polling does not result in SUCCESS (e.g. failed or unknown status). */
 export class TransactionPollException extends NetworkServiceException {
   readonly transactionHash: string;
 

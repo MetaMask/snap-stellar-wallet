@@ -8,8 +8,8 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { KnownRpcError } from './api';
 import type { AssetDataResponse } from './api';
+import { KnownRpcError } from './api';
 import {
   AccountLoadException,
   AccountNotActivatedException,
