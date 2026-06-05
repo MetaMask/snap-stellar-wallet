@@ -17,7 +17,11 @@ import {
   horizonSource,
   mockOnChainAccountService,
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
-import { TransactionService } from '../../services/transaction';
+import {
+  InsufficientBalanceException,
+  InsufficientBalanceToCoverFeeException,
+  TransactionService,
+} from '../../services/transaction';
 import {
   buildMockInvokeHostFunctionTransaction,
   createMockTransactionService,
@@ -178,5 +182,73 @@ describe('ComputeFeeHandler', () => {
     await expect(handler.handle(request)).rejects.toThrow(
       'Invalid swap transaction',
     );
+  });
+
+  it('returns the required native fee when balance is insufficient to cover fees', async () => {
+    const { handler, request, createValidatedSwapTransaction } = setup();
+    createValidatedSwapTransaction.mockRejectedValueOnce(
+      new InsufficientBalanceToCoverFeeException('100', '12500000'),
+    );
+
+    const result = await handler.handle(request);
+
+    expect(result).toStrictEqual([
+      {
+        type: FeeType.Base,
+        asset: {
+          unit: NATIVE_ASSET_SYMBOL,
+          type: KnownCaip19Slip44IdMap[scope],
+          amount: '1.25',
+          fungible: true,
+        },
+      },
+    ]);
+  });
+
+  it('returns the required native fee when native balance is insufficient for the swap', async () => {
+    const { handler, request, createValidatedSwapTransaction } = setup();
+    createValidatedSwapTransaction.mockRejectedValueOnce(
+      new InsufficientBalanceException(
+        '100',
+        '50000000',
+        KnownCaip19Slip44IdMap[scope],
+      ),
+    );
+
+    const result = await handler.handle(request);
+
+    expect(result).toStrictEqual([
+      {
+        type: FeeType.Base,
+        asset: {
+          unit: NATIVE_ASSET_SYMBOL,
+          type: KnownCaip19Slip44IdMap[scope],
+          amount: '5',
+          fungible: true,
+        },
+      },
+    ]);
+  });
+
+  it('rethrows when balance is insufficient for a non-native asset', async () => {
+    const { handler, request, createValidatedSwapTransaction } = setup();
+    const nonSlip44AssetId =
+      'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+    const error = new InsufficientBalanceException(
+      '100',
+      '50000000',
+      nonSlip44AssetId,
+    );
+    createValidatedSwapTransaction.mockRejectedValueOnce(error);
+
+    await expect(handler.handle(request)).rejects.toBe(error);
+  });
+
+  it('rethrows when InsufficientBalanceException has no assetId', async () => {
+    const { handler, request, createValidatedSwapTransaction } = setup();
+    const error = new InsufficientBalanceException('100', '50000000');
+    createValidatedSwapTransaction.mockRejectedValueOnce(error);
+
+    await expect(handler.handle(request)).rejects.toBe(error);
   });
 });

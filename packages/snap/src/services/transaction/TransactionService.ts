@@ -252,6 +252,7 @@ export class TransactionService {
       throw new InsufficientBalanceException(
         onChainAccount.accountId,
         amount.toString(),
+        assetId,
       );
     }
 
