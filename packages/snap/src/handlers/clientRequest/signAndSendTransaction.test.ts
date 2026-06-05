@@ -130,9 +130,6 @@ describe('SignAndSendTransactionHandler', () => {
         accountId,
         scope,
         transaction: xdr,
-        options: {
-          type: 'swap',
-        },
       },
     };
 
@@ -230,7 +227,6 @@ describe('SignAndSendTransactionHandler', () => {
       params: {
         ...request.params,
         options: {
-          ...request.params.options,
           visible: false,
         },
       },
