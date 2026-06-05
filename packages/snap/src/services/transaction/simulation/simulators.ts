@@ -90,6 +90,7 @@ function validateDebit(params: {
       throw new InsufficientBalanceException(
         spendable.toString(),
         amount.toString(),
+        assetId,
       );
     }
     return;
@@ -109,6 +110,7 @@ function validateDebit(params: {
     throw new InsufficientBalanceException(
       line.balance.toString(),
       amount.toString(),
+      assetId,
     );
   }
 }
@@ -421,7 +423,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
 
 export class CreateAccountOPSimulator implements OperationSimulator {
   validate(ctx: ValidateContext, op: Operation.CreateAccount): void {
-    const { state, opIndex } = ctx;
+    const { state, opIndex, scope } = ctx;
     if (typeof op.destination !== 'string' || op.destination.length === 0) {
       throw new TransactionValidationException(
         `CreateAccount at index ${opIndex} has no destination`,
@@ -443,6 +445,7 @@ export class CreateAccountOPSimulator implements OperationSimulator {
       throw new InsufficientBalanceException(
         spendable.toString(),
         startingBalance.toString(),
+        getSlip44AssetId(scope),
       );
     }
 
@@ -650,6 +653,7 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
       throw new InsufficientBalanceException(
         onChainBalance.toString(),
         amount.toString(),
+        assetId,
       );
     }
   }
