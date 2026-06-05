@@ -139,7 +139,7 @@ describe('ConfirmSendHandler', () => {
       .mockResolvedValue(transactionId);
     const savePendingKeyringTransaction = jest.spyOn(
       TransactionService.prototype,
-      'savePendingKeyringTransaction',
+      'savePendingKeyringTransactionSafe',
     );
     const signTransactionSpy = jest.spyOn(wallet, 'signTransaction');
     const scheduleBackgroundEvent = jest
@@ -339,7 +339,7 @@ describe('ConfirmSendHandler', () => {
     expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
       txId: transactionId,
       scope,
-      accountIds: [account.id],
+      accountIdsOrAddresses: [account.id, destinationAddress],
     });
   });
 

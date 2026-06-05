@@ -299,6 +299,20 @@ export class AccountService {
   }
 
   /**
+   * Finds a Stellar account by address and scope.
+   *
+   * @param address - The address of the account to find.
+   * @param scope - The scope of the account to find.
+   * @returns A Promise that resolves to the account if found, otherwise `null`.
+   */
+  async findByAddressAndScope(
+    address: StellarAddress,
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarKeyringAccount | null> {
+    return await this.#accountsRepository.findByAddressAndScope(address, scope);
+  }
+
+  /**
    * Finds a Stellar account by ID.
    *
    * @param id - The ID of the account to find.

@@ -9,10 +9,7 @@ import {
 import { BigNumber } from 'bignumber.js';
 
 import { KnownRpcError } from './api';
-import type {
-  AssetDataResponse,
-  HorizonTransactionTrackCheckStatus,
-} from './api';
+import type { AssetDataResponse } from './api';
 import {
   AccountLoadException,
   AccountNotActivatedException,
@@ -188,46 +185,6 @@ export class NetworkService {
         error,
       );
       throw ensureError(error);
-    }
-  }
-
-  /**
-   * Reads Horizon once to decide whether the track-transaction cron should reschedule, settle, or
-   * stop. Returns `'pending'` when the tx is not indexed yet (Horizon 404).
-   *
-   * Unlike {@link pollTransaction}, this does not loop: the track-transaction cron handler
-   * reschedules via `scheduleBackgroundEvent` until
-   * {@link AppConfig.transaction.trackTransactionMaxReschedules}.
-   *
-   * @param transactionHash - Hash returned from `sendTransaction`.
-   * @param scope - The CAIP-2 chain ID.
-   * @returns Explicit reschedule / terminal outcome for one cron cycle.
-   */
-  async checkHorizonTransactionForTrack(
-    transactionHash: string,
-    scope: KnownCaip2ChainId,
-  ): Promise<HorizonTransactionTrackCheckStatus> {
-    try {
-      const inclusionStatus = await this.getHorizonTransactionInclusionStatus(
-        transactionHash,
-        scope,
-      );
-
-      if (inclusionStatus === 'pending') {
-        return 'pending';
-      }
-
-      if (inclusionStatus === 'success') {
-        return 'confirmed';
-      }
-
-      return 'failed';
-    } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to check Horizon transaction for track job',
-        error,
-      );
-      return 'unavailable';
     }
   }
 

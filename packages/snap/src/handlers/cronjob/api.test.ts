@@ -153,14 +153,20 @@ describe('Cronjob API structs', () => {
   });
 
   describe('TrackTransactionJsonRpcRequestStruct', () => {
+    const txId =
+      '7d4b0c5ef7498b223f45a10f461060fb64f53eb13caf18e8dc7de95a8cf9c0e1';
+    const senderAccountId = '4dd94666-52a0-4478-91f8-979292f91fae';
+    const receiverAddress =
+      'GDTF7ERUQVTX23ZD6NY5XRYC5IQAKWFVTQ6IXSMEZWGVNDDGPYCVHRZP';
+
     it('accepts track transaction requests', () => {
       const value = {
         ...jsonRpcBase,
         method: BackgroundEventMethod.TrackTransaction,
         params: {
-          txId: 'tx-id',
+          txId,
           scope: KnownCaip2ChainId.Mainnet,
-          accountIds: ['4dd94666-52a0-4478-91f8-979292f91fae'],
+          accountIdsOrAddresses: [senderAccountId],
         },
       };
       assert(value, TrackTransactionJsonRpcRequestStruct);
@@ -168,23 +174,40 @@ describe('Cronjob API structs', () => {
         ...jsonRpcBase,
         method: BackgroundEventMethod.TrackTransaction,
         params: {
-          txId: 'tx-id',
+          txId,
           scope: KnownCaip2ChainId.Mainnet,
-          accountIds: ['4dd94666-52a0-4478-91f8-979292f91fae'],
+          accountIdsOrAddresses: [senderAccountId],
         },
       });
     });
 
-    it('rejects invalid accountIds values', () => {
+    it('accepts sender and receiver address in accountIdsOrAddresses', () => {
+      const value = {
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.TrackTransaction,
+        params: {
+          txId,
+          scope: KnownCaip2ChainId.Mainnet,
+          accountIdsOrAddresses: [senderAccountId, receiverAddress],
+        },
+      };
+      assert(value, TrackTransactionJsonRpcRequestStruct);
+      expect(value.params.accountIdsOrAddresses).toStrictEqual([
+        senderAccountId,
+        receiverAddress,
+      ]);
+    });
+
+    it('rejects invalid accountIdsOrAddresses values', () => {
       expect(() =>
         assert(
           {
             ...jsonRpcBase,
             method: BackgroundEventMethod.TrackTransaction,
             params: {
-              txId: 'tx-id',
+              txId,
               scope: KnownCaip2ChainId.Mainnet,
-              accountIds: ['invalid-uuid'],
+              accountIdsOrAddresses: ['invalid-uuid'],
             },
           },
           TrackTransactionJsonRpcRequestStruct,

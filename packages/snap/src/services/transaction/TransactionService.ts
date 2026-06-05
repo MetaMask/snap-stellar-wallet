@@ -1,6 +1,5 @@
 import {
   KeyringEvent,
-  TransactionStatus,
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
@@ -446,66 +445,35 @@ export class TransactionService {
   }
 
   /**
-   * Loads a persisted keyring transaction by Stellar transaction hash from snap state.
+   * Saves a pending keyring transaction without failing the caller when persistence errors.
    *
-   * @param txId - Transaction hash (`Transaction.id`).
-   * @returns The stored keyring transaction, or `undefined` when none exists.
+   * @param request - Pending transaction payload to persist.
+   * @returns The saved keyring transaction, or `null` when persistence fails.
    */
-  async findKeyringTransactionByTransactionId(
-    txId: string,
-  ): Promise<KeyringTransaction | undefined> {
-    return await this.#transactionRepository.findByTransactionId(txId);
+  async savePendingKeyringTransactionSafe(
+    request: KeyringTransactionRequest,
+  ): Promise<KeyringTransaction | null> {
+    try {
+      return await this.savePendingKeyringTransaction(request);
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails(
+        'Failed to save pending transaction',
+        error,
+      );
+      return null;
+    }
   }
 
   /**
-   * Updates a persisted keyring transaction to a terminal status and emits
-   * {@link KeyringEvent.AccountTransactionsUpdated} so the extension Activity list can leave
-   * the "pending" state after Horizon inclusion (or failure).
+   * Loads a persisted keyring transaction by Stellar transaction hash from snap state.
    *
-   * @param params - Status update parameters.
-   * @param params.txId - Transaction hash (`Transaction.id`).
-   * @param params.accountIds - When non-empty, only these keyring account buckets are searched
-   * (typical track job). When empty, all persisted account buckets are searched by hash.
-   * @param params.status - {@link TransactionStatus.Confirmed} or {@link TransactionStatus.Failed}.
+   * @param txId - Transaction hash (`Transaction.id`).
+   * @returns The stored keyring transaction, or `null` when none exists.
    */
-  async updateKeyringTransactionStatus(params: {
-    txId: string;
-    accountIds: readonly string[];
-    status: TransactionStatus.Confirmed | TransactionStatus.Failed;
-  }): Promise<void> {
-    const { txId, accountIds, status } = params;
-
-    const existing =
-      accountIds.length > 0
-        ? await this.#transactionRepository.findByIdAmongAccounts(
-            txId,
-            accountIds,
-          )
-        : await this.#transactionRepository.findByTransactionId(txId);
-
-    if (!existing) {
-      this.#logger.debug(
-        'updateKeyringTransactionStatus: no matching persisted transaction',
-        { txId, accountIds },
-      );
-      return;
-    }
-
-    if (
-      existing.status === TransactionStatus.Confirmed ||
-      existing.status === TransactionStatus.Failed
-    ) {
-      return;
-    }
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const updated: KeyringTransaction = {
-      ...existing,
-      status,
-      events: [...existing.events, { status, timestamp }],
-    };
-
-    await this.save(updated);
+  async findKeyringTransactionByTransactionId(
+    txId: string,
+  ): Promise<KeyringTransaction | null> {
+    return await this.#transactionRepository.findByTransactionId(txId);
   }
 
   /**

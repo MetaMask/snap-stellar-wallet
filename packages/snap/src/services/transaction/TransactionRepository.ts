@@ -38,11 +38,9 @@ export class TransactionRepository {
    * accounts in snap state.
    *
    * @param txId - Transaction hash (`Transaction.id`).
-   * @returns The matching transaction, or `undefined` when none is stored.
+   * @returns The matching transaction, or `null` when none is stored.
    */
-  async findByTransactionId(
-    txId: string,
-  ): Promise<KeyringTransaction | undefined> {
+  async findByTransactionId(txId: string): Promise<KeyringTransaction | null> {
     const transactionsByAccount = await this.#state.getKey<
       TransactionStateValue['transactions']
     >(this.#stateKey);
@@ -53,7 +51,7 @@ export class TransactionRepository {
         return found;
       }
     }
-    return undefined;
+    return null;
   }
 
   /**
