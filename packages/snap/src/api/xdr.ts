@@ -2,9 +2,9 @@ import { nonempty, refine, string } from '@metamask/superstruct';
 import { base64 } from '@metamask/utils';
 import {
   FeeBumpTransaction,
-  Networks,
-  TransactionBuilder as StellarSdkTransactionBuilder,
   hash,
+  Networks,
+  TransactionBuilder as StellarTransactionBuilder,
   xdr,
 } from '@stellar/stellar-sdk';
 
@@ -35,15 +35,11 @@ export const XdrStruct = refine(
  * @returns Operation type strings in envelope order.
  */
 function getTransactionOperationTypes(value: string): string[] {
-  const transaction = StellarSdkTransactionBuilder.fromXDR(
-    value,
-    Networks.PUBLIC,
-  );
+  const decoded = StellarTransactionBuilder.fromXDR(value, Networks.PUBLIC);
   const operations =
-    transaction instanceof FeeBumpTransaction
-      ? transaction.innerTransaction.operations
-      : transaction.operations;
-
+    decoded instanceof FeeBumpTransaction
+      ? decoded.innerTransaction.operations
+      : decoded.operations;
   return operations.map((operation) => operation.type);
 }
 
