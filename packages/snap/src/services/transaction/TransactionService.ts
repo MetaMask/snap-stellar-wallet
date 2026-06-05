@@ -250,8 +250,9 @@ export class TransactionService {
     // so we can fail early here.
     if (onChainAccount.getRawAsset(assetId)?.balance.lt(amount)) {
       throw new InsufficientBalanceException(
-        onChainAccount.accountId,
+        onChainAccount.getRawAsset(assetId)?.balance.toString() ?? '0',
         amount.toString(),
+        assetId,
       );
     }
 

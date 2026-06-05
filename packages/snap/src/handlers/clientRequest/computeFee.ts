@@ -1,4 +1,5 @@
 import { FeeType } from '@metamask/keyring-api';
+import { BigNumber } from 'bignumber.js';
 
 import type {
   ComputeFeeJsonRpcRequest,
@@ -15,7 +16,12 @@ import {
 import { BaseClientRequestHandler } from './base';
 import { KnownCaip19Slip44IdMap } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import {
+  InsufficientBalanceException,
+  InsufficientBalanceToCoverFeeException,
+} from '../../services/transaction';
 import type { TransactionService } from '../../services/transaction/TransactionService';
+import { isSlip44Id } from '../../utils';
 import { toDisplayBalance } from '../../utils/currency';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
@@ -73,23 +79,44 @@ export class ComputeFeeHandler extends BaseClientRequestHandler<
     const { onChainAccount } = resolved;
     const { transaction: transactionBase64Xdr, scope } = request.params;
 
-    const transaction =
-      await this.#transactionService.createValidatedSwapTransaction({
-        xdr: transactionBase64Xdr,
-        scope,
-        onChainAccount,
-      });
+    try {
+      const transaction =
+        await this.#transactionService.createValidatedSwapTransaction({
+          xdr: transactionBase64Xdr,
+          scope,
+          onChainAccount,
+        });
 
-    return [
-      {
-        type: FeeType.Base,
-        asset: {
-          unit: NATIVE_ASSET_SYMBOL,
-          type: KnownCaip19Slip44IdMap[scope],
-          amount: toDisplayBalance(transaction.totalFee),
-          fungible: true as const,
+      return [
+        {
+          type: FeeType.Base,
+          asset: {
+            unit: NATIVE_ASSET_SYMBOL,
+            type: KnownCaip19Slip44IdMap[scope],
+            amount: toDisplayBalance(transaction.totalFee),
+            fungible: true as const,
+          },
         },
-      },
-    ];
+      ];
+    } catch (error) {
+      if (
+        (error instanceof InsufficientBalanceException &&
+          isSlip44Id(error.assetId)) ||
+        error instanceof InsufficientBalanceToCoverFeeException
+      ) {
+        return [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: NATIVE_ASSET_SYMBOL,
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(new BigNumber(error.required)),
+              fungible: true as const,
+            },
+          },
+        ];
+      }
+      throw error;
+    }
   }
 }

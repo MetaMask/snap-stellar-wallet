@@ -166,29 +166,51 @@ export class UpdateTrustlineException extends TransactionValidationException {
  * for fees, reserves, and native outflows (all in stroops).
  */
 export class InsufficientBalanceToCoverFeeException extends TransactionValidationException {
+  readonly balance: string;
+
+  readonly required: string;
+
   constructor(balance: string, required: string) {
     super(
       `Insufficient native balance for transaction: ${balance} stroops available is less than ${required} stroops required`,
     );
+    this.balance = balance;
+    this.required = required;
   }
 }
 
 export class InsufficientBalanceToCoverBaseReserveException extends TransactionValidationException {
+  readonly balance: string;
+
+  readonly required: string;
+
   constructor(balance: string, required: string) {
     super(
       `Insufficient native balance for transaction for base reserve: ${balance} stroops available is less than ${required} stroops required`,
     );
+    this.balance = balance;
+    this.required = required;
   }
 }
 /**
- * Thrown when the account's spendable balance for a non-native asset is below the amount required
- * by the transaction (amounts in the asset's smallest units).
+ * Thrown when the account's spendable balance for an asset is below the amount required
+ * by the transaction. The asset can be native or non-native, and amounts are in
+ * the asset's smallest units.
  */
 export class InsufficientBalanceException extends TransactionValidationException {
-  constructor(balance: string, required: string) {
+  readonly balance: string;
+
+  readonly required: string;
+
+  readonly assetId: string;
+
+  constructor(balance: string, required: string, assetId?: string) {
     super(
       `Insufficient asset balance for transaction: ${balance} available is less than ${required} required`,
     );
+    this.balance = balance;
+    this.required = required;
+    this.assetId = assetId ?? '';
   }
 }
 
