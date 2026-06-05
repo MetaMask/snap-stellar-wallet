@@ -5,7 +5,6 @@ import {
   Horizon as StellarHorizon,
   NotFoundError,
   rpc,
-  TransactionBuilder as StellarSdkTransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -21,6 +20,7 @@ import {
   BaseFeeFetchException,
   NetworkServiceException,
   SimulationException,
+  TransactionNotFoundException,
   TransactionPollException,
   TransactionRetryableException,
   TransactionSendException,
@@ -32,7 +32,6 @@ import {
   StellarRouterContract,
 } from './MultiCall';
 import {
-  caip2ChainIdToNetwork,
   extractAssetDataFromContractData,
   isAccountNotFoundError,
   sep41MulticallCellToBalance,
@@ -44,7 +43,11 @@ import type {
 import { KnownCaip2ChainId } from '../../api';
 import type { NetworkConfig } from '../../config';
 import { AppConfig } from '../../config';
-import { STELLAR_DECIMAL_PLACES } from '../../constants';
+import {
+  MAX_TRANSACTION_SCAN_PAGES,
+  MAX_TRANSACTIONS_PAGE_SIZE,
+  STELLAR_DECIMAL_PLACES,
+} from '../../constants';
 import type { ILogger, Serializable } from '../../utils';
 import {
   isSameStr,
@@ -754,7 +757,7 @@ export class NetworkService {
         simulateResponse,
       );
 
-      return new Transaction(simulatedTransaction.build());
+      return Transaction.fromRaw(simulatedTransaction.build());
     } catch (error: unknown) {
       this.#logger.logErrorWithDetails('Failed to simulate transaction', error);
       return rethrowIfInstanceElseThrow(
@@ -828,12 +831,177 @@ export class NetworkService {
       },
     )();
 
-    return new Transaction(
-      StellarSdkTransactionBuilder.fromXDR(
-        cachedXdr,
-        caip2ChainIdToNetwork(scope),
-      ),
-    );
+    return Transaction.fromXdr({
+      xdr: cachedXdr,
+      scope,
+    });
+  }
+
+  /**
+   * Fetches a single transaction by hash from Horizon and maps it to the internal
+   * {@link Transaction} model (including on-chain `fee_charged`).
+   *
+   * @param transactionHash - Stellar transaction hash (`hex`).
+   * @param scope - CAIP-2 network scope used to choose the Horizon client and decode envelope XDR.
+   * @returns The mapped {@link Transaction}.
+   * @throws {NetworkServiceException} When the transaction cannot be fetched or mapped.
+   */
+  async getTransaction(
+    transactionHash: string,
+    scope: KnownCaip2ChainId,
+  ): Promise<Transaction> {
+    try {
+      const client = this.#getHorizonClient(scope);
+      const result = await client
+        .transactions()
+        .transaction(transactionHash)
+        .call();
+      return this.#toTransaction(result, scope);
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails('Failed to fetch transaction', error);
+      if (error instanceof NotFoundError) {
+        throw new TransactionNotFoundException(transactionHash);
+      }
+      throw new NetworkServiceException(
+        `Failed to fetch transaction ${transactionHash}`,
+      );
+    }
+  }
+
+  /**
+   * Scans account transactions from Horizon with cursor-based pagination.
+   *
+   * The scan starts at `lastScanToken` and fetches up to `maxScan` pages. Each
+   * {@link Transaction} includes the source Horizon record on {@link Transaction.rawData}
+   * (including `paging_token`) so callers can choose which cursor to persist for the next run.
+   *
+   * When `includeSelfTransactionsOnly` is true, filtered rows are omitted from the result;
+   * callers that need a scan cursor must derive it from returned transactions (or pass
+   * `includeSelfTransactionsOnly: false` and filter locally). An empty result does not
+   * expose a paging token — callers should retain their previous cursor in that case.
+   *
+   * @param params - Scan parameters.
+   * @param params.accountAddress - Stellar account id (`G...`) to query.
+   * @param params.lastScanToken - Horizon cursor token from the previous scan (or empty string for initial scan).
+   * @param params.scope - CAIP-2 network scope.
+   * @param params.order - Horizon sort order (`asc` for catch-up scans, `desc` for initial recent-first scans).
+   * @param params.pageSize - Maximum records per page (`MAX_TRANSACTIONS_PAGE_SIZE` by default).
+   * @param params.maxScan - Maximum page count to fetch in this call (`MAX_TRANSACTION_SCAN_PAGES` by default). Values below 1 still fetch one page. @see {@link MAX_TRANSACTION_SCAN_PAGES}
+   * @param params.includeSelfTransactionsOnly - Whether to keep only records whose source account matches `accountAddress`.
+   * @param params.includeFailed - Whether to include failed transactions. Defaults to true.
+   * @returns Mapped transactions with optional Horizon metadata on each item.
+   * @throws {NetworkServiceException} When Horizon fetch fails.
+   */
+  async getTransactions(params: {
+    accountAddress: string;
+    lastScanToken: string;
+    scope: KnownCaip2ChainId;
+    order?: 'asc' | 'desc';
+    pageSize?: number;
+    maxScan?: number;
+    includeSelfTransactionsOnly?: boolean;
+    includeFailed?: boolean;
+  }): Promise<Transaction[]> {
+    const {
+      accountAddress,
+      lastScanToken,
+      scope,
+      order = 'asc',
+      pageSize = MAX_TRANSACTIONS_PAGE_SIZE,
+      maxScan = MAX_TRANSACTION_SCAN_PAGES,
+      includeSelfTransactionsOnly = true,
+      includeFailed = true,
+    } = params;
+
+    // Clamp so callers cannot skip the initial Horizon request (e.g. maxScan: 0).
+    let maxScanRemaining = Math.max(maxScan, 1);
+
+    try {
+      const client = this.#getHorizonClient(scope);
+
+      const initialTransactionsResponse = await client
+        .transactions()
+        .forAccount(accountAddress)
+        .order(order)
+        .cursor(lastScanToken)
+        .limit(pageSize)
+        .includeFailed(includeFailed)
+        .call();
+
+      let transactions = this.#toTransactions(
+        initialTransactionsResponse.records,
+        scope,
+        accountAddress,
+        includeSelfTransactionsOnly,
+      );
+
+      maxScanRemaining -= 1;
+
+      // When a page is full, Horizon likely has more records available.
+      // Continue pagination (bounded by `maxScan`) and aggregate those pages.
+      let currentResponse = initialTransactionsResponse;
+      while (
+        maxScanRemaining > 0 &&
+        currentResponse.records.length === pageSize
+      ) {
+        currentResponse = await currentResponse.next();
+
+        if (currentResponse.records.length === 0) {
+          break;
+        }
+
+        transactions = transactions.concat(
+          this.#toTransactions(
+            currentResponse.records,
+            scope,
+            accountAddress,
+            includeSelfTransactionsOnly,
+          ),
+        );
+
+        maxScanRemaining -= 1;
+      }
+
+      return transactions;
+    } catch (error: unknown) {
+      this.#logger.logErrorWithDetails('Failed to fetch transactions', error);
+      return rethrowIfInstanceElseThrow(
+        error,
+        [NetworkServiceException],
+        new NetworkServiceException('Failed to fetch transactions'),
+      );
+    }
+  }
+
+  #toTransactions(
+    transactions: StellarHorizon.ServerApi.TransactionRecord[],
+    scope: KnownCaip2ChainId,
+    accountAddress: string,
+    includeSelfTransactionsOnly: boolean,
+  ): Transaction[] {
+    const result: Transaction[] = [];
+
+    for (const transaction of transactions) {
+      if (
+        (includeSelfTransactionsOnly &&
+          transaction.source_account === accountAddress) ||
+        !includeSelfTransactionsOnly
+      ) {
+        result.push(this.#toTransaction(transaction, scope));
+      }
+    }
+
+    return result;
+  }
+
+  #toTransaction(
+    horizonTransaction: StellarHorizon.ServerApi.TransactionRecord,
+    scope: KnownCaip2ChainId,
+  ): Transaction {
+    return Transaction.fromHorizon({
+      horizonTransaction,
+      scope,
+    });
   }
 
   #getSendRpcErrorCode(rpcError: rpc.Api.SendTransactionResponse): string {

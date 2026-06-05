@@ -9,7 +9,10 @@ import { generateStellarKeyringAccount } from '../../services/account/__mocks__/
 import { SimulationException } from '../../services/network/exceptions';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import type { Transaction } from '../../services/transaction';
-import { TransactionService } from '../../services/transaction';
+import {
+  TransactionService,
+  Transaction as WrappedTransaction,
+} from '../../services/transaction';
 import {
   buildMockClassicTransaction,
   createMockTransactionService,
@@ -38,8 +41,7 @@ describe('SignTransactionHandler', () => {
       0,
     );
 
-    const { transactionBuilder, transactionService } =
-      createMockTransactionService();
+    const { transactionService } = createMockTransactionService();
     const { accountService, onChainAccountService, walletService } =
       mockOnChainAccountService();
     const accountResolver = new AccountResolver({
@@ -72,7 +74,6 @@ describe('SignTransactionHandler', () => {
     const handler = new SignTransactionHandler({
       logger,
       accountResolver,
-      transactionBuilder,
       transactionService,
       confirmationUIController,
     });
@@ -81,7 +82,6 @@ describe('SignTransactionHandler', () => {
       handler,
       mockAccount,
       wallet,
-      transactionBuilder,
       transactionService,
       renderConfirmationDialog,
     };
@@ -129,23 +129,18 @@ describe('SignTransactionHandler', () => {
   });
 
   it('returns signedTxXdr and signerAddress on confirm', async () => {
-    const {
-      handler,
-      mockAccount,
-      wallet,
-      transactionBuilder,
-      renderConfirmationDialog,
-    } = setupHandler();
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
 
     const transaction = buildMainnetPaymentFromWallet(wallet.address);
     const xdr = transaction.getRaw().toXDR();
-    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
     const signSpy = jest.spyOn(wallet, 'signTransaction');
     renderConfirmationDialog.mockResolvedValue(true);
 
     const result = await handler.handle(buildRequest(mockAccount.id, xdr));
+    const signedTransaction = signSpy.mock.calls[0]?.[0] as Transaction;
 
-    expect(signSpy).toHaveBeenCalledWith(transaction);
+    expect(signSpy).toHaveBeenCalledTimes(1);
     expect(renderConfirmationDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         renderOptions: {
@@ -159,23 +154,17 @@ describe('SignTransactionHandler', () => {
       }),
     );
     expect(result).toStrictEqual({
-      signedTxXdr: transaction.getRaw().toXDR(),
+      signedTxXdr: signedTransaction.getRaw().toXDR(),
       signerAddress: wallet.address,
     });
   });
 
   it('returns error -4 when user rejects', async () => {
-    const {
-      handler,
-      mockAccount,
-      wallet,
-      transactionBuilder,
-      renderConfirmationDialog,
-    } = setupHandler();
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
 
     const transaction = buildMainnetPaymentFromWallet(wallet.address);
     const xdr = transaction.getRaw().toXDR();
-    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
     const signSpy = jest.spyOn(wallet, 'signTransaction');
     renderConfirmationDialog.mockResolvedValue(false);
 
@@ -203,13 +192,8 @@ describe('SignTransactionHandler', () => {
   });
 
   it('returns error -3 when the transaction scope does not match the request scope', async () => {
-    const {
-      handler,
-      mockAccount,
-      wallet,
-      transactionBuilder,
-      renderConfirmationDialog,
-    } = setupHandler();
+    const { handler, mockAccount, wallet, renderConfirmationDialog } =
+      setupHandler();
 
     // Build a TESTNET transaction but request signing on MAINNET scope.
     const testnetTx = buildMockClassicTransaction(
@@ -228,25 +212,21 @@ describe('SignTransactionHandler', () => {
         source: { accountId: wallet.address, sequence: '1' },
       },
     );
-    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(testnetTx);
+    const fromXdrSpy = jest
+      .spyOn(WrappedTransaction, 'fromXdr')
+      .mockReturnValue(testnetTx);
 
-    const result = await handler.handle(
-      buildRequest(mockAccount.id, testnetTx.getRaw().toXDR()),
-    );
+    const result = await handler.handle(buildRequest(mockAccount.id, 'AAAA'));
 
     expect(result).toMatchObject({
       error: { code: Sep43ErrorCode.InvalidRequest },
     });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
+    fromXdrSpy.mockRestore();
   });
 
   it('returns error -3 when the wallet does not participate in the transaction', async () => {
-    const {
-      handler,
-      mockAccount,
-      transactionBuilder,
-      renderConfirmationDialog,
-    } = setupHandler();
+    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
 
     const strangerTx = buildMockClassicTransaction(
       [
@@ -267,8 +247,6 @@ describe('SignTransactionHandler', () => {
         },
       },
     );
-    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(strangerTx);
-
     const result = await handler.handle(
       buildRequest(mockAccount.id, strangerTx.getRaw().toXDR()),
     );
@@ -377,13 +355,11 @@ describe('SignTransactionHandler', () => {
       handler,
       mockAccount,
       wallet,
-      transactionBuilder,
       transactionService,
       renderConfirmationDialog,
     } = setupHandler();
 
     const transaction = buildMainnetPaymentFromWallet(wallet.address);
-    jest.spyOn(transactionBuilder, 'deserialize').mockReturnValue(transaction);
     jest
       .spyOn(transactionService, 'computingFee')
       .mockRejectedValueOnce(new SimulationException('contract not found'));

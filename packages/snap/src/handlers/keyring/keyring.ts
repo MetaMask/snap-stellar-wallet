@@ -62,12 +62,12 @@ import type {
   KnownCaip2ChainId,
 } from '../../api';
 import { AppConfig } from '../../config';
+import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
 import { AccountNotFoundException } from '../../services/account/exceptions';
-import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import type {
   OnChainAccount,
   OnChainAccountService,
@@ -449,7 +449,7 @@ export class KeyringHandler implements Keyring {
         const nativeAssetId = assets.find(isSlip44Id);
         if (nativeAssetId !== undefined) {
           assetBalances[nativeAssetId] = {
-            unit: getNativeAssetMetadata(scope).symbol ?? '',
+            unit: NATIVE_ASSET_SYMBOL,
             amount: '0',
           };
         }
@@ -463,10 +463,18 @@ export class KeyringHandler implements Keyring {
           continue;
         }
 
-        assetBalances[assetId] = {
-          unit: asset.symbol ?? '',
-          amount: toDisplayBalance(asset.balance, asset.decimals),
-        };
+        if (isSlip44Id(assetId)) {
+          // We show the raw native balance, not the spendable balance for XLM
+          assetBalances[assetId] = {
+            unit: NATIVE_ASSET_SYMBOL,
+            amount: toDisplayBalance(onChainAccount.nativeRawBalance),
+          };
+        } else {
+          assetBalances[assetId] = {
+            unit: asset.symbol ?? '',
+            amount: toDisplayBalance(asset.balance, asset.decimals),
+          };
+        }
       }
       return assetBalances;
     } catch (error: unknown) {

@@ -78,6 +78,13 @@ export class TransactionSendException extends NetworkServiceException {
 /** Submit failed with a code the caller may recover from by fixing sequence and retrying (e.g. `txBadSeq`). */
 export class TransactionRetryableException extends TransactionSendException {}
 
+/** Thrown when a transaction is not found. */
+export class TransactionNotFoundException extends NetworkServiceException {
+  constructor(transactionHash: string) {
+    super(`Transaction ${transactionHash} not found`);
+  }
+}
+
 /** Thrown when a transaction simulation fails. */
 export class SimulationException extends NetworkServiceException {
   constructor(message: string) {

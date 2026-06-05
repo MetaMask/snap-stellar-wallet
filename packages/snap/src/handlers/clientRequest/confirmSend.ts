@@ -27,7 +27,10 @@ import {
   TransactionValidationException,
   KeyringTransactionType,
 } from '../../services/transaction';
-import type { TransactionService } from '../../services/transaction';
+import type {
+  Transaction,
+  TransactionService,
+} from '../../services/transaction';
 import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import {
@@ -152,6 +155,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           assetMetadata,
           scope,
           fee: transaction.totalFee,
+          transaction,
         }))
       ) {
         await trackTransactionRejected({
@@ -240,9 +244,11 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     assetMetadata: StellarAssetMetadata;
     scope: KnownCaip2ChainId;
     fee: BigNumber;
+    transaction: Transaction;
   }): Promise<boolean> {
-    const { request, account, assetMetadata, fee, scope } = params;
+    const { request, account, assetMetadata, fee, scope, transaction } = params;
     const { toAddress, amount, assetId } = request.params;
+    const xdr = transaction.getRaw().toXDR();
 
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
@@ -258,6 +264,17 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         interfaceKey: ConfirmationInterfaceKey.ConfirmSendTransaction,
         renderOptions: {
           loadPrice: true,
+          scanTxn: true,
+          validateTxn: true,
+        },
+        securityScanRequest: {
+          accountAddress: account.address,
+          transaction: xdr,
+        },
+        transactionValidationRequest: {
+          accountId: account.id,
+          transaction: xdr,
+          request,
         },
         tokenPrices: {
           [assetId]: null,
@@ -310,10 +327,12 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
    * Instead of showing the account not activated alert, it returns an invalid response.
    *
    * @param _error - The error to handle.
+   * @param _request - The JSON-RPC request (unused for this handler).
    * @returns The invalid response when the account is not activated.
    */
   protected override async handleAccountNotActivatedError(
     _error: AccountNotActivatedException,
+    _request: ConfirmSendJsonRpcRequest,
   ): Promise<ConfirmSendJsonRpcResponse> {
     return {
       valid: false,

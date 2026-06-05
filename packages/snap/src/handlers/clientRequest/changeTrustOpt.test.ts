@@ -256,10 +256,18 @@ describe('ChangeTrustOptHandler', () => {
         renderOptions: {
           loadPrice: true,
           scanTxn: true,
+          validateTxn: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
           transaction: expect.any(String),
+        },
+        transactionValidationRequest: {
+          accountId: account.id,
+          transaction: expect.any(String),
+          request: expect.objectContaining({
+            method: ClientRequestMethod.ChangeTrustOpt,
+          }),
         },
       }),
     );
@@ -369,10 +377,18 @@ describe('ChangeTrustOptHandler', () => {
         renderOptions: {
           loadPrice: true,
           scanTxn: true,
+          validateTxn: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
           transaction: expect.any(String),
+        },
+        transactionValidationRequest: {
+          accountId: account.id,
+          transaction: expect.any(String),
+          request: expect.objectContaining({
+            method: ClientRequestMethod.ChangeTrustOpt,
+          }),
         },
       }),
     );

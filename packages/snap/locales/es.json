@@ -130,6 +130,12 @@
     "confirmation.simulationErrorSubtitle": {
       "message": "{reason}"
     },
+    "confirmation.transactionInvalidTitle": {
+      "message": "Transaction is no longer valid"
+    },
+    "confirmation.transactionInvalidSubtitle": {
+      "message": "It may have expired or your account balance changed. Close this request and try again."
+    },
     "confirmation.validationScanErrorTitle": {
       "message": "Security validation failed"
     },

@@ -11,6 +11,14 @@ export class TransactionBuilderException extends Error {
   }
 }
 
+/** Thrown when deserializing a transaction fails. */
+export class TransactionDeserializationException extends Error {
+  constructor(message: string = 'Failed to deserialize transaction') {
+    super(message);
+    this.name = 'TransactionDeserializationException';
+  }
+}
+
 /** Base for all transaction validation errors (simulation, trustlines, balances). */
 export class TransactionValidationException extends Error {
   constructor(message: string) {

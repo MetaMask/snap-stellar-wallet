@@ -1,3 +1,4 @@
+import { TransactionStatus } from '@metamask/keyring-api';
 import {
   Account,
   Contract,
@@ -19,6 +20,7 @@ import {
   BaseFeeFetchException,
   NetworkServiceException,
   SimulationException,
+  TransactionNotFoundException,
   TransactionPollException,
   TransactionRetryableException,
   TransactionSendException,
@@ -38,6 +40,8 @@ import { createMockAccountWithBalances } from '../on-chain-account/__mocks__/onC
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import {
   buildMockClassicTransaction,
+  buildMockHorizonTransactionPage,
+  buildMockHorizonTransactionRecord,
   buildMockInvokeHostFunctionTransaction,
 } from '../transaction/__mocks__/transaction.fixtures';
 import { InvalidInvokeContractStructureException } from '../transaction/exceptions';
@@ -94,16 +98,39 @@ describe('NetworkService', () => {
     'stellar:pubnet/sep41:CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J' as KnownCaip19Sep41AssetId;
 
   const createMockTransaction = (accountId?: string) => {
-    return buildMockClassicTransaction([
-      {
-        type: 'payment',
-        params: {
-          destination: accountId ?? generateStellarAddress(),
-          asset: 'native',
-          amount: '1',
+    return buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: accountId ?? generateStellarAddress(),
+            asset: 'native',
+            amount: '1',
+          },
         },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
       },
-    ]);
+    );
+  };
+
+  const mockHorizonAccountTransactions = (
+    call: jest.Mock,
+  ): jest.SpyInstance => {
+    return jest
+      .spyOn(StellarHorizon.Server.prototype, 'transactions')
+      .mockReturnValue({
+        forAccount: jest.fn().mockReturnValue({
+          order: jest.fn().mockReturnValue({
+            cursor: jest.fn().mockReturnValue({
+              limit: jest.fn().mockReturnValue({
+                includeFailed: jest.fn().mockReturnValue({ call }),
+              }),
+            }),
+          }),
+        }),
+      } as never);
   };
 
   const createMockInvokeHostFunctionTransaction = (accountId?: string) => {
@@ -717,57 +744,307 @@ describe('NetworkService', () => {
     });
   });
 
-  describe('checkHorizonTransactionForTrack', () => {
-    it('returns confirmed when Horizon reports success', async () => {
-      jest
-        .spyOn(networkService, 'getHorizonTransactionInclusionStatus')
-        .mockResolvedValue('success');
+  describe('getTransaction', () => {
+    it('returns mapped transaction from Horizon record', async () => {
+      const tx = createMockTransaction();
+      const horizonRecord = buildMockHorizonTransactionRecord({
+        transaction: tx,
+        feeCharged: '321',
+      });
+      const call = jest.fn().mockResolvedValue(horizonRecord);
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
 
-      const result = await networkService.checkHorizonTransactionForTrack(
-        testTransactionHash,
-        scope,
-      );
+      const result = await networkService.getTransaction(tx.id, scope);
 
-      expect(result).toBe('confirmed');
+      expect(result).toBeInstanceOf(Transaction);
+      expect(result.id).toBe(tx.id);
+      expect(result.feeCharged.toFixed(0)).toBe('321');
+      expect(result.status).toBe(TransactionStatus.Confirmed);
+      transactionsSpy.mockRestore();
     });
 
-    it('returns pending when Horizon has not indexed the tx', async () => {
-      jest
-        .spyOn(networkService, 'getHorizonTransactionInclusionStatus')
-        .mockResolvedValue('pending');
+    it('throws TransactionNotFoundException when record is not found', async () => {
+      const call = jest
+        .fn()
+        .mockRejectedValue(new NotFoundError('not found', {}));
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
 
-      const result = await networkService.checkHorizonTransactionForTrack(
-        testTransactionHash,
-        scope,
+      await expect(
+        networkService.getTransaction(testTransactionHash, scope),
+      ).rejects.toThrow(TransactionNotFoundException);
+
+      transactionsSpy.mockRestore();
+    });
+  });
+
+  describe('getTransactions', () => {
+    it('returns only source-account transactions when includeSelfTransactionsOnly is true', async () => {
+      const accountAddress = generateStellarAddress();
+      const txA = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              destination: generateStellarAddress(),
+              asset: 'native',
+              amount: '1',
+            },
+          },
+        ],
+        {
+          networkPassphrase: Networks.PUBLIC,
+          source: { accountId: accountAddress, sequence: '1' },
+        },
       );
+      const txBSource = generateStellarAddress();
+      const txB = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              destination: generateStellarAddress(),
+              asset: 'native',
+              amount: '1',
+            },
+          },
+        ],
+        {
+          networkPassphrase: Networks.PUBLIC,
+          source: { accountId: txBSource, sequence: '1' },
+        },
+      );
+      const records = [
+        buildMockHorizonTransactionRecord({
+          transaction: txA,
+          sourceAccount: accountAddress,
+          pagingToken: '11',
+        }),
+        buildMockHorizonTransactionRecord({
+          transaction: txB,
+          sourceAccount: txBSource,
+          pagingToken: '22',
+        }),
+      ];
+      const call = jest
+        .fn()
+        .mockResolvedValue(buildMockHorizonTransactionPage(records));
+      const transactionsSpy = mockHorizonAccountTransactions(call);
 
-      expect(result).toBe('pending');
+      const result = await networkService.getTransactions({
+        accountAddress,
+        lastScanToken: '',
+        scope,
+        order: 'asc',
+        includeSelfTransactionsOnly: true,
+        pageSize: 10,
+        maxScan: 1,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.sourceAccount).toBe(accountAddress);
+      expect(result[0]?.rawData?.paging_token).toBe('11');
+      transactionsSpy.mockRestore();
     });
 
-    it('returns failed when Horizon reports a failed ledger outcome', async () => {
-      jest
-        .spyOn(networkService, 'getHorizonTransactionInclusionStatus')
-        .mockResolvedValue('failed');
-
-      const result = await networkService.checkHorizonTransactionForTrack(
-        testTransactionHash,
-        scope,
+    it('returns all account records when includeSelfTransactionsOnly is false', async () => {
+      const accountAddress = generateStellarAddress();
+      const txA = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              destination: generateStellarAddress(),
+              asset: 'native',
+              amount: '1',
+            },
+          },
+        ],
+        {
+          networkPassphrase: Networks.PUBLIC,
+          source: { accountId: accountAddress, sequence: '1' },
+        },
       );
+      const txBSource = generateStellarAddress();
+      const txB = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              destination: generateStellarAddress(),
+              asset: 'native',
+              amount: '1',
+            },
+          },
+        ],
+        {
+          networkPassphrase: Networks.PUBLIC,
+          source: { accountId: txBSource, sequence: '1' },
+        },
+      );
+      const records = [
+        buildMockHorizonTransactionRecord({
+          transaction: txA,
+          sourceAccount: accountAddress,
+          pagingToken: '33',
+        }),
+        buildMockHorizonTransactionRecord({
+          transaction: txB,
+          sourceAccount: txBSource,
+          pagingToken: '44',
+        }),
+      ];
+      const call = jest
+        .fn()
+        .mockResolvedValue(buildMockHorizonTransactionPage(records));
+      const transactionsSpy = mockHorizonAccountTransactions(call);
 
-      expect(result).toBe('failed');
+      const result = await networkService.getTransactions({
+        accountAddress,
+        lastScanToken: '',
+        scope,
+        order: 'desc',
+        includeSelfTransactionsOnly: false,
+        pageSize: 10,
+        maxScan: 1,
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.at(-1)?.rawData?.paging_token).toBe('44');
+      transactionsSpy.mockRestore();
     });
 
-    it('returns unavailable when Horizon check throws', async () => {
-      jest
-        .spyOn(networkService, 'getHorizonTransactionInclusionStatus')
-        .mockRejectedValue(new Error('timeout'));
+    it('returns transactions from up to maxScan pages in one call', async () => {
+      const accountAddress = generateStellarAddress();
+      const txA = createMockTransaction(accountAddress);
+      const txB = createMockTransaction(accountAddress);
+      const txC = createMockTransaction(accountAddress);
 
-      const result = await networkService.checkHorizonTransactionForTrack(
-        testTransactionHash,
+      const page1Records = [
+        buildMockHorizonTransactionRecord({
+          transaction: txA,
+          pagingToken: '11',
+        }),
+      ];
+      const page2Records = [
+        buildMockHorizonTransactionRecord({
+          transaction: txB,
+          pagingToken: '22',
+        }),
+      ];
+      const page3Records = [
+        buildMockHorizonTransactionRecord({
+          transaction: txC,
+          pagingToken: '33',
+        }),
+      ];
+
+      const page3Next = jest
+        .fn()
+        .mockResolvedValue(buildMockHorizonTransactionPage([]));
+      const page3 = buildMockHorizonTransactionPage(page3Records, page3Next);
+      const page2Next = jest.fn().mockResolvedValue(page3);
+      const page2 = buildMockHorizonTransactionPage(page2Records, page2Next);
+      const page1Next = jest.fn().mockResolvedValue(page2);
+      const page1 = buildMockHorizonTransactionPage(page1Records, page1Next);
+
+      const call = jest.fn().mockResolvedValue(page1);
+      const transactionsSpy = mockHorizonAccountTransactions(call);
+
+      const result = await networkService.getTransactions({
+        accountAddress,
+        lastScanToken: '',
         scope,
-      );
+        order: 'asc',
+        includeSelfTransactionsOnly: false,
+        pageSize: 1,
+        maxScan: 3,
+      });
 
-      expect(result).toBe('unavailable');
+      expect(result).toHaveLength(3);
+      expect(result.map((transaction) => transaction.id)).toStrictEqual([
+        txA.id,
+        txB.id,
+        txC.id,
+      ]);
+      expect(result.at(-1)?.rawData?.paging_token).toBe('33');
+      expect(page1Next).toHaveBeenCalledTimes(1);
+      expect(page2Next).toHaveBeenCalledTimes(1);
+      expect(page3Next).not.toHaveBeenCalled();
+      transactionsSpy.mockRestore();
+    });
+
+    it('returns empty array when the first page has no records', async () => {
+      const accountAddress = generateStellarAddress();
+      const lastScanToken = 'cursor-abc';
+      const call = jest
+        .fn()
+        .mockResolvedValue(buildMockHorizonTransactionPage([]));
+      const transactionsSpy = mockHorizonAccountTransactions(call);
+
+      const result = await networkService.getTransactions({
+        accountAddress,
+        lastScanToken,
+        scope,
+        order: 'asc',
+        maxScan: 1,
+      });
+
+      expect(result).toHaveLength(0);
+      transactionsSpy.mockRestore();
+    });
+
+    it('fetches one page when maxScan is zero', async () => {
+      const accountAddress = generateStellarAddress();
+      const tx = createMockTransaction(accountAddress);
+      const records = [
+        buildMockHorizonTransactionRecord({
+          transaction: tx,
+          sourceAccount: accountAddress,
+          pagingToken: '55',
+        }),
+      ];
+      const call = jest
+        .fn()
+        .mockResolvedValue(buildMockHorizonTransactionPage(records));
+      const transactionsSpy = mockHorizonAccountTransactions(call);
+
+      const result = await networkService.getTransactions({
+        accountAddress,
+        lastScanToken: '',
+        scope,
+        order: 'asc',
+        pageSize: 10,
+        maxScan: 0,
+      });
+
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(result).toHaveLength(1);
+      expect(result[0]?.rawData?.paging_token).toBe('55');
+      transactionsSpy.mockRestore();
+    });
+
+    it('throws NetworkServiceException when Horizon page fetch fails', async () => {
+      const call = jest.fn().mockRejectedValue(new Error('Horizon error'));
+      const transactionsSpy = mockHorizonAccountTransactions(call);
+
+      await expect(
+        networkService.getTransactions({
+          accountAddress: generateStellarAddress(),
+          lastScanToken: '',
+          scope,
+          order: 'asc',
+        }),
+      ).rejects.toThrow(NetworkServiceException);
+
+      transactionsSpy.mockRestore();
     });
   });
 

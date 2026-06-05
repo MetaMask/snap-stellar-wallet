@@ -77,6 +77,22 @@ export const KEYRING_ACCOUNT_TYPE = XlmAccountType.Account;
 export const METAMASK_ORIGIN = 'metamask';
 
 /**
+ * The maximum page size for the transactions.
+ *
+ * @see https://developers.stellar.org/docs/data/apis/horizon/api-reference/get-transactions-by-account-id
+ */
+export const MAX_TRANSACTIONS_PAGE_SIZE = 200;
+
+/**
+ * Maximum number of pages remaining to fetch in this run.
+ * This keeps scans responsive for high-activity accounts by avoiding full-history fetches at once.
+ * Callers persist a Horizon paging token (from {@link Transaction.rawData}) between runs to continue incremental sync.
+ *
+ * @see {@link NetworkService.getTransactions}
+ */
+export const MAX_TRANSACTION_SCAN_PAGES = 2;
+
+/*
  * The key for the memo required attribute.
  * It is used to check if the account requires a memo based on the SEP-0029 standard.
  *
