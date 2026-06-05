@@ -251,9 +251,14 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       await this.#transactionService.findKeyringTransactionByTransactionId(
         txId,
       );
-    if (keyringTransaction === null) {
+
+    if (
+      keyringTransaction === null ||
+      keyringTransaction.status === TransactionStatus.Confirmed ||
+      keyringTransaction.status === TransactionStatus.Failed
+    ) {
       this.logger.warn(
-        'Keyring transaction not found; skipping transaction status update',
+        'Keyring transaction not found or already confirmed or failed; skipping transaction status update',
         {
           txId,
           status,

@@ -61,13 +61,14 @@ describe('TrackTransactionHandler', () => {
 
   function createPersistedKeyringTransaction(
     account: string = accountId,
+    status: TransactionStatus = TransactionStatus.Unconfirmed,
   ): KeyringTransaction {
     return {
       type: TransactionType.Send,
       id: txId,
       account,
       chain: scope,
-      status: TransactionStatus.Unconfirmed,
+      status,
       timestamp: 1,
       from: [],
       to: [],
@@ -552,6 +553,78 @@ describe('TrackTransactionHandler', () => {
     });
 
     expect(save).not.toHaveBeenCalled();
+    expect(synchronize).toHaveBeenCalledWith([account], scope);
+  });
+
+  it('skips keyring save when transaction is already confirmed but still syncs', async () => {
+    const {
+      handler,
+      account,
+      getTransaction,
+      save,
+      synchronize,
+      findKeyringTransactionByTransactionId,
+    } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(accountId, TransactionStatus.Confirmed),
+    );
+    getTransaction.mockResolvedValue(
+      createNetworkTransaction(TransactionStatus.Confirmed),
+    );
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIdsOrAddresses: [accountId],
+      },
+    });
+
+    expect(save).not.toHaveBeenCalled();
+    expect(trackTransactionFinalized).toHaveBeenCalledWith({
+      origin: METAMASK_ORIGIN,
+      accountType: KEYRING_ACCOUNT_TYPE,
+      chainIdCaip: scope,
+    });
+    expect(synchronize).toHaveBeenCalledWith([account], scope);
+  });
+
+  it('skips keyring save when transaction is already failed but still syncs', async () => {
+    const {
+      handler,
+      account,
+      getTransaction,
+      save,
+      synchronize,
+      findKeyringTransactionByTransactionId,
+    } = setup();
+    findKeyringTransactionByTransactionId.mockResolvedValue(
+      createPersistedKeyringTransaction(accountId, TransactionStatus.Failed),
+    );
+    getTransaction.mockResolvedValue(
+      createNetworkTransaction(TransactionStatus.Failed),
+    );
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: BackgroundEventMethod.TrackTransaction,
+      params: {
+        txId,
+        scope,
+        accountIdsOrAddresses: [accountId],
+      },
+    });
+
+    expect(save).not.toHaveBeenCalled();
+    expect(trackTransactionFinalized).toHaveBeenCalledWith({
+      origin: METAMASK_ORIGIN,
+      accountType: KEYRING_ACCOUNT_TYPE,
+      chainIdCaip: scope,
+    });
     expect(synchronize).toHaveBeenCalledWith([account], scope);
   });
 });
