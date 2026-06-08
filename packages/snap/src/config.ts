@@ -80,6 +80,12 @@ const ConfigStruct = object({
     timeout: parseIntegerStruct(100, 180),
     pollingAttempts: parseIntegerStruct(0, 10),
     /**
+     * Maximum background reschedules for the track-transaction cron job while Horizon has not
+     * indexed the transaction (404). Each reschedule is a separate cron run via
+     * `scheduleBackgroundEvent`, not an in-process retry loop.
+     */
+    trackTransactionMaxReschedules: parseIntegerStruct(0, 10),
+    /**
      * The base fee multiplier for the Stellar network.
      */
     baseFeeMultiplier: parseIntegerStruct(1, 1.2),
@@ -164,6 +170,8 @@ export const AppConfig = create(
       pollingAttempts: process.env.TRANSACTION_POLLING_ATTEMPTS,
       baseFeeMultiplier: process.env.BASE_FEE_MULTIPLIER,
       simulationFeeMultiplier: process.env.SIMULATION_FEE_MULTIPLIER,
+      trackTransactionMaxReschedules:
+        process.env.TRACK_TRANSACTION_MAX_RESCHEDULES,
     },
     api: {
       tokenApi: {

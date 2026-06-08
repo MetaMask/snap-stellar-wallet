@@ -11,10 +11,7 @@ import {
   ConfirmSendJsonRpcResponseStruct,
   MultiChainSendErrorCodes,
 } from './api';
-import type {
-  KnownCaip19AssetIdOrSlip44Id,
-  KnownCaip2ChainId,
-} from '../../api';
+import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
 import type {
@@ -182,23 +179,25 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         pollTransaction: false,
       });
 
-      await this.#savePendingTransaction({
-        txId: transactionId,
-        account: stellarKeyringAccount,
-        scope,
-        toAddress,
-        amount,
-        asset: {
-          type: assetId,
-          symbol,
+      await this.#transactionService.savePendingKeyringTransactionSafe({
+        type: KeyringTransactionType.Send,
+        request: {
+          txId: transactionId,
+          account: stellarKeyringAccount,
+          scope,
+          toAddress,
+          amount,
+          asset: {
+            type: assetId,
+            symbol,
+          },
         },
       });
 
       await TrackTransactionHandler.scheduleBackgroundEvent({
         txId: transactionId,
+        accountIdsOrAddresses: [stellarKeyringAccount.id, toAddress],
         scope,
-        // TODO: we should depend on the transaction instead of passing an account id here
-        accountIds: [stellarKeyringAccount.id],
       });
 
       return {
@@ -281,45 +280,6 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         } as ContextWithPrices['tokenPrices'],
       })) === true
     );
-  }
-
-  async #savePendingTransaction({
-    txId,
-    account,
-    scope,
-    toAddress,
-    amount,
-    asset,
-  }: {
-    txId: string;
-    account: StellarKeyringAccount;
-    scope: KnownCaip2ChainId;
-    toAddress: string;
-    amount: string;
-    asset: {
-      type: KnownCaip19AssetIdOrSlip44Id;
-      symbol: string;
-    };
-  }): Promise<void> {
-    try {
-      await this.#transactionService.savePendingKeyringTransaction({
-        type: KeyringTransactionType.Send,
-        request: {
-          txId,
-          account,
-          scope,
-          toAddress,
-          amount,
-          asset,
-        },
-      });
-    } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to save pending transaction',
-        error,
-      );
-      // we should not throw error here, as we want to continue the flow even if the pending transaction is not saved
-    }
   }
 
   /**

@@ -1343,9 +1343,20 @@ describe('TransactionSimulator', () => {
         mainnetSimulatorTxOptions(wallet.address, '1'),
       );
 
-      expect(() => simulator.simulate(tx, onChainAccount)).toThrow(
+      let error: unknown;
+      try {
+        simulator.simulate(tx, onChainAccount);
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toBeInstanceOf(
         InsufficientBalanceToCoverBaseReserveException,
       );
+      expect(error).toMatchObject({
+        balance: '999900',
+        required: '5000000',
+      });
     });
 
     it('succeeds when removing an existing trustline with zero balance', () => {

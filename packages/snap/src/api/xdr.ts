@@ -84,11 +84,12 @@ export const SwapTransactionXdrStruct = refine(
       const operationTypes = getTransactionOperationTypes(value);
       const [firstOperation, secondOperation, thirdOperation] = operationTypes;
 
-      // Soroban swap route or bridge deposit route.
+      // Soroban swap route or bridge deposit route or swap without a fee
       if (
         operationTypes.length === 1 &&
         (firstOperation === 'invokeHostFunction' ||
-          firstOperation === 'payment')
+          firstOperation === 'payment' ||
+          isPathPaymentOperation(firstOperation))
       ) {
         return true;
       }
@@ -98,6 +99,15 @@ export const SwapTransactionXdrStruct = refine(
         operationTypes.length === 2 &&
         isPathPaymentOperation(firstOperation) &&
         secondOperation === 'payment'
+      ) {
+        return true;
+      }
+
+      // Swap and change trust without a fee
+      if (
+        operationTypes.length === 2 &&
+        firstOperation === 'changeTrust' &&
+        isPathPaymentOperation(secondOperation)
       ) {
         return true;
       }
