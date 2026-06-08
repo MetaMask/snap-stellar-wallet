@@ -94,7 +94,7 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
       if (!isClassicAssetId(assetId)) {
         continue;
       }
-      result[assetId] = {};
+      result[assetId] = { limit: '0' };
     }
 
     return result;
@@ -132,7 +132,7 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
               'Returning empty trust-line entry; portfolio may treat asset as untrusted',
           },
         );
-        result[assetId] = {};
+        result[assetId] = { limit: '0' };
         continue;
       }
 
