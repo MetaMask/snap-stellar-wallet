@@ -3,6 +3,7 @@ import type { Asset, Operation } from '@stellar/stellar-sdk';
 import { LiquidityPoolAsset, LiquidityPoolId, xdr } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { StellarOperationType } from './api';
 import type { Transaction } from './Transaction';
 import type { KnownCaip2ChainId } from '../../api';
 import { bufferToUint8Array } from '../../utils';
@@ -66,9 +67,9 @@ export type ReadableTransactionJson = {
 };
 
 const SOROBAN_OPERATION_TYPES = new Set<string>([
-  'invokeHostFunction',
-  'extendFootprintTtl',
-  'restoreFootprint',
+  StellarOperationType.InvokeHostFunction,
+  StellarOperationType.ExtendFootprintTtl,
+  StellarOperationType.RestoreFootprint,
 ]);
 
 /** Stellar account auth flags for {@link Operation.setOptions} `setFlags` / `clearFlags`. */
@@ -166,7 +167,7 @@ export class OperationMapper {
   }
 
   #mapSorobanPlaceholder(operation: Operation): ReadableOperationField[] {
-    if (operation.type === 'invokeHostFunction') {
+    if (operation.type === StellarOperationType.InvokeHostFunction) {
       const hostOp = operation;
       const rows: ReadableOperationField[] = [];
       try {
@@ -210,11 +211,11 @@ export class OperationMapper {
       }
       return rows;
     }
-    if (operation.type === 'extendFootprintTtl') {
+    if (operation.type === StellarOperationType.ExtendFootprintTtl) {
       const extendOp = operation;
       return [this.#field('extendTo', extendOp.extendTo, 'number')];
     }
-    if (operation.type === 'restoreFootprint') {
+    if (operation.type === StellarOperationType.RestoreFootprint) {
       return [this.#field('note', 'Soroban restoreFootprint.', 'text')];
     }
     return [
@@ -227,8 +228,9 @@ export class OperationMapper {
   }
 
   #mapClassicParams(operation: Operation): ReadableOperationField[] {
+    /* eslint-disable @typescript-eslint/switch-exhaustiveness-check -- enum cases mirror SDK `operation.type` literals */
     switch (operation.type) {
-      case 'payment': {
+      case StellarOperationType.Payment: {
         const payment = operation;
         return [
           this.#field('destination', payment.destination, 'address'),
@@ -239,7 +241,7 @@ export class OperationMapper {
           ),
         ];
       }
-      case 'createAccount': {
+      case StellarOperationType.CreateAccount: {
         const createAccount = operation;
         return [
           this.#field('destination', createAccount.destination, 'address'),
@@ -250,7 +252,7 @@ export class OperationMapper {
           ),
         ];
       }
-      case 'changeTrust': {
+      case StellarOperationType.ChangeTrust: {
         const changeTrust = operation;
         return [
           // we don't use assetWithAmount here because the line is not necessarily a classic asset
@@ -259,13 +261,13 @@ export class OperationMapper {
           this.#field('limit', changeTrust.limit, 'amount'),
         ];
       }
-      case 'accountMerge': {
+      case StellarOperationType.AccountMerge: {
         const accountMerge = operation;
         return [
           this.#field('destination', accountMerge.destination, 'address'),
         ];
       }
-      case 'pathPaymentStrictReceive': {
+      case StellarOperationType.PathPaymentStrictReceive: {
         const pathReceive = operation;
 
         return [
@@ -287,7 +289,7 @@ export class OperationMapper {
           ),
         ];
       }
-      case 'pathPaymentStrictSend': {
+      case StellarOperationType.PathPaymentStrictSend: {
         const pathSend = operation;
         return [
           this.#field(
@@ -309,7 +311,7 @@ export class OperationMapper {
           ),
         ];
       }
-      case 'manageSellOffer': {
+      case StellarOperationType.ManageSellOffer: {
         const sellOffer = operation;
         return [
           this.#field(
@@ -322,7 +324,7 @@ export class OperationMapper {
           this.#field('offerId', sellOffer.offerId, 'text'),
         ];
       }
-      case 'manageBuyOffer': {
+      case StellarOperationType.ManageBuyOffer: {
         const buyOffer = operation;
         return [
           this.#field(
@@ -335,7 +337,7 @@ export class OperationMapper {
           this.#field('offerId', buyOffer.offerId, 'text'),
         ];
       }
-      case 'createPassiveSellOffer': {
+      case StellarOperationType.CreatePassiveSellOffer: {
         const passiveOffer = operation;
         return [
           this.#field(
@@ -347,7 +349,7 @@ export class OperationMapper {
           this.#field('price', passiveOffer.price, 'price'),
         ];
       }
-      case 'setOptions': {
+      case StellarOperationType.SetOptions: {
         const setOptions = operation;
         const rows: ReadableOperationField[] = [];
         if (setOptions.inflationDest !== undefined) {
@@ -443,7 +445,7 @@ export class OperationMapper {
         }
         return rows;
       }
-      case 'allowTrust': {
+      case StellarOperationType.AllowTrust: {
         const allowTrustOp = operation;
         const rows: ReadableOperationField[] = [
           this.#field('trustor', allowTrustOp.trustor, 'address'),
@@ -459,7 +461,7 @@ export class OperationMapper {
         }
         return rows;
       }
-      case 'manageData': {
+      case StellarOperationType.ManageData: {
         const manageDataOp = operation;
         return [
           this.#field('name', manageDataOp.name, 'text'),
@@ -472,13 +474,13 @@ export class OperationMapper {
           ),
         ];
       }
-      case 'bumpSequence': {
+      case StellarOperationType.BumpSequence: {
         const bumpSequence = operation;
         return [this.#field('bumpTo', bumpSequence.bumpTo, 'text')];
       }
-      case 'inflation':
+      case StellarOperationType.Inflation:
         return [];
-      case 'createClaimableBalance': {
+      case StellarOperationType.CreateClaimableBalance: {
         const createCb = operation;
         return [
           this.#field(
@@ -496,21 +498,21 @@ export class OperationMapper {
           ),
         ];
       }
-      case 'claimClaimableBalance': {
+      case StellarOperationType.ClaimClaimableBalance: {
         const claimCb = operation;
         return [this.#field('balanceId', claimCb.balanceId, 'text')];
       }
-      case 'beginSponsoringFutureReserves': {
+      case StellarOperationType.BeginSponsoringFutureReserves: {
         const beginSponsor = operation;
         return [
           this.#field('sponsoredId', beginSponsor.sponsoredId, 'address'),
         ];
       }
-      case 'endSponsoringFutureReserves':
+      case StellarOperationType.EndSponsoringFutureReserves:
         return [];
-      case 'revokeSponsorship':
+      case StellarOperationType.RevokeSponsorship:
         return this.#mapRevokeSponsorship(operation);
-      case 'clawback': {
+      case StellarOperationType.Clawback: {
         const clawback = operation;
         return [
           this.#field(
@@ -521,11 +523,11 @@ export class OperationMapper {
           this.#field('from', clawback.from, 'address'),
         ];
       }
-      case 'clawbackClaimableBalance': {
+      case StellarOperationType.ClawbackClaimableBalance: {
         const clawbackCb = operation;
         return [this.#field('balanceId', clawbackCb.balanceId, 'text')];
       }
-      case 'setTrustLineFlags': {
+      case StellarOperationType.SetTrustLineFlags: {
         const trustFlags = operation;
         const setFlagLabels: string[] = [];
         const clearFlagLabels: string[] = [];
@@ -556,7 +558,7 @@ export class OperationMapper {
         }
         return rows;
       }
-      case 'liquidityPoolDeposit': {
+      case StellarOperationType.LiquidityPoolDeposit: {
         const poolDeposit = operation;
         return [
           this.#field('liquidityPoolId', poolDeposit.liquidityPoolId, 'text'),
@@ -566,7 +568,7 @@ export class OperationMapper {
           this.#field('maxPrice', poolDeposit.maxPrice, 'price'),
         ];
       }
-      case 'liquidityPoolWithdraw': {
+      case StellarOperationType.LiquidityPoolWithdraw: {
         const poolWithdraw = operation;
         return [
           this.#field('liquidityPoolId', poolWithdraw.liquidityPoolId, 'text'),
@@ -575,9 +577,9 @@ export class OperationMapper {
           this.#field('minAmountB', poolWithdraw.minAmountB, 'amount'),
         ];
       }
-      case 'invokeHostFunction':
-      case 'extendFootprintTtl':
-      case 'restoreFootprint':
+      case StellarOperationType.InvokeHostFunction:
+      case StellarOperationType.ExtendFootprintTtl:
+      case StellarOperationType.RestoreFootprint:
         return [
           this.#field(
             'note',
@@ -586,7 +588,7 @@ export class OperationMapper {
           ),
         ];
       default: {
-        const unknownOp = operation as Operation;
+        const unknownOp = operation;
         return [
           this.#field(
             'note',

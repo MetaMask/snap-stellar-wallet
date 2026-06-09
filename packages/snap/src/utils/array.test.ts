@@ -1,4 +1,4 @@
-import { entries, keys, values } from './array';
+import { entries, keys, pushToRecordArray, values } from './array';
 
 describe('entries', () => {
   it('returns key-value tuples for a partial record', () => {
@@ -34,5 +34,19 @@ describe('values', () => {
 
   it('returns an empty array when the object has no values', () => {
     expect(values({})).toStrictEqual([]);
+  });
+});
+
+describe('pushToRecordArray', () => {
+  it('pushes a value to a record array', () => {
+    const record = { a: [1] };
+    pushToRecordArray(record, 'a', 2);
+    expect(record).toStrictEqual({ a: [1, 2] });
+  });
+
+  it('creates a new array if the key does not exist', () => {
+    const record = {} as Record<string, number[]>;
+    pushToRecordArray(record, 'a', 2);
+    expect(record).toStrictEqual({ a: [2] });
   });
 });

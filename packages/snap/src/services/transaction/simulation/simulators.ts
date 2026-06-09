@@ -2,6 +2,7 @@ import type { Operation } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { StellarOperationType } from '../api';
 import type {
   OperationSimulator,
   ApplyContext,
@@ -386,7 +387,9 @@ export class PathPaymentOPSimulator implements OperationSimulator {
     const source = getAccount(state, sourceId);
     const sendAssetId = classicAssetToId(op.sendAsset, scope);
     const sendAmount =
-      op.type === 'pathPaymentStrictSend' ? op.sendAmount : op.sendMax;
+      op.type === StellarOperationType.PathPaymentStrictSend
+        ? op.sendAmount
+        : op.sendMax;
 
     return {
       source,
@@ -410,7 +413,9 @@ export class PathPaymentOPSimulator implements OperationSimulator {
     const dest = getAccount(state, destination);
     const destAssetId = classicAssetToId(op.destAsset, scope);
     const destAmount =
-      op.type === 'pathPaymentStrictSend' ? op.destMin : op.destAmount;
+      op.type === StellarOperationType.PathPaymentStrictSend
+        ? op.destMin
+        : op.destAmount;
 
     return {
       dest,

@@ -10,6 +10,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { StellarOperationType } from './api';
 import { TransactionDeserializationException } from './exceptions';
 import { parseExpirationMaxTime } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
@@ -66,11 +67,13 @@ export class Transaction {
 
       // Destination of the operation should count as participating in the transaction.
       // For now, we only support payment related operations
-      if (operation.type === 'pathPaymentStrictSend') {
+      if (operation.type === StellarOperationType.PathPaymentStrictSend) {
         this.#participatingAccounts.add(operation.destination);
-      } else if (operation.type === 'pathPaymentStrictReceive') {
+      } else if (
+        operation.type === StellarOperationType.PathPaymentStrictReceive
+      ) {
         this.#participatingAccounts.add(operation.destination);
-      } else if (operation.type === 'payment') {
+      } else if (operation.type === StellarOperationType.Payment) {
         this.#participatingAccounts.add(operation.destination);
       }
 
@@ -193,7 +196,7 @@ export class Transaction {
    * @returns True if the transaction has a create account operation, false otherwise.
    */
   get hasCreateAccount(): boolean {
-    return this.#operationTypes.has('createAccount');
+    return this.#operationTypes.has(StellarOperationType.CreateAccount);
   }
 
   /**
@@ -202,7 +205,7 @@ export class Transaction {
    * @returns True if the transaction has an invoke host function operation, false otherwise.
    */
   get hasInvokeHostFunction(): boolean {
-    return this.#operationTypes.has('invokeHostFunction');
+    return this.#operationTypes.has(StellarOperationType.InvokeHostFunction);
   }
 
   /**

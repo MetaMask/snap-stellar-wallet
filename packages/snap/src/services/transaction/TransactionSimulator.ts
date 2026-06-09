@@ -1,6 +1,7 @@
 import type { Operation } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { StellarOperationType } from './api';
 import {
   InsufficientBalanceToCoverFeeException,
   TransactionValidationException,
@@ -413,8 +414,8 @@ export class TransactionSimulator {
       return SupportedOperations.Payment;
     }
     if (
-      op.type === 'pathPaymentStrictReceive' ||
-      op.type === 'pathPaymentStrictSend'
+      op.type === StellarOperationType.PathPaymentStrictReceive ||
+      op.type === StellarOperationType.PathPaymentStrictSend
     ) {
       return SupportedOperations.PathPayment;
     }
