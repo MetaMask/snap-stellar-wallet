@@ -228,7 +228,7 @@ export class OperationMapper {
   }
 
   #mapClassicParams(operation: Operation): ReadableOperationField[] {
-    /* eslint-disable @typescript-eslint/switch-exhaustiveness-check -- enum cases mirror SDK `operation.type` literals */
+    /* eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- enum cases mirror SDK `operation.type` literals */
     switch (operation.type) {
       case StellarOperationType.Payment: {
         const payment = operation;

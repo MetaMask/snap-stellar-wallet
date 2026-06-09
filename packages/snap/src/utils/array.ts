@@ -38,8 +38,8 @@ export function values<Value>(obj: Record<string, Value>): Value[] {
  * @param key - The key of the record to push the value to.
  * @param value - The value to push to the array.
  */
-export function pushToRecordArray<Key extends string | number | symbol, Value>(
-  record: Record<Key, Value[]>,
+export function pushToRecordArray<Key extends PropertyKey, Value>(
+  record: Partial<Record<Key, Value[]>>,
   key: Key,
   value: Value,
 ): void {
