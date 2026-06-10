@@ -24,6 +24,7 @@ import { BASE_RESERVE_STROOPS, MAX_INT64 } from '../../../constants';
 import {
   getSlip44AssetId,
   isSlip44Id,
+  stellarAssetToCaip19,
   toCaip19ClassicAssetId,
   toSmallestUnit,
 } from '../../../utils';
@@ -58,10 +59,7 @@ function classicAssetToId(
   scope: KnownCaip2ChainId,
 ): ClassicAssetId {
   if (asset instanceof Asset) {
-    if (asset.isNative()) {
-      return getSlip44AssetId(scope);
-    }
-    return toCaip19ClassicAssetId(scope, asset.getCode(), asset.getIssuer());
+    return stellarAssetToCaip19(asset, scope);
   }
   throw new TransactionValidationException(
     'Only native or alphanum Asset payments are supported for sequential validation',
