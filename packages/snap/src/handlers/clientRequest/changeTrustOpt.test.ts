@@ -1,5 +1,6 @@
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
+import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
 import {
@@ -31,8 +32,14 @@ import {
   mockOnChainAccountService,
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { TransactionService } from '../../services/transaction';
-import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
-import { TrustlineNotFoundException } from '../../services/transaction/exceptions';
+import {
+  buildMockClassicTransaction,
+  createMockTransactionService,
+} from '../../services/transaction/__mocks__/transaction.fixtures';
+import {
+  TransactionValidationException,
+  TrustlineNotFoundException,
+} from '../../services/transaction/exceptions';
 import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
@@ -244,6 +251,7 @@ describe('ChangeTrustOptHandler', () => {
       scope,
       limit: '1.5',
     });
+    expect(createValidatedChangeTrustTransaction).toHaveBeenCalledTimes(2);
     expect(renderConfirmationDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         scope,
@@ -371,6 +379,7 @@ describe('ChangeTrustOptHandler', () => {
       scope,
       limit: '0',
     });
+    expect(createValidatedChangeTrustTransaction).toHaveBeenCalledTimes(2);
     expect(renderConfirmationDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         interfaceKey: ConfirmationInterfaceKey.ChangeTrustlineOptOut,
@@ -437,6 +446,76 @@ describe('ChangeTrustOptHandler', () => {
     expect(
       TrackTransactionHandler.scheduleBackgroundEvent,
     ).not.toHaveBeenCalled();
+  });
+
+  it('throws when refreshed transaction fee is higher than confirmed fee', async () => {
+    const {
+      handler,
+      wallet,
+      createValidatedChangeTrustTransaction,
+      signTransactionSpy,
+      sendTransaction,
+      networkSendSpy,
+      savePendingKeyringTransaction,
+    } = setup();
+    const confirmedTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'changeTrust',
+          params: {
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            limit: '1.5',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '1',
+        },
+        baseFeePerOperation: '100',
+      },
+    );
+    const higherFeeTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'changeTrust',
+          params: {
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            limit: '1.5',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '2',
+        },
+        baseFeePerOperation: '200',
+      },
+    );
+    createValidatedChangeTrustTransaction
+      .mockResolvedValueOnce(confirmedTransaction)
+      .mockResolvedValueOnce(higherFeeTransaction);
+
+    await expect(handler.handle(addRequest)).rejects.toThrow(
+      TransactionValidationException,
+    );
+
+    expect(signTransactionSpy).not.toHaveBeenCalled();
+    expect(sendTransaction).not.toHaveBeenCalled();
+    expect(networkSendSpy).not.toHaveBeenCalled();
+    expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
   });
 
   it('continues successfully when saving pending transaction fails', async () => {

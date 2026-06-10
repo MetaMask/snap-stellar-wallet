@@ -10,6 +10,7 @@ import {
   ChangeTrustOptJsonRpcRequestStruct,
   ChangeTrustOptJsonRpcResponseStruct,
 } from './api';
+import { assertRefreshedTransactionFeeNotHigher } from './transactionRefresh';
 import {
   type AccountResolver,
   type ResolvedActivatedAccount,
@@ -95,7 +96,7 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     request: ChangeTrustOptJsonRpcRequest,
   ): Promise<ChangeTrustOptJsonRpcResponse> {
     const { scope, assetId, action } = request.params;
-    const { wallet, account, onChainAccount } = resolvedAccount;
+    const { account, onChainAccount } = resolvedAccount;
 
     // Quit early if add is redundant (classic line already present with limit > 0)
     if (action === ChangeTrustOptAction.Add) {
@@ -157,13 +158,33 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       chainIdCaip: scope,
     });
 
-    wallet.signTransaction(transaction);
+    const refreshed = await this.#refreshTransactionAfterConfirmation({
+      request,
+      confirmedTransaction: transaction,
+      action,
+      limit: limitForTx,
+    });
+
+    if (refreshed === null) {
+      // The requested opt-in became redundant while the dialog was open; finish without submitting.
+      return {
+        status: true,
+      };
+    }
+
+    const {
+      wallet: refreshedWallet,
+      onChainAccount: refreshedOnChainAccount,
+      transaction: refreshedTransaction,
+    } = refreshed;
+
+    refreshedWallet.signTransaction(refreshedTransaction);
 
     const transactionId = await this.#transactionService.sendTransaction({
-      wallet,
-      onChainAccount,
+      wallet: refreshedWallet,
+      onChainAccount: refreshedOnChainAccount,
       scope,
-      transaction,
+      transaction: refreshedTransaction,
     });
 
     await this.#transactionService.savePendingKeyringTransactionSafe({
@@ -192,6 +213,54 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     return {
       status: true,
       transactionId,
+    };
+  }
+
+  async #refreshTransactionAfterConfirmation(params: {
+    request: ChangeTrustOptJsonRpcRequest;
+    confirmedTransaction: Transaction;
+    action: ChangeTrustOptAction;
+    limit?: string;
+  }): Promise<{
+    wallet: ResolvedActivatedAccount['wallet'];
+    onChainAccount: ResolvedActivatedAccount['onChainAccount'];
+    transaction: Transaction;
+  } | null> {
+    const { request, confirmedTransaction, action, limit } = params;
+    const { assetId } = request.params;
+    // Resolve again after the user confirms so sequence, balances, and fees are fresh before signing.
+    // sendTransaction still handles txBadSeq races that happen after this refresh.
+    const { wallet, onChainAccount } = await this.resolveAccount(request);
+
+    if (action === ChangeTrustOptAction.Add) {
+      const asset = onChainAccount.getAsset(assetId);
+      if (asset?.limit?.gt(0)) {
+        return null;
+      }
+    }
+
+    if (
+      action === ChangeTrustOptAction.Delete &&
+      !onChainAccount.hasAsset(assetId)
+    ) {
+      throw new TrustlineNotFoundException(assetId, onChainAccount.accountId);
+    }
+
+    const refreshedTransaction = await this.#createTransaction({
+      request,
+      onChainAccount,
+      limit,
+    });
+
+    assertRefreshedTransactionFeeNotHigher({
+      confirmedTransaction,
+      refreshedTransaction,
+    });
+
+    return {
+      wallet,
+      onChainAccount,
+      transaction: refreshedTransaction,
     };
   }
 

@@ -364,6 +364,101 @@ describe('ConfirmSendHandler', () => {
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
+  it('rebuilds the transaction after confirmation before signing', async () => {
+    const {
+      handler,
+      onChainAccount,
+      wallet,
+      transaction,
+      createValidatedSendTransaction,
+      signTransactionSpy,
+      sendTransaction,
+    } = setup();
+    const refreshedTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: destinationAddress,
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            amount: '1',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '2',
+        },
+      },
+    );
+    createValidatedSendTransaction
+      .mockResolvedValueOnce(transaction)
+      .mockResolvedValueOnce(refreshedTransaction);
+
+    await handler.handle(baseRequest());
+
+    expect(createValidatedSendTransaction).toHaveBeenCalledTimes(2);
+    expect(signTransactionSpy).toHaveBeenCalledWith(refreshedTransaction);
+    expect(sendTransaction).toHaveBeenCalledWith({
+      wallet,
+      onChainAccount,
+      scope,
+      transaction: refreshedTransaction,
+      pollTransaction: false,
+    });
+  });
+
+  it('returns invalid when refreshed transaction fee is higher than confirmed fee', async () => {
+    const {
+      handler,
+      wallet,
+      transaction,
+      createValidatedSendTransaction,
+      signTransactionSpy,
+      sendTransaction,
+    } = setup();
+    const higherFeeTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: destinationAddress,
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            amount: '1',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '2',
+        },
+        baseFeePerOperation: '300',
+      },
+    );
+    createValidatedSendTransaction
+      .mockResolvedValueOnce(transaction)
+      .mockResolvedValueOnce(higherFeeTransaction);
+
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(signTransactionSpy).not.toHaveBeenCalled();
+    expect(sendTransaction).not.toHaveBeenCalled();
+  });
+
   it('returns insufficient balance when createValidatedSendTransaction throws InsufficientBalanceException', async () => {
     const { handler, createValidatedSendTransaction } = setup();
     createValidatedSendTransaction.mockRejectedValueOnce(

@@ -11,6 +11,7 @@ import {
   ConfirmSendJsonRpcResponseStruct,
   MultiChainSendErrorCodes,
 } from './api';
+import { assertRefreshedTransactionFeeNotHigher } from './transactionRefresh';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
@@ -109,11 +110,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     request: ConfirmSendJsonRpcRequest,
   ): Promise<ConfirmSendJsonRpcResponse> {
     try {
-      const {
-        wallet,
-        onChainAccount,
-        account: stellarKeyringAccount,
-      } = resolved;
+      const { onChainAccount, account: stellarKeyringAccount } = resolved;
       const { amount, toAddress, assetId, scope } = request.params;
       const assetMetadata = await this.#assetMetadataService.resolve(assetId);
       const { decimals, symbol } = assetMetadata.units[0];
@@ -169,13 +166,23 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         chainIdCaip: scope,
       });
 
-      wallet.signTransaction(transaction);
+      const {
+        wallet: refreshedWallet,
+        onChainAccount: refreshedOnChainAccount,
+        transaction: refreshedTransaction,
+      } = await this.#refreshTransactionAfterConfirmation({
+        request,
+        confirmedTransaction: transaction,
+        amount: amountInSmallestUnit,
+      });
+
+      refreshedWallet.signTransaction(refreshedTransaction);
 
       const transactionId = await this.#transactionService.sendTransaction({
-        wallet,
-        onChainAccount,
+        wallet: refreshedWallet,
+        onChainAccount: refreshedOnChainAccount,
         scope,
-        transaction,
+        transaction: refreshedTransaction,
         pollTransaction: false,
       });
 
@@ -235,6 +242,42 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
       }
       throw error;
     }
+  }
+
+  async #refreshTransactionAfterConfirmation(params: {
+    request: ConfirmSendJsonRpcRequest;
+    confirmedTransaction: Transaction;
+    amount: BigNumber;
+  }): Promise<{
+    wallet: ResolvedActivatedAccount['wallet'];
+    onChainAccount: ResolvedActivatedAccount['onChainAccount'];
+    transaction: Transaction;
+  }> {
+    const { request, confirmedTransaction, amount } = params;
+    const { assetId, toAddress, scope } = request.params;
+    // Resolve again after the user confirms so sequence, balances, and fees are fresh before signing.
+    // sendTransaction still handles txBadSeq races that happen after this refresh.
+    const { wallet, onChainAccount } = await this.resolveAccount(request);
+
+    const refreshedTransaction =
+      await this.#transactionService.createValidatedSendTransaction({
+        onChainAccount,
+        scope,
+        assetId,
+        amount,
+        destination: toAddress,
+      });
+
+    assertRefreshedTransactionFeeNotHigher({
+      confirmedTransaction,
+      refreshedTransaction,
+    });
+
+    return {
+      wallet,
+      onChainAccount,
+      transaction: refreshedTransaction,
+    };
   }
 
   async #confirmSend(params: {
