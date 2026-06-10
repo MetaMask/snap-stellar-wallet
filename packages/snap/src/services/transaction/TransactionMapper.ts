@@ -112,6 +112,10 @@ export class TransactionMapper {
       );
     }
 
+    // Receive transaction: if any operation credits the account (payment, create account,
+    // path payment strict receive, or path payment strict send where destination is the account),
+    // regardless of source. 
+    // Self-swap and self-send will not fall into this category, as they are classified as swap and send respectively.
     if (isReceiveTransaction(transaction, address)) {
       return this.#mapReceiveTransaction(transaction, keyringAccount);
     }
