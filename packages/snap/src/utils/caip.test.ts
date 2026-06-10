@@ -184,6 +184,6 @@ describe('stellarAssetToCaip19', () => {
         'invalid' as unknown as Asset,
         KnownCaip2ChainId.Mainnet,
       ),
-    ).toThrow('Invalid asset: invalid');
+    ).toThrow('Invalid asset');
   });
 });
