@@ -107,3 +107,8 @@ export const MEMO_REQUIRED_KEY = 'config.memo_required';
  * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0029.md
  */
 export const ACCOUNT_REQUIRES_MEMO = 'MQ==';
+
+/**
+ * The dust payment amount for the Stellar network.
+ */
+export const DUST_XLM_AMOUNT = '0.0000001';
