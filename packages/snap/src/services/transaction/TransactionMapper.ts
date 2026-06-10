@@ -456,9 +456,9 @@ export class TransactionMapper {
 
     if (operation.type === StellarOperationType.PathPaymentStrictSend) {
       return this.#assetToKeyringAssetRow(
-        operation.sendAsset,
+        operation.destAsset,
         scope,
-        operation.sendAmount,
+        operation.destMin,
       );
     }
 
