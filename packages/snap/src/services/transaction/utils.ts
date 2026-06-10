@@ -292,7 +292,7 @@ export function isPathPaymentOperation(
 }
 
 /**
- * Detects if the transaction is a swap based on the operation type that craft from Bridge API.
+ * Detects if the transaction is a swap based on the operation types crafted by the Bridge API.
  *
  * @param transaction - The transaction to check.
  * @param accountAddress - The Stellar address of the transaction owner.
@@ -478,10 +478,10 @@ export function isReceiveOperation(
     // Create account operation that creates the account, regardless the source account.
     (operation.type === StellarOperationType.CreateAccount &&
       operation.destination === accountAddress) ||
-    // Path payment strict receive operation that receives from the account, regardless the source account.
+    // Path payment strict receive operation that credits the account, regardless of the source account.
     (operation.type === StellarOperationType.PathPaymentStrictReceive &&
       operation.destination === accountAddress) ||
-    // Path payment strict send operation that sends from the account, regardless the source account.
+    // Path payment strict send operation that credits the account, regardless of the source account.
     (operation.type === StellarOperationType.PathPaymentStrictSend &&
       operation.destination === accountAddress)
   );

@@ -47,32 +47,32 @@ export class TransactionMapper {
   mapTransaction({
     transaction,
     keyringAccount,
-    transcationFromState,
+    transactionFromState,
   }: {
     transaction: Transaction;
     keyringAccount: StellarKeyringAccount;
-    transcationFromState?: KeyringTransaction;
+    transactionFromState?: KeyringTransaction;
   }): KeyringTransaction | undefined {
     if (!transaction.rawData || !transaction.id) {
       throw new TransactionMapperException(
-        'Transaction raw data or id is required, it looks like the transaction is not from a on-chain transaction record.',
+        'Transaction raw data and id are required; this transaction does not appear to be sourced from an on-chain transaction record',
       );
     }
 
-    if (transcationFromState) {
+    if (transactionFromState) {
       // In Stellar, if a transaction is still pending, it will not able to fetch.
       // Therefore, we are safe to assume when we get a onchain transaction, we can just update the status and fees.
-      return this.#mapUpdatedTransaction(transaction, transcationFromState);
+      return this.#mapUpdatedTransaction(transaction, transactionFromState);
     }
 
     if (isDustPaymentTransaction(transaction, keyringAccount.address)) {
       return undefined; // Skip dust payment transactions.
     }
 
-    return this.#mapTansaction(transaction, keyringAccount);
+    return this.#mapTransaction(transaction, keyringAccount);
   }
 
-  #mapTansaction(
+  #mapTransaction(
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
   ): KeyringTransaction {
@@ -114,7 +114,7 @@ export class TransactionMapper {
 
     // Receive transaction: if any operation credits the account (payment, create account,
     // path payment strict receive, or path payment strict send where destination is the account),
-    // regardless of source. 
+    // regardless of source.
     // Self-swap and self-send will not fall into this category, as they are classified as swap and send respectively.
     if (isReceiveTransaction(transaction, address)) {
       return this.#mapReceiveTransaction(transaction, keyringAccount);
@@ -127,13 +127,13 @@ export class TransactionMapper {
 
   #mapUpdatedTransaction(
     transaction: Transaction,
-    transcationFromState: KeyringTransaction,
+    transactionFromState: KeyringTransaction,
   ): KeyringTransaction {
     return {
-      ...transcationFromState,
+      ...transactionFromState,
       fees: this.#getBaseFees(transaction),
       events: [
-        ...transcationFromState.events,
+        ...transactionFromState.events,
         {
           status: transaction.status,
           timestamp: this.#getCreateTime(transaction),
@@ -218,7 +218,7 @@ export class TransactionMapper {
       });
     }
 
-    throw new TransactionMapperException('Unbale to map a send transaction');
+    throw new TransactionMapperException('Unable to map a send transaction');
   }
 
   #mapUnknownTransaction(
@@ -267,7 +267,7 @@ export class TransactionMapper {
       });
     }
 
-    throw new TransactionMapperException('Unbale to map a swap transaction');
+    throw new TransactionMapperException('Unable to map a swap transaction');
   }
 
   #mapChangeTrustTransaction(
@@ -302,7 +302,7 @@ export class TransactionMapper {
       });
     }
     throw new TransactionMapperException(
-      'Unbale to map a change trust transaction',
+      'Unable to map a change trust transaction',
     );
   }
 
@@ -310,7 +310,7 @@ export class TransactionMapper {
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
   ): KeyringTransaction {
-    // We normalize the receive operation assets and amounts to a single array.
+    // We currently take the first receive operation asset (deduplicated by asset id).
     const [receiveAsset] = this.#extractReceiveOperationAssetAndAmount(
       transaction,
       keyringAccount.address,
@@ -339,7 +339,7 @@ export class TransactionMapper {
         },
       });
     }
-    throw new TransactionMapperException('Unbale to map a receive transaction');
+    throw new TransactionMapperException('Unable to map a receive transaction');
   }
 
   #getBaseFees(transaction: Transaction): KeyringTransaction['fees'] {
@@ -382,12 +382,12 @@ export class TransactionMapper {
   }
 
   /**
-   * Aggregates the assets and amounts credited by receive operations from a transaction.
+   * Collects unique assets credited by receive operations (deduplicated by CAIP-19 id).
    *
    * @param transaction - Stellar transaction to extract receive operation assets from.
    * @param accountAddress - Stellar address to check for incoming credits.
    * @param scope - CAIP-2 chain used to encode asset ids.
-   * @returns Array of receive operation assets and amounts.
+   * @returns Deduplicated receive-operation assets (amounts are not summed when multiple operations credit the same asset).
    */
   #extractReceiveOperationAssetAndAmount(
     transaction: Transaction,

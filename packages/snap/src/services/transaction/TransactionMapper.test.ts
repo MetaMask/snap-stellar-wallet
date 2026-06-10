@@ -388,7 +388,7 @@ describe('TransactionMapper', () => {
     ).toBeUndefined();
   });
 
-  it('merges pending state when transcationFromState is provided', () => {
+  it('merges pending state when transactionFromState is provided', () => {
     const { keyringAccount, transactionMapper } = setup();
     const built = buildMockClassicTransaction(
       [
@@ -422,7 +422,7 @@ describe('TransactionMapper', () => {
     const keyringTransaction = transactionMapper.mapTransaction({
       transaction,
       keyringAccount,
-      transcationFromState: pendingFromState,
+      transactionFromState: pendingFromState,
     });
 
     expect(keyringTransaction).toStrictEqual({

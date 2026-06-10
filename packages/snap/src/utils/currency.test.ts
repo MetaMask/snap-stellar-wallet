@@ -56,7 +56,8 @@ describe('removeTrailingZeros', () => {
     expect(removeTrailingZeros('12.345000')).toBe('12.345');
   });
 
-  it('returns 0 when the number is 0', () => {
+  it('does not strip zeros from integer strings', () => {
+    expect(removeTrailingZeros('10')).toBe('10');
     expect(removeTrailingZeros('0')).toBe('0');
   });
 });

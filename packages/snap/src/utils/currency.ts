@@ -69,10 +69,6 @@ export function toDisplayBalance(
   const fixed = normalizeAmount(amountInSmallestUnit, decimalPlaces).toFixed(
     decimalPlaces,
   );
-  if (!fixed.includes('.')) {
-    return fixed;
-  }
-
   return removeTrailingZeros(fixed);
 }
 
@@ -83,6 +79,9 @@ export function toDisplayBalance(
  * @returns The amount with trailing zeros removed.
  */
 export function removeTrailingZeros(amount: string): string {
+  if (!amount.includes('.')) {
+    return amount;
+  }
   const trimmed = amount.replace(/0+$/u, '').replace(/\.$/u, '');
   return trimmed === '' ? '0' : trimmed;
 }
