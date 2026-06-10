@@ -329,10 +329,11 @@ describe('ConfirmSendHandler', () => {
         account,
         scope,
         toAddress: destinationAddress,
-        amount: '1',
         asset: {
           type: assetId,
-          symbol: 'USDC',
+          unit: 'USDC',
+          amount: '1',
+          fungible: true,
         },
       },
     });

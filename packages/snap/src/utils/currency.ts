@@ -72,7 +72,18 @@ export function toDisplayBalance(
   if (!fixed.includes('.')) {
     return fixed;
   }
-  const trimmed = fixed.replace(/0+$/u, '').replace(/\.$/u, '');
+
+  return removeTrailingZeros(fixed);
+}
+
+/**
+ * Removes trailing zeros from a decimal number.
+ *
+ * @param amount - The amount to remove trailing zeros from.
+ * @returns The amount with trailing zeros removed.
+ */
+export function removeTrailingZeros(amount: string): string {
+  const trimmed = amount.replace(/0+$/u, '').replace(/\.$/u, '');
   return trimmed === '' ? '0' : trimmed;
 }
 

@@ -21,10 +21,13 @@ describe('KeyringTransactionBuilder', () => {
     address: 'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
   } as StellarKeyringAccount;
   const scope = KnownCaip2ChainId.Mainnet;
-  const nativeAsset = {
-    type: 'stellar:pubnet/slip44:148' as const,
-    symbol: 'XLM',
-  };
+  const nativeAsset = (amount: string) =>
+    ({
+      type: 'stellar:pubnet/slip44:148' as const,
+      unit: 'XLM',
+      amount,
+      fungible: true as const,
+    }) as const;
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -45,8 +48,7 @@ describe('KeyringTransactionBuilder', () => {
         account,
         scope,
         toAddress: 'GBQ67YZIDIMGS4UE2VXW4BBLRW6QJJQ6D6L5AXR5TBKX2L6IY3LCLTTR',
-        amount: '1230000',
-        asset: nativeAsset,
+        asset: nativeAsset('1230000'),
       },
     });
 
@@ -97,7 +99,9 @@ describe('KeyringTransactionBuilder', () => {
         scope,
         asset: {
           type: 'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
-          symbol: 'USDC',
+          unit: 'USDC',
+          amount: '0',
+          fungible: true as const,
         },
       },
     });
@@ -144,7 +148,9 @@ describe('KeyringTransactionBuilder', () => {
         status: TransactionStatus.Confirmed,
         asset: {
           type: 'stellar:pubnet/asset:USDT-GCEZWKPH6X7R2SDYB7V4LGAU5N5LE6L4P7J6LQEXAMPLE1234567890',
-          symbol: 'USDT',
+          unit: 'USDT',
+          amount: '0',
+          fungible: true as const,
         },
       },
     });
@@ -187,7 +193,10 @@ describe('KeyringTransactionBuilder', () => {
         txId: 'tx-pending-1',
         account,
         scope,
-        asset: nativeAsset,
+        asset: {
+          type: 'stellar:pubnet/slip44:148',
+          symbol: 'XLM',
+        },
       },
     });
 
@@ -212,6 +221,62 @@ describe('KeyringTransactionBuilder', () => {
             unit: 'XLM',
             type: 'stellar:pubnet/slip44:148',
             amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      events: [
+        { status: TransactionStatus.Unconfirmed, timestamp: fixedTimestamp },
+      ],
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      account: account.id,
+      timestamp: fixedTimestamp,
+      fees: [],
+    });
+  });
+
+  it('creates a swap transaction with expected keyring fields', () => {
+    const builder = new KeyringTransactionBuilder();
+
+    const transaction = builder.createTransaction({
+      type: KeyringTransactionType.Swap,
+      request: {
+        txId: 'tx-swap-1',
+        account,
+        scope,
+        toAddress: account.address,
+        fromAsset: nativeAsset('10000000'),
+        toAsset: {
+          type: 'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+          unit: 'USDC',
+          amount: '5000000',
+          fungible: true as const,
+        },
+      },
+    });
+
+    expect(transaction).toStrictEqual({
+      type: TransactionType.Swap,
+      id: 'tx-swap-1',
+      from: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '10000000',
+            fungible: true,
+          },
+        },
+      ],
+      to: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'USDC',
+            type: 'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            amount: '5000000',
             fungible: true,
           },
         },

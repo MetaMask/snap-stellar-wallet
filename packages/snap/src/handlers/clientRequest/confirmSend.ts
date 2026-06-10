@@ -186,10 +186,11 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           account: stellarKeyringAccount,
           scope,
           toAddress,
-          amount,
           asset: {
             type: assetId,
-            symbol,
+            unit: symbol,
+            amount,
+            fungible: true as const,
           },
         },
       });

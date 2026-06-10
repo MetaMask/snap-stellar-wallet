@@ -1,6 +1,13 @@
+import {
+  TransactionStatus,
+  type Transaction as KeyringTransaction,
+} from '@metamask/keyring-api';
 import { parseCaipAssetType } from '@metamask/utils';
+import type { Operation } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
+import { BigNumber } from 'bignumber.js';
 
+import { StellarOperationType } from './api';
 import {
   InvalidInvokeContractStructureException,
   RequiresMemoException,
@@ -17,6 +24,8 @@ import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
 } from '../../api';
+import { SwapTransactionXdrStruct } from '../../api';
+import { DUST_XLM_AMOUNT } from '../../constants';
 import {
   getSlip44AssetId,
   isClassicAssetId,
@@ -263,4 +272,269 @@ export function parseExpirationMaxTime(
     return undefined;
   }
   return parsed;
+}
+
+/**
+ * Detects if the operation is a path payment operation.
+ *
+ * @param operation - The operation to check.
+ * @returns Whether the operation is a path payment operation.
+ */
+export function isPathPaymentOperation(
+  operation: Operation,
+): operation is
+  | Operation.PathPaymentStrictSend
+  | Operation.PathPaymentStrictReceive {
+  return (
+    operation.type === StellarOperationType.PathPaymentStrictSend ||
+    operation.type === StellarOperationType.PathPaymentStrictReceive
+  );
+}
+
+/**
+ * Detects if the transaction is a swap based on the operation type that craft from Bridge API.
+ *
+ * @param transaction - The transaction to check.
+ * @param accountAddress - The Stellar address of the transaction owner.
+ * @returns Whether the transaction is a self-to-self bridge swap.
+ */
+export function isSwapTransaction(
+  transaction: Transaction,
+  accountAddress: string,
+): boolean {
+  const isSwapXdr = SwapTransactionXdrStruct.is(transaction.getRaw().toXDR());
+  const isSourceAccount = transaction.sourceAccount === accountAddress;
+  if (!isSwapXdr || !isSourceAccount) {
+    return false;
+  }
+  return transaction.transactionOperations.some(
+    (operation) =>
+      isPathPaymentOperation(operation) &&
+      operation.destination === accountAddress,
+  );
+}
+
+/**
+ * Detects if the transaction is a bridge send from the Bridge API XDR envelope.
+ *
+ * @param transaction - The transaction to check.
+ * @param accountAddress - The Stellar address of the transaction owner.
+ * @returns Whether the transaction is a single-operation bridge send.
+ */
+export function isBridgeSendTransaction(
+  transaction: Transaction,
+  accountAddress: string,
+): boolean {
+  const isSwapXdr = SwapTransactionXdrStruct.is(transaction.getRaw().toXDR());
+  const isSourceAccount = transaction.sourceAccount === accountAddress;
+  if (!isSwapXdr || !isSourceAccount) {
+    return false;
+  }
+  const operationTypes = transaction.transactionOperations;
+  const [firstOperation] = operationTypes;
+  if (
+    operationTypes.length === 1 &&
+    firstOperation &&
+    [
+      StellarOperationType.InvokeHostFunction,
+      StellarOperationType.Payment,
+      StellarOperationType.PathPaymentStrictSend,
+      StellarOperationType.PathPaymentStrictReceive,
+    ].includes(firstOperation.type as StellarOperationType)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detects if the transaction is a change-trust opt-in (limit > 0).
+ *
+ * @param transaction - The transaction to check.
+ * @param accountAddress - The Stellar address of the transaction owner.
+ * @returns Whether all operations are change-trust opt-ins for the account.
+ */
+export function isAddChangeTrustTransaction(
+  transaction: Transaction,
+  accountAddress: string,
+): boolean {
+  const operationTypes = transaction.transactionOperations;
+  const isSourceAccount = transaction.sourceAccount === accountAddress;
+  if (
+    isSourceAccount &&
+    operationTypes.every(
+      (operation) =>
+        operation.type === StellarOperationType.ChangeTrust &&
+        // We consider any non-zero limit as an opt-in.
+        new BigNumber(operation.limit).isGreaterThan(0),
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Detects if the transaction is a change-trust opt-out (limit = 0).
+ *
+ * @param transaction - The transaction to check.
+ * @param accountAddress - The Stellar address of the transaction owner.
+ * @returns Whether all operations are change-trust removals for the account.
+ */
+export function isRemoveChangeTrustTransaction(
+  transaction: Transaction,
+  accountAddress: string,
+): boolean {
+  const isSourceAccount = transaction.sourceAccount === accountAddress;
+  const operationTypes = transaction.transactionOperations;
+  if (
+    isSourceAccount &&
+    operationTypes.every(
+      (operation) =>
+        operation.type === StellarOperationType.ChangeTrust &&
+        new BigNumber(operation.limit).isZero(),
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detects if the transaction is a send (payment or create-account operations only).
+ *
+ * @param transaction - The transaction to check.
+ * @param accountAddress - The Stellar address of the transaction owner.
+ * @returns Whether the transaction is a send from the account.
+ */
+export function isSendTransaction(
+  transaction: Transaction,
+  accountAddress: string,
+): boolean {
+  const operationTypes = transaction.transactionOperations;
+  const isSourceAccount = transaction.sourceAccount === accountAddress;
+  if (
+    isSourceAccount &&
+    operationTypes.every(
+      (operation) =>
+        operation.type === StellarOperationType.Payment ||
+        operation.type === StellarOperationType.CreateAccount,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detects if the transaction is a dust payment transaction.
+ *
+ * @param transaction - The transaction to check.
+ * @param accountAddress - The Stellar address of the transaction owner.
+ * @returns Whether the transaction is a dust payment transaction.
+ */
+export function isDustPaymentTransaction(
+  transaction: Transaction,
+  accountAddress: string,
+): boolean {
+  const operationTypes = transaction.transactionOperations;
+  if (
+    operationTypes.some(
+      (operation) =>
+        operation.type === StellarOperationType.Payment &&
+        operation.destination === accountAddress &&
+        operation.asset.isNative() &&
+        operation.amount === DUST_XLM_AMOUNT,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detects whether a Stellar operation credits the given account.
+ *
+ * A receive operation is one where `accountAddress` is the destination,
+ * regardless of who signed or sourced the transaction.
+ *
+ * @param operation - Stellar operation to evaluate.
+ * @param accountAddress - Stellar address that may receive funds from the operation.
+ * @returns Whether the operation credits `accountAddress`.
+ */
+export function isReceiveOperation(
+  operation: Operation,
+  accountAddress: string,
+): operation is
+  | Operation.Payment
+  | Operation.CreateAccount
+  | Operation.PathPaymentStrictReceive
+  | Operation.PathPaymentStrictSend {
+  return (
+    // Payment operation that sends to the account, regardless the source account.
+    (operation.type === StellarOperationType.Payment &&
+      operation.destination === accountAddress) ||
+    // Create account operation that creates the account, regardless the source account.
+    (operation.type === StellarOperationType.CreateAccount &&
+      operation.destination === accountAddress) ||
+    // Path payment strict receive operation that receives from the account, regardless the source account.
+    (operation.type === StellarOperationType.PathPaymentStrictReceive &&
+      operation.destination === accountAddress) ||
+    // Path payment strict send operation that sends from the account, regardless the source account.
+    (operation.type === StellarOperationType.PathPaymentStrictSend &&
+      operation.destination === accountAddress)
+  );
+}
+
+/**
+ * Detects whether a transaction includes any operation that credits the given account.
+ *
+ * @param transaction - Wrapped on-chain transaction.
+ * @param accountAddress - Stellar address to check for incoming credits.
+ * @returns Whether at least one operation in the transaction credits `accountAddress`.
+ */
+export function isReceiveTransaction(
+  transaction: Transaction,
+  accountAddress: string,
+): boolean {
+  const operationTypes = transaction.transactionOperations;
+  if (
+    operationTypes.some((operation) =>
+      isReceiveOperation(operation, accountAddress),
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detects if the transaction status is pending.
+ *
+ * @param status - The transaction status to check.
+ * @returns Whether the transaction status is pending.
+ */
+export function isPendingTransactionStatus(
+  status: KeyringTransaction['status'],
+): boolean {
+  return (
+    status === `${TransactionStatus.Submitted}` ||
+    status === `${TransactionStatus.Unconfirmed}`
+  );
+}
+
+/**
+ * Detects if the transaction status is terminal (confirmed or failed).
+ *
+ * @param status - The transaction status to check.
+ * @returns Whether the transaction status is completed.
+ */
+export function isCompletedTransactionStatus(
+  status: KeyringTransaction['status'],
+): boolean {
+  return (
+    status === `${TransactionStatus.Failed}` ||
+    status === `${TransactionStatus.Confirmed}`
+  );
 }

@@ -9,6 +9,7 @@ import {
   normalizeAmount,
   tokenToFiat,
   toSmallestUnit,
+  removeTrailingZeros,
 } from './currency';
 
 describe('toSmallestUnit', () => {
@@ -47,6 +48,16 @@ describe('toDisplayBalance', () => {
 
   it('trims trailing zeros while keeping significant fractional digits', () => {
     expect(toDisplayBalance(new BigNumber(10), 7)).toBe('0.000001');
+  });
+});
+
+describe('removeTrailingZeros', () => {
+  it('removes trailing zeros from a decimal number', () => {
+    expect(removeTrailingZeros('12.345000')).toBe('12.345');
+  });
+
+  it('returns 0 when the number is 0', () => {
+    expect(removeTrailingZeros('0')).toBe('0');
   });
 });
 
