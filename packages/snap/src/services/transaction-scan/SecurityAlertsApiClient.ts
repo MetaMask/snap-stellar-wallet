@@ -2,10 +2,13 @@
 import { assert } from '@metamask/superstruct';
 
 import {
+  ScanTokenResponseStruct,
   StellarTransactionScanResponseStruct,
   type SecurityAlertsMetadata,
+  type ScanTokenResponse,
   type StellarTransactionScanRequest,
   type StellarTransactionScanResponse,
+  type TokenScanRequest,
   type TransactionScanOption,
 } from './api';
 import { TransactionScanException } from './exceptions';
@@ -107,6 +110,56 @@ export class SecurityAlertsApiClient {
     }
   }
 
+  async scanToken({
+    chain,
+    address,
+    origin,
+  }: {
+    chain: TokenScanRequest['chain'];
+    address: string;
+    origin: string;
+  }): Promise<ScanTokenResponse> {
+    try {
+      const url = buildUrl({
+        baseUrl: this.#baseUrl,
+        path: '/token/scan',
+      });
+
+      const requestBody: TokenScanRequest = {
+        chain,
+        address,
+        metadata: this.#getTokenMetadata(origin),
+      };
+
+      const response = await this.#fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+        },
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new TransactionScanException(
+          `HTTP error! status: ${response.status}`,
+        );
+      }
+
+      const data = await response.json();
+      assert(data, ScanTokenResponseStruct);
+
+      return data;
+    } catch (error) {
+      this.#logger.logErrorWithDetails('Error scanning Stellar token', error);
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TransactionScanException],
+        new TransactionScanException('Error scanning Stellar token'),
+      );
+    }
+  }
+
   #getMetadata(origin: string): SecurityAlertsMetadata {
     try {
       const url = new URL(origin);
@@ -117,6 +170,18 @@ export class SecurityAlertsApiClient {
     } catch {
       return {
         type: 'in_app',
+      };
+    }
+  }
+
+  #getTokenMetadata(origin: string): NonNullable<TokenScanRequest['metadata']> {
+    try {
+      return {
+        domain: new URL(origin).origin,
+      };
+    } catch {
+      return {
+        domain: origin,
       };
     }
   }

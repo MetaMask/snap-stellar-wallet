@@ -1,7 +1,9 @@
-import { TransactionScanOption } from './api';
+import { TokenScanResultType, TransactionScanOption } from './api';
 import type {
+  ScanTokenResponse,
   StellarAssetDiff,
   StellarTransactionScanResponse,
+  TokenScanResult,
   TransactionScanAssetChange,
   TransactionScanError,
   TransactionScanResult,
@@ -61,6 +63,27 @@ export class TransactionScanService {
     }
   }
 
+  async scanToken({
+    assetReference,
+    origin,
+  }: {
+    assetReference: string;
+    origin: string;
+  }): Promise<TokenScanResult | null> {
+    try {
+      const result = await this.#securityAlertsApiClient.scanToken({
+        chain: 'stellar',
+        address: assetReference,
+        origin,
+      });
+
+      return this.#mapTokenScan(result);
+    } catch (error) {
+      this.#logger.logErrorWithDetails('Error scanning Stellar token', error);
+      return null;
+    }
+  }
+
   #mapScan(
     result: StellarTransactionScanResponse,
     options: TransactionScanOption[],
@@ -97,6 +120,17 @@ export class TransactionScanService {
           ? this.#mapValidation(validation)
           : null,
       error,
+    };
+  }
+
+  #mapTokenScan(result: ScanTokenResponse): TokenScanResult {
+    const resultType = result.result_type as TokenScanResultType;
+    return {
+      resultType,
+      isMalicious: resultType === TokenScanResultType.Malicious,
+      isWarning: resultType === TokenScanResultType.Warning,
+      name: result.metadata?.name ?? null,
+      symbol: result.metadata?.symbol ?? null,
     };
   }
 

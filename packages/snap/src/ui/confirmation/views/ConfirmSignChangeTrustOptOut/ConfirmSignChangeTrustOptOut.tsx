@@ -30,16 +30,19 @@ import {
   Asset,
   AssetIcon,
   FeeRow,
+  TokenScanAlert,
   TransactionAlert,
   TransactionValidationAlert,
 } from '../../components';
 import {
+  ConfirmationBanner,
   getAccountName,
   getClassicAssetExplorerUrl,
-  hasEnabledTransactionScan,
-  isConfirmDisabledByScan,
-  isConfirmDisabledByTransactionValidation,
   getNetworkName,
+  isConfirmDisabledByScan,
+  isConfirmDisabledByTokenScan,
+  isConfirmDisabledByTransactionValidation,
+  resolveConfirmationBanner,
 } from '../../utils';
 
 export type ConfirmSignChangeTrustOptOutProps = ConfirmationBaseProps &
@@ -62,30 +65,54 @@ export const ConfirmSignChangeTrustOptOut = ({
   tokenPricesFetchStatus = FetchStatus.Initial,
   scan,
   scanFetchStatus = FetchStatus.Initial,
+  tokenScan,
+  tokenScanFetchStatus = FetchStatus.Initial,
   transactionsFetchStatus = FetchStatus.Initial,
 }: ConfirmSignChangeTrustOptOutProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
+  const banner = resolveConfirmationBanner({
+    preferences,
+    transactionsFetchStatus,
+    scan,
+    scanFetchStatus,
+    tokenScan,
+    tokenScanFetchStatus,
+  });
   const shouldDisableConfirmButton =
     isConfirmDisabledByScan({
       preferences,
       scan,
       scanFetchStatus,
-    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
+    }) ||
+    isConfirmDisabledByTokenScan({
+      preferences,
+      tokenScan,
+      tokenScanFetchStatus,
+    }) ||
+    isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
 
   return (
     <Container>
       <Box>
-        <TransactionValidationAlert
-          preferences={preferences}
-          transactionsFetchStatus={transactionsFetchStatus}
-        />
-        {transactionsFetchStatus !== FetchStatus.Error &&
-        hasEnabledTransactionScan(preferences) ? (
+        {banner === ConfirmationBanner.ValidationError ? (
+          <TransactionValidationAlert
+            preferences={preferences}
+            transactionsFetchStatus={transactionsFetchStatus}
+          />
+        ) : null}
+        {banner === ConfirmationBanner.TransactionScan ? (
           <TransactionAlert
             scanFetchStatus={scanFetchStatus}
             validation={scan?.validation ?? null}
             error={scan?.error ?? null}
+            preferences={preferences}
+          />
+        ) : null}
+        {banner === ConfirmationBanner.TokenScan ? (
+          <TokenScanAlert
+            tokenScanFetchStatus={tokenScanFetchStatus}
+            tokenScan={tokenScan ?? null}
             preferences={preferences}
           />
         ) : null}

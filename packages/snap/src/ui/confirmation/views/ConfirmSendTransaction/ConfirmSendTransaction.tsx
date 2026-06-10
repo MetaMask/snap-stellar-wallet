@@ -34,14 +34,15 @@ import {
   TransactionValidationAlert,
 } from '../../components';
 import {
+  ConfirmationBanner,
   getAccountExplorerUrl,
   getAccountName,
   getClassicAssetExplorerUrl,
   getNetworkName,
   getSepAssetExplorerUrl,
-  hasEnabledTransactionScan,
   isConfirmDisabledByScan,
   isConfirmDisabledByTransactionValidation,
+  resolveConfirmationBanner,
 } from '../../utils';
 
 export type ConfirmSendTransactionProps = ConfirmationBaseProps &
@@ -74,6 +75,12 @@ export const ConfirmSendTransaction = ({
   const t = i18n(locale);
   const { address } = account;
   const { assetId, symbol } = assetMetadata;
+  const banner = resolveConfirmationBanner({
+    preferences,
+    transactionsFetchStatus,
+    scan,
+    scanFetchStatus,
+  });
   const shouldDisableConfirmButton =
     isConfirmDisabledByScan({
       preferences,
@@ -94,12 +101,13 @@ export const ConfirmSendTransaction = ({
   return (
     <Container>
       <Box>
-        <TransactionValidationAlert
-          preferences={preferences}
-          transactionsFetchStatus={transactionsFetchStatus}
-        />
-        {transactionsFetchStatus !== FetchStatus.Error &&
-        hasEnabledTransactionScan(preferences) ? (
+        {banner === ConfirmationBanner.ValidationError ? (
+          <TransactionValidationAlert
+            preferences={preferences}
+            transactionsFetchStatus={transactionsFetchStatus}
+          />
+        ) : null}
+        {banner === ConfirmationBanner.TransactionScan ? (
           <TransactionAlert
             scanFetchStatus={scanFetchStatus}
             validation={scan?.validation ?? null}

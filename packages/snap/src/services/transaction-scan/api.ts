@@ -2,6 +2,7 @@
 import type { Infer } from '@metamask/superstruct';
 import {
   array,
+  boolean,
   enums,
   literal,
   nullable,
@@ -27,7 +28,19 @@ export enum TransactionScanValidationType {
   Malicious = 'Malicious',
 }
 
+export enum TokenScanResultType {
+  Malicious = 'Malicious',
+  Warning = 'Warning',
+  Benign = 'Benign',
+  Trusted = 'Trusted',
+  Verified = 'Verified',
+  // eslint-disable-next-line @typescript-eslint/no-shadow
+  Error = 'Error',
+}
+
 export type StellarSecurityAlertsChain = 'pubnet' | 'testnet' | 'futurenet';
+
+export type TokenSecurityAlertsChain = 'stellar';
 
 export type SecurityAlertsMetadata =
   | {
@@ -45,6 +58,33 @@ export type StellarTransactionScanRequest = {
   transaction: string;
   options?: TransactionScanOption[];
 };
+
+export type TokenScanRequest = {
+  chain: TokenSecurityAlertsChain;
+  address: string;
+  metadata?: {
+    domain: string;
+  };
+};
+
+const TokenScanMetadataStruct = type({
+  type: optional(string()),
+  name: optional(string()),
+  symbol: optional(string()),
+  decimals: optional(number()),
+});
+
+export const ScanTokenResponseStruct = type({
+  result_type: enums(Object.values(TokenScanResultType)),
+  malicious_score: optional(number()),
+  attack_types: optional(array(string())),
+  chain: string(),
+  address: string(),
+  metadata: optional(TokenScanMetadataStruct),
+  features: optional(array(unknown())),
+});
+
+export type ScanTokenResponse = Infer<typeof ScanTokenResponseStruct>;
 
 const StellarAssetTransferDetailsStruct = type({
   raw_value: number(),
@@ -193,6 +233,22 @@ export type TransactionScanResult = {
   error: TransactionScanError | null;
 };
 
+export type TokenScanResult = {
+  resultType: TokenScanResultType;
+  isMalicious: boolean;
+  isWarning: boolean;
+  name: string | null;
+  symbol: string | null;
+};
+
+export const TokenScanResultStruct = type({
+  resultType: enums(Object.values(TokenScanResultType)),
+  isMalicious: boolean(),
+  isWarning: boolean(),
+  name: nullable(string()),
+  symbol: nullable(string()),
+});
+
 export const SecurityScanRequestStruct = type({
   accountAddress: string(),
   origin: string(),
@@ -205,4 +261,16 @@ export type SecurityScanRequest = {
   origin: string;
   scope: KnownCaip2ChainId;
   transaction: string;
+};
+
+export const TokenSecurityScanRequestStruct = type({
+  assetReference: string(),
+  origin: string(),
+  scope: enums(Object.values(KnownCaip2ChainId)),
+});
+
+export type TokenSecurityScanRequest = {
+  assetReference: string;
+  origin: string;
+  scope: KnownCaip2ChainId;
 };

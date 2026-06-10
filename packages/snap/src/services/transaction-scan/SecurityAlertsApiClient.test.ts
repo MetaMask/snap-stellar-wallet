@@ -4,6 +4,7 @@ import {
   TransactionScanException,
   TransactionScanOption,
   TransactionScanValidationType,
+  TokenScanResultType,
 } from '.';
 import { KnownCaip2ChainId } from '../../api';
 import { logger } from '../../utils/logger';
@@ -14,6 +15,8 @@ describe('SecurityAlertsApiClient', () => {
   const baseUrl = 'https://security-alerts.api.cx.metamask.io';
   const accountAddress =
     'GDPMFLKUGASUTWBN2XGYYKD27QGHCYH4BUFUTER4L23INYQ4JHDWFOIE';
+  const assetReference =
+    'USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
   const transaction = 'AAAAAgAAAAA=';
 
   function setup(response: unknown = { validation: null, simulation: null }) {
@@ -98,6 +101,44 @@ describe('SecurityAlertsApiClient', () => {
     });
   });
 
+  it('posts a Stellar token scan request', async () => {
+    const { client, fetchMock } = setup({
+      result_type: TokenScanResultType.Benign,
+      chain: 'stellar',
+      address: assetReference,
+      metadata: {
+        name: 'USD Coin',
+        symbol: 'USDC',
+      },
+      features: [],
+    });
+
+    await client.scanToken({
+      chain: 'stellar',
+      address: assetReference,
+      origin: 'https://example.com/path',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${baseUrl}/token/scan`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+        },
+      }),
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string);
+    expect(body).toStrictEqual({
+      chain: 'stellar',
+      address: assetReference,
+      metadata: {
+        domain: 'https://example.com',
+      },
+    });
+  });
+
   it('throws TransactionScanException for HTTP errors', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: false,
@@ -117,6 +158,27 @@ describe('SecurityAlertsApiClient', () => {
         scope: KnownCaip2ChainId.Mainnet,
         transaction,
         options: [TransactionScanOption.Validation],
+      }),
+    ).rejects.toThrow(TransactionScanException);
+  });
+
+  it('throws TransactionScanException for token scan HTTP errors', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: jest.fn(),
+    });
+    const client = new SecurityAlertsApiClient(
+      { baseUrl },
+      logger,
+      fetchMock as unknown as typeof globalThis.fetch,
+    );
+
+    await expect(
+      client.scanToken({
+        chain: 'stellar',
+        address: assetReference,
+        origin: 'metamask',
       }),
     ).rejects.toThrow(TransactionScanException);
   });

@@ -154,6 +154,18 @@
     "confirmation.validationWarningSubtitle": {
       "message": "Security Alerts found potential risk. Only continue if you trust this site and every address involved."
     },
+    "confirmation.tokenScanMaliciousTitle": {
+      "message": "This asset may be malicious"
+    },
+    "confirmation.tokenScanMaliciousSubtitle": {
+      "message": "Security Alerts found risk for {asset}. Only continue if you trust this asset."
+    },
+    "confirmation.tokenScanWarningTitle": {
+      "message": "This asset may be risky"
+    },
+    "confirmation.tokenScanWarningSubtitle": {
+      "message": "Security Alerts found potential risk for {asset}. Only continue if you trust this asset."
+    },
     "confirmation.validationErrorLearnMore": {
       "message": "Learn more"
     },
