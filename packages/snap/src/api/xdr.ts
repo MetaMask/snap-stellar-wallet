@@ -8,6 +8,7 @@ import {
   xdr,
 } from '@stellar/stellar-sdk';
 
+import { StellarOperationType } from '../services/transaction/api';
 import { bufferToUint8Array } from '../utils/buffer';
 
 /**
@@ -51,8 +52,8 @@ function getTransactionOperationTypes(value: string): string[] {
  */
 function isPathPaymentOperation(operationType: string | undefined): boolean {
   return (
-    operationType === 'pathPaymentStrictSend' ||
-    operationType === 'pathPaymentStrictReceive'
+    operationType === StellarOperationType.PathPaymentStrictSend ||
+    operationType === StellarOperationType.PathPaymentStrictReceive
   );
 }
 
@@ -87,8 +88,8 @@ export const SwapTransactionXdrStruct = refine(
       // Soroban swap route or bridge deposit route or swap without a fee
       if (
         operationTypes.length === 1 &&
-        (firstOperation === 'invokeHostFunction' ||
-          firstOperation === 'payment' ||
+        (firstOperation === StellarOperationType.InvokeHostFunction ||
+          firstOperation === StellarOperationType.Payment ||
           isPathPaymentOperation(firstOperation))
       ) {
         return true;
@@ -98,7 +99,7 @@ export const SwapTransactionXdrStruct = refine(
       if (
         operationTypes.length === 2 &&
         isPathPaymentOperation(firstOperation) &&
-        secondOperation === 'payment'
+        secondOperation === StellarOperationType.Payment
       ) {
         return true;
       }
@@ -106,7 +107,7 @@ export const SwapTransactionXdrStruct = refine(
       // Swap and change trust without a fee
       if (
         operationTypes.length === 2 &&
-        firstOperation === 'changeTrust' &&
+        firstOperation === StellarOperationType.ChangeTrust &&
         isPathPaymentOperation(secondOperation)
       ) {
         return true;
@@ -115,9 +116,9 @@ export const SwapTransactionXdrStruct = refine(
       // Classic route requiring a new destination-asset trustline first.
       if (
         operationTypes.length === 3 &&
-        firstOperation === 'changeTrust' &&
+        firstOperation === StellarOperationType.ChangeTrust &&
         isPathPaymentOperation(secondOperation) &&
-        thirdOperation === 'payment'
+        thirdOperation === StellarOperationType.Payment
       ) {
         return true;
       }

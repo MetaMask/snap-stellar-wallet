@@ -1,3 +1,5 @@
+import { Asset } from '@stellar/stellar-sdk';
+
 import { AssetType, KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../api';
 import {
   getAssetReference,
@@ -6,6 +8,7 @@ import {
   isSep41Id,
   isSlip44Id,
   parseClassicAssetCodeIssuer,
+  stellarAssetToCaip19,
   toCaip19ClassicAssetId,
   toCaip19Sep41AssetId,
   toCaipAssetReference,
@@ -153,5 +156,34 @@ describe('parseClassicAssetCodeIssuer', () => {
     expect(() => parseClassicAssetCodeIssuer(':G123')).toThrow(
       'Invalid asset reference: :G123',
     );
+  });
+});
+
+describe('stellarAssetToCaip19', () => {
+  it('converts a native asset to a slip44 asset id', () => {
+    expect(
+      stellarAssetToCaip19(Asset.native(), KnownCaip2ChainId.Mainnet),
+    ).toBe(SLIP44_ASSET_ID);
+  });
+
+  it('converts a classic asset to a classic asset id', () => {
+    expect(
+      stellarAssetToCaip19(
+        new Asset(
+          'USDC',
+          'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+        ),
+        KnownCaip2ChainId.Mainnet,
+      ),
+    ).toBe(CLASSIC_ASSET_ID);
+  });
+
+  it('throws an error if the asset is not a valid Stellar asset', () => {
+    expect(() =>
+      stellarAssetToCaip19(
+        'invalid' as unknown as Asset,
+        KnownCaip2ChainId.Mainnet,
+      ),
+    ).toThrow('Invalid asset');
   });
 });

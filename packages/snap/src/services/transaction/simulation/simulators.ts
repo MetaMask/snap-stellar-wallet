@@ -2,6 +2,7 @@ import type { Operation } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { StellarOperationType } from '../api';
 import type {
   OperationSimulator,
   ApplyContext,
@@ -23,6 +24,7 @@ import { BASE_RESERVE_STROOPS, MAX_INT64 } from '../../../constants';
 import {
   getSlip44AssetId,
   isSlip44Id,
+  stellarAssetToCaip19,
   toCaip19ClassicAssetId,
   toSmallestUnit,
 } from '../../../utils';
@@ -57,10 +59,7 @@ function classicAssetToId(
   scope: KnownCaip2ChainId,
 ): ClassicAssetId {
   if (asset instanceof Asset) {
-    if (asset.isNative()) {
-      return getSlip44AssetId(scope);
-    }
-    return toCaip19ClassicAssetId(scope, asset.getCode(), asset.getIssuer());
+    return stellarAssetToCaip19(asset, scope);
   }
   throw new TransactionValidationException(
     'Only native or alphanum Asset payments are supported for sequential validation',
@@ -386,7 +385,9 @@ export class PathPaymentOPSimulator implements OperationSimulator {
     const source = getAccount(state, sourceId);
     const sendAssetId = classicAssetToId(op.sendAsset, scope);
     const sendAmount =
-      op.type === 'pathPaymentStrictSend' ? op.sendAmount : op.sendMax;
+      op.type === StellarOperationType.PathPaymentStrictSend
+        ? op.sendAmount
+        : op.sendMax;
 
     return {
       source,
@@ -410,7 +411,9 @@ export class PathPaymentOPSimulator implements OperationSimulator {
     const dest = getAccount(state, destination);
     const destAssetId = classicAssetToId(op.destAsset, scope);
     const destAmount =
-      op.type === 'pathPaymentStrictSend' ? op.destMin : op.destAmount;
+      op.type === StellarOperationType.PathPaymentStrictSend
+        ? op.destMin
+        : op.destAmount;
 
     return {
       dest,
