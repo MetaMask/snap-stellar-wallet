@@ -68,12 +68,20 @@ async function onAcknowledgeChange(
 /**
  * Confirms the transaction after the user acknowledged the malicious-scan risk.
  *
+ * The proceed button is already disabled in the UI until the box is checked;
+ * this re-checks `acknowledged` defensively so we never resolve the interface
+ * for an unacknowledged risk.
+ *
  * @param options - The user input handler context.
  */
 async function onProceedClick(
   options: UserInputUiEventHandlerContext,
 ): Promise<void> {
-  await resolveInterface(options.id, true);
+  const { id, context } = options;
+  if (context?.acknowledged !== true) {
+    return;
+  }
+  await resolveInterface(id, true);
 }
 
 /**

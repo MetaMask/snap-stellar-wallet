@@ -56,7 +56,7 @@ describe('confirmation utils', () => {
       ).toBe(false);
     });
 
-    it('does not disable confirm for a malicious result (friction is added via acknowledgement instead)', () => {
+    it('does not disable confirm when the scan fetch status is not fetching', () => {
       expect(
         isConfirmDisabledByScan({ scanFetchStatus: FetchStatus.Error }),
       ).toBe(false);

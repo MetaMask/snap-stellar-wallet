@@ -76,6 +76,19 @@ describe('ConfirmationFooter', () => {
     expect(findButton(footer, 'confirm')).toBeUndefined();
   });
 
+  it('falls back to the disabled confirm button when blocked, even if acknowledgement is required', () => {
+    const footer = ConfirmationFooter({
+      ...baseProps,
+      requiresAcknowledgement: true,
+      confirmDisabled: true,
+    });
+
+    expect(
+      findButton(footer, MaliciousAcknowledgementFormNames.Review),
+    ).toBeUndefined();
+    expect(findButton(footer, 'confirm')?.disabled).toBe(true);
+  });
+
   it('always renders the cancel button', () => {
     const footer = ConfirmationFooter({
       ...baseProps,

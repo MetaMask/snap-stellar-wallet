@@ -104,6 +104,21 @@ describe('malicious acknowledgement events', () => {
     expect(updateInterfaceIfExists).not.toHaveBeenCalled();
   });
 
+  it('does not resolve on "Confirm" when the risk is not acknowledged', async () => {
+    const name = MaliciousAcknowledgementFormNames.Proceed;
+    await handlers[name]?.({
+      id: INTERFACE_ID,
+      event: buttonEvent(name),
+      context: {
+        ...baseContext,
+        acknowledgementScreen: true,
+        acknowledged: false,
+      },
+    });
+
+    expect(resolveInterface).not.toHaveBeenCalled();
+  });
+
   it('returns to the confirmation view on "Go back"', async () => {
     const name = MaliciousAcknowledgementFormNames.Back;
     await handlers[name]?.({

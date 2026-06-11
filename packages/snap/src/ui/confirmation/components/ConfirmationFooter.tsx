@@ -22,6 +22,11 @@ type ConfirmationFooterProps = {
  * swaps the primary button from "Confirm" to "Review alerts" rather than
  * disabling it, so the user keeps a "proceed anyway" path behind friction.
  *
+ * A blocking state (`confirmDisabled`, e.g. failed background re-validation)
+ * takes priority over the acknowledgement swap: we fall back to the disabled
+ * "Confirm" button so the user can never enter the acknowledgement flow for a
+ * transaction that is no longer valid.
+ *
  * @param props - The footer props.
  * @param props.locale - The active locale.
  * @param props.cancelButtonName - Event name for the cancel button.
@@ -42,7 +47,7 @@ export const ConfirmationFooter = ({
   return (
     <Footer>
       <Button name={cancelButtonName}>{t('confirmation.cancelButton')}</Button>
-      {requiresAcknowledgement ? (
+      {requiresAcknowledgement && !confirmDisabled ? (
         <Button name={MaliciousAcknowledgementFormNames.Review}>
           {t('confirmation.reviewAlertsButton')}
         </Button>
