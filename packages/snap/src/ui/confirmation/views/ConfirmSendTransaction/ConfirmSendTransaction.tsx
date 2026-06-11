@@ -2,9 +2,7 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Address,
   Box,
-  Button,
   Container,
-  Footer,
   Heading,
   Icon,
   Image,
@@ -29,6 +27,7 @@ import type {
 import { FetchStatus } from '../../api';
 import {
   Asset,
+  ConfirmationFooter,
   FeeRow,
   TransactionAlert,
   TransactionValidationAlert,
@@ -42,6 +41,7 @@ import {
   hasEnabledTransactionScan,
   isConfirmDisabledByScan,
   isConfirmDisabledByTransactionValidation,
+  requiresMaliciousAcknowledgement,
 } from '../../utils';
 
 export type ConfirmSendTransactionProps = ConfirmationBaseProps &
@@ -75,11 +75,8 @@ export const ConfirmSendTransaction = ({
   const { address } = account;
   const { assetId, symbol } = assetMetadata;
   const shouldDisableConfirmButton =
-    isConfirmDisabledByScan({
-      preferences,
-      scan,
-      scanFetchStatus,
-    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
+    isConfirmDisabledByScan({ scanFetchStatus }) ||
+    isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
   const parsedAsset = parseCaipAssetType(assetId);
   let assetLink: string | undefined;
   if (!isSlip44Id(assetId)) {
@@ -197,17 +194,16 @@ export const ConfirmSendTransaction = ({
           />
         </Section>
       </Box>
-      <Footer>
-        <Button name={ConfirmSendTransactionFormNames.Cancel}>
-          {t('confirmation.cancelButton')}
-        </Button>
-        <Button
-          name={ConfirmSendTransactionFormNames.Confirm}
-          disabled={shouldDisableConfirmButton}
-        >
-          {t('confirmation.confirmButton')}
-        </Button>
-      </Footer>
+      <ConfirmationFooter
+        locale={locale}
+        cancelButtonName={ConfirmSendTransactionFormNames.Cancel}
+        confirmButtonName={ConfirmSendTransactionFormNames.Confirm}
+        confirmDisabled={shouldDisableConfirmButton}
+        requiresAcknowledgement={requiresMaliciousAcknowledgement({
+          preferences,
+          scan,
+        })}
+      />
     </Container>
   );
 };

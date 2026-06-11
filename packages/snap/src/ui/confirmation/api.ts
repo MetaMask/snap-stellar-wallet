@@ -131,4 +131,11 @@ export type ConfirmationBaseProps = Partial<ContextWithPrices> & {
   networkImage: string | null;
   origin: string;
   feeData?: FeeData;
+  // Identifies the active view so shared event handlers (e.g. the malicious
+  // acknowledgement screen) can re-render the correct confirmation.
+  interfaceKey?: ConfirmationInterfaceKey;
+  // True while the malicious acknowledgement screen is shown over the confirmation.
+  acknowledgementScreen?: boolean;
+  // Whether the user has checked the "I acknowledge the risk" box on that screen.
+  acknowledged?: boolean;
 };

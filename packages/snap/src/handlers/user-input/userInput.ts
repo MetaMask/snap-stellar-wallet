@@ -7,6 +7,7 @@ import { createEventHandlers as createSignChangeTrustOptInEvents } from '../../u
 import { createEventHandlers as createSignChangeTrustOptOutEvents } from '../../ui/confirmation/views/ConfirmSignChangeTrustOptOut/events';
 import { createEventHandlers as createSignMessageEvents } from '../../ui/confirmation/views/ConfirmSignMessage/events';
 import { createEventHandlers as createSignTransactionEvents } from '../../ui/confirmation/views/ConfirmSignTransaction/events';
+import { createEventHandlers as createMaliciousAcknowledgementEvents } from '../../ui/confirmation/views/MaliciousAcknowledgement/events';
 import {
   withCatchAndThrowSnapError,
   createPrefixedLogger,
@@ -51,6 +52,7 @@ export class UserInputHandler {
       ...createSignChangeTrustOptInEvents(),
       ...createSignChangeTrustOptOutEvents(),
       ...createConfirmSendTransactionEvents(),
+      ...createMaliciousAcknowledgementEvents(),
     };
 
     /**

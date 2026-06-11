@@ -2,9 +2,7 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Address,
   Box,
-  Button,
   Container,
-  Footer,
   Heading,
   Icon,
   Image,
@@ -29,6 +27,7 @@ import { FetchStatus } from '../../api';
 import {
   Asset,
   AssetIcon,
+  ConfirmationFooter,
   FeeRow,
   TransactionAlert,
   TransactionValidationAlert,
@@ -40,6 +39,7 @@ import {
   isConfirmDisabledByScan,
   isConfirmDisabledByTransactionValidation,
   getNetworkName,
+  requiresMaliciousAcknowledgement,
 } from '../../utils';
 
 export type ConfirmSignChangeTrustOptOutProps = ConfirmationBaseProps &
@@ -67,11 +67,8 @@ export const ConfirmSignChangeTrustOptOut = ({
   const t = i18n(locale);
   const { address } = account;
   const shouldDisableConfirmButton =
-    isConfirmDisabledByScan({
-      preferences,
-      scan,
-      scanFetchStatus,
-    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
+    isConfirmDisabledByScan({ scanFetchStatus }) ||
+    isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
 
   return (
     <Container>
@@ -169,17 +166,16 @@ export const ConfirmSignChangeTrustOptOut = ({
           />
         </Section>
       </Box>
-      <Footer>
-        <Button name={ConfirmSignChangeTrustOptOutFormNames.Cancel}>
-          {t('confirmation.cancelButton')}
-        </Button>
-        <Button
-          name={ConfirmSignChangeTrustOptOutFormNames.Confirm}
-          disabled={shouldDisableConfirmButton}
-        >
-          {t('confirmation.confirmButton')}
-        </Button>
-      </Footer>
+      <ConfirmationFooter
+        locale={locale}
+        cancelButtonName={ConfirmSignChangeTrustOptOutFormNames.Cancel}
+        confirmButtonName={ConfirmSignChangeTrustOptOutFormNames.Confirm}
+        confirmDisabled={shouldDisableConfirmButton}
+        requiresAcknowledgement={requiresMaliciousAcknowledgement({
+          preferences,
+          scan,
+        })}
+      />
     </Container>
   );
 };

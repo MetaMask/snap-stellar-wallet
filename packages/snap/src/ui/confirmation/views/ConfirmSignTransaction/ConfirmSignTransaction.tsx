@@ -2,9 +2,7 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Address,
   Box,
-  Button,
   Container,
-  Footer,
   Heading,
   Icon,
   Image,
@@ -26,6 +24,7 @@ import { STELLAR_IMAGE } from '../../../images/icon';
 import type { ConfirmationBaseProps, FeeData } from '../../api';
 import { FetchStatus } from '../../api';
 import { Asset } from '../../components/Asset';
+import { ConfirmationFooter } from '../../components/ConfirmationFooter';
 import { FeeRow } from '../../components/Fee';
 import { TransactionAlert } from '../../components/TransactionAlert';
 import {
@@ -33,6 +32,7 @@ import {
   getNetworkName,
   hasEnabledTransactionScan,
   isConfirmDisabledByScan,
+  requiresMaliciousAcknowledgement,
   resolveAssetDisplay,
 } from '../../utils';
 
@@ -178,8 +178,6 @@ export const ConfirmSignTransaction = ({
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
   const feePrice = tokenPrices?.[feeData.assetId] ?? null;
   const shouldDisableConfirmButton = isConfirmDisabledByScan({
-    preferences,
-    scan,
     scanFetchStatus,
   });
 
@@ -308,17 +306,16 @@ export const ConfirmSignTransaction = ({
           ))}
         </Section>
       </Box>
-      <Footer>
-        <Button name={ConfirmSignTransactionFormNames.Cancel}>
-          {t('confirmation.cancelButton')}
-        </Button>
-        <Button
-          name={ConfirmSignTransactionFormNames.Confirm}
-          disabled={shouldDisableConfirmButton}
-        >
-          {t('confirmation.confirmButton')}
-        </Button>
-      </Footer>
+      <ConfirmationFooter
+        locale={locale}
+        cancelButtonName={ConfirmSignTransactionFormNames.Cancel}
+        confirmButtonName={ConfirmSignTransactionFormNames.Confirm}
+        confirmDisabled={shouldDisableConfirmButton}
+        requiresAcknowledgement={requiresMaliciousAcknowledgement({
+          preferences,
+          scan,
+        })}
+      />
     </Container>
   );
 };

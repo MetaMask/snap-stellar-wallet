@@ -1,10 +1,9 @@
-import type { ComponentOrElement, DialogResult } from '@metamask/snaps-sdk';
-import type { Json } from '@metamask/utils';
+import type { DialogResult } from '@metamask/snaps-sdk';
 
 import {
-  ConfirmationInterfaceKey,
-  type ContextWithPrices,
   FetchStatus,
+  type ConfirmationInterfaceKey,
+  type ContextWithPrices,
 } from './api';
 import {
   formatFeeData,
@@ -29,31 +28,14 @@ import {
   updateInterfaceIfExists,
 } from '../../utils';
 import { STELLAR_IMAGE } from '../images/icon';
-import type { ConfirmSendTransactionProps } from './views/ConfirmSendTransaction/ConfirmSendTransaction';
-import { ConfirmSendTransaction } from './views/ConfirmSendTransaction/ConfirmSendTransaction';
 import {
-  ConfirmSignAuthEntry,
-  type ConfirmSignAuthEntryProps,
-} from './views/ConfirmSignAuthEntry/ConfirmSignAuthEntry';
-import type { ConfirmSignChangeTrustOptInProps } from './views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn';
-import { ConfirmSignChangeTrustOptIn } from './views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn';
-import type { ConfirmSignChangeTrustOptOutProps } from './views/ConfirmSignChangeTrustOptOut/ConfirmSignChangeTrustOptOut';
-import { ConfirmSignChangeTrustOptOut } from './views/ConfirmSignChangeTrustOptOut/ConfirmSignChangeTrustOptOut';
-import {
-  ConfirmSignMessage,
-  type ConfirmSignMessageProps,
-} from './views/ConfirmSignMessage/ConfirmSignMessage';
-import {
-  ConfirmSignTransaction,
-  type ConfirmSignTransactionProps,
-} from './views/ConfirmSignTransaction/ConfirmSignTransaction';
+  renderConfirmationView,
+  type ConfirmationViewProps,
+} from './views/render';
 import {
   ConfirmationContextRefresherKey,
   RefreshConfirmationContextHandler,
 } from '../../handlers/cronjob/refreshConfirmationContext';
-
-/** Serializable props bag stored on the interface and merged into each view. */
-type ConfirmationViewProps = Record<string, Json>;
 
 type ConfirmationRenderOptions = {
   loadPrice?: boolean;
@@ -200,6 +182,9 @@ export class ConfirmationUXController {
         params.transactionValidationRequest !== undefined;
 
       const defaultContext = {
+        // Persisted so shared event handlers (malicious acknowledgement screen)
+        // can re-render the correct confirmation view.
+        interfaceKey,
         // if pricing is disabled, mark as fetched immediately
         tokenPricesFetchStatus: enablePricing
           ? FetchStatus.Fetching
@@ -246,7 +231,7 @@ export class ConfirmationUXController {
 
       // 2. Initial render with loading skeleton (always show loading if pricing enabled)
       const id = await createInterface(
-        this.#renderConfirmationView(interfaceKey, context),
+        renderConfirmationView(interfaceKey, context),
         {},
       );
       const dialogPromise = showDialog(id);
@@ -254,7 +239,7 @@ export class ConfirmationUXController {
       // 3. Update interface context after initial render (silently ignores if dismissed)
       const updated = await updateInterfaceIfExists(
         id,
-        this.#renderConfirmationView(interfaceKey, context),
+        renderConfirmationView(interfaceKey, context),
         context,
       );
 
@@ -315,52 +300,8 @@ export class ConfirmationUXController {
     const { interfaceId, updatedContext, interfaceKey } = params;
     await updateInterfaceIfExists(
       interfaceId,
-      this.#renderConfirmationView(interfaceKey, updatedContext),
+      renderConfirmationView(interfaceKey, updatedContext),
       updatedContext,
     );
-  }
-
-  #renderConfirmationView(
-    interfaceKey: ConfirmationInterfaceKey,
-    context: ConfirmationViewProps,
-  ): ComponentOrElement {
-    switch (interfaceKey) {
-      case ConfirmationInterfaceKey.ChangeTrustlineOptIn:
-        return (
-          <ConfirmSignChangeTrustOptIn
-            {...(context as unknown as ConfirmSignChangeTrustOptInProps)}
-          />
-        );
-      case ConfirmationInterfaceKey.ChangeTrustlineOptOut:
-        return (
-          <ConfirmSignChangeTrustOptOut
-            {...(context as unknown as ConfirmSignChangeTrustOptOutProps)}
-          />
-        );
-      case ConfirmationInterfaceKey.SignTransaction:
-        return (
-          <ConfirmSignTransaction
-            {...(context as unknown as ConfirmSignTransactionProps)}
-          />
-        );
-      case ConfirmationInterfaceKey.SignMessage:
-        return <ConfirmSignMessage {...(context as ConfirmSignMessageProps)} />;
-      case ConfirmationInterfaceKey.SignAuthEntry:
-        return (
-          <ConfirmSignAuthEntry
-            {...(context as unknown as ConfirmSignAuthEntryProps)}
-          />
-        );
-      case ConfirmationInterfaceKey.ConfirmSendTransaction:
-        return (
-          <ConfirmSendTransaction
-            {...(context as unknown as ConfirmSendTransactionProps)}
-          />
-        );
-      default: {
-        const exhaustive: never = interfaceKey;
-        throw new Error(`Unsupported interface key: ${String(exhaustive)}`);
-      }
-    }
   }
 }

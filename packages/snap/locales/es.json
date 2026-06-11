@@ -43,6 +43,24 @@
     "confirmation.cancelButton": {
       "message": "Cancel"
     },
+    "confirmation.reviewAlertsButton": {
+      "message": "Review alert"
+    },
+    "confirmation.maliciousAck.title": {
+      "message": "Malicious request"
+    },
+    "confirmation.maliciousAck.description": {
+      "message": "If you confirm this request, you will probably lose your assets to a scammer."
+    },
+    "confirmation.maliciousAck.checkbox": {
+      "message": "I have acknowledged the risk and still want to proceed"
+    },
+    "confirmation.maliciousAck.proceed": {
+      "message": "Confirm"
+    },
+    "confirmation.maliciousAck.back": {
+      "message": "Go back"
+    },
     "confirmation.closeButton": {
       "message": "Close"
     },
@@ -155,10 +173,10 @@
       "message": "Security Alerts found potential risk. Only continue if you trust this site and every address involved."
     },
     "confirmation.validationErrorLearnMore": {
-      "message": "Learn more"
+      "message": "See details"
     },
     "confirmation.validationErrorSecurityAdviced": {
-      "message": "Security advice by"
+      "message": "Powered by"
     },
     "confirmation.transaction.accountmerge": {
       "message": "Merge account"

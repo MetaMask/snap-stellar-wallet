@@ -171,22 +171,42 @@ export function formatFeeData(
 /**
  * Determines whether a transaction confirmation must be temporarily blocked by scan state.
  *
- * @param params - Scan and preference state.
- * @param params.preferences - User preferences controlling scan behavior.
- * @param params.scan - Latest transaction scan result.
+ * @param params - Scan state.
  * @param params.scanFetchStatus - Latest transaction scan fetch status.
  * @returns True when the confirm action should be disabled.
  */
 export function isConfirmDisabledByScan(params: {
-  preferences: GetPreferencesResult;
-  scan?: TransactionScanResult | null;
   scanFetchStatus: FetchStatus;
 }): boolean {
-  const { preferences, scan, scanFetchStatus } = params;
+  // We only block while the scan is still running. A malicious result no longer
+  // disables confirm: per product/Blockaid, the user must always retain a
+  // "proceed anyway" path, gated behind the malicious acknowledgement screen
+  // (see {@link requiresMaliciousAcknowledgement}).
+  return params.scanFetchStatus === FetchStatus.Fetching;
+}
+
+/**
+ * Determines whether a malicious scan result requires explicit user
+ * acknowledgement before the transaction can be confirmed.
+ *
+ * When true, the confirmation footer swaps its primary button to "Review alerts"
+ * and routes the user through the acknowledgement screen instead of confirming
+ * directly. Warning-level results intentionally do not require this (reduced
+ * friction): they show the banner only.
+ *
+ * @param params - Scan and preference state.
+ * @param params.preferences - User preferences controlling scan behavior.
+ * @param params.scan - Latest transaction scan result.
+ * @returns True when the user must acknowledge a malicious result to proceed.
+ */
+export function requiresMaliciousAcknowledgement(params: {
+  preferences: GetPreferencesResult;
+  scan?: TransactionScanResult | null;
+}): boolean {
+  const { preferences, scan } = params;
   return (
-    scanFetchStatus === FetchStatus.Fetching ||
-    (preferences.useSecurityAlerts &&
-      scan?.validation?.type === TransactionScanValidationType.Malicious)
+    preferences.useSecurityAlerts &&
+    scan?.validation?.type === TransactionScanValidationType.Malicious
   );
 }
 
