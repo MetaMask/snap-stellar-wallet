@@ -57,20 +57,37 @@ export class SynchronizeService {
       noOfAccounts: activatedAccountPairs.length,
     });
 
-    const tasks: Promise<void>[] = [];
+    const tasks: { name: string; task: Promise<void> }[] = [];
     if (syncAccounts) {
-      tasks.push(
-        this.#onChainAccountService.synchronize(activatedAccountPairs, scope),
-      );
+      tasks.push({
+        name: 'syncAccounts',
+        task: this.#onChainAccountService.synchronize(
+          activatedAccountPairs,
+          scope,
+        ),
+      });
     }
     if (syncTransactions) {
-      tasks.push(
-        this.#transactionService.synchronize(activatedAccountPairs, scope),
-      );
+      tasks.push({
+        name: 'syncTransactions',
+        task: this.#transactionService.synchronize(
+          activatedAccountPairs,
+          scope,
+        ),
+      });
     }
 
     // Use Promise.allSettled to ensure all tasks are completed, even if some fail.
-    await Promise.allSettled(tasks);
+    const results = await Promise.allSettled(tasks.map(async (t) => t.task));
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        this.#logger.logErrorWithDetails('Synchronization task failed', {
+          task: tasks[index]?.name,
+          error: result.reason,
+          scope,
+        });
+      }
+    });
   }
 
   /**
