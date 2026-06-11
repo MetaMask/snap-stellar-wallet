@@ -33,7 +33,7 @@ type OperationResult =
     }
   | null;
 
-type SuccessfulTransactionResult = {
+export type SuccessfulTransactionResult = {
   operationResults: OperationResult[];
   feeCharged: string;
 };

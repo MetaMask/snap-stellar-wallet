@@ -1,6 +1,5 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { TransactionType } from '@metamask/keyring-api';
-import { enums, integer } from '@metamask/superstruct';
 import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -12,6 +11,7 @@ import type {
 } from './KeyringTransactionBuilder';
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
+import type { SuccessfulTransactionResult } from './transactionXdrDecoder';
 import {
   parseSuccessfulTransactionResult,
   TransactionResultType,
@@ -266,12 +266,17 @@ export class TransactionMapper {
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
   ): KeyringTransaction {
-    const swapOperation = transaction.transactionOperations.find(
+    // Find the index of the swap operation as the key to look up the destination amount in the successful transaction result.
+    const swapOperationIndex = transaction.transactionOperations.findIndex(
       (operation) =>
         operation.type === StellarOperationType.PathPaymentStrictSend,
     );
+    const swapOperation = transaction.transactionOperations[swapOperationIndex];
 
-    if (swapOperation) {
+    if (
+      swapOperation &&
+      swapOperation.type === StellarOperationType.PathPaymentStrictSend
+    ) {
       const { scope } = transaction;
       const {
         destination: toAddress,
@@ -281,10 +286,14 @@ export class TransactionMapper {
         destMin,
       } = swapOperation;
 
+      const successfulTransactionResult =
+        this.#getSuccessfulTransactionResultSafe(transaction);
+
+      // Extract the destination amount from the successful transaction result by the index of the swap operation.
       const destAmount =
-        this.#getSwapDestAmount(
-          transaction,
-          TransactionResultType.PathPaymentStrictSendSuccess,
+        this.#extractSwapDestAmount(
+          successfulTransactionResult,
+          swapOperationIndex,
         ) ?? destMin;
 
       return this.#keyringTransactionBuilder.createTransaction({
@@ -427,6 +436,10 @@ export class TransactionMapper {
       KeyringTransactionAsset
     >();
 
+    // Parse the successful transaction result first to avoid parsing per operation.
+    const successfulTransactionResult =
+      this.#getSuccessfulTransactionResultSafe(transaction);
+
     operationTypes.forEach((operation, index) => {
       if (!isReceiveOperation(operation, accountAddress)) {
         return;
@@ -434,6 +447,7 @@ export class TransactionMapper {
 
       const receiveOperationAsset = this.#getReceiveOperationAssetSafe(
         transaction,
+        successfulTransactionResult,
         index,
       );
       if (!receiveOperationAsset) {
@@ -450,11 +464,13 @@ export class TransactionMapper {
    * Resolves the asset and amount credited by a receive operation.
    *
    * @param transaction - Stellar transaction containing the receive operation.
+   * @param successfulTransactionResult - Successful transaction result to extract the destination amount from.
    * @param index - Index of the receive operation within the transaction.
    * @returns Asset code, CAIP-19 id, and amount credited by the operation, or `null` when unsupported.
    */
   #getReceiveOperationAssetSafe(
     transaction: Transaction,
+    successfulTransactionResult: SuccessfulTransactionResult | null,
     index: number,
   ): KeyringTransactionAsset | null {
     try {
@@ -490,7 +506,8 @@ export class TransactionMapper {
 
       if (operation.type === StellarOperationType.PathPaymentStrictSend) {
         const destAmount =
-          this.#getSwapDestAmount(transaction, index) ?? operation.destMin;
+          this.#extractSwapDestAmount(successfulTransactionResult, index) ??
+          operation.destMin;
 
         return this.#assetToKeyringAssetRow(
           operation.destAsset,
@@ -506,43 +523,48 @@ export class TransactionMapper {
     return null;
   }
 
-  #getSwapDestAmount(
+  #getSuccessfulTransactionResultSafe(
     transaction: Transaction,
-    lookUpKey:
-      | TransactionResultType.PathPaymentStrictReceiveSuccess
-      | TransactionResultType.PathPaymentStrictSendSuccess
-      | number,
-  ): string | null {
-    const { scope } = transaction;
-    const resultXdr = transaction.rawData?.result_xdr;
-    if (resultXdr) {
-      const successfulTransactionResult = parseSuccessfulTransactionResult(
-        resultXdr,
-        scope,
-      );
-      let pathPaymentStrictSendSuccess;
-      if (integer().is(lookUpKey)) {
-        // Index lookup requires result count to match operation count.
-        if (
-          successfulTransactionResult?.operationResults.length !==
-          transaction.transactionOperations.length
-        ) {
-          return null;
-        }
-        pathPaymentStrictSendSuccess =
-          successfulTransactionResult?.operationResults[lookUpKey];
-      } else if (enums(Object.values(TransactionResultType)).is(lookUpKey)) {
-        pathPaymentStrictSendSuccess =
-          successfulTransactionResult?.operationResults.find(
-            (result) => result?.type === lookUpKey,
-          );
+  ): SuccessfulTransactionResult | null {
+    try {
+      if (!transaction.rawData?.result_xdr) {
+        return null;
       }
 
-      if (pathPaymentStrictSendSuccess?.amount !== undefined) {
-        return toDisplayBalance(
-          new BigNumber(pathPaymentStrictSendSuccess.amount),
-        );
+      const successfulTransactionResult = parseSuccessfulTransactionResult(
+        transaction.rawData?.result_xdr,
+        transaction.scope,
+      );
+
+      // There is no partically successful transaction result, so the successful transaction result either 0 or match the number of operations as the transaction.
+      if (
+        successfulTransactionResult?.operationResults.length !==
+        transaction.transactionOperations.length
+      ) {
+        return null;
       }
+
+      return successfulTransactionResult;
+    } catch {
+      return null;
+    }
+  }
+
+  #extractSwapDestAmount(
+    successfulTransactionResult: SuccessfulTransactionResult | null,
+    index: number,
+  ): string | null {
+    const pathPaymentStrictSendSuccess =
+      successfulTransactionResult?.operationResults[index];
+    if (
+      pathPaymentStrictSendSuccess &&
+      pathPaymentStrictSendSuccess?.type ===
+        TransactionResultType.PathPaymentStrictSendSuccess &&
+      pathPaymentStrictSendSuccess?.amount !== undefined
+    ) {
+      return toDisplayBalance(
+        new BigNumber(pathPaymentStrictSendSuccess.amount),
+      );
     }
     return null;
   }
