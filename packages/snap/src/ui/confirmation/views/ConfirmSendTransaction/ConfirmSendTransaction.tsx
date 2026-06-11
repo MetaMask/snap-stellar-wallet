@@ -27,19 +27,13 @@ import type {
   FeeData,
 } from '../../api';
 import { FetchStatus } from '../../api';
-import {
-  Asset,
-  FeeRow,
-  TransactionAlert,
-  TransactionValidationAlert,
-} from '../../components';
+import { Asset, ConfirmationAlerts, FeeRow } from '../../components';
 import {
   getAccountExplorerUrl,
   getAccountName,
   getClassicAssetExplorerUrl,
   getNetworkName,
   getSepAssetExplorerUrl,
-  hasEnabledTransactionScan,
   isConfirmDisabledByScan,
   isConfirmDisabledByTransactionValidation,
 } from '../../utils';
@@ -94,19 +88,12 @@ export const ConfirmSendTransaction = ({
   return (
     <Container>
       <Box>
-        <TransactionValidationAlert
+        <ConfirmationAlerts
           preferences={preferences}
+          scan={scan}
+          scanFetchStatus={scanFetchStatus}
           transactionsFetchStatus={transactionsFetchStatus}
         />
-        {transactionsFetchStatus !== FetchStatus.Error &&
-        hasEnabledTransactionScan(preferences) ? (
-          <TransactionAlert
-            scanFetchStatus={scanFetchStatus}
-            validation={scan?.validation ?? null}
-            error={scan?.error ?? null}
-            preferences={preferences}
-          />
-        ) : null}
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">{t(`confirmation.transaction.title`)}</Heading>
