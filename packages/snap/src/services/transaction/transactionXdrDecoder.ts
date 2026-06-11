@@ -56,8 +56,13 @@ export function parseSuccessfulTransactionResult(
     const feeCharged = transactionResult.feeCharged().toString();
     const operationResults: OperationResult[] = [];
 
-    for (const result of transactionResult.result().results()) {
-      const tr = result.tr();
+    const result = transactionResult.result();
+    if (result.switch().name !== 'txSuccess') {
+      return null;
+    }
+
+    for (const opResult of result.results()) {
+      const tr = opResult.tr();
       const { name } = tr.value().switch();
 
       try {

@@ -39,6 +39,8 @@ import {
 import { logger } from '../../utils/logger';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
 
+jest.mock('../../utils/logger');
+
 function toHorizonTransaction(
   transaction: Transaction,
   overrides: Partial<Horizon.ServerApi.TransactionRecord> = {},
