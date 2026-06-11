@@ -141,12 +141,14 @@ export const ChangeTrustOptJsonRpcResponseStruct = object({
 });
 
 /**
- * Optional per-asset fields for chains that use trust lines (Stellar classic).
+ * Optional per-asset enrichment fields from getAccountAssetInfo.
+ * Classic assets use trust-line fields; native XLM uses baseReserve.
  */
 export const AccountAssetInfoExtraStruct = object({
   limit: optional(string()),
   authorized: optional(boolean()),
   sponsored: optional(boolean()),
+  baseReserve: optional(string()),
 });
 
 export type AccountAssetInfoExtra = Infer<typeof AccountAssetInfoExtraStruct>;
