@@ -35,6 +35,7 @@ export const createMockTransactionService = () => {
         encrypted: false,
         defaultState: {
           transactions: {},
+          lastScanTokens: {},
         },
       }),
     ),
@@ -50,9 +51,9 @@ export const createMockTransactionService = () => {
     TransactionRepository.prototype,
     'saveMany',
   );
-  const transactionServiceFindByAccountsSpy = jest.spyOn(
+  const transactionServiceFindByAccountIdSpy = jest.spyOn(
     TransactionService.prototype,
-    'findByAccounts',
+    'findByAccountId',
   );
   return {
     transactionService,
@@ -60,7 +61,7 @@ export const createMockTransactionService = () => {
     transactionBuilder,
     transactionRepositorySaveSpy,
     transactionRepositorySaveManySpy,
-    transactionServiceFindByAccountsSpy,
+    transactionServiceFindByAccountIdSpy,
   };
 };
 

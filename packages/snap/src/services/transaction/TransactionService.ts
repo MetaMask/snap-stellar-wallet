@@ -5,11 +5,20 @@ import {
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { groupBy } from 'lodash';
 
+import { InsufficientBalanceException } from './exceptions';
 import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
 import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 import { Transaction } from './Transaction';
 import type { TransactionBuilder } from './TransactionBuilder';
+import { TransactionMapper } from './TransactionMapper';
 import type { TransactionRepository } from './TransactionRepository';
+import {
+  SupportedOperations,
+  TransactionSimulator,
+  type TransactionSimulatorOptions,
+} from './TransactionSimulator';
+import { TransactionSynchronizeService } from './TransactionSynchronizeService';
+import { assertTransactionScope } from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19ClassicAssetId,
@@ -20,21 +29,14 @@ import type {
 import { getSnapProvider, isSep41Id, isSlip44Id } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
-import type { StellarKeyringAccount } from '../account/api';
 import type { NetworkService } from '../network';
 import {
   AccountNotActivatedException,
   TransactionRetryableException,
 } from '../network/exceptions';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
+import type { ActivatedAccountPair } from '../sync/api';
 import type { Wallet } from '../wallet';
-import { InsufficientBalanceException } from './exceptions';
-import {
-  SupportedOperations,
-  TransactionSimulator,
-  type TransactionSimulatorOptions,
-} from './TransactionSimulator';
-import { assertTransactionScope } from './utils';
 
 export class TransactionService {
   readonly #logger: ILogger;
@@ -46,6 +48,8 @@ export class TransactionService {
   readonly #transactionBuilder: TransactionBuilder;
 
   readonly #keyringTransactionBuilder: KeyringTransactionBuilder;
+
+  readonly #transactionSynchronizeService: TransactionSynchronizeService;
 
   constructor({
     logger,
@@ -63,6 +67,16 @@ export class TransactionService {
     this.#networkService = networkService;
     this.#transactionBuilder = transactionBuilder;
     this.#keyringTransactionBuilder = new KeyringTransactionBuilder();
+    const transactionMapper = new TransactionMapper({
+      keyringTransactionBuilder: this.#keyringTransactionBuilder,
+      logger,
+    });
+    this.#transactionSynchronizeService = new TransactionSynchronizeService({
+      networkService,
+      transactionRepository,
+      transactionMapper,
+      logger,
+    });
   }
 
   /**
@@ -466,18 +480,6 @@ export class TransactionService {
   }
 
   /**
-   * Loads a persisted keyring transaction by Stellar transaction hash from snap state.
-   *
-   * @param txId - Transaction hash (`Transaction.id`).
-   * @returns The stored keyring transaction, or `null` when none exists.
-   */
-  async findKeyringTransactionByTransactionId(
-    txId: string,
-  ): Promise<KeyringTransaction | null> {
-    return await this.#transactionRepository.findByTransactionId(txId);
-  }
-
-  /**
    * Computes the fee for a transaction.
    *
    * @param transaction - The transaction to compute the fee for.
@@ -592,21 +594,13 @@ export class TransactionService {
   }
 
   /**
-   * Finds all transactions for the given accounts.
+   * Finds all pending transactions for the given account ID from snap state.
    *
-   * @param accounts - The accounts to find transactions for.
+   * @param accountId - The account ID to find transactions for.
    * @returns A promise that resolves to an array of transactions.
    */
-  async findByAccounts(
-    accounts: StellarKeyringAccount[],
-  ): Promise<KeyringTransaction[]> {
-    const transactions = await Promise.all(
-      accounts.map(async (account) =>
-        this.#transactionRepository.findByAccountId(account.id),
-      ),
-    );
-
-    return transactions.flat();
+  async findByAccountId(accountId: string): Promise<KeyringTransaction[]> {
+    return this.#transactionRepository.findByAccountId(accountId);
   }
 
   /**
@@ -622,29 +616,35 @@ export class TransactionService {
   }
 
   /**
-   * Saves multiple transactions.
+   * Reconciles transactions into snap state and emits all of them to the MetaMask
+   * controller. Confirmed/failed removal from snap state is handled by
+   * {@link TransactionRepository.saveMany}.
    *
-   * @param transactions - The transactions to save.
-   * @returns A promise that resolves when the transactions are saved.
+   * @param transactions - Transactions to persist or remove locally and emit upstream.
+   * @returns A promise that resolves when persistence and emission complete.
    */
   async saveMany(transactions: KeyringTransaction[]): Promise<void> {
-    await this.#transactionRepository.saveMany(transactions);
-    await this.#emitAccountTransactionsUpdated(transactions);
+    if (transactions.length > 0) {
+      await this.#transactionRepository.saveMany(transactions);
+      await this.#emitAccountTransactionsUpdated(transactions);
+    }
   }
 
   /**
    * Pulls transaction history from the network and reconciles local snap state.
-   * Not implemented yet; safe to call from {@link SynchronizeService.synchronize}.
+   * Delegates to {@link TransactionSynchronizeService}; intended for use from
+   * {@link SynchronizeService.synchronize}.
    *
-   * @param _accounts - Keyring accounts whose history will be synced (unused until implemented).
-   * @param _scope - Network scope for fetches (unused until implemented).
+   * @param activatedAccountPairs - Activated keyring/on-chain account pairs whose history will be synced.
+   * @param scope - Network scope for Horizon fetches.
    */
   async synchronize(
-    _accounts: StellarKeyringAccount[],
-    _scope: KnownCaip2ChainId,
+    activatedAccountPairs: ActivatedAccountPair[],
+    scope: KnownCaip2ChainId,
   ): Promise<void> {
-    this.#logger.debug(
-      'TransactionService.synchronize: transaction history sync not implemented yet',
+    await this.#transactionSynchronizeService.synchronize(
+      activatedAccountPairs,
+      scope,
     );
   }
 

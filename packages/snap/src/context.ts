@@ -47,6 +47,7 @@ import {
 } from './services/on-chain-account';
 import { PriceService } from './services/price';
 import { State } from './services/state';
+import { SynchronizeService } from './services/sync/SynchronizeService';
 import {
   TransactionBuilder,
   TransactionRepository,
@@ -68,6 +69,7 @@ const state = new State({
     keyringAccounts: {},
     assets: {},
     transactions: {},
+    lastScanTokens: {},
     onChainAccounts: {} as OnChainAccountState['onChainAccounts'],
   },
 });
@@ -123,6 +125,12 @@ const transactionScanService = new TransactionScanService({
     AppConfig.api.securityAlertsApi,
   ),
   logger,
+});
+
+const synchronizeService = new SynchronizeService({
+  logger,
+  onChainAccountService,
+  transactionService,
 });
 
 /** UX Controller */
@@ -210,15 +218,14 @@ const refreshConfirmationContextHandler = new RefreshConfirmationContextHandler(
 const trackTransactionHandler = new TrackTransactionHandler({
   logger,
   networkService,
-  onChainAccountService,
+  synchronizeService,
   accountService,
-  transactionService,
 });
 
 const syncAccountsHandler = new SyncAccountsHandler({
   logger,
   accountService,
-  onChainAccountService,
+  synchronizeService,
 });
 
 const cronjobMethodHandlers: Record<
