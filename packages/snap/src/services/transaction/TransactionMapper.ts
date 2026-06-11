@@ -15,7 +15,7 @@ import type { Transaction } from './Transaction';
 import {
   parseSuccessfulTransactionResult,
   TransactionResultType,
-} from './transaction-xdr-decoder';
+} from './transactionXdrDecoder';
 import {
   isAddChangeTrustTransaction,
   isDustPaymentTransaction,
