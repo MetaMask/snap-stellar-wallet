@@ -333,6 +333,56 @@ describe('ChangeTrustOptHandler', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('returns success without submitting when the trustline appears between confirmation and submission', async () => {
+    const {
+      handler,
+      wallet,
+      resolveOnChainAccountSpy,
+      onChainAccount,
+      createValidatedChangeTrustTransaction,
+      renderConfirmationDialog,
+      sendTransaction,
+      savePendingKeyringTransaction,
+      signTransactionSpy,
+    } = setup();
+
+    const rawAccountWithTrustline = createMockAccountWithBalances(
+      wallet.address,
+      '1',
+      {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 10,
+        assets: [trustlineAsset],
+      },
+    );
+    const onChainAccountWithTrustline = new OnChainAccount(
+      rawAccountWithTrustline,
+      scope,
+      horizonSource(rawAccountWithTrustline, scope),
+    );
+
+    // Preflight resolves an account without the trustline so the dialog is shown,
+    // but the post-confirmation refresh re-resolves an account that now has the
+    // trustline, making the opt-in redundant.
+    resolveOnChainAccountSpy
+      .mockReset()
+      .mockResolvedValueOnce(onChainAccount)
+      .mockResolvedValue(onChainAccountWithTrustline);
+
+    const result = await handler.handle(addRequest);
+
+    expect(result).toStrictEqual({ status: true });
+    expect(renderConfirmationDialog).toHaveBeenCalledTimes(1);
+    // Only the pre-dialog build runs; the refresh bails out before rebuilding.
+    expect(createValidatedChangeTrustTransaction).toHaveBeenCalledTimes(1);
+    expect(signTransactionSpy).not.toHaveBeenCalled();
+    expect(sendTransaction).not.toHaveBeenCalled();
+    expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).not.toHaveBeenCalled();
+  });
+
   it('throws TrustlineNotFoundException for opt-out when trustline does not exist', async () => {
     const {
       handler,

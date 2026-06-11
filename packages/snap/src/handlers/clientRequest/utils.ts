@@ -18,6 +18,10 @@ export function assertRefreshedTransactionFeeNotHigher(params: {
   confirmedTransaction: Transaction;
   refreshedTransaction: Transaction;
 }): void {
+  // We only check the fee here, not the operations. That's fine for send and
+  // change-trust: the rebuild keeps the same asset, amount and destination from
+  // the request, so the only thing that can change is payment vs createAccount
+  // (when the destination gets funded/unfunded), and both move the same funds.
   const { confirmedTransaction, refreshedTransaction } = params;
   if (refreshedTransaction.totalFee.gt(confirmedTransaction.totalFee)) {
     throw new TransactionValidationException(

@@ -11,7 +11,7 @@ import {
   ConfirmSendJsonRpcResponseStruct,
   MultiChainSendErrorCodes,
 } from './api';
-import { assertRefreshedTransactionFeeNotHigher } from './transactionRefresh';
+import { assertRefreshedTransactionFeeNotHigher } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
@@ -268,6 +268,8 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         destination: toAddress,
       });
 
+    // Reject if the refreshed fee is higher than what the user approved, so we
+    // never sign a transaction that differs from what was shown on the confirmation screen.
     assertRefreshedTransactionFeeNotHigher({
       confirmedTransaction,
       refreshedTransaction,
