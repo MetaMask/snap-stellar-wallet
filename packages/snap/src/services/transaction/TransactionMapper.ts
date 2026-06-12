@@ -10,12 +10,6 @@ import type {
 } from './KeyringTransactionBuilder';
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
-import type { SuccessfulTransactionResult } from './transactionXdrDecoder';
-import {
-  parseSep41TransferInvokeSafe,
-  parseSuccessfulTransactionResult,
-  TransactionResultType,
-} from './transactionXdrDecoder';
 import {
   isAddChangeTrustTransaction,
   isDustPaymentTransaction,
