@@ -475,14 +475,14 @@ describe('KeyringHandler', () => {
       resolveAccountSpy.mockResolvedValue({
         account: mockAccount,
       });
-      const { transactionServiceFindByAccountsSpy } =
+      const { transactionServiceFindByAccountIdSpy } =
         createMockTransactionService();
       const mockTransactions = generateMockTransactions(10, {
         account: mockAccountId,
         scope: KnownCaip2ChainId.Mainnet,
         fromAddress: mockAccount.address,
       });
-      transactionServiceFindByAccountsSpy.mockResolvedValue(mockTransactions);
+      transactionServiceFindByAccountIdSpy.mockResolvedValue(mockTransactions);
 
       const result = await keyringHandler.listAccountTransactions(
         mockAccountId,
@@ -502,14 +502,14 @@ describe('KeyringHandler', () => {
       resolveAccountSpy.mockResolvedValue({
         account: mockAccount,
       });
-      const { transactionServiceFindByAccountsSpy } =
+      const { transactionServiceFindByAccountIdSpy } =
         createMockTransactionService();
       const mockTransactions = generateMockTransactions(30, {
         account: mockAccountId,
         scope: KnownCaip2ChainId.Mainnet,
         fromAddress: mockAccount.address,
       });
-      transactionServiceFindByAccountsSpy.mockResolvedValue(mockTransactions);
+      transactionServiceFindByAccountIdSpy.mockResolvedValue(mockTransactions);
 
       const result = await keyringHandler.listAccountTransactions(
         mockAccountId,
@@ -530,14 +530,14 @@ describe('KeyringHandler', () => {
       resolveAccountSpy.mockResolvedValue({
         account: mockAccount,
       });
-      const { transactionServiceFindByAccountsSpy } =
+      const { transactionServiceFindByAccountIdSpy } =
         createMockTransactionService();
       const mockTransactions = generateMockTransactions(5, {
         account: mockAccountId,
         scope: KnownCaip2ChainId.Mainnet,
         fromAddress: mockAccount.address,
       });
-      transactionServiceFindByAccountsSpy.mockResolvedValue(mockTransactions);
+      transactionServiceFindByAccountIdSpy.mockResolvedValue(mockTransactions);
 
       await expect(
         keyringHandler.listAccountTransactions(mockAccountId, {

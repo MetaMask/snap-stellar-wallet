@@ -335,9 +335,9 @@ export class KeyringHandler implements Keyring {
           accountId,
         });
 
-      const transactions = await this.#transactionService.findByAccounts([
-        keyringAccount,
-      ]);
+      const transactions = await this.#transactionService.findByAccountId(
+        keyringAccount.id,
+      );
 
       // Find the starting index based on the 'next' signature
       const startIndex = next

@@ -848,7 +848,7 @@ export class NetworkService {
    */
   async getTransactions(params: {
     accountAddress: string;
-    lastScanToken: string;
+    lastScanToken: string | null;
     scope: KnownCaip2ChainId;
     order?: 'asc' | 'desc';
     pageSize?: number;
@@ -877,7 +877,7 @@ export class NetworkService {
         .transactions()
         .forAccount(accountAddress)
         .order(order)
-        .cursor(lastScanToken)
+        .cursor(lastScanToken ?? '')
         .limit(pageSize)
         .includeFailed(includeFailed)
         .call();

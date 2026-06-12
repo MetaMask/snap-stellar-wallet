@@ -15,6 +15,7 @@ import {
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';
 import { KnownCaip2ChainId } from '../../../api';
 import { getSlip44AssetId, logger } from '../../../utils';
+import { createMockAssetMetadataService } from '../../asset-metadata/__mocks__/assets.fixtures';
 import { createMemoryCache } from '../../cache/__mocks__/cache.fixtures';
 import { NetworkService } from '../../network';
 import { State } from '../../state/State';
@@ -28,6 +29,7 @@ export const createMockTransactionService = () => {
   const { cache } = createMemoryCache();
   const networkService = new NetworkService({ logger, cache });
   const transactionBuilder = new TransactionBuilder({ logger });
+  const { service: assetMetadataService } = createMockAssetMetadataService();
   const transactionService = new TransactionService({
     logger,
     transactionRepository: new TransactionRepository(
@@ -35,11 +37,13 @@ export const createMockTransactionService = () => {
         encrypted: false,
         defaultState: {
           transactions: {},
+          lastScanTokens: {},
         },
       }),
     ),
     networkService,
     transactionBuilder,
+    assetMetadataService,
   });
 
   const transactionRepositorySaveSpy = jest.spyOn(
@@ -50,9 +54,9 @@ export const createMockTransactionService = () => {
     TransactionRepository.prototype,
     'saveMany',
   );
-  const transactionServiceFindByAccountsSpy = jest.spyOn(
+  const transactionServiceFindByAccountIdSpy = jest.spyOn(
     TransactionService.prototype,
-    'findByAccounts',
+    'findByAccountId',
   );
   return {
     transactionService,
@@ -60,7 +64,7 @@ export const createMockTransactionService = () => {
     transactionBuilder,
     transactionRepositorySaveSpy,
     transactionRepositorySaveManySpy,
-    transactionServiceFindByAccountsSpy,
+    transactionServiceFindByAccountIdSpy,
   };
 };
 

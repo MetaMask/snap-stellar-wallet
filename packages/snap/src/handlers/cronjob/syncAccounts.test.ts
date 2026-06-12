@@ -6,7 +6,7 @@ import type {
   StellarKeyringAccount,
 } from '../../services/account';
 import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
-import type { OnChainAccountService } from '../../services/on-chain-account';
+import type { SynchronizeService } from '../../services/sync/SynchronizeService';
 import { Duration } from '../../utils';
 import { logger } from '../../utils/logger';
 
@@ -27,8 +27,8 @@ describe('SyncAccountsHandler', () => {
       getAllSelected: jest.fn(),
       findByIds: jest.fn(),
     };
-    const onChainAccountService: jest.Mocked<
-      Pick<OnChainAccountService, 'synchronize'>
+    const synchronizeService: jest.Mocked<
+      Pick<SynchronizeService, 'synchronize'>
     > = {
       synchronize: jest.fn(),
     };
@@ -36,14 +36,13 @@ describe('SyncAccountsHandler', () => {
     const handler = new SyncAccountsHandler({
       logger,
       accountService: accountService as unknown as AccountService,
-      onChainAccountService:
-        onChainAccountService as unknown as OnChainAccountService,
+      synchronizeService: synchronizeService as unknown as SynchronizeService,
     });
 
     return {
       handler,
       accountService,
-      onChainAccountService,
+      synchronizeService,
     };
   };
 
@@ -89,7 +88,7 @@ describe('SyncAccountsHandler', () => {
   });
 
   it('synchronizes selected accounts when accountIds is `selected`', async () => {
-    const { handler, accountService, onChainAccountService } = setupTest();
+    const { handler, accountService, synchronizeService } = setupTest();
     const selectedAccounts = [firstAccount, secondAccount];
     accountService.getAllSelected.mockResolvedValue(selectedAccounts);
 
@@ -104,14 +103,14 @@ describe('SyncAccountsHandler', () => {
 
     expect(accountService.getAllSelected).toHaveBeenCalledTimes(1);
     expect(accountService.findByIds).not.toHaveBeenCalled();
-    expect(onChainAccountService.synchronize).toHaveBeenCalledWith(
+    expect(synchronizeService.synchronize).toHaveBeenCalledWith(
       selectedAccounts,
-      AppConfig.selectedNetwork,
+      { scope: AppConfig.selectedNetwork },
     );
   });
 
   it('treats empty params object like selected accounts', async () => {
-    const { handler, accountService, onChainAccountService } = setupTest();
+    const { handler, accountService, synchronizeService } = setupTest();
     const selectedAccounts = [firstAccount];
     accountService.getAllSelected.mockResolvedValue(selectedAccounts);
 
@@ -125,14 +124,14 @@ describe('SyncAccountsHandler', () => {
     await handler.handle(request);
 
     expect(accountService.getAllSelected).toHaveBeenCalledTimes(1);
-    expect(onChainAccountService.synchronize).toHaveBeenCalledWith(
+    expect(synchronizeService.synchronize).toHaveBeenCalledWith(
       selectedAccounts,
-      AppConfig.selectedNetwork,
+      { scope: AppConfig.selectedNetwork },
     );
   });
 
   it('synchronizes accounts fetched by ids when accountIds is an array of account ids', async () => {
-    const { handler, accountService, onChainAccountService } = setupTest();
+    const { handler, accountService, synchronizeService } = setupTest();
     const accountIds = [firstAccount.id, secondAccount.id];
     const accountsByIds = [firstAccount];
     accountService.findByIds.mockResolvedValue(accountsByIds);
@@ -148,9 +147,8 @@ describe('SyncAccountsHandler', () => {
 
     expect(accountService.findByIds).toHaveBeenCalledWith(accountIds);
     expect(accountService.getAllSelected).not.toHaveBeenCalled();
-    expect(onChainAccountService.synchronize).toHaveBeenCalledWith(
-      accountsByIds,
-      AppConfig.selectedNetwork,
-    );
+    expect(synchronizeService.synchronize).toHaveBeenCalledWith(accountsByIds, {
+      scope: AppConfig.selectedNetwork,
+    });
   });
 });

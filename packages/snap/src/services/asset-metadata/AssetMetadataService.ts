@@ -148,6 +148,37 @@ export class AssetMetadataService {
   }
 
   /**
+   * Fetches all SEP-41 assets for the given scope, or synchronizes the assets if none are found.
+   *
+   * It is possible that the state is empty, due to the first sync.
+   * Hence, we synchronize the assets once.
+   *
+   * @param scope - The chain ID to look up.
+   * @returns A Promise that resolves to all SEP-41 assets for the given scope.
+   */
+  async fetchSep41AssetsOrSyncOnce(
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarAssetMetadata[]> {
+    // Get all SEP-41 assets for the given scope.
+    const allAssets = await this.getAllByScope(scope);
+
+    if (allAssets.length === 0) {
+      this.#logger.debug('No assets found in the state, synchronizing assets');
+      // It is possible that the state is empty, due to the first sync.
+      // Hence, we synchronize the assets once.
+      await this.synchronize(scope);
+    }
+
+    const sep41Assets = await this.getPersistedSep41AssetsMetadata(scope);
+
+    this.#logger.debug('SEP-41 assets found in the state', {
+      noOfAssets: sep41Assets.length,
+    });
+
+    return sep41Assets;
+  }
+
+  /**
    * Fetches and persists all Assets for the given chain ID from the token API.
    *
    * @param scope - The chain ID to fetch and persist assets for.

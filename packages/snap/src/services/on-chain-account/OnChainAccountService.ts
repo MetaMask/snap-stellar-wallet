@@ -2,11 +2,11 @@ import { OnChainAccount } from './OnChainAccount';
 import { OnChainAccountSynchronizeService } from './OnChainAccountSynchronizeService';
 import type { KnownCaip2ChainId } from '../../api';
 import type { ILogger } from '../../utils';
-import type { StellarKeyringAccount } from '../account';
 import { assertSameAddress } from '../account/utils';
 import { AccountNotActivatedException, type NetworkService } from '../network';
 import type { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
+import type { ActivatedAccountPair } from '../sync/api';
 
 /**
  * Stellar on-chain account operations: activation checks and loading {@link OnChainAccount}
@@ -112,15 +112,15 @@ export class OnChainAccountService {
    * Enriches accounts with SEP-41 balances, persists snapshots, then notifies the keyring when
    * balances or the tracked asset set changed. Delegates to {@link OnChainAccountSynchronizeService}.
    *
-   * @param keyringAccounts - Stellar keyring accounts to sync for `scope`.
+   * @param activatedAccountPairs - Activated account pairs to synchronize.
    * @param scope - CAIP-2 network.
    */
   async synchronize(
-    keyringAccounts: StellarKeyringAccount[],
+    activatedAccountPairs: ActivatedAccountPair[],
     scope: KnownCaip2ChainId,
   ): Promise<void> {
     await this.#onChainAccountSynchronizeService.synchronize(
-      keyringAccounts,
+      activatedAccountPairs,
       scope,
     );
   }
