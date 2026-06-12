@@ -381,7 +381,7 @@ export function extractAssetDataFromContractData(
         switch (fieldName) {
           case 'name':
             // if it is a Stellar asset contract, the name is ${ASSET_CODE}:${ASSET_ISSUER}
-            // if it is a Wasm contract, the name is the token name (e.g. "USDC")
+            // if it is a Wasm contract, the "name" is set to the contract address (used as the SEP-41 assetRef/identifier)
             assetData.name = isStellarClassicAsset
               ? value.str().toString()
               : contractAddress;

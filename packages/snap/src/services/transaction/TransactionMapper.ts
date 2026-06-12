@@ -114,7 +114,7 @@ export class TransactionMapper {
   ): KeyringTransaction {
     const { address } = keyringAccount;
 
-    if (transaction.hasInvokeHostFunction) {
+    if (transaction.hasInvokeHostFunction && transaction.operationCount === 1) {
       // Invoke host function: try SEP-41 send mapping first; fall back to unknown.
       return (
         this.#mapSep41SendTransaction(

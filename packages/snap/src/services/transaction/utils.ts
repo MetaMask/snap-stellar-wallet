@@ -282,9 +282,7 @@ export function parseExpirationMaxTime(
  */
 export function isInvokeHostFunctionOperation(
   operation: Operation | undefined,
-): operation is Operation & {
-  type: typeof StellarOperationType.InvokeHostFunction;
-} {
+): operation is Operation.InvokeHostFunction {
   return (
     operation !== undefined &&
     operation.type === StellarOperationType.InvokeHostFunction
