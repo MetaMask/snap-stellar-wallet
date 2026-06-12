@@ -232,9 +232,18 @@ export class KeyringTransactionBuilderException extends Error {
   }
 }
 
+/** Thrown when transaction mapping cannot proceed (invalid shape, missing metadata, etc.). */
 export class TransactionMapperException extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'TransactionMapperException';
+  }
+}
+
+/** Thrown when Soroban XDR or ScVal parsing fails. */
+export class TransactionXdrDecoderException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TransactionXdrDecoderException';
   }
 }

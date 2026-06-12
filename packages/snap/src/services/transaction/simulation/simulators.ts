@@ -9,12 +9,7 @@ import type {
   ValidateContext,
   AccountState,
 } from './api';
-import {
-  getAccount,
-  effectiveSource,
-  getSpendableNative,
-  tryParseSep41TransferInvoke,
-} from './utils';
+import { getAccount, effectiveSource, getSpendableNative } from './utils';
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Slip44Id,
@@ -35,10 +30,15 @@ import {
   InvalidTrustlineException,
   RemoveTrustlineWithNonZeroBalanceException,
   TransactionValidationException,
+  TransactionXdrDecoderException,
   TrustlineNotAuthorizedException,
   TrustlineNotFoundException,
   UpdateTrustlineException,
 } from '../exceptions';
+import {
+  isSep41TransferInvoke,
+  parseSep41TransferInvoke,
+} from '../transactionXdrDecoder';
 import { assertMemoWhenDestinationRequires } from '../utils';
 
 type ClassicAssetId = KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
@@ -630,10 +630,19 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
     const senderState = getAccount(state, sourceId);
 
     // handle the SEP-41 transfer operation
-    const parsed = tryParseSep41TransferInvoke(op, scope);
-    if (parsed === null) {
+    if (!isSep41TransferInvoke(op)) {
       // Not a SEP-41 `transfer`; skip contract-token balance validation (other invokes ignore SEP-41 rows).
       return;
+    }
+
+    let parsed;
+    try {
+      parsed = parseSep41TransferInvoke(op, scope);
+    } catch (error) {
+      if (error instanceof TransactionXdrDecoderException) {
+        throw new TransactionValidationException(error.message);
+      }
+      throw error;
     }
 
     const { fromAccountId, assetId, amount } = parsed;

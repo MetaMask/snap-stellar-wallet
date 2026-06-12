@@ -28,11 +28,7 @@ import {
   SIMULATION_ACCOUNT,
   StellarRouterContract,
 } from './MultiCall';
-import {
-  extractAssetDataFromContractData,
-  isAccountNotFoundError,
-  sep41MulticallCellToBalance,
-} from './utils';
+import { isAccountNotFoundError, sep41MulticallCellToBalance } from './utils';
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Sep41AssetId,
@@ -59,6 +55,7 @@ import type { ICache } from '../cache';
 import { useCache } from '../cache';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
+import { extractAssetDataFromContractData } from '../transaction/transactionXdrDecoder';
 import { assertInvokeHostFunctionSoleOperation } from '../transaction/utils';
 
 /**

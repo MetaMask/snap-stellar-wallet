@@ -1,8 +1,6 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { TransactionType } from '@metamask/keyring-api';
-import { enums, integer } from '@metamask/superstruct';
 import { Asset } from '@stellar/stellar-sdk';
-import { BigNumber } from 'bignumber.js';
 
 import { StellarOperationType } from './api';
 import { TransactionMapperException } from './exceptions';
@@ -12,7 +10,9 @@ import type {
 } from './KeyringTransactionBuilder';
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
+import type { SuccessfulTransactionResult } from './transactionXdrDecoder';
 import {
+  parseSep41TransferInvokeSafe,
   parseSuccessfulTransactionResult,
   TransactionResultType,
 } from './transactionXdrDecoder';
@@ -24,9 +24,12 @@ import {
   isSendTransaction,
   isSwapTransaction,
   isReceiveOperation,
+  isPathPaymentOperation,
+  isInvokeHostFunctionOperation,
 } from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
@@ -39,6 +42,7 @@ import {
   toDisplayBalance,
 } from '../../utils';
 import type { StellarKeyringAccount } from '../account/api';
+import type { StellarAssetMetadata } from '../asset-metadata';
 
 export class TransactionMapper {
   readonly #keyringTransactionBuilder: KeyringTransactionBuilder;
@@ -63,14 +67,17 @@ export class TransactionMapper {
    * @param params.transaction - Horizon-sourced transaction to map.
    * @param params.keyringAccount - Account that owns the activity.
    * @param params.transactionFromState - Existing pending transaction to reconcile.
+   * @param params.assetMetadata - SEP-41 asset metadata keyed by CAIP-19 id for send mapping.
    * @returns Mapped keyring transaction, or `undefined` when skipped or unmappable.
    */
   mapTransactionSafe(params: {
     transaction: Transaction;
     keyringAccount: StellarKeyringAccount;
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>;
     transactionFromState?: KeyringTransaction;
   }): KeyringTransaction | undefined {
-    const { transaction, keyringAccount, transactionFromState } = params;
+    const { transaction, keyringAccount, assetMetadata, transactionFromState } =
+      params;
 
     try {
       if (!transaction.rawData || !transaction.id) {
@@ -89,7 +96,7 @@ export class TransactionMapper {
         return undefined; // Skip dust payment transactions.
       }
 
-      return this.#mapTransaction(transaction, keyringAccount);
+      return this.#mapTransaction(transaction, keyringAccount, assetMetadata);
     } catch (error) {
       // Log and return undefined so batch mapping can continue for other transactions.
       this.#logger.logErrorWithDetails('Unable to map a transaction', {
@@ -103,12 +110,19 @@ export class TransactionMapper {
   #mapTransaction(
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>,
   ): KeyringTransaction {
     const { address } = keyringAccount;
 
-    // For any contract based transaction, we treat it as unknown.
-    if (transaction.hasInvokeHostFunction) {
-      return this.#mapUnknownTransaction(transaction, keyringAccount);
+    if (transaction.hasInvokeHostFunction && transaction.operationCount === 1) {
+      // Invoke host function: try SEP-41 send mapping first; fall back to unknown.
+      return (
+        this.#mapSep41SendTransaction(
+          transaction,
+          keyringAccount,
+          assetMetadata,
+        ) ?? this.#mapUnknownTransaction(transaction, keyringAccount)
+      );
     }
 
     // Swap transaction: if the transaction has a path payment strict send operation
@@ -266,26 +280,39 @@ export class TransactionMapper {
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
   ): KeyringTransaction {
-    const swapOperation = transaction.transactionOperations.find(
-      (operation) =>
-        operation.type === StellarOperationType.PathPaymentStrictSend,
+    // Find the index of the swap operation as the key to look up the destination amount in the successful transaction result.
+    const swapOperationIndex = transaction.transactionOperations.findIndex(
+      (operation) => isPathPaymentOperation(operation),
     );
+    const swapOperation = transaction.transactionOperations[swapOperationIndex];
 
-    if (swapOperation) {
+    if (swapOperation && isPathPaymentOperation(swapOperation)) {
       const { scope } = transaction;
-      const {
-        destination: toAddress,
-        sendAsset,
-        destAsset,
-        sendAmount,
-        destMin,
-      } = swapOperation;
 
-      const destAmount =
-        this.#getSwapDestAmount(
-          transaction,
-          TransactionResultType.PathPaymentStrictSendSuccess,
-        ) ?? destMin;
+      const successfulTransactionResult =
+        this.#getSuccessfulTransactionResultSafe(transaction);
+
+      const { destination: toAddress, sendAsset, destAsset } = swapOperation;
+
+      let sendAmount;
+      let destAmount;
+
+      // Extract the send/dest amount from the successful transaction result by the index of the swap operation.
+      if (swapOperation.type === StellarOperationType.PathPaymentStrictSend) {
+        destAmount =
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            swapOperationIndex,
+          ) ?? swapOperation.destMin;
+        sendAmount = swapOperation.sendAmount;
+      } else {
+        destAmount = swapOperation.destAmount;
+        sendAmount =
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            swapOperationIndex,
+          ) ?? swapOperation.sendMax;
+      }
 
       return this.#keyringTransactionBuilder.createTransaction({
         type: KeyringTransactionType.Swap,
@@ -371,6 +398,73 @@ export class TransactionMapper {
     throw new TransactionMapperException('Unable to map a receive transaction');
   }
 
+  #mapSep41SendTransaction(
+    transaction: Transaction,
+    keyringAccount: StellarKeyringAccount,
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>,
+  ): KeyringTransaction | undefined {
+    try {
+      const { scope } = transaction;
+      const [firstOperation] = transaction.transactionOperations;
+
+      if (!isInvokeHostFunctionOperation(firstOperation)) {
+        throw new TransactionMapperException(
+          'Unable to map a SEP-41 send transaction - not an invoke host function operation',
+        );
+      }
+
+      const parsedSep41TransferInvoke = parseSep41TransferInvokeSafe(
+        firstOperation,
+        scope,
+      );
+
+      if (!parsedSep41TransferInvoke) {
+        throw new TransactionMapperException(
+          'Unable to map a SEP-41 send transaction - invalid transfer invoke operation',
+        );
+      }
+
+      const { assetId, amount, toAccountId, fromAccountId } =
+        parsedSep41TransferInvoke;
+
+      if (fromAccountId !== keyringAccount.address) {
+        throw new TransactionMapperException(
+          'Unable to map a SEP-41 send transaction - from account id does not match the keyring account address',
+        );
+      }
+
+      // TODO: Fall back to NetworkService token metadata when state is missing (RPC cost per tx).
+      const asset = assetMetadata[assetId];
+      if (!asset) {
+        throw new TransactionMapperException(
+          'Unable to map a SEP-41 send transaction - asset metadata not found',
+        );
+      }
+
+      const assetRow = this.#toKeyringAssetRow(
+        asset.symbol,
+        asset.assetId,
+        toDisplayBalance(amount, asset.units[0].decimals),
+      );
+      return this.#keyringTransactionBuilder.createTransaction({
+        type: KeyringTransactionType.Send,
+        request: {
+          ...this.#commonOnChainFields(transaction, keyringAccount),
+          asset: assetRow,
+          toAddress: toAccountId,
+        },
+      });
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Unable to map a SEP-41 send transaction',
+        {
+          error,
+        },
+      );
+      return undefined;
+    }
+  }
+
   #getBaseFees(transaction: Transaction): KeyringTransaction['fees'] {
     return [
       {
@@ -401,9 +495,21 @@ export class TransactionMapper {
     scope: KnownCaip2ChainId,
     amount: string,
   ): KeyringTransactionAsset {
+    return this.#toKeyringAssetRow(
+      asset.getCode(),
+      stellarAssetToCaip19(asset, scope),
+      amount,
+    );
+  }
+
+  #toKeyringAssetRow(
+    unit: string,
+    type: KnownCaip19AssetIdOrSlip44Id,
+    amount: string,
+  ): KeyringTransactionAsset {
     return {
-      unit: asset.getCode(),
-      type: stellarAssetToCaip19(asset, scope),
+      unit,
+      type,
       // Normalize Horizon amounts such as "1.0000000" to "1".
       amount: removeTrailingZeros(amount),
       fungible: true as const,
@@ -427,6 +533,10 @@ export class TransactionMapper {
       KeyringTransactionAsset
     >();
 
+    // Parse the successful transaction result first to avoid parsing per operation.
+    const successfulTransactionResult =
+      this.#getSuccessfulTransactionResultSafe(transaction);
+
     operationTypes.forEach((operation, index) => {
       if (!isReceiveOperation(operation, accountAddress)) {
         return;
@@ -434,6 +544,7 @@ export class TransactionMapper {
 
       const receiveOperationAsset = this.#getReceiveOperationAssetSafe(
         transaction,
+        successfulTransactionResult,
         index,
       );
       if (!receiveOperationAsset) {
@@ -450,11 +561,13 @@ export class TransactionMapper {
    * Resolves the asset and amount credited by a receive operation.
    *
    * @param transaction - Stellar transaction containing the receive operation.
+   * @param successfulTransactionResult - Successful transaction result to extract the destination amount from.
    * @param index - Index of the receive operation within the transaction.
    * @returns Asset code, CAIP-19 id, and amount credited by the operation, or `null` when unsupported.
    */
   #getReceiveOperationAssetSafe(
     transaction: Transaction,
+    successfulTransactionResult: SuccessfulTransactionResult | null,
     index: number,
   ): KeyringTransactionAsset | null {
     try {
@@ -490,7 +603,10 @@ export class TransactionMapper {
 
       if (operation.type === StellarOperationType.PathPaymentStrictSend) {
         const destAmount =
-          this.#getSwapDestAmount(transaction, index) ?? operation.destMin;
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            index,
+          ) ?? operation.destMin;
 
         return this.#assetToKeyringAssetRow(
           operation.destAsset,
@@ -506,43 +622,47 @@ export class TransactionMapper {
     return null;
   }
 
-  #getSwapDestAmount(
+  #getSuccessfulTransactionResultSafe(
     transaction: Transaction,
-    lookUpKey:
-      | TransactionResultType.PathPaymentStrictReceiveSuccess
-      | TransactionResultType.PathPaymentStrictSendSuccess
-      | number,
-  ): string | null {
-    const { scope } = transaction;
-    const resultXdr = transaction.rawData?.result_xdr;
-    if (resultXdr) {
-      const successfulTransactionResult = parseSuccessfulTransactionResult(
-        resultXdr,
-        scope,
-      );
-      let pathPaymentStrictSendSuccess;
-      if (integer().is(lookUpKey)) {
-        // Index lookup requires result count to match operation count.
-        if (
-          successfulTransactionResult?.operationResults.length !==
-          transaction.transactionOperations.length
-        ) {
-          return null;
-        }
-        pathPaymentStrictSendSuccess =
-          successfulTransactionResult?.operationResults[lookUpKey];
-      } else if (enums(Object.values(TransactionResultType)).is(lookUpKey)) {
-        pathPaymentStrictSendSuccess =
-          successfulTransactionResult?.operationResults.find(
-            (result) => result?.type === lookUpKey,
-          );
+  ): SuccessfulTransactionResult | null {
+    try {
+      if (!transaction.rawData?.result_xdr) {
+        return null;
       }
 
-      if (pathPaymentStrictSendSuccess?.amount !== undefined) {
-        return toDisplayBalance(
-          new BigNumber(pathPaymentStrictSendSuccess.amount),
-        );
+      const successfulTransactionResult = parseSuccessfulTransactionResult(
+        transaction.rawData?.result_xdr,
+        transaction.scope,
+      );
+
+      // There is no partically successful transaction result, so the successful transaction result either 0 or match the number of operations as the transaction.
+      if (
+        successfulTransactionResult?.operationResults.length !==
+        transaction.transactionOperations.length
+      ) {
+        return null;
       }
+
+      return successfulTransactionResult;
+    } catch {
+      return null;
+    }
+  }
+
+  #extractSwapDestOrSourceAmount(
+    successfulTransactionResult: SuccessfulTransactionResult | null,
+    index: number,
+  ): string | null {
+    const result = successfulTransactionResult?.operationResults[index];
+
+    if (
+      result &&
+      (result?.type === TransactionResultType.PathPaymentStrictSendSuccess ||
+        result?.type ===
+          TransactionResultType.PathPaymentStrictReceiveSuccess) &&
+      result?.amount !== undefined
+    ) {
+      return result.amount;
     }
     return null;
   }
