@@ -216,6 +216,56 @@ export function isConfirmDisabledByTransactionValidation(
 }
 
 /**
+ * The single banner the confirmation screen may show at the top.
+ *
+ * The transaction-validation banner and the Blockaid scan banner are mutually
+ * exclusive: only one is ever rendered, and validation takes priority.
+ */
+export enum ConfirmationBanner {
+  None = 'none',
+  TransactionValidation = 'transaction-validation',
+  TransactionScan = 'transaction-scan',
+}
+
+/**
+ * Resolves which top-of-screen banner the confirmation should display.
+ *
+ * Priority is explicit: a failed background re-validation (the transaction is no
+ * longer valid) outranks the Blockaid scan alert, so the two never stack. The
+ * scan banner is only considered when the user has security or simulation alerts
+ * enabled; the {@link TransactionAlert} component still decides its own content
+ * based on the scan result.
+ *
+ * @param params - Validation and scan-preference state.
+ * @param params.preferences - User preferences controlling scan behavior.
+ * @param params.transactionsFetchStatus - Latest transaction re-validation fetch status.
+ * @returns The single banner to render.
+ */
+export function resolveConfirmationBanner(params: {
+  preferences: GetPreferencesResult;
+  transactionsFetchStatus: FetchStatus | undefined;
+}): ConfirmationBanner {
+  const { preferences, transactionsFetchStatus } = params;
+
+  // The two banners are gated asymmetrically by design, and this only resolves
+  // which one wins the single slot; each component still decides whether it
+  // actually renders:
+  // - Validation is fail-only: re-validation starts optimistically (the tx was
+  //   already validated at build time), so the banner exists solely on Error.
+  // - Scan is preference-driven: while scan prefs are on, TransactionAlert owns
+  //   the full async lifecycle (in-progress -> result/error -> null for benign).
+  if (isConfirmDisabledByTransactionValidation(transactionsFetchStatus)) {
+    return ConfirmationBanner.TransactionValidation;
+  }
+
+  if (hasEnabledTransactionScan(preferences)) {
+    return ConfirmationBanner.TransactionScan;
+  }
+
+  return ConfirmationBanner.None;
+}
+
+/**
  * Display-friendly resolution of a Stellar operation `asset` reference.
  * Used by the confirmation UI to render assets and to look up prices.
  */
