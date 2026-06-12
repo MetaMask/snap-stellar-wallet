@@ -1,4 +1,5 @@
 import { parseCaipAssetType } from '@metamask/utils';
+import { Asset } from '@stellar/stellar-sdk';
 
 import type {
   KnownCaip19AssetIdOrSlip44Id,
@@ -152,4 +153,24 @@ export function parseClassicAssetCodeIssuer(assetReference: string): {
     throw new Error(`Invalid asset reference: ${assetReference}`);
   }
   return { assetCode, assetIssuer };
+}
+
+/**
+ * Converts the given Stellar asset to a CAIP-19 asset ID.
+ *
+ * @param asset - The Stellar asset.
+ * @param scope - The CAIP-2 chain ID.
+ * @returns The CAIP-19 asset ID.
+ */
+export function stellarAssetToCaip19(
+  asset: Asset,
+  scope: KnownCaip2ChainId,
+): KnownCaip19ClassicAssetId | KnownCaip19Slip44Id {
+  if (!(asset instanceof Asset)) {
+    throw new Error(`Invalid asset`);
+  }
+  if (asset.isNative()) {
+    return getSlip44AssetId(scope);
+  }
+  return toCaip19ClassicAssetId(scope, asset.getCode(), asset.getIssuer());
 }

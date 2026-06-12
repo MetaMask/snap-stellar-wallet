@@ -1,7 +1,9 @@
 import type { KeyringAccount, EntropySourceId } from '@metamask/keyring-api';
 
+export type KeyringAccountId = string;
+
 export type KeyringAccountState = {
-  keyringAccounts: Record<string, StellarKeyringAccount>;
+  keyringAccounts: Record<KeyringAccountId, StellarKeyringAccount>;
 };
 
 /** Stellar BIP44 derivation path (e.g. `m/44'/148'` or `m/44'/148'/0'`). */

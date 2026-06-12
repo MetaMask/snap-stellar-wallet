@@ -22,6 +22,7 @@ import {
 import { BaseClientRequestHandler } from './base';
 import { METAMASK_ORIGIN, NATIVE_ASSET_SYMBOL } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
+import { StellarOperationType } from '../../services/transaction/api';
 import {
   KeyringTransactionType,
   type PendingTransactionRequest,
@@ -210,8 +211,8 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
   ): PendingSwapDetails | null {
     const pathPaymentOperation = transaction.transactionOperations.find(
       (operation) =>
-        operation.type === 'pathPaymentStrictSend' ||
-        operation.type === 'pathPaymentStrictReceive',
+        operation.type === StellarOperationType.PathPaymentStrictSend ||
+        operation.type === StellarOperationType.PathPaymentStrictReceive,
     );
 
     if (pathPaymentOperation === undefined) {
@@ -221,7 +222,7 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
     const sourceAddress =
       pathPaymentOperation.source ?? transaction.sourceAccount;
     const send =
-      pathPaymentOperation.type === 'pathPaymentStrictSend'
+      pathPaymentOperation.type === StellarOperationType.PathPaymentStrictSend
         ? {
             asset: pathPaymentOperation.sendAsset,
             amount: pathPaymentOperation.sendAmount,
@@ -231,7 +232,7 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
             amount: pathPaymentOperation.sendMax,
           };
     const receive =
-      pathPaymentOperation.type === 'pathPaymentStrictSend'
+      pathPaymentOperation.type === StellarOperationType.PathPaymentStrictSend
         ? {
             asset: pathPaymentOperation.destAsset,
             amount: pathPaymentOperation.destMin,

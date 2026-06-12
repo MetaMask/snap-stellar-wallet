@@ -295,7 +295,9 @@ describe('ChangeTrustOptHandler', () => {
         scope,
         asset: {
           type: assetId,
-          symbol: 'USDC',
+          unit: 'USDC',
+          amount: '0',
+          fungible: true,
         },
       },
     });
@@ -461,7 +463,9 @@ describe('ChangeTrustOptHandler', () => {
         scope,
         asset: {
           type: assetId,
-          symbol: assetMetadata.symbol,
+          unit: assetMetadata.symbol,
+          amount: '0',
+          fungible: true,
         },
       },
     });

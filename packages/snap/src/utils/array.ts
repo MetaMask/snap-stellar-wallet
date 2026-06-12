@@ -29,3 +29,19 @@ export function keys<Key extends string>(obj: Record<Key, unknown>): Key[] {
 export function values<Value>(obj: Record<string, Value>): Value[] {
   return Object.values(obj);
 }
+
+/**
+ * Pushes a value to an array in a record.
+ * If the key does not exist, it will be created.
+ *
+ * @param record - The record to push the value to.
+ * @param key - The key of the record to push the value to.
+ * @param value - The value to push to the array.
+ */
+export function pushToRecordArray<Key extends PropertyKey, Value>(
+  record: Partial<Record<Key, Value[]>>,
+  key: Key,
+  value: Value,
+): void {
+  (record[key] ??= []).push(value);
+}

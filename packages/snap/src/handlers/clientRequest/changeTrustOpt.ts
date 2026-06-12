@@ -186,7 +186,10 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
         scope,
         asset: {
           type: assetId,
-          symbol: assetMetadata.symbol,
+          unit: assetMetadata.symbol,
+          // Change trust does not affect the amount.
+          amount: '0',
+          fungible: true as const,
         },
       },
     });

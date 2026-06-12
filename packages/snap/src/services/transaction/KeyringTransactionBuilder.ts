@@ -10,34 +10,53 @@ import type { KnownCaip19AssetIdOrSlip44Id } from '../../api/asset';
 import type { StellarKeyringAccount } from '../account/api';
 
 export enum KeyringTransactionType {
+  Swap = 'swap',
+  BridgeSend = 'bridgeSend',
   ChangeTrustOptIn = 'changeTrustOptIn',
   ChangeTrustOptOut = 'changeTrustOptOut',
   Send = 'send',
   Pending = 'pending',
+  Unknown = 'unknown',
 }
+
+export type KeyringTransactionAsset = {
+  unit: string;
+  type: KnownCaip19AssetIdOrSlip44Id;
+  amount: string;
+  fungible: true;
+};
 
 export type SendTransactionRequest = {
   txId: string;
   account: StellarKeyringAccount;
   scope: KnownCaip2ChainId;
   toAddress: string;
-  amount: string;
-  asset: {
-    type: KnownCaip19AssetIdOrSlip44Id;
-    symbol: string;
-  };
+  asset: KeyringTransactionAsset;
   status?: TransactionStatus;
+  timestamp?: KeyringTransaction['timestamp'];
+  fees?: KeyringTransaction['fees'];
+};
+
+export type SwapTransactionRequest = {
+  txId: string;
+  account: StellarKeyringAccount;
+  scope: KnownCaip2ChainId;
+  toAddress: string;
+  fromAsset: KeyringTransactionAsset;
+  toAsset: KeyringTransactionAsset;
+  status?: TransactionStatus;
+  timestamp?: KeyringTransaction['timestamp'];
+  fees?: KeyringTransaction['fees'];
 };
 
 export type ChangeTrustTransactionRequest = {
   txId: string;
   account: StellarKeyringAccount;
   scope: KnownCaip2ChainId;
-  asset: {
-    type: KnownCaip19AssetIdOrSlip44Id;
-    symbol: string;
-  };
+  asset: KeyringTransactionAsset;
   status?: TransactionStatus;
+  timestamp?: KeyringTransaction['timestamp'];
+  fees?: KeyringTransaction['fees'];
 };
 
 export type PendingTransactionRequest = {
@@ -60,6 +79,18 @@ export type PendingTransactionRequest = {
     }
 );
 
+export type UnknownTransactionRequest = {
+  txId: string;
+  account: StellarKeyringAccount;
+  transactionType?: TransactionType;
+  scope: KnownCaip2ChainId;
+  status?: TransactionStatus;
+  from: KeyringTransaction['from'];
+  to?: KeyringTransaction['to'];
+  fees?: KeyringTransaction['fees'];
+  timestamp?: KeyringTransaction['timestamp'];
+};
+
 export type KeyringTransactionRequest =
   | {
       type: KeyringTransactionType.ChangeTrustOptIn;
@@ -76,6 +107,18 @@ export type KeyringTransactionRequest =
   | {
       type: KeyringTransactionType.Pending;
       request: PendingTransactionRequest;
+    }
+  | {
+      type: KeyringTransactionType.Unknown;
+      request: UnknownTransactionRequest;
+    }
+  | {
+      type: KeyringTransactionType.Swap;
+      request: SwapTransactionRequest;
+    }
+  | {
+      type: KeyringTransactionType.BridgeSend;
+      request: UnknownTransactionRequest;
     };
 
 export class KeyringTransactionBuilder {
@@ -83,14 +126,16 @@ export class KeyringTransactionBuilder {
     switch (request.type) {
       case KeyringTransactionType.ChangeTrustOptOut:
       case KeyringTransactionType.ChangeTrustOptIn:
-        return this.#createChangeTrustTransaction(
-          request.request,
-          request.type,
-        );
+        return this.#createChangeTrustTransaction(request.request);
       case KeyringTransactionType.Send:
         return this.#createSendTransaction(request.request);
+      case KeyringTransactionType.Swap:
+        return this.#createSwapTransaction(request.request);
       case KeyringTransactionType.Pending:
         return this.#createPendingTransaction(request.request);
+      case KeyringTransactionType.Unknown:
+      case KeyringTransactionType.BridgeSend:
+        return this.#createUnknownTransaction(request.request);
       default:
         throw new KeyringTransactionBuilderException(
           `Invalid transaction type`,
@@ -100,51 +145,56 @@ export class KeyringTransactionBuilder {
 
   #createChangeTrustTransaction(
     request: ChangeTrustTransactionRequest,
-    _type:
-      | KeyringTransactionType.ChangeTrustOptIn
-      | KeyringTransactionType.ChangeTrustOptOut,
   ): KeyringTransaction {
-    const timestamp = this.#getCreateTime();
-    const { txId, account, scope, asset } = request;
+    const {
+      txId,
+      account,
+      scope,
+      asset,
+      status = TransactionStatus.Unconfirmed,
+    } = request;
+    const timestamp = this.#resolveTimestamp(request.timestamp);
 
-    return {
+    return this.#buildKeyringTransaction({
       // TODO: Add the correct type
       type: TransactionType.Unknown,
       id: txId,
-      from: [
-        {
-          address: account.address,
-          asset: {
-            unit: asset.symbol,
-            type: asset.type,
-            amount: '0',
-            fungible: true,
-          },
-        },
-      ],
-      to: [
-        {
-          address: account.address,
-          asset: {
-            unit: asset.symbol,
-            type: asset.type,
-            amount: '0',
-            fungible: true,
-          },
-        },
-      ],
-      events: [
-        {
-          status: request.status ?? TransactionStatus.Unconfirmed,
-          timestamp,
-        },
-      ],
-      chain: scope,
-      status: request.status ?? TransactionStatus.Unconfirmed,
-      account: account.id,
+      account,
+      scope,
+      from: [{ address: account.address, asset }],
+      to: [{ address: account.address, asset }],
+      status,
       timestamp,
-      fees: [],
-    };
+      fees: request.fees ?? [],
+    });
+  }
+
+  #createUnknownTransaction(
+    request: UnknownTransactionRequest,
+  ): KeyringTransaction {
+    const {
+      fees = [],
+      txId,
+      account,
+      scope,
+      transactionType = TransactionType.Unknown,
+      from = [],
+      to = [],
+      status = TransactionStatus.Unconfirmed,
+    } = request;
+    const timestamp = this.#resolveTimestamp(request.timestamp);
+
+    return this.#buildKeyringTransaction({
+      type: transactionType,
+      id: txId,
+      account,
+      scope,
+      from,
+      to,
+      status,
+      timestamp,
+      fees,
+    });
   }
 
   #createPendingTransaction(
@@ -156,29 +206,26 @@ export class KeyringTransactionBuilder {
 
     // if the request has from and to, it is a pending classic swap transaction
     if ('from' in request) {
-      return {
+      return this.#buildKeyringTransaction({
         type: request.transactionType,
         id: txId,
+        account,
+        scope,
         from: request.from,
         to: request.to,
-        events: [
-          {
-            status,
-            timestamp,
-          },
-        ],
-        chain: scope,
         status,
-        account: account.id,
         timestamp,
         fees: request.fees ?? [],
-      };
+      });
     }
 
     const { asset } = request;
-    return {
+
+    return this.#buildKeyringTransaction({
       type: TransactionType.Unknown,
       id: txId,
+      account,
+      scope,
       from: [
         {
           address: account.address,
@@ -201,6 +248,92 @@ export class KeyringTransactionBuilder {
           },
         },
       ],
+      status,
+      timestamp,
+      fees: [],
+    });
+  }
+
+  #createSendTransaction(request: SendTransactionRequest): KeyringTransaction {
+    const { txId, account, scope, toAddress, asset, fees = [] } = request;
+    const status = request.status ?? TransactionStatus.Unconfirmed;
+    const timestamp = this.#resolveTimestamp(request.timestamp);
+
+    return this.#buildKeyringTransaction({
+      type: TransactionType.Send,
+      id: txId,
+      account,
+      scope,
+      from: [{ address: account.address, asset }],
+      to: [{ address: toAddress, asset }],
+      status,
+      timestamp,
+      fees,
+    });
+  }
+
+  #createSwapTransaction(request: SwapTransactionRequest): KeyringTransaction {
+    const {
+      txId,
+      account,
+      scope,
+      toAddress,
+      fromAsset,
+      toAsset,
+      fees = [],
+    } = request;
+    const status = request.status ?? TransactionStatus.Unconfirmed;
+    const timestamp = this.#resolveTimestamp(request.timestamp);
+
+    return this.#buildKeyringTransaction({
+      type: TransactionType.Swap,
+      id: txId,
+      account,
+      scope,
+      from: [
+        {
+          address: account.address,
+          asset: fromAsset,
+        },
+      ],
+      to: [
+        {
+          address: toAddress,
+          asset: toAsset,
+        },
+      ],
+      status,
+      timestamp,
+      fees,
+    });
+  }
+
+  #buildKeyringTransaction({
+    type,
+    id,
+    account,
+    scope,
+    from,
+    to,
+    status,
+    timestamp,
+    fees,
+  }: {
+    type: TransactionType;
+    id: string;
+    account: StellarKeyringAccount;
+    scope: KnownCaip2ChainId;
+    from: KeyringTransaction['from'];
+    to: KeyringTransaction['to'];
+    status: TransactionStatus;
+    timestamp: number;
+    fees: KeyringTransaction['fees'];
+  }): KeyringTransaction {
+    return {
+      type,
+      id,
+      from,
+      to,
       events: [
         {
           status,
@@ -211,51 +344,14 @@ export class KeyringTransactionBuilder {
       status,
       account: account.id,
       timestamp,
-      fees: [],
+      fees,
     };
   }
 
-  #createSendTransaction(request: SendTransactionRequest): KeyringTransaction {
-    const timestamp = this.#getCreateTime();
-    const { txId, account, scope, toAddress, amount, asset } = request;
-
-    return {
-      type: TransactionType.Send,
-      id: txId,
-      from: [
-        {
-          address: account.address,
-          asset: {
-            unit: asset.symbol,
-            type: asset.type,
-            amount,
-            fungible: true,
-          },
-        },
-      ],
-      to: [
-        {
-          address: toAddress,
-          asset: {
-            unit: asset.symbol,
-            type: asset.type,
-            amount,
-            fungible: true,
-          },
-        },
-      ],
-      events: [
-        {
-          status: TransactionStatus.Unconfirmed,
-          timestamp,
-        },
-      ],
-      chain: scope,
-      status: TransactionStatus.Unconfirmed,
-      account: account.id,
-      timestamp,
-      fees: [],
-    };
+  #resolveTimestamp(
+    timestamp: KeyringTransaction['timestamp'] | undefined,
+  ): number {
+    return timestamp ?? this.#getCreateTime();
   }
 
   #getCreateTime(): number {

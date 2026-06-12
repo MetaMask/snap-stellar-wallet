@@ -231,3 +231,10 @@ export class KeyringTransactionBuilderException extends Error {
     this.name = 'KeyringTransactionBuilderException';
   }
 }
+
+export class TransactionMapperException extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TransactionMapperException';
+  }
+}

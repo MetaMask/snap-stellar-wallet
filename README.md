@@ -65,3 +65,18 @@ The `snap.manifest.json` contains a `shasum` that differs between local and prod
 ### Local Development
 
 `yarn start` builds with local settings (adds `localhost` origins and dev permissions). These are automatically converted to production settings when you commit.
+
+## Token lists
+
+This repository publishes curated Stellar asset lists used by MetaMask services and integrations.
+
+| File | Network | Description |
+|------|---------|-------------|
+| [`tokenlists/unified-pubnet.json`](tokenlists/unified-pubnet.json) | Stellar pubnet | Curated list of supported Stellar assets (classic + Soroban) |
+
+### Consumption
+
+Raw URL (`main` branch):
+
+```text
+https://raw.githubusercontent.com/MetaMask/snap-stellar-wallet/main/tokenlists/unified-pubnet.json
