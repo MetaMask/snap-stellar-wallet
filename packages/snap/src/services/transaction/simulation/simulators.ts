@@ -30,16 +30,13 @@ import {
   InvalidTrustlineException,
   RemoveTrustlineWithNonZeroBalanceException,
   TransactionValidationException,
-  TransactionXdrDecoderException,
+  XdrParseException,
   TrustlineNotAuthorizedException,
   TrustlineNotFoundException,
   UpdateTrustlineException,
 } from '../exceptions';
-import {
-  isSep41TransferInvoke,
-  parseSep41TransferInvoke,
-} from '../transactionXdrDecoder';
 import { assertMemoWhenDestinationRequires } from '../utils';
+import { isSep41TransferInvoke, parseSep41TransferInvoke } from '../xdrParser';
 
 type ClassicAssetId = KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
 
@@ -639,7 +636,7 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
     try {
       parsed = parseSep41TransferInvoke(op, scope);
     } catch (error) {
-      if (error instanceof TransactionXdrDecoderException) {
+      if (error instanceof XdrParseException) {
         throw new TransactionValidationException(error.message);
       }
       throw error;

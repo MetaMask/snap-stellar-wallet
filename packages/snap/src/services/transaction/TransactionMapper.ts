@@ -27,6 +27,12 @@ import {
   isPathPaymentOperation,
   isInvokeHostFunctionOperation,
 } from './utils';
+import type { SuccessfulTransactionResult } from './xdrParser';
+import {
+  parseSep41TransferInvokeSafe,
+  parseSuccessfulTransactionResult,
+  TransactionResultType,
+} from './xdrParser';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19Sep41AssetId,

@@ -57,6 +57,7 @@ import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
 import { extractAssetDataFromContractData } from '../transaction/transactionXdrDecoder';
 import { assertInvokeHostFunctionSoleOperation } from '../transaction/utils';
+import { extractAssetDataFromContractData } from '../transaction/xdrParser';
 
 /**
  * Stellar network access through **Horizon** and **Soroban RPC**: base fee, account loading (full

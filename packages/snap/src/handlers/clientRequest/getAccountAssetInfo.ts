@@ -12,9 +12,11 @@ import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { AccountNotActivatedException } from '../../services/network/exceptions';
 import type { OnChainAccount } from '../../services/on-chain-account';
+import { minimumBalanceStroops } from '../../services/on-chain-account/utils';
 import {
   createPrefixedLogger,
   isClassicAssetId,
+  isSlip44Id,
   toDisplayBalance,
   type ILogger,
 } from '../../utils';
@@ -91,7 +93,7 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     >;
 
     for (const assetId of assets) {
-      if (!isClassicAssetId(assetId)) {
+      if (!isClassicAssetId(assetId) && !isSlip44Id(assetId)) {
         continue;
       }
       result[assetId] = {};
@@ -110,6 +112,11 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     >;
 
     for (const assetId of assets) {
+      if (isSlip44Id(assetId)) {
+        result[assetId] = this.#buildNativeXlmExtraEntry(onChainAccount);
+        continue;
+      }
+
       if (!isClassicAssetId(assetId)) {
         continue;
       }
@@ -149,5 +156,30 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     }
 
     return result;
+  }
+
+  #buildNativeXlmExtraEntry(
+    onChainAccount: OnChainAccount,
+  ): AccountAssetInfoExtra {
+    try {
+      const baseReserveStroops = minimumBalanceStroops({
+        subentryCount: onChainAccount.subentryCount,
+        numSponsoring: onChainAccount.numSponsoring,
+        numSponsored: onChainAccount.numSponsored,
+      });
+
+      return {
+        baseReserve: toDisplayBalance(
+          baseReserveStroops,
+          STELLAR_DECIMAL_PLACES,
+        ),
+      };
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Data error: unable to compute native XLM base reserve',
+        { error: String(error) },
+      );
+      return {};
+    }
   }
 }
