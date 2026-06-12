@@ -193,13 +193,16 @@ export function isConfirmDisabledByScan(params: {
 /**
  * Determines whether transaction scan UI should be shown for the current preferences.
  *
+ * The scan is validation-only (remote simulation is not requested), so it is
+ * driven solely by the security-alerts preference.
+ *
  * @param preferences - User preferences controlling scan behavior.
- * @returns True when either security validation alerts or simulation alerts are enabled.
+ * @returns True when security validation alerts are enabled.
  */
 export function hasEnabledTransactionScan(
   preferences: GetPreferencesResult,
 ): boolean {
-  return preferences.useSecurityAlerts || preferences.simulateOnChainActions;
+  return preferences.useSecurityAlerts;
 }
 
 /**

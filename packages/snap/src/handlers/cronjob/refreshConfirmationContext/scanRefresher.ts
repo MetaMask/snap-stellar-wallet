@@ -21,7 +21,7 @@ type SecurityScanContext = ConfirmationDataContext & ContextWithSecurityScan;
 type SecurityScanPreferences = ContextWithSecurityScan['preferences'];
 
 /**
- * Refreshes Blockaid security scan / simulation results in the confirmation dialog context.
+ * Refreshes Blockaid security validation results in the confirmation dialog context.
  */
 export class ConfirmationScanRefresher implements IConfirmationContextRefresher {
   readonly key = ConfirmationContextRefresherKey.Scan;
@@ -112,19 +112,16 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     return ContextWithSecurityScanStruct.is(ctx);
   }
 
+  // Remote simulation is intentionally not requested: its only unique output
+  // (estimated changes) is not rendered, so enabling it would only surface
+  // potential false-positive simulation errors. The scan is validation-only.
   #getScanOptions(
     preferences: SecurityScanPreferences,
   ): TransactionScanOption[] {
-    const options: TransactionScanOption[] = [];
-
-    if (preferences.simulateOnChainActions) {
-      options.push(TransactionScanOption.Simulation);
-    }
-
     if (preferences.useSecurityAlerts) {
-      options.push(TransactionScanOption.Validation);
+      return [TransactionScanOption.Validation];
     }
 
-    return options;
+    return [];
   }
 }

@@ -66,10 +66,7 @@ describe('ConfirmationScanRefresher', () => {
 
     expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
       ...securityScanRequest,
-      options: [
-        TransactionScanOption.Simulation,
-        TransactionScanOption.Validation,
-      ],
+      options: [TransactionScanOption.Validation],
     });
     expect(result).toStrictEqual({
       result: {
@@ -100,6 +97,21 @@ describe('ConfirmationScanRefresher', () => {
       },
       reschedule: false,
     });
+  });
+
+  it('does not fetch when only simulation alerts are enabled', () => {
+    const { refresher } = setup();
+
+    expect(
+      refresher.shouldFetch(
+        createScanContext({
+          preferences: {
+            useSecurityAlerts: false,
+            simulateOnChainActions: true,
+          },
+        }),
+      ),
+    ).toBe(false);
   });
 
   it('does not fetch when securityScanRequest is missing', () => {
