@@ -191,7 +191,7 @@ describe('GetAccountAssetInfoHandler', () => {
     expect(result[USDC_CLASSIC]).toStrictEqual({});
   });
 
-  it('omits non-classic assets from the response', async () => {
+  it('returns baseReserve extra for native XLM', async () => {
     const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
     const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
     const onChainAccount = createTestOnChainAccount(
@@ -199,6 +199,7 @@ describe('GetAccountAssetInfoHandler', () => {
       {
         ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
         nativeBalance: 1.000001,
+        subentryCount: 3,
       },
     );
     resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValue(
@@ -216,7 +217,28 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     })) as GetAccountAssetInfoJsonRpcResponse;
 
-    expect(result).toStrictEqual({});
+    expect(result[slipId]).toStrictEqual({
+      baseReserve: '2.5',
+    });
+  });
+
+  it('returns empty entry for native XLM when account is not activated', async () => {
+    const slipId = getSlip44AssetId(KnownCaip2ChainId.Mainnet);
+    const { handler, resolveOnChainAccountByKeyringAccountIdSpy } = setup();
+    resolveOnChainAccountByKeyringAccountIdSpy.mockResolvedValue(null);
+
+    const result = (await handler.handle({
+      jsonrpc: '2.0',
+      id: 1,
+      method: ClientRequestMethod.GetAccountAssetInfo,
+      params: {
+        accountId: mockAccountId,
+        scope,
+        assets: [slipId],
+      },
+    })) as GetAccountAssetInfoJsonRpcResponse;
+
+    expect(result[slipId]).toStrictEqual({});
   });
 
   it('throws when on-chain account resolution fails', async () => {

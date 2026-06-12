@@ -717,6 +717,17 @@ describe('GetAccountAssetInfoJsonRpcResponseStruct', () => {
       ),
     ).not.toThrow();
   });
+
+  it('accepts native XLM extra with baseReserve', () => {
+    expect(() =>
+      assert(
+        {
+          [slip44AssetId]: { baseReserve: '2.5' },
+        },
+        GetAccountAssetInfoJsonRpcResponseStruct,
+      ),
+    ).not.toThrow();
+  });
 });
 
 describe('ConfirmSendJsonRpcRequestStruct', () => {
