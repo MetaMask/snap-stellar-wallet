@@ -17,11 +17,11 @@ import {
 import { BaseClientRequestHandler } from './base';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
-import type { AccountNotActivatedException } from '../../services/network';
 import type {
   AssetMetadataService,
   StellarAssetMetadata,
 } from '../../services/asset-metadata';
+import type { AccountNotActivatedException } from '../../services/network';
 import type { OnChainAccount } from '../../services/on-chain-account';
 import {
   TrustlineNotFoundException,

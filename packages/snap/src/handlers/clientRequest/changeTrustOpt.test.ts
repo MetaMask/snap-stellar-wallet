@@ -19,7 +19,10 @@ import {
   generateMockStellarAssetMetadata,
   USDC_CLASSIC,
 } from '../../services/asset-metadata/__mocks__/assets.fixtures';
-import { AccountNotActivatedException, NetworkService } from '../../services/network';
+import {
+  AccountNotActivatedException,
+  NetworkService,
+} from '../../services/network';
 import {
   OnChainAccount,
   OnChainAccountService,
@@ -38,9 +41,9 @@ import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { ConfirmationUXController } from '../../ui/confirmation/controller';
+import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
 import { logger } from '../../utils/logger';
 import * as snapUtils from '../../utils/snap';
-import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
 import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
