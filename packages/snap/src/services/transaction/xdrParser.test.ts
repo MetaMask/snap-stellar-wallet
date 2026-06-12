@@ -11,7 +11,7 @@ import {
   buildMockInvokeHostFunctionTransaction,
   type MockInvokeHostFunctionArgNativeToScValOptions,
 } from './__mocks__/transaction.fixtures';
-import { TransactionXdrDecoderException } from './exceptions';
+import { XdrParseException } from './exceptions';
 import {
   isSep41TransferInvoke,
   parseSep41TransferInvoke,
@@ -219,20 +219,20 @@ describe('transaction-xdr-decoder', () => {
       expect(isSep41TransferInvoke(operation)).toBe(false);
     });
 
-    it('throws TransactionXdrDecoderException when function is not transfer', () => {
+    it('throws XdrParseException when function is not transfer', () => {
       const operation = buildTransferInvokeOperation('balance', [
         fromAccountId,
       ]);
 
       expect(() => parseSep41TransferInvoke(operation, scope)).toThrow(
-        TransactionXdrDecoderException,
+        XdrParseException,
       );
       expect(() => parseSep41TransferInvoke(operation, scope)).toThrow(
         'Contract is not a transfer function',
       );
     });
 
-    it('throws TransactionXdrDecoderException when transfer has wrong arg count', () => {
+    it('throws XdrParseException when transfer has wrong arg count', () => {
       const operation = buildTransferInvokeOperation(
         'transfer',
         [fromAccountId, toAccountId],
@@ -240,7 +240,7 @@ describe('transaction-xdr-decoder', () => {
       );
 
       expect(() => parseSep41TransferInvoke(operation, scope)).toThrow(
-        TransactionXdrDecoderException,
+        XdrParseException,
       );
       expect(() => parseSep41TransferInvoke(operation, scope)).toThrow(
         'Invalid transfer function arguments',

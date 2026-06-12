@@ -241,9 +241,9 @@ export class TransactionMapperException extends Error {
 }
 
 /** Thrown when Soroban XDR or ScVal parsing fails. */
-export class TransactionXdrDecoderException extends Error {
+export class XdrParseException extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'TransactionXdrDecoderException';
+    this.name = 'XdrParseException';
   }
 }

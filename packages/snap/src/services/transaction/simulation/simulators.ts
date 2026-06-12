@@ -30,7 +30,7 @@ import {
   InvalidTrustlineException,
   RemoveTrustlineWithNonZeroBalanceException,
   TransactionValidationException,
-  TransactionXdrDecoderException,
+  XdrParseException,
   TrustlineNotAuthorizedException,
   TrustlineNotFoundException,
   UpdateTrustlineException,
@@ -636,7 +636,7 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
     try {
       parsed = parseSep41TransferInvoke(op, scope);
     } catch (error) {
-      if (error instanceof TransactionXdrDecoderException) {
+      if (error instanceof XdrParseException) {
         throw new TransactionValidationException(error.message);
       }
       throw error;

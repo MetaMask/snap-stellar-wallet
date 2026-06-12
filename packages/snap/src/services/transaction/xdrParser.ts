@@ -8,7 +8,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { TransactionXdrDecoderException } from './exceptions';
+import { XdrParseException } from './exceptions';
 import {
   StellarAddressOrContractStruct,
   type KnownCaip19ClassicAssetId,
@@ -195,7 +195,7 @@ export function isSep41TransferInvoke(
  * @param op - Parsed `invokeHostFunction` operation.
  * @param scope - CAIP-2 chain id (must match the envelope network when matching preload keys).
  * @returns Parsed transfer metadata.
- * @throws {TransactionXdrDecoderException} When the operation is not a valid SEP-41 transfer invoke.
+ * @throws {XdrParseException} When the operation is not a valid SEP-41 transfer invoke.
  */
 export function parseSep41TransferInvoke(
   op: Operation.InvokeHostFunction,
@@ -203,15 +203,11 @@ export function parseSep41TransferInvoke(
 ): ParsedSep41TransferInvoke {
   const { func } = op;
   if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
-    throw new TransactionXdrDecoderException(
-      'Not an invoke contract operation',
-    );
+    throw new XdrParseException('Not an invoke contract operation');
   }
   const ic = func.invokeContract();
   if (ic.functionName().toString() !== 'transfer') {
-    throw new TransactionXdrDecoderException(
-      'Contract is not a transfer function',
-    );
+    throw new XdrParseException('Contract is not a transfer function');
   }
 
   const args = ic.args();
@@ -221,9 +217,7 @@ export function parseSep41TransferInvoke(
     args[1] === undefined ||
     args[2] === undefined
   ) {
-    throw new TransactionXdrDecoderException(
-      'Invalid transfer function arguments',
-    );
+    throw new XdrParseException('Invalid transfer function arguments');
   }
 
   const contractAddr = Address.fromScAddress(ic.contractAddress()).toString();
@@ -235,13 +229,13 @@ export function parseSep41TransferInvoke(
     typeof fromNative !== 'string' ||
     !StellarAddressOrContractStruct.is(fromNative)
   ) {
-    throw new TransactionXdrDecoderException('Invalid from address');
+    throw new XdrParseException('Invalid from address');
   }
   if (
     typeof toNative !== 'string' ||
     !StellarAddressOrContractStruct.is(toNative)
   ) {
-    throw new TransactionXdrDecoderException('Invalid to address');
+    throw new XdrParseException('Invalid to address');
   }
 
   return {
@@ -313,7 +307,7 @@ export function xdrAssetToCaip19(
  *
  * @param value - The value to parse.
  * @returns The parsed amount in BigNumber.
- * @throws {TransactionXdrDecoderException} If the value is not a valid native value.
+ * @throws {XdrParseException} If the value is not a valid native value.
  */
 export function parseScValToNative(value: string | bigint | number): BigNumber {
   let amountStr: string;
@@ -326,7 +320,7 @@ export function parseScValToNative(value: string | bigint | number): BigNumber {
   }
   const amountBn = new BigNumber(amountStr);
   if (!amountBn.isFinite() || amountBn.isNegative()) {
-    throw new TransactionXdrDecoderException(`Invalid native value: ${value}`);
+    throw new XdrParseException(`Invalid native value: ${value}`);
   }
   return amountBn;
 }
@@ -398,27 +392,27 @@ export function extractAssetDataFromContractData(
       }
     }
     if (assetData.name === '') {
-      throw new TransactionXdrDecoderException(
+      throw new XdrParseException(
         `Name is empty for contract ${contractAddress}`,
       );
     }
     if (assetData.symbol === '') {
-      throw new TransactionXdrDecoderException(
+      throw new XdrParseException(
         `Symbol is empty for contract ${contractAddress}`,
       );
     }
     if (assetData.decimals === -1) {
-      throw new TransactionXdrDecoderException(
+      throw new XdrParseException(
         `Decimals is empty for contract ${contractAddress}`,
       );
     }
 
     return assetData;
   } catch (error) {
-    if (error instanceof TransactionXdrDecoderException) {
+    if (error instanceof XdrParseException) {
       throw error;
     }
-    throw new TransactionXdrDecoderException(
+    throw new XdrParseException(
       `Error extracting asset data from contract ${contractAddress}`,
     );
   }
