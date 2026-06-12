@@ -17,6 +17,7 @@ import {
 import { BaseClientRequestHandler } from './base';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
+import type { AccountNotActivatedException } from '../../services/network';
 import type {
   AssetMetadataService,
   StellarAssetMetadata,
@@ -33,6 +34,7 @@ import type {
 } from '../../services/transaction';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
+import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
 import { createPrefixedLogger, type ILogger } from '../../utils/logger';
 import {
   trackTransactionAdded,
@@ -77,6 +79,22 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     this.#transactionService = transactionService;
     this.#assetMetadataService = assetMetadataService;
     this.#confirmationUIController = confirmationUIController;
+  }
+
+  /**
+   * Shows the account activation prompt when the account is unfunded, then returns
+   * `{ status: false }` so the client can treat it as an expected outcome (not an RPC error).
+   *
+   * @param error - The account not activated error.
+   * @param _request - The JSON-RPC request that triggered resolution.
+   * @returns `{ status: false }` after the user dismisses the funding prompt.
+   */
+  protected override async handleAccountNotActivatedError(
+    error: AccountNotActivatedException,
+    _request: ChangeTrustOptJsonRpcRequest,
+  ): Promise<ChangeTrustOptJsonRpcResponse> {
+    await renderAccountActivationPrompt(error.address);
+    return { status: false };
   }
 
   /**

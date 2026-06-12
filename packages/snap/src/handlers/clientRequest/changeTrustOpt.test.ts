@@ -19,7 +19,7 @@ import {
   generateMockStellarAssetMetadata,
   USDC_CLASSIC,
 } from '../../services/asset-metadata/__mocks__/assets.fixtures';
-import { NetworkService } from '../../services/network';
+import { AccountNotActivatedException, NetworkService } from '../../services/network';
 import {
   OnChainAccount,
   OnChainAccountService,
@@ -40,12 +40,16 @@ import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
 import * as snapUtils from '../../utils/snap';
+import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
 import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 jest.mock('../../utils/logger');
 jest.mock('@metamask/keyring-snap-sdk', () => ({
   emitSnapKeyringEvent: jest.fn(),
+}));
+jest.mock('../../ui/confirmation/views/AccountActivationPrompt/render', () => ({
+  render: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe('ChangeTrustOptHandler', () => {
@@ -300,6 +304,26 @@ describe('ChangeTrustOptHandler', () => {
       scope,
       accountIdsOrAddresses: [account.id],
     });
+  });
+
+  it('returns status false and shows account activation prompt when account is not funded', async () => {
+    const {
+      handler,
+      wallet,
+      resolveOnChainAccountSpy,
+      createValidatedChangeTrustTransaction,
+      renderConfirmationDialog,
+    } = setup();
+    resolveOnChainAccountSpy.mockRejectedValueOnce(
+      new AccountNotActivatedException(wallet.address, scope),
+    );
+
+    const result = await handler.handle(addRequest);
+
+    expect(result).toStrictEqual({ status: false });
+    expect(renderAccountActivationPrompt).toHaveBeenCalledWith(wallet.address);
+    expect(createValidatedChangeTrustTransaction).not.toHaveBeenCalled();
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
   it('returns success early for opt-in when trustline already exists', async () => {
