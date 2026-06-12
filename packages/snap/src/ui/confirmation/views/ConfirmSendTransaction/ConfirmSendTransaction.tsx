@@ -37,8 +37,7 @@ import {
   getClassicAssetExplorerUrl,
   getNetworkName,
   getSepAssetExplorerUrl,
-  isConfirmDisabledByScan,
-  isConfirmDisabledByTransactionValidation,
+  isConfirmBlocked,
   requiresMaliciousAcknowledgement,
 } from '../../utils';
 
@@ -72,9 +71,10 @@ export const ConfirmSendTransaction = ({
   const t = i18n(locale);
   const { address } = account;
   const { assetId, symbol } = assetMetadata;
-  const shouldDisableConfirmButton =
-    isConfirmDisabledByScan({ scanFetchStatus }) ||
-    isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
+  const shouldDisableConfirmButton = isConfirmBlocked({
+    scanFetchStatus,
+    transactionsFetchStatus,
+  });
   const parsedAsset = parseCaipAssetType(assetId);
   let assetLink: string | undefined;
   if (!isSlip44Id(assetId)) {

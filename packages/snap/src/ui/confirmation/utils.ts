@@ -236,6 +236,31 @@ export function isConfirmDisabledByTransactionValidation(
 }
 
 /**
+ * Single source of truth for whether the confirm action must be blocked.
+ *
+ * Combines the scan and re-validation guards so the confirmation footer and the
+ * malicious-acknowledgement proceed handler can never drift apart. Flows without
+ * background re-validation (e.g. dapp sign-transaction) simply omit
+ * `transactionsFetchStatus`, which is treated as "not blocked".
+ *
+ * @param params - Latest fetch state.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @param params.transactionsFetchStatus - Latest transaction re-validation fetch status.
+ * @returns True when the confirm action should be disabled.
+ */
+export function isConfirmBlocked(params: {
+  scanFetchStatus?: FetchStatus;
+  transactionsFetchStatus?: FetchStatus;
+}): boolean {
+  return (
+    isConfirmDisabledByScan({
+      scanFetchStatus: params.scanFetchStatus ?? FetchStatus.Initial,
+    }) ||
+    isConfirmDisabledByTransactionValidation(params.transactionsFetchStatus)
+  );
+}
+
+/**
  * The single banner the confirmation screen may show at the top.
  *
  * The transaction-validation banner and the Blockaid scan banner are mutually

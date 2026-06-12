@@ -5,6 +5,7 @@ import {
 import { FetchStatus } from './api';
 import {
   ConfirmationBanner,
+  isConfirmBlocked,
   isConfirmDisabledByScan,
   isConfirmDisabledByTransactionValidation,
   requiresMaliciousAcknowledgement,
@@ -39,6 +40,36 @@ describe('confirmation utils', () => {
       expect(
         isConfirmDisabledByScan({ scanFetchStatus: FetchStatus.Error }),
       ).toBe(false);
+    });
+  });
+
+  describe('isConfirmBlocked', () => {
+    it('blocks while the scan is fetching', () => {
+      expect(isConfirmBlocked({ scanFetchStatus: FetchStatus.Fetching })).toBe(
+        true,
+      );
+    });
+
+    it('blocks when re-validation reports an error', () => {
+      expect(
+        isConfirmBlocked({
+          scanFetchStatus: FetchStatus.Fetched,
+          transactionsFetchStatus: FetchStatus.Error,
+        }),
+      ).toBe(true);
+    });
+
+    it('does not block when scan is fetched and re-validation is clean', () => {
+      expect(
+        isConfirmBlocked({
+          scanFetchStatus: FetchStatus.Fetched,
+          transactionsFetchStatus: FetchStatus.Fetched,
+        }),
+      ).toBe(false);
+    });
+
+    it('does not block when both statuses are omitted', () => {
+      expect(isConfirmBlocked({})).toBe(false);
     });
   });
 

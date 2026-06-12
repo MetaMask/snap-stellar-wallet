@@ -7,7 +7,8 @@ import type {
   UserInputUiEventHandlerContext,
 } from '../../../../handlers/user-input/api';
 import { resolveInterface, updateInterfaceIfExists } from '../../../../utils';
-import type { ConfirmationInterfaceKey } from '../../api';
+import type { ConfirmationInterfaceKey, FetchStatus } from '../../api';
+import { isConfirmBlocked } from '../../utils';
 import { renderConfirmationView } from '../render';
 
 /**
@@ -72,6 +73,11 @@ async function onAcknowledgeChange(
  * this re-checks `acknowledged` defensively so we never resolve the interface
  * for an unacknowledged risk.
  *
+ * It also re-applies the confirmation footer's block guard: while the user was
+ * on the acknowledgement screen, a background refresher may have invalidated the
+ * transaction (failed re-validation) or left the scan pending. We never resolve
+ * a transaction the footer would have blocked.
+ *
  * @param options - The user input handler context.
  */
 async function onProceedClick(
@@ -81,6 +87,18 @@ async function onProceedClick(
   if (context?.acknowledged !== true) {
     return;
   }
+
+  if (
+    isConfirmBlocked({
+      scanFetchStatus: context.scanFetchStatus as FetchStatus | undefined,
+      transactionsFetchStatus: context.transactionsFetchStatus as
+        | FetchStatus
+        | undefined,
+    })
+  ) {
+    return;
+  }
+
   await resolveInterface(id, true);
 }
 

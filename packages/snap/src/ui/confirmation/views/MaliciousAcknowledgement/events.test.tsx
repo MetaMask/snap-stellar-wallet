@@ -4,7 +4,7 @@ import { UserInputEventType } from '@metamask/snaps-sdk';
 import { MaliciousAcknowledgementFormNames } from './constants';
 import { createEventHandlers } from './events';
 import { resolveInterface, updateInterfaceIfExists } from '../../../../utils';
-import { ConfirmationInterfaceKey } from '../../api';
+import { ConfirmationInterfaceKey, FetchStatus } from '../../api';
 import { renderConfirmationView } from '../render';
 
 jest.mock('../render', () => ({
@@ -113,6 +113,38 @@ describe('malicious acknowledgement events', () => {
         ...baseContext,
         acknowledgementScreen: true,
         acknowledged: false,
+      },
+    });
+
+    expect(resolveInterface).not.toHaveBeenCalled();
+  });
+
+  it('does not resolve on "Confirm" when background re-validation failed', async () => {
+    const name = MaliciousAcknowledgementFormNames.Proceed;
+    await handlers[name]?.({
+      id: INTERFACE_ID,
+      event: buttonEvent(name),
+      context: {
+        ...baseContext,
+        acknowledgementScreen: true,
+        acknowledged: true,
+        transactionsFetchStatus: FetchStatus.Error,
+      },
+    });
+
+    expect(resolveInterface).not.toHaveBeenCalled();
+  });
+
+  it('does not resolve on "Confirm" while the scan is still fetching', async () => {
+    const name = MaliciousAcknowledgementFormNames.Proceed;
+    await handlers[name]?.({
+      id: INTERFACE_ID,
+      event: buttonEvent(name),
+      context: {
+        ...baseContext,
+        acknowledgementScreen: true,
+        acknowledged: true,
+        scanFetchStatus: FetchStatus.Fetching,
       },
     });
 

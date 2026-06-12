@@ -31,7 +31,7 @@ import {
   getAccountName,
   getNetworkName,
   hasEnabledTransactionScan,
-  isConfirmDisabledByScan,
+  isConfirmBlocked,
   requiresMaliciousAcknowledgement,
   resolveAssetDisplay,
 } from '../../utils';
@@ -177,9 +177,7 @@ export const ConfirmSignTransaction = ({
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
   const feePrice = tokenPrices?.[feeData.assetId] ?? null;
-  const shouldDisableConfirmButton = isConfirmDisabledByScan({
-    scanFetchStatus,
-  });
+  const shouldDisableConfirmButton = isConfirmBlocked({ scanFetchStatus });
 
   return (
     <Container>
