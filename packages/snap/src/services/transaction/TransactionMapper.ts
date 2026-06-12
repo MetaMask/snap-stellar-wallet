@@ -10,12 +10,6 @@ import type {
 } from './KeyringTransactionBuilder';
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
-import type { SuccessfulTransactionResult } from './transactionXdrDecoder';
-import {
-  parseSep41TransferInvokeSafe,
-  parseSuccessfulTransactionResult,
-  TransactionResultType,
-} from './transactionXdrDecoder';
 import {
   isAddChangeTrustTransaction,
   isDustPaymentTransaction,
@@ -27,6 +21,12 @@ import {
   isPathPaymentOperation,
   isInvokeHostFunctionOperation,
 } from './utils';
+import type { SuccessfulTransactionResult } from './xdrParser';
+import {
+  parseSep41TransferInvokeSafe,
+  parseSuccessfulTransactionResult,
+  TransactionResultType,
+} from './xdrParser';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19Sep41AssetId,

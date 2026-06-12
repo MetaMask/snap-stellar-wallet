@@ -35,11 +35,8 @@ import {
   TrustlineNotFoundException,
   UpdateTrustlineException,
 } from '../exceptions';
-import {
-  isSep41TransferInvoke,
-  parseSep41TransferInvoke,
-} from '../transactionXdrDecoder';
 import { assertMemoWhenDestinationRequires } from '../utils';
+import { isSep41TransferInvoke, parseSep41TransferInvoke } from '../xdrParser';
 
 type ClassicAssetId = KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
 

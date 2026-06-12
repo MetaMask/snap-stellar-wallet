@@ -3,7 +3,7 @@ import { Networks } from '@stellar/stellar-sdk';
 import type { BigNumber } from 'bignumber.js';
 
 import { KnownCaip2ChainId } from '../../api';
-import { parseScValToNative } from '../transaction/transactionXdrDecoder';
+import { parseScValToNative } from '../transaction/xdrParser';
 
 const StellarNetwork: Record<KnownCaip2ChainId, Networks> = {
   [KnownCaip2ChainId.Mainnet]: Networks.PUBLIC,

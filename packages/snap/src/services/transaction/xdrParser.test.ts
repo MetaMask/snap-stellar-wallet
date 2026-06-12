@@ -19,7 +19,7 @@ import {
   parseSuccessfulTransactionResult,
   TransactionResultType,
   xdrAssetToCaip19,
-} from './transactionXdrDecoder';
+} from './xdrParser';
 import { KnownCaip2ChainId } from '../../api';
 import {
   getSlip44AssetId,
