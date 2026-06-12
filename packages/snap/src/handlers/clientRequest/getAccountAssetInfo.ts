@@ -69,22 +69,22 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   }
 
   /**
-   * Returns empty trust-line entries when the account is not activated.
+   * Returns default per-asset extra entries when the account is not activated.
    * Tolerates unactivated accounts for portfolio-import UX instead of showing the activation prompt.
    *
    * @param _error - The account not activated error.
    * @param request - The JSON-RPC request with assets to describe.
-   * @returns Per-asset trust-line fields without on-chain data.
+   * @returns Per-asset extra fields without on-chain data.
    */
   protected override async handleAccountNotActivatedError(
     _error: AccountNotActivatedException,
     request: GetAccountAssetInfoJsonRpcRequest,
   ): Promise<GetAccountAssetInfoJsonRpcResponse> {
     const { assets } = request.params;
-    return this.#buildEmptyTrustLineEntries(assets);
+    return this.#buildDefaultAccountAssetInfoEntries(assets);
   }
 
-  #buildEmptyTrustLineEntries(
+  #buildDefaultAccountAssetInfoEntries(
     assets: KnownCaip19AssetIdOrSlip44Id[],
   ): Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoExtra> {
     const result = {} as Record<
