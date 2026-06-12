@@ -1,11 +1,16 @@
 import { Asset, StrKey, xdr } from '@stellar/stellar-sdk';
+import { BigNumber } from 'bignumber.js';
 
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Slip44Id,
   KnownCaip2ChainId,
 } from '../../api';
-import { getSlip44AssetId, toCaip19ClassicAssetId } from '../../utils';
+import {
+  getSlip44AssetId,
+  toCaip19ClassicAssetId,
+  toDisplayBalance,
+} from '../../utils';
 import { bufferToUint8Array } from '../../utils/buffer';
 
 export enum TransactionResultType {
@@ -18,6 +23,19 @@ type TransactionResultAsset =
   | KnownCaip19Slip44Id
   | undefined;
 
+type AssetAndAmount = {
+    amount: BigNumber;
+    asset: TransactionResultAsset;
+    destination: string | undefined;
+  };
+/**
+ * Parsed outcome for a single successful path-payment operation.
+ *
+ * `amount` and `asset` always describe the side extracted from the transaction
+ * result XDR that is not fixed by the operation envelope:
+ * - {@link TransactionResultType.PathPaymentStrictSendSuccess}: destination (receive) amount and asset from `last`.
+ * - {@link TransactionResultType.PathPaymentStrictReceiveSuccess}: source (send) amount and asset from the first path offer's `amountBought` / `assetBought` (not the receive amount/asset in `last`).
+ */
 type OperationResult =
   | {
       type: TransactionResultType.PathPaymentStrictSendSuccess;
@@ -40,6 +58,20 @@ export type SuccessfulTransactionResult = {
 
 /**
  * Parses a successful Stellar transaction result XDR into operation-level outcomes.
+ *
+ * Only path-payment success results are decoded; other operations are returned as `null`
+ * placeholders so `operationResults` stays aligned with operation index.
+ *
+ * For each path-payment type, `amount` and `asset` are the variable side of the swap
+ * (the side not already known from the operation envelope):
+ *
+ * PathPaymentStrictSendSuccess: destination receive amount and asset from `last`.
+ *
+ * PathPaymentStrictReceiveSuccess: source send amount and asset from the first path
+ * offer's `amountBought` / `assetBought`, not the receive amount and asset in `last`
+ * (those match the operation's fixed `destAmount` / `destAsset`).
+ *
+ * All amounts are display-formatted (e.g. stroops converted to lumens).
  *
  * @param xdrString - Base64-encoded `TransactionResult` XDR from Horizon.
  * @param scope - CAIP-2 chain used to encode parsed asset ids.
@@ -67,32 +99,39 @@ export function parseSuccessfulTransactionResult(
 
       try {
         if (name === TransactionResultType.PathPaymentStrictSendSuccess) {
-          const pathPaymentStrictSendSuccess = tr
-            .pathPaymentStrictSendResult()
-            .success();
-          const last = pathPaymentStrictSendSuccess.last();
-          operationResults.push({
-            type: TransactionResultType.PathPaymentStrictSendSuccess,
-            amount: last.amount().toString(),
-            asset: xdrAssetToCaip19(last.asset(), scope),
-            destination: xdrPublicKeyToAddress(last.destination()),
-          });
+          const success = tr.pathPaymentStrictSendResult().success();
+          const receiveSide = extractLastReceiveSide(success.last(), scope);
+
+          if (receiveSide) {
+            operationResults.push({
+              type: TransactionResultType.PathPaymentStrictSendSuccess,
+              amount: toDisplayBalance(receiveSide.amount),
+              asset: receiveSide.asset,
+              destination: receiveSide.destination,
+            });
+            continue;
+          } 
         } else if (
           name === TransactionResultType.PathPaymentStrictReceiveSuccess
         ) {
-          const pathPaymentStrictReceiveSuccess = tr
-            .pathPaymentStrictReceiveResult()
-            .success();
-          const last = pathPaymentStrictReceiveSuccess.last();
-          operationResults.push({
-            type: TransactionResultType.PathPaymentStrictReceiveSuccess,
-            amount: last.amount().toString(),
-            asset: xdrAssetToCaip19(last.asset(), scope),
-            destination: xdrPublicKeyToAddress(last.destination()),
-          });
-        } else {
-          operationResults.push(null);
-        }
+          const success = tr.pathPaymentStrictReceiveResult().success();
+          const sendSide = extractFirstOfferSendSide(
+            success.offers()[0],
+            success.last(),
+            scope,
+          );
+
+          if (sendSide) {
+            operationResults.push({
+              type: TransactionResultType.PathPaymentStrictReceiveSuccess,
+              amount: toDisplayBalance(sendSide.amount),
+              asset: sendSide.asset,
+              destination: sendSide.destination,
+            });
+            continue;
+          } 
+        } 
+        operationResults.push(null);
       } catch {
         // Preserve operation index alignment when a single result cannot be parsed.
         operationResults.push(null);
@@ -156,4 +195,70 @@ function xdrPublicKeyToAddress(publicKey: xdr.PublicKey): string | undefined {
     default:
       return undefined;
   }
+}
+
+/**
+ * Extracts receive-side amount, asset, and destination from the `last` payment result.
+ *
+ * @param last - Final `SimplePaymentResult` from the path payment result.
+ * @param scope - CAIP-2 chain used to encode the asset id.
+ * @returns Receive amount, asset, and destination, or `undefined` when `last` is missing.
+ */
+function extractLastReceiveSide(
+  last: xdr.SimplePaymentResult | undefined,
+  scope: KnownCaip2ChainId,
+): AssetAndAmount | undefined {
+  if (!last) {
+    return undefined;
+  }
+
+  return {
+    amount: new BigNumber(last.amount().toString()),
+    asset: xdrAssetToCaip19(last.asset(), scope),
+    destination: xdrPublicKeyToAddress(last.destination()),
+  };
+}
+
+/**
+ * Extracts send-side amount and asset from the first path offer of a strict-receive payment,
+ * with destination from `last`.
+ *
+ * @param offer - First `ClaimAtom` from the path payment result.
+ * @param last - Final `SimplePaymentResult` from the path payment result.
+ * @param scope - CAIP-2 chain used to encode the asset id.
+ * @returns Send amount, asset, and destination, or `undefined` when inputs are missing or unsupported.
+ */
+function extractFirstOfferSendSide(
+  offer: xdr.ClaimAtom | undefined,
+  last: xdr.SimplePaymentResult | undefined,
+  scope: KnownCaip2ChainId,
+): AssetAndAmount | undefined {
+  if (!offer || !last) {
+    return undefined;
+  }
+
+  let claim: {
+    amountBought(): xdr.Int64;
+    assetBought(): xdr.Asset;
+  } | undefined;
+
+  switch (offer.switch().name) {
+    case 'claimAtomTypeOrderBook':
+      claim = offer.orderBook();
+      break;
+    case 'claimAtomTypeLiquidityPool':
+      claim = offer.liquidityPool();
+      break;
+    case 'claimAtomTypeV0':
+      claim = offer.v0();
+      break;
+    default:
+      return undefined;
+  }
+
+  return {
+    amount: new BigNumber(claim.amountBought().toString()),
+    asset: xdrAssetToCaip19(claim.assetBought(), scope),
+    destination: xdrPublicKeyToAddress(last.destination()),
+  };
 }

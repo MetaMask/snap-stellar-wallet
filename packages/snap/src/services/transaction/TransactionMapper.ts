@@ -1,7 +1,6 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { TransactionType } from '@metamask/keyring-api';
 import { Asset } from '@stellar/stellar-sdk';
-import { BigNumber } from 'bignumber.js';
 
 import { StellarOperationType } from './api';
 import { TransactionMapperException } from './exceptions';
@@ -24,6 +23,7 @@ import {
   isSendTransaction,
   isSwapTransaction,
   isReceiveOperation,
+  isPathPaymentOperation,
 } from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
@@ -268,33 +268,37 @@ export class TransactionMapper {
   ): KeyringTransaction {
     // Find the index of the swap operation as the key to look up the destination amount in the successful transaction result.
     const swapOperationIndex = transaction.transactionOperations.findIndex(
-      (operation) =>
-        operation.type === StellarOperationType.PathPaymentStrictSend,
+      (operation) => isPathPaymentOperation(operation),
     );
     const swapOperation = transaction.transactionOperations[swapOperationIndex];
 
-    if (
-      swapOperation &&
-      swapOperation.type === StellarOperationType.PathPaymentStrictSend
-    ) {
+    if (swapOperation && isPathPaymentOperation(swapOperation)) {
       const { scope } = transaction;
-      const {
-        destination: toAddress,
-        sendAsset,
-        destAsset,
-        sendAmount,
-        destMin,
-      } = swapOperation;
 
       const successfulTransactionResult =
         this.#getSuccessfulTransactionResultSafe(transaction);
 
-      // Extract the destination amount from the successful transaction result by the index of the swap operation.
-      const destAmount =
-        this.#extractSwapDestAmount(
-          successfulTransactionResult,
-          swapOperationIndex,
-        ) ?? destMin;
+      const { destination: toAddress, sendAsset, destAsset } = swapOperation;
+
+      let sendAmount;
+      let destAmount;
+
+      // Extract the send/dest amount from the successful transaction result by the index of the swap operation.
+      if (swapOperation.type === StellarOperationType.PathPaymentStrictSend) {
+        destAmount =
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            swapOperationIndex,
+          ) ?? swapOperation.destMin;
+        sendAmount = swapOperation.sendAmount;
+      } else {
+        destAmount = swapOperation.destAmount;
+        sendAmount =
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            swapOperationIndex,
+          ) ?? swapOperation.sendMax;
+      }
 
       return this.#keyringTransactionBuilder.createTransaction({
         type: KeyringTransactionType.Swap,
@@ -506,8 +510,10 @@ export class TransactionMapper {
 
       if (operation.type === StellarOperationType.PathPaymentStrictSend) {
         const destAmount =
-          this.#extractSwapDestAmount(successfulTransactionResult, index) ??
-          operation.destMin;
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            index,
+          ) ?? operation.destMin;
 
         return this.#assetToKeyringAssetRow(
           operation.destAsset,
@@ -550,21 +556,20 @@ export class TransactionMapper {
     }
   }
 
-  #extractSwapDestAmount(
+  #extractSwapDestOrSourceAmount(
     successfulTransactionResult: SuccessfulTransactionResult | null,
     index: number,
   ): string | null {
-    const pathPaymentStrictSendSuccess =
-      successfulTransactionResult?.operationResults[index];
+    const result = successfulTransactionResult?.operationResults[index];
+
     if (
-      pathPaymentStrictSendSuccess &&
-      pathPaymentStrictSendSuccess?.type ===
-        TransactionResultType.PathPaymentStrictSendSuccess &&
-      pathPaymentStrictSendSuccess?.amount !== undefined
+      result &&
+      (result?.type === TransactionResultType.PathPaymentStrictSendSuccess ||
+        result?.type ===
+          TransactionResultType.PathPaymentStrictReceiveSuccess) &&
+      result?.amount !== undefined
     ) {
-      return toDisplayBalance(
-        new BigNumber(pathPaymentStrictSendSuccess.amount),
-      );
+      return result.amount;
     }
     return null;
   }

@@ -2,6 +2,7 @@ import type { xdr } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
 
 import {
+  swapTransactionPathReceiveResponse,
   swapTransactionWithFeeCollectResponse,
   swapTransactionWithoutFeeCollectResponse,
 } from './__mocks__/horizon-transaction-responses.fixtures';
@@ -37,9 +38,28 @@ describe('transaction-xdr-decoder', () => {
         operationResults: [
           {
             type: TransactionResultType.PathPaymentStrictSendSuccess,
-            amount: '1579988',
+            amount: '0.1579988',
             destination: accountAddress,
             asset: toCaip19ClassicAssetId(scope, 'USDC', usdcIssuer),
+          },
+        ],
+      });
+    });
+
+    it('parses pathPaymentStrictReceiveSuccess from single-op swap', () => {
+      const result = parseSuccessfulTransactionResult(
+        swapTransactionPathReceiveResponse.result_xdr,
+        scope,
+      );
+
+      expect(result).toStrictEqual({
+        feeCharged: '100',
+        operationResults: [
+          {
+            type: TransactionResultType.PathPaymentStrictReceiveSuccess,
+            amount: '0.19816',
+            destination: accountAddress,
+            asset: getSlip44AssetId(scope),
           },
         ],
       });
@@ -56,7 +76,7 @@ describe('transaction-xdr-decoder', () => {
         operationResults: [
           {
             type: TransactionResultType.PathPaymentStrictSendSuccess,
-            amount: '5257447',
+            amount: '0.5257447',
             destination: accountAddress,
             asset: getSlip44AssetId(scope),
           },

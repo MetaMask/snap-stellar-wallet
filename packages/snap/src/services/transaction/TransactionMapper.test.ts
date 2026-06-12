@@ -19,6 +19,9 @@ import {
   createAccountTransactionResponse,
   receivePaymentTransactionResponse,
   receiveCreateAccountTransactionResponse,
+  swapTransactionPathReceiveResponse,
+  swapTransactionPathReceiveWithStrictPathResponse,
+  receivePaymentTransactionPathReceiveResponse,
 } from './__mocks__/horizon-transaction-responses.fixtures';
 import {
   buildMockClassicTransaction,
@@ -161,6 +164,41 @@ describe('TransactionMapper', () => {
       txnType: TransactionType.Swap,
     },
     {
+      testCase: 'swap transaction via path payment strict receive',
+      response: swapTransactionPathReceiveResponse,
+      fromAsset: nativeAsset,
+      fromAssetSymbol: NATIVE_ASSET_SYMBOL,
+      fromAmount: '0.19816',
+      toAsset: toCaip19ClassicAssetId(
+        scope,
+        'AQUA',
+        'GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA',
+      ),
+      toAssetSymbol: 'AQUA',
+      toAmount: '100',
+      toAddress: accountAddress,
+      fromAddress: accountAddress,
+      txnType: TransactionType.Swap,
+    },
+    {
+      testCase:
+        'swap transaction via path payment strict receive (strict path)',
+      response: swapTransactionPathReceiveWithStrictPathResponse,
+      fromAsset: nativeAsset,
+      fromAssetSymbol: NATIVE_ASSET_SYMBOL,
+      fromAmount: '0.1992969',
+      toAsset: toCaip19ClassicAssetId(
+        scope,
+        'AQUA',
+        'GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA',
+      ),
+      toAssetSymbol: 'AQUA',
+      toAmount: '100',
+      toAddress: accountAddress,
+      fromAddress: accountAddress,
+      txnType: TransactionType.Swap,
+    },
+    {
       testCase: 'add change trust transaction',
       response: addChangeTrustResponse,
       fromAsset: toCaip19ClassicAssetId(
@@ -262,6 +300,28 @@ describe('TransactionMapper', () => {
       fromAddress: 'GCXZDLDI4BO3RHIYBS22RZXB5LGRRLTZUSPG6ANQQ36TVL2ASHC4ONZO',
       txnType: TransactionType.Receive,
     },
+
+    {
+      testCase: 'receive payment transaction via path payment strict receive',
+      response: receivePaymentTransactionPathReceiveResponse,
+      fromAsset: toCaip19ClassicAssetId(
+        scope,
+        'AQUA',
+        'GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA',
+      ),
+      fromAssetSymbol: 'AQUA',
+      fromAmount: '100',
+      toAsset: toCaip19ClassicAssetId(
+        scope,
+        'AQUA',
+        'GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA',
+      ),
+      toAssetSymbol: 'AQUA',
+      toAmount: '100',
+      toAddress: accountAddress,
+      fromAddress: 'GB327AMKGJDXEMQREZRRVW7Y6KEKWPOWTJKCCYUQK7KKXVMCTNZEOYXU',
+      txnType: TransactionType.Receive,
+    }
   ])(
     'maps a $testCase from Horizon',
     ({
