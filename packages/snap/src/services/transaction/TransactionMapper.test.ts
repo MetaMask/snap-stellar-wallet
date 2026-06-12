@@ -321,7 +321,7 @@ describe('TransactionMapper', () => {
       toAddress: accountAddress,
       fromAddress: 'GB327AMKGJDXEMQREZRRVW7Y6KEKWPOWTJKCCYUQK7KKXVMCTNZEOYXU',
       txnType: TransactionType.Receive,
-    }
+    },
   ])(
     'maps a $testCase from Horizon',
     ({

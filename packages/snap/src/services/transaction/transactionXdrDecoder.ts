@@ -24,10 +24,10 @@ type TransactionResultAsset =
   | undefined;
 
 type AssetAndAmount = {
-    amount: BigNumber;
-    asset: TransactionResultAsset;
-    destination: string | undefined;
-  };
+  amount: BigNumber;
+  asset: TransactionResultAsset;
+  destination: string | undefined;
+};
 /**
  * Parsed outcome for a single successful path-payment operation.
  *
@@ -110,7 +110,7 @@ export function parseSuccessfulTransactionResult(
               destination: receiveSide.destination,
             });
             continue;
-          } 
+          }
         } else if (
           name === TransactionResultType.PathPaymentStrictReceiveSuccess
         ) {
@@ -129,8 +129,8 @@ export function parseSuccessfulTransactionResult(
               destination: sendSide.destination,
             });
             continue;
-          } 
-        } 
+          }
+        }
         operationResults.push(null);
       } catch {
         // Preserve operation index alignment when a single result cannot be parsed.
@@ -237,10 +237,12 @@ function extractFirstOfferSendSide(
     return undefined;
   }
 
-  let claim: {
-    amountBought(): xdr.Int64;
-    assetBought(): xdr.Asset;
-  } | undefined;
+  let claim:
+    | {
+        amountBought(): xdr.Int64;
+        assetBought(): xdr.Asset;
+      }
+    | undefined;
 
   switch (offer.switch().name) {
     case 'claimAtomTypeOrderBook':
