@@ -1,6 +1,165 @@
 import type { Horizon } from '@stellar/stellar-sdk';
 
 /* eslint-disable @typescript-eslint/naming-convention -- Horizon API field names */
+export const receivePaymentTransactionPathReceiveResponse = {
+  _links: {
+    self: {
+      href: 'https://horizon.stellar.org/transactions/0ed5a90390df778a2794024799b64c320f07ca9627d444fc93f17dd0e23cb389',
+    },
+    account: {
+      href: 'https://horizon.stellar.org/accounts/GB327AMKGJDXEMQREZRRVW7Y6KEKWPOWTJKCCYUQK7KKXVMCTNZEOYXU',
+    },
+    ledger: {
+      href: 'https://horizon.stellar.org/ledgers/62990137',
+    },
+    operations: {
+      href: 'https://horizon.stellar.org/transactions/0ed5a90390df778a2794024799b64c320f07ca9627d444fc93f17dd0e23cb389/operations{?cursor,limit,order}',
+      templated: true,
+    },
+    effects: {
+      href: 'https://horizon.stellar.org/transactions/0ed5a90390df778a2794024799b64c320f07ca9627d444fc93f17dd0e23cb389/effects{?cursor,limit,order}',
+      templated: true,
+    },
+    precedes: {
+      href: 'https://horizon.stellar.org/transactions?order=asc\u0026cursor=270540578385887232',
+    },
+    succeeds: {
+      href: 'https://horizon.stellar.org/transactions?order=desc\u0026cursor=270540578385887232',
+    },
+    transaction: {
+      href: 'https://horizon.stellar.org/transactions/0ed5a90390df778a2794024799b64c320f07ca9627d444fc93f17dd0e23cb389',
+    },
+  },
+  id: '0ed5a90390df778a2794024799b64c320f07ca9627d444fc93f17dd0e23cb389',
+  paging_token: '270540578385887232',
+  successful: true,
+  hash: '0ed5a90390df778a2794024799b64c320f07ca9627d444fc93f17dd0e23cb389',
+  ledger: 62990137,
+  created_at: '2026-06-12T02:35:29Z',
+  source_account: 'GB327AMKGJDXEMQREZRRVW7Y6KEKWPOWTJKCCYUQK7KKXVMCTNZEOYXU',
+  source_account_sequence: '269911571835125764',
+  fee_account: 'GB327AMKGJDXEMQREZRRVW7Y6KEKWPOWTJKCCYUQK7KKXVMCTNZEOYXU',
+  fee_charged: '100',
+  max_fee: '100',
+  operation_count: 1,
+  envelope_xdr:
+    'AAAAAgAAAAB3r4GKMkdyMhEmYxrb+PKIqz3WmlQhYpBX1KvVgptyRwAAAGQDvuslAAAABAAAAAAAAAAAAAAAAQAAAAAAAAACAAAAAAAAAAAAHoSAAAAAAD9BNkCUnPhicTJ00X5jDK52WV5J5fA719ZgBEJTD0i2AAAAAUFRVUEAAAAAW5QuU6wzyP0KgMx8GxqF19g4qcQZd6rRizrwV/jjPfAAAAAAO5rKAAAAAAAAAAAAAAAAAYKbckcAAABAFrkTeIpg9s/5TuXb0qMDLDWLOG0+BpxGaHEkWl394umLP6jvfFvwUQm4waUUrRxZO9juE6/FtJXHhI6coN7vAg==',
+  result_xdr:
+    'AAAAAAAAAGQAAAAAAAAAAQAAAAAAAAACAAAAAAAAAAEAAAABAAAAAK/RJuy9fO3KynjeAEQhgWfG4XkYKgOq6fT0yDlB5bOQAAAAAG3s48MAAAABQVFVQQAAAABblC5TrDPI/QqAzHwbGoXX2DipxBl3qtGLOvBX+OM98AAAAAA7msoAAAAAAAAAAAAAHkOoAAAAAD9BNkCUnPhicTJ00X5jDK52WV5J5fA719ZgBEJTD0i2AAAAAUFRVUEAAAAAW5QuU6wzyP0KgMx8GxqF19g4qcQZd6rRizrwV/jjPfAAAAAAO5rKAAAAAAA=',
+  fee_meta_xdr:
+    'AAAAAgAAAAMDwSbJAAAAAAAAAAB3r4GKMkdyMhEmYxrb+PKIqz3WmlQhYpBX1KvVgptyRwAAAAABqz6nA77rJQAAAAMAAAACAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAADAAAAAAPBJskAAAAAaitt3QAAAAAAAAABA8EnOQAAAAAAAAAAd6+BijJHcjIRJmMa2/jyiKs91ppUIWKQV9Sr1YKbckcAAAAAAas+QwO+6yUAAAADAAAAAgAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAwAAAAADwSbJAAAAAGorbd0AAAAA',
+  memo_type: 'none',
+  signatures: [
+    'FrkTeIpg9s/5TuXb0qMDLDWLOG0+BpxGaHEkWl394umLP6jvfFvwUQm4waUUrRxZO9juE6/FtJXHhI6coN7vAg==',
+  ],
+} as unknown as Horizon.ServerApi.TransactionRecord;
+
+export const swapTransactionPathReceiveWithStrictPathResponse = {
+  _links: {
+    self: {
+      href: 'https://horizon.stellar.org/transactions/a04ab86c00c10af2fd87671eb5d94c95d21baa4e9e9236baef5cc2c02ac6af59',
+    },
+    account: {
+      href: 'https://horizon.stellar.org/accounts/GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+    },
+    ledger: {
+      href: 'https://horizon.stellar.org/ledgers/62989662',
+    },
+    operations: {
+      href: 'https://horizon.stellar.org/transactions/a04ab86c00c10af2fd87671eb5d94c95d21baa4e9e9236baef5cc2c02ac6af59/operations{?cursor,limit,order}',
+      templated: true,
+    },
+    effects: {
+      href: 'https://horizon.stellar.org/transactions/a04ab86c00c10af2fd87671eb5d94c95d21baa4e9e9236baef5cc2c02ac6af59/effects{?cursor,limit,order}',
+      templated: true,
+    },
+    precedes: {
+      href: 'https://horizon.stellar.org/transactions?order=asc\u0026cursor=270538538276917248',
+    },
+    succeeds: {
+      href: 'https://horizon.stellar.org/transactions?order=desc\u0026cursor=270538538276917248',
+    },
+    transaction: {
+      href: 'https://horizon.stellar.org/transactions/a04ab86c00c10af2fd87671eb5d94c95d21baa4e9e9236baef5cc2c02ac6af59',
+    },
+  },
+  id: 'a04ab86c00c10af2fd87671eb5d94c95d21baa4e9e9236baef5cc2c02ac6af59',
+  paging_token: '270538538276917248',
+  successful: true,
+  hash: 'a04ab86c00c10af2fd87671eb5d94c95d21baa4e9e9236baef5cc2c02ac6af59',
+  ledger: 62989662,
+  created_at: '2026-06-12T01:49:18Z',
+  source_account: 'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+  source_account_sequence: '262764252333343039',
+  fee_account: 'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+  fee_charged: '100',
+  max_fee: '100',
+  operation_count: 1,
+  envelope_xdr:
+    'AAAAAgAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAGQDpYayAAABPwAAAAAAAAAAAAAAAQAAAAAAAAACAAAAAAAAAAAATEtAAAAAAD9BNkCUnPhicTJ00X5jDK52WV5J5fA719ZgBEJTD0i2AAAAAUFRVUEAAAAAW5QuU6wzyP0KgMx8GxqF19g4qcQZd6rRizrwV/jjPfAAAAAAO5rKAAAAAAEAAAABU0hYAAAAAADlOMj3OZP8orENyYJ2H+XpUVJEUQMf0EclKEV/Tfo+pAAAAAAAAAABUw9ItgAAAEBL9osICVZiqO3R0O/CN8xNKW6AiaD8JTWYXFj3LhJpDVos7JE/QcpF9hcMFn0x6NNMtzgRoXeKgxuDJD4QA6MI',
+  result_xdr:
+    'AAAAAAAAAGQAAAAAAAAAAQAAAAAAAAACAAAAAAAAAAIAAAACrDw3Zv9Cd+YHSoQ6RsupepH/GpA5oN0KkMfJghN0XJcAAAABU0hYAAAAAADlOMj3OZP8orENyYJ2H+XpUVJEUQMf0EclKEV/Tfo+pAAAAAAFE5HyAAAAAAAAAAAAHmkJAAAAAvcoPOvOfHWrpTZuji5VPYI2MjqdBgEgQm2ELlKuImumAAAAAUFRVUEAAAAAW5QuU6wzyP0KgMx8GxqF19g4qcQZd6rRizrwV/jjPfAAAAAAO5rKAAAAAAFTSFgAAAAAAOU4yPc5k/yisQ3JgnYf5elRUkRRAx/QRyUoRX9N+j6kAAAAAAUTkfIAAAAAP0E2QJSc+GJxMnTRfmMMrnZZXknl8DvX1mAEQlMPSLYAAAABQVFVQQAAAABblC5TrDPI/QqAzHwbGoXX2DipxBl3qtGLOvBX+OM98AAAAAA7msoAAAAAAA==',
+  fee_meta_xdr:
+    'AAAAAgAAAAMDwSUfAAAAAAAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAAA0zlhqA6WGsgAAAT4AAAALAAAAAQAAAADEccZDcGLJUGqJNC5TihraQE0vQc8dOiVfQyH3xuDhdQAAAAAAAAAJbG9ic3RyLmNvAAAAAQAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAADAAAAAAPBI+IAAAAAaitdAQAAAAAAAAABA8ElXgAAAAAAAAAAP0E2QJSc+GJxMnTRfmMMrnZZXknl8DvX1mAEQlMPSLYAAAAANM5YBgOlhrIAAAE+AAAACwAAAAEAAAAAxHHGQ3BiyVBqiTQuU4oa2kBNL0HPHTolX0Mh98bg4XUAAAAAAAAACWxvYnN0ci5jbwAAAAEAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAwAAAAADwSPiAAAAAGorXQEAAAAA',
+  memo_type: 'none',
+  signatures: [
+    'S/aLCAlWYqjt0dDvwjfMTSlugImg/CU1mFxY9y4SaQ1aLOyRP0HKRfYXDBZ9MejTTLc4EaF3ioMbgyQ+EAOjCA==',
+  ],
+} as unknown as Horizon.ServerApi.TransactionRecord;
+
+export const swapTransactionPathReceiveResponse = {
+  _links: {
+    self: {
+      href: 'https://horizon.stellar.org/transactions/2ec261894ff9a6a9e433857d2e5139f00dccb9838ae178d52c5627d0e8b9d61c',
+    },
+    account: {
+      href: 'https://horizon.stellar.org/accounts/GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+    },
+    ledger: {
+      href: 'https://horizon.stellar.org/ledgers/62989282',
+    },
+    operations: {
+      href: 'https://horizon.stellar.org/transactions/2ec261894ff9a6a9e433857d2e5139f00dccb9838ae178d52c5627d0e8b9d61c/operations{?cursor,limit,order}',
+      templated: true,
+    },
+    effects: {
+      href: 'https://horizon.stellar.org/transactions/2ec261894ff9a6a9e433857d2e5139f00dccb9838ae178d52c5627d0e8b9d61c/effects{?cursor,limit,order}',
+      templated: true,
+    },
+    precedes: {
+      href: 'https://horizon.stellar.org/transactions?order=asc\u0026cursor=270536906189189120',
+    },
+    succeeds: {
+      href: 'https://horizon.stellar.org/transactions?order=desc\u0026cursor=270536906189189120',
+    },
+    transaction: {
+      href: 'https://horizon.stellar.org/transactions/2ec261894ff9a6a9e433857d2e5139f00dccb9838ae178d52c5627d0e8b9d61c',
+    },
+  },
+  id: '2ec261894ff9a6a9e433857d2e5139f00dccb9838ae178d52c5627d0e8b9d61c',
+  paging_token: '270536906189189120',
+  successful: true,
+  hash: '2ec261894ff9a6a9e433857d2e5139f00dccb9838ae178d52c5627d0e8b9d61c',
+  ledger: 62989282,
+  created_at: '2026-06-12T01:12:33Z',
+  source_account: 'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+  source_account_sequence: '262764252333343038',
+  fee_account: 'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+  fee_charged: '100',
+  max_fee: '100',
+  operation_count: 1,
+  envelope_xdr:
+    'AAAAAgAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAGQDpYayAAABPgAAAAAAAAAAAAAAAQAAAAAAAAACAAAAAAAAAAAATEtAAAAAAD9BNkCUnPhicTJ00X5jDK52WV5J5fA719ZgBEJTD0i2AAAAAUFRVUEAAAAAW5QuU6wzyP0KgMx8GxqF19g4qcQZd6rRizrwV/jjPfAAAAAAO5rKAAAAAAAAAAAAAAAAAVMPSLYAAABAGaNpR2TrqibsJcMSQIdxsZZWUNWImVsslVb4X3rmMsDdTCbNEAVaFETXyVw8LrpU9/7qeui2evJwvO8FZIU+Dg==',
+  result_xdr:
+    'AAAAAAAAAGQAAAAAAAAAAQAAAAAAAAACAAAAAAAAAAEAAAABAAAAAK/RJuy9fO3KynjeAEQhgWfG4XkYKgOq6fT0yDlB5bOQAAAAAG3sw6QAAAABQVFVQQAAAABblC5TrDPI/QqAzHwbGoXX2DipxBl3qtGLOvBX+OM98AAAAAA7msoAAAAAAAAAAAAAHjygAAAAAD9BNkCUnPhicTJ00X5jDK52WV5J5fA719ZgBEJTD0i2AAAAAUFRVUEAAAAAW5QuU6wzyP0KgMx8GxqF19g4qcQZd6rRizrwV/jjPfAAAAAAO5rKAAAAAAA=',
+  fee_meta_xdr:
+    'AAAAAgAAAAMDwP/eAAAAAAAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAAA07JVXA6WGsgAAAT0AAAALAAAAAQAAAADEccZDcGLJUGqJNC5TihraQE0vQc8dOiVfQyH3xuDhdQAAAAAAAAAJbG9ic3RyLmNvAAAAAQAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAADAAAAAAPA/94AAAAAaiqKIAAAAAAAAAABA8Ej4gAAAAAAAAAAP0E2QJSc+GJxMnTRfmMMrnZZXknl8DvX1mAEQlMPSLYAAAAANOyU8wOlhrIAAAE9AAAACwAAAAEAAAAAxHHGQ3BiyVBqiTQuU4oa2kBNL0HPHTolX0Mh98bg4XUAAAAAAAAACWxvYnN0ci5jbwAAAAEAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAwAAAAADwP/eAAAAAGoqiiAAAAAA',
+  memo_type: 'none',
+  signatures: [
+    'GaNpR2TrqibsJcMSQIdxsZZWUNWImVsslVb4X3rmMsDdTCbNEAVaFETXyVw8LrpU9/7qeui2evJwvO8FZIU+Dg==',
+  ],
+} as unknown as Horizon.ServerApi.TransactionRecord;
+
 export const swapTransactionWithFeeCollectResponse = {
   _links: {
     self: {
