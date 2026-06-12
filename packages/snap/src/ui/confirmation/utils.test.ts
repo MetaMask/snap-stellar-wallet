@@ -1,5 +1,4 @@
-import type { GetPreferencesResult } from '@metamask/snaps-sdk';
-
+import { defaultPreferences as preferences } from './__fixtures__/confirmation.fixtures';
 import { FetchStatus } from './api';
 import {
   ConfirmationBanner,
@@ -8,20 +7,6 @@ import {
   resolveConfirmationBanner,
 } from './utils';
 import { TransactionScanValidationType } from '../../services/transaction-scan';
-
-const preferences: GetPreferencesResult = {
-  locale: 'en',
-  currency: 'usd',
-  hideBalances: false,
-  useSecurityAlerts: true,
-  simulateOnChainActions: true,
-  useTokenDetection: true,
-  batchCheckBalances: true,
-  displayNftMedia: true,
-  useNftDetection: true,
-  useExternalPricingData: true,
-  showTestnets: true,
-};
 
 describe('confirmation utils', () => {
   describe('isConfirmDisabledByScan', () => {

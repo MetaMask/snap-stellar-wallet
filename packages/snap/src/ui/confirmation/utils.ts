@@ -247,6 +247,13 @@ export function resolveConfirmationBanner(params: {
 }): ConfirmationBanner {
   const { preferences, transactionsFetchStatus } = params;
 
+  // The two banners are gated asymmetrically by design, and this only resolves
+  // which one wins the single slot; each component still decides whether it
+  // actually renders:
+  // - Validation is fail-only: re-validation starts optimistically (the tx was
+  //   already validated at build time), so the banner exists solely on Error.
+  // - Scan is preference-driven: while scan prefs are on, TransactionAlert owns
+  //   the full async lifecycle (in-progress -> result/error -> null for benign).
   if (isConfirmDisabledByTransactionValidation(transactionsFetchStatus)) {
     return ConfirmationBanner.TransactionValidation;
   }

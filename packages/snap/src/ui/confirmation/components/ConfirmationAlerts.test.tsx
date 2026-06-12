@@ -1,51 +1,11 @@
-import type {
-  ComponentOrElement,
-  GetPreferencesResult,
-} from '@metamask/snaps-sdk';
-
 import { ConfirmationAlerts } from './ConfirmationAlerts';
-import { TransactionScanValidationType } from '../../../services/transaction-scan';
+import {
+  defaultPreferences as preferences,
+  getProps,
+  getType,
+  maliciousScan,
+} from '../__fixtures__/confirmation.fixtures';
 import { FetchStatus } from '../api';
-
-const preferences: GetPreferencesResult = {
-  locale: 'en',
-  currency: 'usd',
-  hideBalances: false,
-  useSecurityAlerts: true,
-  simulateOnChainActions: true,
-  useTokenDetection: true,
-  batchCheckBalances: true,
-  displayNftMedia: true,
-  useNftDetection: true,
-  useExternalPricingData: true,
-  showTestnets: true,
-};
-
-const maliciousScan = {
-  status: 'SUCCESS' as const,
-  estimatedChanges: { assets: [] },
-  validation: {
-    type: TransactionScanValidationType.Malicious,
-    reason: 'known_attacker',
-    description: null,
-  },
-  error: null,
-};
-
-function getType(component: ComponentOrElement | null): string | undefined {
-  return typeof component === 'object' && component !== null
-    ? component.type
-    : undefined;
-}
-
-function getProps(
-  component: ComponentOrElement | null,
-): Record<string, unknown> | undefined {
-  const candidate = component as { props?: Record<string, unknown> };
-  return typeof component === 'object' && component !== null
-    ? candidate.props
-    : undefined;
-}
 
 describe('ConfirmationAlerts', () => {
   it('renders the validation banner when re-validation reports an error', () => {
