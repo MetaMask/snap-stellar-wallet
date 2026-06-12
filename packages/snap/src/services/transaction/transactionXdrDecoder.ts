@@ -1,14 +1,25 @@
-import { Asset, StrKey, xdr } from '@stellar/stellar-sdk';
+import type { Operation } from '@stellar/stellar-sdk';
+import {
+  Asset,
+  StrKey,
+  xdr,
+  scValToNative,
+  Address,
+} from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import type {
-  KnownCaip19ClassicAssetId,
-  KnownCaip19Slip44Id,
-  KnownCaip2ChainId,
+import { TransactionXdrDecoderException } from './exceptions';
+import {
+  StellarAddressOrContractStruct,
+  type KnownCaip19ClassicAssetId,
+  type KnownCaip19Sep41AssetId,
+  type KnownCaip19Slip44Id,
+  type KnownCaip2ChainId,
 } from '../../api';
 import {
   getSlip44AssetId,
   toCaip19ClassicAssetId,
+  toCaip19Sep41AssetId,
   toDisplayBalance,
 } from '../../utils';
 import { bufferToUint8Array } from '../../utils/buffer';
@@ -54,6 +65,17 @@ type OperationResult =
 export type SuccessfulTransactionResult = {
   operationResults: OperationResult[];
   feeCharged: string;
+};
+
+export type ParsedSep41TransferInvoke = {
+  /**
+   * Canonical SEP-41 CAIP-19 id for the **invoked contract** — not a separate XDR field.
+   * Same encoding as {@link TransactionBuilder.sep41Transfer}: `toCaip19Sep41AssetId(scope, contractId)`.
+   */
+  assetId: KnownCaip19Sep41AssetId;
+  fromAccountId: string;
+  toAccountId: string;
+  amount: BigNumber;
 };
 
 /**
@@ -148,6 +170,110 @@ export function parseSuccessfulTransactionResult(
 }
 
 /**
+ * Returns whether the operation invokes a contract `transfer(from, to, amount)`.
+ *
+ * @param op - Parsed `invokeHostFunction` operation.
+ * @returns True when the invoke target is a contract `transfer` call.
+ */
+export function isSep41TransferInvoke(
+  op: Operation.InvokeHostFunction,
+): boolean {
+  const { func } = op;
+  if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
+    return false;
+  }
+  return func.invokeContract().functionName().toString() === 'transfer';
+}
+
+/**
+ * Parses a SEP-41 `transfer(from, to, amount)` invoke operation.
+ *
+ * Reads **contract address** from the invoke target and **derives** the CAIP-19 asset id with `scope`
+ * (the envelope never embeds a CAIP string — only `C…` like `Contract.call`).
+ * {@link TransactionBuilder.sep41Transfer} is the same function that is used to build the transaction.
+ *
+ * @param op - Parsed `invokeHostFunction` operation.
+ * @param scope - CAIP-2 chain id (must match the envelope network when matching preload keys).
+ * @returns Parsed transfer metadata.
+ * @throws {TransactionXdrDecoderException} When the operation is not a valid SEP-41 transfer invoke.
+ */
+export function parseSep41TransferInvoke(
+  op: Operation.InvokeHostFunction,
+  scope: KnownCaip2ChainId,
+): ParsedSep41TransferInvoke {
+  const { func } = op;
+  if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
+    throw new TransactionXdrDecoderException(
+      'Not an invoke contract operation',
+    );
+  }
+  const ic = func.invokeContract();
+  if (ic.functionName().toString() !== 'transfer') {
+    throw new TransactionXdrDecoderException(
+      'Contract is not a transfer function',
+    );
+  }
+
+  const args = ic.args();
+  if (
+    args.length !== 3 ||
+    args[0] === undefined ||
+    args[1] === undefined ||
+    args[2] === undefined
+  ) {
+    throw new TransactionXdrDecoderException(
+      'Invalid transfer function arguments',
+    );
+  }
+
+  const contractAddr = Address.fromScAddress(ic.contractAddress()).toString();
+
+  const fromNative = scValToNative(args[0]);
+  const toNative = scValToNative(args[1]);
+  const amountNative = scValToNative(args[2]);
+  if (
+    typeof fromNative !== 'string' ||
+    !StellarAddressOrContractStruct.is(fromNative)
+  ) {
+    throw new TransactionXdrDecoderException('Invalid from address');
+  }
+  if (
+    typeof toNative !== 'string' ||
+    !StellarAddressOrContractStruct.is(toNative)
+  ) {
+    throw new TransactionXdrDecoderException('Invalid to address');
+  }
+
+  return {
+    assetId: toCaip19Sep41AssetId(scope, contractAddr),
+    fromAccountId: fromNative,
+    toAccountId: toNative,
+    amount: parseScValToNative(amountNative),
+  };
+}
+
+/**
+ * Parses a SEP-41 transfer invoke without throwing.
+ *
+ * @param op - Parsed `invokeHostFunction` operation.
+ * @param scope - CAIP-2 chain id (must match the envelope network when matching preload keys).
+ * @returns Parsed transfer metadata, or `null` if the shape does not match.
+ */
+export function parseSep41TransferInvokeSafe(
+  op: Operation.InvokeHostFunction,
+  scope: KnownCaip2ChainId,
+): ParsedSep41TransferInvoke | null {
+  if (!isSep41TransferInvoke(op)) {
+    return null;
+  }
+  try {
+    return parseSep41TransferInvoke(op, scope);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Maps an XDR asset to a CAIP-19 asset id supported by the snap.
  *
  * @param asset - XDR asset from a transaction result.
@@ -179,6 +305,122 @@ export function xdrAssetToCaip19(
       return undefined;
     default:
       return undefined;
+  }
+}
+
+/**
+ * Parses a XDR value from a string, bigint, or number.
+ *
+ * @param value - The value to parse.
+ * @returns The parsed amount in BigNumber.
+ * @throws {TransactionXdrDecoderException} If the value is not a valid native value.
+ */
+export function parseScValToNative(value: string | bigint | number): BigNumber {
+  let amountStr: string;
+  if (typeof value === 'bigint') {
+    amountStr = value.toString();
+  } else if (typeof value === 'number') {
+    amountStr = String(Math.trunc(value));
+  } else {
+    amountStr = String(value);
+  }
+  const amountBn = new BigNumber(amountStr);
+  if (!amountBn.isFinite() || amountBn.isNegative()) {
+    throw new TransactionXdrDecoderException(`Invalid native value: ${value}`);
+  }
+  return amountBn;
+}
+
+/**
+ * Extracts token metadata from a contract data ledger entry.
+ *
+ * @param contractData - The contract data entry.
+ * @param contractAddress - Token contract id strkey (`C…`) for error context and wasm token `assetRef`.
+ * @returns Token name, symbol, decimals, and whether the contract wraps a classic asset.
+ */
+export function extractAssetDataFromContractData(
+  contractData: xdr.ContractDataEntry,
+  contractAddress: string,
+): {
+  name: string;
+  symbol: string;
+  decimals: number;
+  isStellarClassicAsset: boolean;
+} {
+  try {
+    const contractDataInstance = contractData.val().instance();
+
+    // contractDataName is either contractExecutableWasm or contractExecutableStellarAsset
+    // contractExecutableWasm: Wasm contract
+    // contractExecutableStellarAsset: Stellar asset contract
+    const contractDataName = contractDataInstance.executable().switch().name;
+
+    const isStellarClassicAsset =
+      contractDataName === 'contractExecutableStellarAsset';
+
+    const assetData = {
+      symbol: '',
+      decimals: -1,
+      name: '',
+      isStellarClassicAsset,
+    };
+
+    // it is possible to have empty storage, such as when the contract is not a token contract
+    for (const entry of contractDataInstance?.storage() ?? []) {
+      const key = entry.key();
+      const keyName = key.switch().name;
+
+      if (keyName !== 'scvSymbol' || key.sym().toString() !== 'METADATA') {
+        continue;
+      }
+
+      for (const mapEntry of entry.val().map() ?? []) {
+        const fieldName = mapEntry.key().sym().toString();
+        const value = mapEntry.val();
+
+        switch (fieldName) {
+          case 'name':
+            // if it is a Stellar asset contract, the name is ${ASSET_CODE}:${ASSET_ISSUER}
+            // if it is a Wasm contract, the name is the token name (e.g. "USDC")
+            assetData.name = isStellarClassicAsset
+              ? value.str().toString()
+              : contractAddress;
+            break;
+          case 'symbol':
+            assetData.symbol = value.str().toString();
+            break;
+          case 'decimal':
+            assetData.decimals = value.u32();
+            break;
+          default:
+            break;
+        }
+      }
+    }
+    if (assetData.name === '') {
+      throw new TransactionXdrDecoderException(
+        `Name is empty for contract ${contractAddress}`,
+      );
+    }
+    if (assetData.symbol === '') {
+      throw new TransactionXdrDecoderException(
+        `Symbol is empty for contract ${contractAddress}`,
+      );
+    }
+    if (assetData.decimals === -1) {
+      throw new TransactionXdrDecoderException(
+        `Decimals is empty for contract ${contractAddress}`,
+      );
+    }
+
+    return assetData;
+  } catch (error) {
+    if (error instanceof TransactionXdrDecoderException) {
+      throw error;
+    }
+    throw new TransactionXdrDecoderException(
+      `Error extracting asset data from contract ${contractAddress}`,
+    );
   }
 }
 

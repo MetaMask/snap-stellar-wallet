@@ -275,6 +275,23 @@ export function parseExpirationMaxTime(
 }
 
 /**
+ * Detects if the operation is an invoke host function operation.
+ *
+ * @param operation - The operation to check.
+ * @returns Whether the operation is an invoke host function operation.
+ */
+export function isInvokeHostFunctionOperation(
+  operation: Operation | undefined,
+): operation is Operation & {
+  type: typeof StellarOperationType.InvokeHostFunction;
+} {
+  return (
+    operation !== undefined &&
+    operation.type === StellarOperationType.InvokeHostFunction
+  );
+}
+
+/**
  * Detects if the operation is a path payment operation.
  *
  * @param operation - The operation to check.

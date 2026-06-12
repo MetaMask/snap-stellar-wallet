@@ -22,6 +22,7 @@ import {
   swapTransactionPathReceiveResponse,
   swapTransactionPathReceiveWithStrictPathResponse,
   receivePaymentTransactionPathReceiveResponse,
+  sep41SendTransactionResponse,
 } from './__mocks__/horizon-transaction-responses.fixtures';
 import {
   buildMockClassicTransaction,
@@ -37,10 +38,13 @@ import {
   getSlip44AssetId,
   removeTrailingZeros,
   toCaip19ClassicAssetId,
+  toCaip19Sep41AssetId,
   toDisplayBalance,
 } from '../../utils';
 import { logger } from '../../utils/logger';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
+import type { StellarAssetMetadata } from '../asset-metadata/api';
+import { toStellarAssetMetadata } from '../asset-metadata/utils';
 
 jest.mock('../../utils/logger');
 
@@ -72,6 +76,15 @@ describe('TransactionMapper', () => {
     'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO';
   const destinationAddress =
     'GDTF7ERUQVTX23ZD6NY5XRYC5IQAKWFVTQ6IXSMEZWGVNDDGPYCVHRZP';
+  const sep41AssetId = toCaip19Sep41AssetId(
+    scope,
+    'CBIJBDNZNF4X35BJ4FFZWCDBSCKOP5NB4PLG4SNENRMLAPYG4P5FM6VN',
+  );
+  const sep41AssetMetadata: StellarAssetMetadata = toStellarAssetMetadata({
+    assetId: sep41AssetId,
+    decimals: 8,
+    symbol: 'SolvBTC',
+  });
 
   const setup = () => {
     const keyringAccount = generateStellarKeyringAccount(
@@ -124,6 +137,7 @@ describe('TransactionMapper', () => {
       transactionMapper.mapTransactionSafe({
         transaction: built,
         keyringAccount,
+        assetMetadata: {},
       }),
     ).toBeUndefined();
   });
@@ -267,6 +281,19 @@ describe('TransactionMapper', () => {
       txnType: TransactionType.Send,
     },
     {
+      testCase: 'send transaction via SEP-41 transfer',
+      response: sep41SendTransactionResponse,
+      fromAsset: sep41AssetId,
+      fromAssetSymbol: 'SolvBTC',
+      fromAmount: '0.00000004',
+      toAsset: sep41AssetId,
+      toAssetSymbol: 'SolvBTC',
+      toAmount: '0.00000004',
+      toAddress: 'GB327AMKGJDXEMQREZRRVW7Y6KEKWPOWTJKCCYUQK7KKXVMCTNZEOYXU',
+      fromAddress: accountAddress,
+      txnType: TransactionType.Send,
+    },
+    {
       testCase: 'receive payment transaction',
       response: receivePaymentTransactionResponse,
       fromAsset: toCaip19ClassicAssetId(
@@ -346,6 +373,9 @@ describe('TransactionMapper', () => {
       const keyringTransaction = transactionMapper.mapTransactionSafe({
         transaction,
         keyringAccount,
+        assetMetadata: {
+          [sep41AssetId]: sep41AssetMetadata,
+        },
       });
 
       const timestamp = new Date(response.created_at).getTime() / 1000;
@@ -408,6 +438,7 @@ describe('TransactionMapper', () => {
       const keyringTransaction = transactionMapper.mapTransactionSafe({
         transaction,
         keyringAccount,
+        assetMetadata: {},
       });
 
       const timestamp = new Date(response.created_at).getTime() / 1000;
@@ -449,6 +480,7 @@ describe('TransactionMapper', () => {
       transactionMapper.mapTransactionSafe({
         transaction,
         keyringAccount,
+        assetMetadata: {},
       }),
     ).toBeUndefined();
   });
@@ -468,6 +500,7 @@ describe('TransactionMapper', () => {
     const keyringTransaction = transactionMapper.mapTransactionSafe({
       transaction,
       keyringAccount,
+      assetMetadata: {},
     });
 
     const swapOperation = transaction.transactionOperations.find(
@@ -525,6 +558,7 @@ describe('TransactionMapper', () => {
     const keyringTransaction = transactionMapper.mapTransactionSafe({
       transaction,
       keyringAccount,
+      assetMetadata: {},
     });
 
     expect(keyringTransaction?.type).toBe(TransactionType.Receive);
@@ -571,6 +605,7 @@ describe('TransactionMapper', () => {
     const keyringTransaction = transactionMapper.mapTransactionSafe({
       transaction,
       keyringAccount,
+      assetMetadata: {},
       transactionFromState: pendingFromState,
     });
 
