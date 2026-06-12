@@ -1,23 +1,16 @@
-import type { GetPreferencesResult } from '@metamask/snaps-sdk';
-
+import {
+  defaultPreferences as preferences,
+  maliciousScan,
+} from './__fixtures__/confirmation.fixtures';
 import { FetchStatus } from './api';
 import {
+  ConfirmationBanner,
   isConfirmDisabledByScan,
   isConfirmDisabledByTransactionValidation,
   requiresMaliciousAcknowledgement,
+  resolveConfirmationBanner,
 } from './utils';
 import { TransactionScanValidationType } from '../../services/transaction-scan';
-
-const maliciousScan = {
-  status: 'SUCCESS' as const,
-  estimatedChanges: { assets: [] },
-  validation: {
-    type: TransactionScanValidationType.Malicious,
-    reason: 'known_attacker',
-    description: null,
-  },
-  error: null,
-};
 
 const warningScan = {
   ...maliciousScan,
@@ -26,20 +19,6 @@ const warningScan = {
     reason: 'suspicious_request',
     description: null,
   },
-};
-
-const preferences: GetPreferencesResult = {
-  locale: 'en',
-  currency: 'usd',
-  hideBalances: false,
-  useSecurityAlerts: true,
-  simulateOnChainActions: true,
-  useTokenDetection: true,
-  batchCheckBalances: true,
-  displayNftMedia: true,
-  useNftDetection: true,
-  useExternalPricingData: true,
-  showTestnets: true,
 };
 
 describe('confirmation utils', () => {
@@ -113,6 +92,82 @@ describe('confirmation utils', () => {
 
     it('does not disable confirm when the status is undefined', () => {
       expect(isConfirmDisabledByTransactionValidation(undefined)).toBe(false);
+    });
+  });
+
+  describe('resolveConfirmationBanner', () => {
+    it('prioritizes the validation banner when re-validation reports an error', () => {
+      expect(
+        resolveConfirmationBanner({
+          preferences,
+          transactionsFetchStatus: FetchStatus.Error,
+        }),
+      ).toBe(ConfirmationBanner.TransactionValidation);
+    });
+
+    it('prioritizes the validation banner even when scan is enabled', () => {
+      expect(
+        resolveConfirmationBanner({
+          preferences: {
+            ...preferences,
+            useSecurityAlerts: true,
+            simulateOnChainActions: true,
+          },
+          transactionsFetchStatus: FetchStatus.Error,
+        }),
+      ).toBe(ConfirmationBanner.TransactionValidation);
+    });
+
+    it('shows the scan banner when security alerts are enabled and there is no validation error', () => {
+      expect(
+        resolveConfirmationBanner({
+          preferences: {
+            ...preferences,
+            useSecurityAlerts: true,
+            simulateOnChainActions: false,
+          },
+          transactionsFetchStatus: FetchStatus.Fetched,
+        }),
+      ).toBe(ConfirmationBanner.TransactionScan);
+    });
+
+    it('shows the scan banner when simulation alerts are enabled', () => {
+      expect(
+        resolveConfirmationBanner({
+          preferences: {
+            ...preferences,
+            useSecurityAlerts: false,
+            simulateOnChainActions: true,
+          },
+          transactionsFetchStatus: FetchStatus.Initial,
+        }),
+      ).toBe(ConfirmationBanner.TransactionScan);
+    });
+
+    it('shows no banner when scan is disabled and there is no validation error', () => {
+      expect(
+        resolveConfirmationBanner({
+          preferences: {
+            ...preferences,
+            useSecurityAlerts: false,
+            simulateOnChainActions: false,
+          },
+          transactionsFetchStatus: FetchStatus.Fetched,
+        }),
+      ).toBe(ConfirmationBanner.None);
+    });
+
+    it('treats an undefined validation status as no validation error', () => {
+      expect(
+        resolveConfirmationBanner({
+          preferences: {
+            ...preferences,
+            useSecurityAlerts: false,
+            simulateOnChainActions: false,
+          },
+          transactionsFetchStatus: undefined,
+        }),
+      ).toBe(ConfirmationBanner.None);
     });
   });
 });

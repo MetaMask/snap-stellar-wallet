@@ -27,15 +27,13 @@ import { FetchStatus } from '../../api';
 import {
   Asset,
   AssetIcon,
+  ConfirmationAlerts,
   ConfirmationFooter,
   FeeRow,
-  TransactionAlert,
-  TransactionValidationAlert,
 } from '../../components';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
-  hasEnabledTransactionScan,
   isConfirmDisabledByScan,
   isConfirmDisabledByTransactionValidation,
   getNetworkName,
@@ -73,19 +71,12 @@ export const ConfirmSignChangeTrustOptOut = ({
   return (
     <Container>
       <Box>
-        <TransactionValidationAlert
+        <ConfirmationAlerts
           preferences={preferences}
+          scan={scan}
+          scanFetchStatus={scanFetchStatus}
           transactionsFetchStatus={transactionsFetchStatus}
         />
-        {transactionsFetchStatus !== FetchStatus.Error &&
-        hasEnabledTransactionScan(preferences) ? (
-          <TransactionAlert
-            scanFetchStatus={scanFetchStatus}
-            validation={scan?.validation ?? null}
-            error={scan?.error ?? null}
-            preferences={preferences}
-          />
-        ) : null}
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">
