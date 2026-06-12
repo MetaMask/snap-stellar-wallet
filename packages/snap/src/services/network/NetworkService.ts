@@ -28,11 +28,7 @@ import {
   SIMULATION_ACCOUNT,
   StellarRouterContract,
 } from './MultiCall';
-import {
-  extractAssetDataFromContractData,
-  isAccountNotFoundError,
-  sep41MulticallCellToBalance,
-} from './utils';
+import { isAccountNotFoundError, sep41MulticallCellToBalance } from './utils';
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Sep41AssetId,
@@ -60,6 +56,7 @@ import { useCache } from '../cache';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
 import { assertInvokeHostFunctionSoleOperation } from '../transaction/utils';
+import { extractAssetDataFromContractData } from '../transaction/xdrParser';
 
 /**
  * Stellar network access through **Horizon** and **Soroban RPC**: base fee, account loading (full
