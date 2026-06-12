@@ -141,7 +141,7 @@ describe('confirmation utils', () => {
       ).toBe(ConfirmationBanner.TransactionScan);
     });
 
-    it('does not show the scan banner when only simulation alerts are enabled', () => {
+    it('shows the scan banner when simulation alerts are enabled', () => {
       expect(
         resolveConfirmationBanner({
           preferences: {
@@ -151,7 +151,7 @@ describe('confirmation utils', () => {
           },
           transactionsFetchStatus: FetchStatus.Initial,
         }),
-      ).toBe(ConfirmationBanner.None);
+      ).toBe(ConfirmationBanner.TransactionScan);
     });
 
     it('shows no banner when scan is disabled and there is no validation error', () => {
