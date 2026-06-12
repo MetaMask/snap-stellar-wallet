@@ -10,11 +10,6 @@ import type {
 } from './KeyringTransactionBuilder';
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
 import type { Transaction } from './Transaction';
-import type { SuccessfulTransactionResult } from './transactionXdrDecoder';
-import {
-  parseSuccessfulTransactionResult,
-  TransactionResultType,
-} from './transactionXdrDecoder';
 import {
   isAddChangeTrustTransaction,
   isDustPaymentTransaction,
@@ -24,9 +19,17 @@ import {
   isSwapTransaction,
   isReceiveOperation,
   isPathPaymentOperation,
+  isInvokeHostFunctionOperation,
 } from './utils';
+import type { SuccessfulTransactionResult } from './xdrParser';
+import {
+  parseSep41TransferInvokeSafe,
+  parseSuccessfulTransactionResult,
+  TransactionResultType,
+} from './xdrParser';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
@@ -39,6 +42,7 @@ import {
   toDisplayBalance,
 } from '../../utils';
 import type { StellarKeyringAccount } from '../account/api';
+import type { StellarAssetMetadata } from '../asset-metadata';
 
 export class TransactionMapper {
   readonly #keyringTransactionBuilder: KeyringTransactionBuilder;
@@ -63,14 +67,17 @@ export class TransactionMapper {
    * @param params.transaction - Horizon-sourced transaction to map.
    * @param params.keyringAccount - Account that owns the activity.
    * @param params.transactionFromState - Existing pending transaction to reconcile.
+   * @param params.assetMetadata - SEP-41 asset metadata keyed by CAIP-19 id for send mapping.
    * @returns Mapped keyring transaction, or `undefined` when skipped or unmappable.
    */
   mapTransactionSafe(params: {
     transaction: Transaction;
     keyringAccount: StellarKeyringAccount;
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>;
     transactionFromState?: KeyringTransaction;
   }): KeyringTransaction | undefined {
-    const { transaction, keyringAccount, transactionFromState } = params;
+    const { transaction, keyringAccount, assetMetadata, transactionFromState } =
+      params;
 
     try {
       if (!transaction.rawData || !transaction.id) {
@@ -89,7 +96,7 @@ export class TransactionMapper {
         return undefined; // Skip dust payment transactions.
       }
 
-      return this.#mapTransaction(transaction, keyringAccount);
+      return this.#mapTransaction(transaction, keyringAccount, assetMetadata);
     } catch (error) {
       // Log and return undefined so batch mapping can continue for other transactions.
       this.#logger.logErrorWithDetails('Unable to map a transaction', {
@@ -103,12 +110,19 @@ export class TransactionMapper {
   #mapTransaction(
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>,
   ): KeyringTransaction {
     const { address } = keyringAccount;
 
-    // For any contract based transaction, we treat it as unknown.
-    if (transaction.hasInvokeHostFunction) {
-      return this.#mapUnknownTransaction(transaction, keyringAccount);
+    if (transaction.hasInvokeHostFunction && transaction.operationCount === 1) {
+      // Invoke host function: try SEP-41 send mapping first; fall back to unknown.
+      return (
+        this.#mapSep41SendTransaction(
+          transaction,
+          keyringAccount,
+          assetMetadata,
+        ) ?? this.#mapUnknownTransaction(transaction, keyringAccount)
+      );
     }
 
     // Swap transaction: if the transaction has a path payment strict send operation
@@ -384,6 +398,73 @@ export class TransactionMapper {
     throw new TransactionMapperException('Unable to map a receive transaction');
   }
 
+  #mapSep41SendTransaction(
+    transaction: Transaction,
+    keyringAccount: StellarKeyringAccount,
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>,
+  ): KeyringTransaction | undefined {
+    try {
+      const { scope } = transaction;
+      const [firstOperation] = transaction.transactionOperations;
+
+      if (!isInvokeHostFunctionOperation(firstOperation)) {
+        throw new TransactionMapperException(
+          'Unable to map a SEP-41 send transaction - not an invoke host function operation',
+        );
+      }
+
+      const parsedSep41TransferInvoke = parseSep41TransferInvokeSafe(
+        firstOperation,
+        scope,
+      );
+
+      if (!parsedSep41TransferInvoke) {
+        throw new TransactionMapperException(
+          'Unable to map a SEP-41 send transaction - invalid transfer invoke operation',
+        );
+      }
+
+      const { assetId, amount, toAccountId, fromAccountId } =
+        parsedSep41TransferInvoke;
+
+      if (fromAccountId !== keyringAccount.address) {
+        throw new TransactionMapperException(
+          'Unable to map a SEP-41 send transaction - from account id does not match the keyring account address',
+        );
+      }
+
+      // TODO: Fall back to NetworkService token metadata when state is missing (RPC cost per tx).
+      const asset = assetMetadata[assetId];
+      if (!asset) {
+        throw new TransactionMapperException(
+          'Unable to map a SEP-41 send transaction - asset metadata not found',
+        );
+      }
+
+      const assetRow = this.#toKeyringAssetRow(
+        asset.symbol,
+        asset.assetId,
+        toDisplayBalance(amount, asset.units[0].decimals),
+      );
+      return this.#keyringTransactionBuilder.createTransaction({
+        type: KeyringTransactionType.Send,
+        request: {
+          ...this.#commonOnChainFields(transaction, keyringAccount),
+          asset: assetRow,
+          toAddress: toAccountId,
+        },
+      });
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Unable to map a SEP-41 send transaction',
+        {
+          error,
+        },
+      );
+      return undefined;
+    }
+  }
+
   #getBaseFees(transaction: Transaction): KeyringTransaction['fees'] {
     return [
       {
@@ -414,9 +495,21 @@ export class TransactionMapper {
     scope: KnownCaip2ChainId,
     amount: string,
   ): KeyringTransactionAsset {
+    return this.#toKeyringAssetRow(
+      asset.getCode(),
+      stellarAssetToCaip19(asset, scope),
+      amount,
+    );
+  }
+
+  #toKeyringAssetRow(
+    unit: string,
+    type: KnownCaip19AssetIdOrSlip44Id,
+    amount: string,
+  ): KeyringTransactionAsset {
     return {
-      unit: asset.getCode(),
-      type: stellarAssetToCaip19(asset, scope),
+      unit,
+      type,
       // Normalize Horizon amounts such as "1.0000000" to "1".
       amount: removeTrailingZeros(amount),
       fungible: true as const,

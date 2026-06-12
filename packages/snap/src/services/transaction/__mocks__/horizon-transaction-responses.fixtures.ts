@@ -745,4 +745,62 @@ export const receiveCreateAccountTransactionResponse = {
   },
 } as unknown as Horizon.ServerApi.TransactionRecord;
 
+export const sep41SendTransactionResponse = {
+  _links: {
+    self: {
+      href: 'https://horizon.stellar.org/transactions/059e3ac03f3c8afede96749d3b70cc6e9ef258e12522bc6b01b07aad89931087',
+    },
+    account: {
+      href: 'https://horizon.stellar.org/accounts/GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+    },
+    ledger: {
+      href: 'https://horizon.stellar.org/ledgers/62962656',
+    },
+    operations: {
+      href: 'https://horizon.stellar.org/transactions/059e3ac03f3c8afede96749d3b70cc6e9ef258e12522bc6b01b07aad89931087/operations{?cursor,limit,order}',
+      templated: true,
+    },
+    effects: {
+      href: 'https://horizon.stellar.org/transactions/059e3ac03f3c8afede96749d3b70cc6e9ef258e12522bc6b01b07aad89931087/effects{?cursor,limit,order}',
+      templated: true,
+    },
+    precedes: {
+      href: 'https://horizon.stellar.org/transactions?order=asc\u0026cursor=270422548390797312',
+    },
+    succeeds: {
+      href: 'https://horizon.stellar.org/transactions?order=desc\u0026cursor=270422548390797312',
+    },
+    transaction: {
+      href: 'https://horizon.stellar.org/transactions/059e3ac03f3c8afede96749d3b70cc6e9ef258e12522bc6b01b07aad89931087',
+    },
+  },
+  id: '059e3ac03f3c8afede96749d3b70cc6e9ef258e12522bc6b01b07aad89931087',
+  paging_token: '270422548390797312',
+  successful: true,
+  hash: '059e3ac03f3c8afede96749d3b70cc6e9ef258e12522bc6b01b07aad89931087',
+  ledger: 62962656,
+  created_at: '2026-06-10T05:56:31Z',
+  source_account: 'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+  source_account_sequence: '262764252333343032',
+  fee_account: 'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+  fee_charged: '261359',
+  max_fee: '462673',
+  operation_count: 1,
+  envelope_xdr:
+    'AAAAAgAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAHD1EDpYayAAABOAAAAAEAAAAAAAAAAAAAAABqKP0yAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABUJCNuWl5ffQp4UubCGGQlOf1oePWbkmkbFiwPwbj+lYAAAAIdHJhbnNmZXIAAAADAAAAEgAAAAAAAAAAP0E2QJSc+GJxMnTRfmMMrnZZXknl8DvX1mAEQlMPSLYAAAASAAAAAAAAAAB3r4GKMkdyMhEmYxrb+PKIqz3WmlQhYpBX1KvVgptyRwAAAAoAAAAAAAAAAAAAAAAAAAAEAAAAAQAAAAAAAAAAAAAAAVCQjblpeX30KeFLmwhhkJTn9aHj1m5JpGxYsD8G4/pWAAAACHRyYW5zZmVyAAAAAwAAABIAAAAAAAAAAD9BNkCUnPhicTJ00X5jDK52WV5J5fA719ZgBEJTD0i2AAAAEgAAAAAAAAAAd6+BijJHcjIRJmMa2/jyiKs91ppUIWKQV9Sr1YKbckcAAAAKAAAAAAAAAAAAAAAAAAAABAAAAAAAAAABAAAAAAAAAAIAAAAGAAAAAVCQjblpeX30KeFLmwhhkJTn9aHj1m5JpGxYsD8G4/pWAAAAFAAAAAEAAAAH8RB4OU/QazmStCdGEafEeAlwe9zmElTP+m3UD8qtNk8AAAACAAAABgAAAAFQkI25aXl99CnhS5sIYZCU5/Wh49ZuSaRsWLA/BuP6VgAAABAAAAABAAAAAgAAAA8AAAAHQmFsYW5jZQAAAAASAAAAAAAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAAEAAAAGAAAAAVCQjblpeX30KeFLmwhhkJTn9aHj1m5JpGxYsD8G4/pWAAAAEAAAAAEAAAACAAAADwAAAAdCYWxhbmNlAAAAABIAAAAAAAAAAHevgYoyR3IyESZjGtv48oirPdaaVCFikFfUq9WCm3JHAAAAAQAVr0gAAAAAAAABKAAAAAAABw7tAAAAAVMPSLYAAABAcMXx4F+t8hAoNYtTlctxgtmw3GIg05utVvXCYGpvHi918rvzu/DMqVth9unx/5weCZM/F8Ug6eYJbXZlcUe2Dg==',
+  result_xdr:
+    'AAAAAAAD/O8AAAAAAAAAAQAAAAAAAAAYAAAAAL2CQGqqemD/+19Sfpe1ASLEBKfmLa0+KglIExU5adiUAAAAAA==',
+  fee_meta_xdr:
+    'AAAAAgAAAAMDwLtWAAAAAAAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAAA08JSuA6WGsgAAATcAAAAJAAAAAQAAAADEccZDcGLJUGqJNC5TihraQE0vQc8dOiVfQyH3xuDhdQAAAAAAAAAJbG9ic3RyLmNvAAAAAQAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAAAAAADAAAAAAPAl0QAAAAAaignTgAAAAAAAAABA8C74AAAAAAAAAAAP0E2QJSc+GJxMnTRfmMMrnZZXknl8DvX1mAEQlMPSLYAAAAANOmFXQOlhrIAAAE3AAAACQAAAAEAAAAAxHHGQ3BiyVBqiTQuU4oa2kBNL0HPHTolX0Mh98bg4XUAAAAAAAAACWxvYnN0ci5jbwAAAAEAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAwAAAAADwJdEAAAAAGooJ04AAAAA',
+  memo_type: 'none',
+  signatures: [
+    'cMXx4F+t8hAoNYtTlctxgtmw3GIg05utVvXCYGpvHi918rvzu/DMqVth9unx/5weCZM/F8Ug6eYJbXZlcUe2Dg==',
+  ],
+  preconditions: {
+    timebounds: {
+      min_time: '0',
+      max_time: '1781071154',
+    },
+  },
+} as unknown as Horizon.ServerApi.TransactionRecord;
 /* eslint-enable @typescript-eslint/naming-convention */
