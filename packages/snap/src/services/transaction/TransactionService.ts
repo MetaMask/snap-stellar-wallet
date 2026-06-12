@@ -29,6 +29,7 @@ import type {
 import { getSnapProvider, isSep41Id, isSlip44Id } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
+import type { AssetMetadataService } from '../asset-metadata';
 import type { NetworkService } from '../network';
 import {
   AccountNotActivatedException,
@@ -56,11 +57,13 @@ export class TransactionService {
     transactionRepository,
     networkService,
     transactionBuilder,
+    assetMetadataService,
   }: {
     logger: ILogger;
     transactionRepository: TransactionRepository;
     networkService: NetworkService;
     transactionBuilder: TransactionBuilder;
+    assetMetadataService: AssetMetadataService;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🧾 TransactionService]');
     this.#transactionRepository = transactionRepository;
@@ -75,6 +78,7 @@ export class TransactionService {
       networkService,
       transactionRepository,
       transactionMapper,
+      assetMetadataService,
       logger,
     });
   }

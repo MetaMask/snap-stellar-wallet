@@ -57,37 +57,32 @@ export class SynchronizeService {
       noOfAccounts: activatedAccountPairs.length,
     });
 
-    const tasks: { name: string; task: Promise<void> }[] = [];
     if (syncAccounts) {
-      tasks.push({
-        name: 'syncAccounts',
-        task: this.#onChainAccountService.synchronize(
+      try {
+        await this.#onChainAccountService.synchronize(
           activatedAccountPairs,
           scope,
-        ),
-      });
-    }
-    if (syncTransactions) {
-      tasks.push({
-        name: 'syncTransactions',
-        task: this.#transactionService.synchronize(
-          activatedAccountPairs,
-          scope,
-        ),
-      });
-    }
-
-    // Use Promise.allSettled to ensure all tasks are completed, even if some fail.
-    const results = await Promise.allSettled(tasks.map(async (t) => t.task));
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        this.#logger.logErrorWithDetails('Synchronization task failed', {
-          task: tasks[index]?.name,
-          error: result.reason,
-          scope,
+        );
+      } catch (error: unknown) {
+        this.#logger.logErrorWithDetails('Failed to synchronize accounts', {
+          error,
         });
       }
-    });
+    }
+
+    // we sync transactions after accounts to ensure that the asset metadata is synced before the transactions are mapped.
+    if (syncTransactions) {
+      try {
+        await this.#transactionService.synchronize(
+          activatedAccountPairs,
+          scope,
+        );
+      } catch (error: unknown) {
+        this.#logger.logErrorWithDetails('Failed to synchronize transactions', {
+          error,
+        });
+      }
+    }
   }
 
   /**

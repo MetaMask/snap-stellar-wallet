@@ -55,7 +55,6 @@ import type { ICache } from '../cache';
 import { useCache } from '../cache';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { Transaction } from '../transaction/Transaction';
-import { extractAssetDataFromContractData } from '../transaction/transactionXdrDecoder';
 import { assertInvokeHostFunctionSoleOperation } from '../transaction/utils';
 import { extractAssetDataFromContractData } from '../transaction/xdrParser';
 

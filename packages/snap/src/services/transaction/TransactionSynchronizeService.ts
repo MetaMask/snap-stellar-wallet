@@ -5,7 +5,11 @@ import {
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { Mutex } from 'async-mutex';
 
-import type { KnownCaip2ChainId, TransactionId } from '../../api';
+import type {
+  KnownCaip19Sep41AssetId,
+  KnownCaip2ChainId,
+  TransactionId,
+} from '../../api';
 import type { ILogger } from '../../utils';
 import {
   batchesAllSettled,
@@ -18,6 +22,10 @@ import { TransactionOrder } from './api';
 import type { Transaction } from './Transaction';
 import type { TransactionMapper } from './TransactionMapper';
 import type { TransactionRepository } from './TransactionRepository';
+import type {
+  AssetMetadataService,
+  StellarAssetMetadata,
+} from '../asset-metadata';
 import type { NetworkService } from '../network';
 import { isPendingTransactionStatus } from './utils';
 import type { ActivatedAccountPair } from '../sync/api';
@@ -39,6 +47,7 @@ type SyncContext = {
   lastScanTokenByAccountId: Record<KeyringAccountId, string | null>;
   /** Mapped keyring txs collected during steps 2–3; persisted and emitted in step 4. */
   transactionsToSave: Record<KeyringAccountId, KeyringTransaction[]>;
+  sep41AssetsMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>;
 };
 
 /**
@@ -58,6 +67,8 @@ export class TransactionSynchronizeService {
 
   readonly #transactionRepository: TransactionRepository;
 
+  readonly #assetMetadataService: AssetMetadataService;
+
   readonly #networkService: NetworkService;
 
   readonly #logger: ILogger;
@@ -69,16 +80,19 @@ export class TransactionSynchronizeService {
     networkService,
     transactionMapper,
     transactionRepository,
+    assetMetadataService,
     logger,
   }: {
     networkService: NetworkService;
     transactionRepository: TransactionRepository;
     transactionMapper: TransactionMapper;
+    assetMetadataService: AssetMetadataService;
     logger: ILogger;
   }) {
     this.#networkService = networkService;
     this.#transactionRepository = transactionRepository;
     this.#transactionMapper = transactionMapper;
+    this.#assetMetadataService = assetMetadataService;
     this.#logger = createPrefixedLogger(
       logger,
       '[💼 TransactionSynchronizeService]',
@@ -142,10 +156,12 @@ export class TransactionSynchronizeService {
     }
 
     // Use Promise.all (not allSettled): if state cannot be loaded, sync cannot continue.
-    const [pendingByAccount, lastScanTokenByAccountId] = await Promise.all([
-      this.#loadPendingTransactionsFromState(keyringAccountIds, scope),
-      this.#fetchLastScanTokens(keyringAccountIds, scope),
-    ]);
+    const [pendingByAccount, lastScanTokenByAccountId, sep41AssetsMetadata] =
+      await Promise.all([
+        this.#loadPendingTransactionsFromState(keyringAccountIds, scope),
+        this.#fetchLastScanTokens(keyringAccountIds, scope),
+        this.#getPersistedSep41AssetsMetadata(scope),
+      ]);
 
     return {
       scope,
@@ -154,7 +170,21 @@ export class TransactionSynchronizeService {
       pendingByAccount,
       lastScanTokenByAccountId,
       transactionsToSave: {},
+      sep41AssetsMetadata,
     };
+  }
+
+  async #getPersistedSep41AssetsMetadata(
+    scope: KnownCaip2ChainId,
+  ): Promise<Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>> {
+    const persistedAssets =
+      await this.#assetMetadataService.fetchSep41AssetsOrSyncOnce(scope);
+    return persistedAssets.reduce<
+      Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>
+    >((acc, asset) => {
+      acc[asset.assetId as KnownCaip19Sep41AssetId] = asset;
+      return acc;
+    }, {});
   }
 
   async #fetchLastScanTokens(
@@ -371,6 +401,7 @@ export class TransactionSynchronizeService {
       transaction: onChainTransaction,
       keyringAccount,
       transactionFromState: pendingFromState,
+      assetMetadata: context.sep41AssetsMetadata,
     });
 
     // Unmappable transactions (e.g. dust spam) are omitted from activity history.

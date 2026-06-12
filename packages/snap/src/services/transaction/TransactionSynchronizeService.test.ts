@@ -17,6 +17,8 @@ import { TransactionSynchronizeService } from './TransactionSynchronizeService';
 import { logger } from '../../utils/logger';
 import { getSnapProvider } from '../../utils/snap';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
+import { createMockAssetMetadataService } from '../asset-metadata/__mocks__/assets.fixtures';
+import { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
 import { createMemoryCache } from '../cache/__mocks__/cache.fixtures';
 import { NetworkService } from '../network';
 import {
@@ -83,6 +85,10 @@ describe('TransactionSynchronizeService', () => {
   const setup = () => {
     const { cache } = createMemoryCache();
     const networkService = new NetworkService({ logger, cache });
+    const { service: assetMetadataService } = createMockAssetMetadataService();
+    jest
+      .spyOn(AssetMetadataService.prototype, 'fetchSep41AssetsOrSyncOnce')
+      .mockResolvedValue([]);
     const transactionRepository = new TransactionRepository(
       new State({
         encrypted: false,
@@ -100,12 +106,14 @@ describe('TransactionSynchronizeService', () => {
       networkService,
       transactionRepository,
       transactionMapper,
+      assetMetadataService,
       logger,
     });
 
     return {
       service,
       networkService,
+      assetMetadataService,
       transactionRepository,
       getTransactionsSpy: jest.spyOn(networkService, 'getTransactions'),
       getTransactionSpy: jest.spyOn(networkService, 'getTransaction'),

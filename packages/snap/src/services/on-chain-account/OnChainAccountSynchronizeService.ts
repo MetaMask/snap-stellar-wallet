@@ -123,7 +123,8 @@ export class OnChainAccountSynchronizeService {
         this.#logger.debug('Load SEP-41 token balances');
         let sep41BalanceFetchResult: Sep41BalanceFetchResult | null = null;
         try {
-          const sep41Assets = await this.#fetchSep41AssetOrSyncOnce(scope);
+          const sep41Assets =
+            await this.#assetMetadataService.fetchSep41AssetsOrSyncOnce(scope);
           sep41BalanceFetchResult = await this.#synchronizeSep41AssetBalances({
             stellarAccountIds,
             scope,
@@ -286,29 +287,6 @@ export class OnChainAccountSynchronizeService {
       assetMetadataByAssetId,
       balancesByAccountId: sep41AssetBalancesByAccount,
     };
-  }
-
-  async #fetchSep41AssetOrSyncOnce(
-    scope: KnownCaip2ChainId,
-  ): Promise<StellarAssetMetadata[]> {
-    // Get all SEP-41 assets for the given scope.
-    const allAssets = await this.#assetMetadataService.getAllByScope(scope);
-
-    if (allAssets.length === 0) {
-      this.#logger.debug('No assets found in the state, synchronizing assets');
-      // It is possible that the state is empty, due to the first sync.
-      // Hence, we synchronize the assets once.
-      await this.#assetMetadataService.synchronize(scope);
-    }
-
-    const sep41Assets =
-      await this.#assetMetadataService.getPersistedSep41AssetsMetadata(scope);
-
-    this.#logger.debug('SEP-41 assets found in the state', {
-      noOfAssets: sep41Assets.length,
-    });
-
-    return sep41Assets;
   }
 
   /**
