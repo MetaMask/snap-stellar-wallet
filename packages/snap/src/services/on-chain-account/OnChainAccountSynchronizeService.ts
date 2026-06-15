@@ -575,9 +575,6 @@ export class OnChainAccountSynchronizeService {
   ): Promise<void> {
     try {
       if (balancesPayload !== null) {
-        this.#logger.debug('Emit balances updated event', {
-          balancesPayload,
-        });
         await emitSnapKeyringEvent(
           getSnapProvider(),
           KeyringEvent.AccountBalancesUpdated,
@@ -585,9 +582,6 @@ export class OnChainAccountSynchronizeService {
         );
       }
       if (assetsPayload !== null) {
-        this.#logger.debug('Emit asset list updated event', {
-          assetsPayload,
-        });
         await emitSnapKeyringEvent(
           getSnapProvider(),
           KeyringEvent.AccountAssetListUpdated,
