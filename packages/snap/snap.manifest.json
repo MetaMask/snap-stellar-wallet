@@ -7,7 +7,7 @@
     "url": "https://github.com/MetaMask/snap-stellar-wallet.git"
   },
   "source": {
-    "shasum": "EzG+fKzbHN2mHCdufYyx7TCfjps4snTjJQE2A4WNQls=",
+    "shasum": "z4mud5yiJBM62ns46mKRfzbW44lxw+ZOwH1nMTCq4CM=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",
@@ -56,6 +56,6 @@
       "scopes": ["stellar:pubnet"]
     }
   },
-  "platformVersion": "10.3.0",
+  "platformVersion": "11.1.1",
   "manifestVersion": "0.1"
 }
