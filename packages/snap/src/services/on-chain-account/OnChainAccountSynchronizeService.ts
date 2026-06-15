@@ -499,6 +499,8 @@ export class OnChainAccountSynchronizeService {
       }
 
       // Balance: on-chain-visible assets only (tombstones and zero SEP-41 omitted).
+      // There is no need to emit balance for assets that are not visible from on-chain.
+      // The client controller will remove the balance entry if they receive a asset list event with the asset removed.
       if (isVisibleFromOnChain) {
         balanceChanges[assetId as string] =
           assetId === nativeAssetId

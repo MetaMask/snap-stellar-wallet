@@ -127,13 +127,13 @@ export class KeyringHandler implements Keyring {
           request,
         });
         validateOrigin(origin, request.method);
-        const result = await handleKeyringRequest(this, request);
+        const keyringRequestResult = await handleKeyringRequest(this, request);
         this.#logger.debug('Keyring request handled', {
           origin,
           request,
           result,
         });
-        return result;
+        return keyringRequestResult;
       }, this.#logger)) ?? null;
 
     return result;
