@@ -68,6 +68,11 @@ export class SynchronizeService {
       return;
     }
 
+    if (!syncAccounts && !syncTransactions) {
+      this.#logger.debug('No sync steps to run');
+      return;
+    }
+
     // Both async loads are fail-safe, so we can use Promise.all.
     const [activatedAccountPairs, sep41Assets] = await Promise.all([
       this.#loadActivatedPairs(accounts, scope),
@@ -96,10 +101,6 @@ export class SynchronizeService {
           sep41Assets,
         ),
       });
-    }
-
-    if (tasks.length === 0) {
-      return;
     }
 
     const results = await Promise.allSettled(
