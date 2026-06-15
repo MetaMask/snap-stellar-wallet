@@ -169,13 +169,13 @@ export function formatFeeData(
 }
 
 /**
- * Determines whether a transaction confirmation must be temporarily blocked by scan state.
+ * Determines whether the remote (Blockaid) transaction scan is still loading.
  *
  * @param params - Scan state.
  * @param params.scanFetchStatus - Latest transaction scan fetch status.
- * @returns True when the confirm action should be disabled.
+ * @returns True while the remote scan is still in flight.
  */
-export function isConfirmDisabledByScan(params: {
+export function isRemoteTransactionScanLoading(params: {
   scanFetchStatus: FetchStatus;
 }): boolean {
   // We only block while the scan is still running. A malicious result no longer
@@ -223,40 +223,39 @@ export function hasEnabledTransactionScan(
 }
 
 /**
- * Determines whether the confirm action must be blocked because background
- * re-validation found the pending transaction is no longer valid.
+ * Determines whether local background re-validation found the pending
+ * transaction is no longer valid.
  *
- * @param transactionsFetchStatus - Latest transaction validation fetch status.
- * @returns True when the confirm action should be disabled.
+ * @param transactionsFetchStatus - Latest transaction re-validation fetch status.
+ * @returns True when local re-validation has failed.
  */
-export function isConfirmDisabledByTransactionValidation(
+export function isLocalTransactionValidationFailed(
   transactionsFetchStatus: FetchStatus | undefined,
 ): boolean {
   return transactionsFetchStatus === FetchStatus.Error;
 }
 
 /**
- * Single source of truth for whether the confirm action must be blocked.
+ * Single source of truth for whether the confirm action must be disabled.
  *
- * Combines the scan and re-validation guards so the confirmation footer and the
- * malicious-acknowledgement proceed handler can never drift apart. Flows without
- * background re-validation (e.g. dapp sign-transaction) simply omit
- * `transactionsFetchStatus`, which is treated as "not blocked".
+ * Combines the remote-scan and local-re-validation guards so the confirmation
+ * footer and the malicious-acknowledgement proceed handler can never drift
+ * apart. Flows without background re-validation (e.g. dapp sign-transaction)
+ * simply omit `transactionsFetchStatus`, which is treated as "not blocked".
  *
  * @param params - Latest fetch state.
  * @param params.scanFetchStatus - Latest transaction scan fetch status.
  * @param params.transactionsFetchStatus - Latest transaction re-validation fetch status.
  * @returns True when the confirm action should be disabled.
  */
-export function isConfirmBlocked(params: {
+export function shouldDisableConfirmation(params: {
   scanFetchStatus?: FetchStatus;
   transactionsFetchStatus?: FetchStatus;
 }): boolean {
   return (
-    isConfirmDisabledByScan({
+    isRemoteTransactionScanLoading({
       scanFetchStatus: params.scanFetchStatus ?? FetchStatus.Initial,
-    }) ||
-    isConfirmDisabledByTransactionValidation(params.transactionsFetchStatus)
+    }) || isLocalTransactionValidationFailed(params.transactionsFetchStatus)
   );
 }
 
@@ -299,7 +298,7 @@ export function resolveConfirmationBanner(params: {
   //   already validated at build time), so the banner exists solely on Error.
   // - Scan is preference-driven: while scan prefs are on, TransactionAlert owns
   //   the full async lifecycle (in-progress -> result/error -> null for benign).
-  if (isConfirmDisabledByTransactionValidation(transactionsFetchStatus)) {
+  if (isLocalTransactionValidationFailed(transactionsFetchStatus)) {
     return ConfirmationBanner.TransactionValidation;
   }
 

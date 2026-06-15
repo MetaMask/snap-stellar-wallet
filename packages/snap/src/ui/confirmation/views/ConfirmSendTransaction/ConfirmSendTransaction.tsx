@@ -37,8 +37,8 @@ import {
   getClassicAssetExplorerUrl,
   getNetworkName,
   getSepAssetExplorerUrl,
-  isConfirmBlocked,
   requiresMaliciousAcknowledgement,
+  shouldDisableConfirmation,
 } from '../../utils';
 
 export type ConfirmSendTransactionProps = ConfirmationBaseProps &
@@ -71,7 +71,7 @@ export const ConfirmSendTransaction = ({
   const t = i18n(locale);
   const { address } = account;
   const { assetId, symbol } = assetMetadata;
-  const shouldDisableConfirmButton = isConfirmBlocked({
+  const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
     transactionsFetchStatus,
   });

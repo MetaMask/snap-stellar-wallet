@@ -8,7 +8,7 @@ import type {
 } from '../../../../handlers/user-input/api';
 import { resolveInterface, updateInterfaceIfExists } from '../../../../utils';
 import type { ConfirmationInterfaceKey, FetchStatus } from '../../api';
-import { isConfirmBlocked } from '../../utils';
+import { shouldDisableConfirmation } from '../../utils';
 import { renderConfirmationView } from '../render';
 
 /**
@@ -75,8 +75,9 @@ async function onAcknowledgeChange(
  *
  * It also re-applies the confirmation footer's block guard: while the user was
  * on the acknowledgement screen, a background refresher may have invalidated the
- * transaction (failed re-validation) or left the scan pending. We never resolve
- * a transaction the footer would have blocked.
+ * transaction (failed re-validation) or left the scan pending. Rather than
+ * silently swallowing the click, we send the user back to the confirmation view
+ * where the disabled Confirm button and the validation/scan banner explain why they can't proceed.
  *
  * @param options - The user input handler context.
  */
@@ -89,13 +90,17 @@ async function onProceedClick(
   }
 
   if (
-    isConfirmBlocked({
+    shouldDisableConfirmation({
       scanFetchStatus: context.scanFetchStatus as FetchStatus | undefined,
       transactionsFetchStatus: context.transactionsFetchStatus as
         | FetchStatus
         | undefined,
     })
   ) {
+    await reRender(id, context, {
+      acknowledgementScreen: false,
+      acknowledged: false,
+    });
     return;
   }
 

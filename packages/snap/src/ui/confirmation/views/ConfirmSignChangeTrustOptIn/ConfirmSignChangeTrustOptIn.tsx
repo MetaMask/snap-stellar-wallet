@@ -34,9 +34,9 @@ import {
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
-  isConfirmBlocked,
   getNetworkName,
   requiresMaliciousAcknowledgement,
+  shouldDisableConfirmation,
 } from '../../utils';
 
 export type ConfirmSignChangeTrustOptInProps = ConfirmationBaseProps &
@@ -63,7 +63,7 @@ export const ConfirmSignChangeTrustOptIn = ({
 }: ConfirmSignChangeTrustOptInProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
-  const shouldDisableConfirmButton = isConfirmBlocked({
+  const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
     transactionsFetchStatus,
   });

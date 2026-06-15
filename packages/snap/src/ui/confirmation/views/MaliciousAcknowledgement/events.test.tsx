@@ -119,7 +119,7 @@ describe('malicious acknowledgement events', () => {
     expect(resolveInterface).not.toHaveBeenCalled();
   });
 
-  it('does not resolve on "Confirm" when background re-validation failed', async () => {
+  it('returns to the confirmation view on "Confirm" when background re-validation failed', async () => {
     const name = MaliciousAcknowledgementFormNames.Proceed;
     await handlers[name]?.({
       id: INTERFACE_ID,
@@ -133,9 +133,17 @@ describe('malicious acknowledgement events', () => {
     });
 
     expect(resolveInterface).not.toHaveBeenCalled();
+    expect(updateInterfaceIfExists).toHaveBeenCalledWith(
+      INTERFACE_ID,
+      'RENDERED',
+      expect.objectContaining({
+        acknowledgementScreen: false,
+        acknowledged: false,
+      }),
+    );
   });
 
-  it('does not resolve on "Confirm" while the scan is still fetching', async () => {
+  it('returns to the confirmation view on "Confirm" while the scan is still fetching', async () => {
     const name = MaliciousAcknowledgementFormNames.Proceed;
     await handlers[name]?.({
       id: INTERFACE_ID,
@@ -149,6 +157,14 @@ describe('malicious acknowledgement events', () => {
     });
 
     expect(resolveInterface).not.toHaveBeenCalled();
+    expect(updateInterfaceIfExists).toHaveBeenCalledWith(
+      INTERFACE_ID,
+      'RENDERED',
+      expect.objectContaining({
+        acknowledgementScreen: false,
+        acknowledged: false,
+      }),
+    );
   });
 
   it('returns to the confirmation view on "Go back"', async () => {

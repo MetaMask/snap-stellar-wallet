@@ -31,9 +31,9 @@ import {
   getAccountName,
   getNetworkName,
   hasEnabledTransactionScan,
-  isConfirmBlocked,
   requiresMaliciousAcknowledgement,
   resolveAssetDisplay,
+  shouldDisableConfirmation,
 } from '../../utils';
 
 export type ConfirmSignTransactionProps = Omit<
@@ -177,7 +177,11 @@ export const ConfirmSignTransaction = ({
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
   const feePrice = tokenPrices?.[feeData.assetId] ?? null;
-  const shouldDisableConfirmButton = isConfirmBlocked({ scanFetchStatus });
+  // Sign-transaction has no local re-validation (no validateTxn step), so only
+  // the remote-scan-loading guard applies here.
+  const shouldDisableConfirmButton = shouldDisableConfirmation({
+    scanFetchStatus,
+  });
 
   return (
     <Container>

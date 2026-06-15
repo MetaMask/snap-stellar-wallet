@@ -5,11 +5,11 @@ import {
 import { FetchStatus } from './api';
 import {
   ConfirmationBanner,
-  isConfirmBlocked,
-  isConfirmDisabledByScan,
-  isConfirmDisabledByTransactionValidation,
+  isLocalTransactionValidationFailed,
+  isRemoteTransactionScanLoading,
   requiresMaliciousAcknowledgement,
   resolveConfirmationBanner,
+  shouldDisableConfirmation,
 } from './utils';
 import { TransactionScanValidationType } from '../../services/transaction-scan';
 
@@ -23,36 +23,40 @@ const warningScan = {
 };
 
 describe('confirmation utils', () => {
-  describe('isConfirmDisabledByScan', () => {
+  describe('isRemoteTransactionScanLoading', () => {
     it('disables confirm while scan is fetching', () => {
       expect(
-        isConfirmDisabledByScan({ scanFetchStatus: FetchStatus.Fetching }),
+        isRemoteTransactionScanLoading({
+          scanFetchStatus: FetchStatus.Fetching,
+        }),
       ).toBe(true);
     });
 
     it('does not disable confirm once the scan has fetched', () => {
       expect(
-        isConfirmDisabledByScan({ scanFetchStatus: FetchStatus.Fetched }),
+        isRemoteTransactionScanLoading({
+          scanFetchStatus: FetchStatus.Fetched,
+        }),
       ).toBe(false);
     });
 
     it('does not disable confirm when the scan fetch status is not fetching', () => {
       expect(
-        isConfirmDisabledByScan({ scanFetchStatus: FetchStatus.Error }),
+        isRemoteTransactionScanLoading({ scanFetchStatus: FetchStatus.Error }),
       ).toBe(false);
     });
   });
 
-  describe('isConfirmBlocked', () => {
+  describe('shouldDisableConfirmation', () => {
     it('blocks while the scan is fetching', () => {
-      expect(isConfirmBlocked({ scanFetchStatus: FetchStatus.Fetching })).toBe(
-        true,
-      );
+      expect(
+        shouldDisableConfirmation({ scanFetchStatus: FetchStatus.Fetching }),
+      ).toBe(true);
     });
 
     it('blocks when re-validation reports an error', () => {
       expect(
-        isConfirmBlocked({
+        shouldDisableConfirmation({
           scanFetchStatus: FetchStatus.Fetched,
           transactionsFetchStatus: FetchStatus.Error,
         }),
@@ -61,7 +65,7 @@ describe('confirmation utils', () => {
 
     it('does not block when scan is fetched and re-validation is clean', () => {
       expect(
-        isConfirmBlocked({
+        shouldDisableConfirmation({
           scanFetchStatus: FetchStatus.Fetched,
           transactionsFetchStatus: FetchStatus.Fetched,
         }),
@@ -69,7 +73,7 @@ describe('confirmation utils', () => {
     });
 
     it('does not block when both statuses are omitted', () => {
-      expect(isConfirmBlocked({})).toBe(false);
+      expect(shouldDisableConfirmation({})).toBe(false);
     });
   });
 
@@ -102,27 +106,25 @@ describe('confirmation utils', () => {
     });
   });
 
-  describe('isConfirmDisabledByTransactionValidation', () => {
+  describe('isLocalTransactionValidationFailed', () => {
     it('disables confirm when re-validation reports an error', () => {
-      expect(isConfirmDisabledByTransactionValidation(FetchStatus.Error)).toBe(
-        true,
-      );
+      expect(isLocalTransactionValidationFailed(FetchStatus.Error)).toBe(true);
     });
 
     it('does not disable confirm while re-validation is fetching', () => {
-      expect(
-        isConfirmDisabledByTransactionValidation(FetchStatus.Fetching),
-      ).toBe(false);
+      expect(isLocalTransactionValidationFailed(FetchStatus.Fetching)).toBe(
+        false,
+      );
     });
 
     it('does not disable confirm when re-validation has fetched', () => {
-      expect(
-        isConfirmDisabledByTransactionValidation(FetchStatus.Fetched),
-      ).toBe(false);
+      expect(isLocalTransactionValidationFailed(FetchStatus.Fetched)).toBe(
+        false,
+      );
     });
 
     it('does not disable confirm when the status is undefined', () => {
-      expect(isConfirmDisabledByTransactionValidation(undefined)).toBe(false);
+      expect(isLocalTransactionValidationFailed(undefined)).toBe(false);
     });
   });
 
