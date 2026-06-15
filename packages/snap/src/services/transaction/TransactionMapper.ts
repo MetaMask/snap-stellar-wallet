@@ -408,9 +408,7 @@ export class TransactionMapper {
       const [firstOperation] = transaction.transactionOperations;
 
       if (!isInvokeHostFunctionOperation(firstOperation)) {
-        throw new TransactionMapperException(
-          'Unable to map a SEP-41 send transaction - not an invoke host function operation',
-        );
+        return undefined;
       }
 
       const parsedSep41TransferInvoke = parseSep41TransferInvokeSafe(
@@ -419,26 +417,20 @@ export class TransactionMapper {
       );
 
       if (!parsedSep41TransferInvoke) {
-        throw new TransactionMapperException(
-          'Unable to map a SEP-41 send transaction - invalid transfer invoke operation',
-        );
+        return undefined;
       }
 
       const { assetId, amount, toAccountId, fromAccountId } =
         parsedSep41TransferInvoke;
 
       if (fromAccountId !== keyringAccount.address) {
-        throw new TransactionMapperException(
-          'Unable to map a SEP-41 send transaction - from account id does not match the keyring account address',
-        );
+        return undefined;
       }
 
       // TODO: Fall back to NetworkService token metadata when state is missing (RPC cost per tx).
       const asset = assetMetadata[assetId];
       if (!asset) {
-        throw new TransactionMapperException(
-          'Unable to map a SEP-41 send transaction - asset metadata not found',
-        );
+        return undefined;
       }
 
       const assetRow = this.#toKeyringAssetRow(

@@ -304,7 +304,7 @@ export class TransactionSynchronizeService {
           noOfResolved += 1;
         }
 
-        await this.#appendMappedTransaction(context, {
+        this.#appendMappedTransaction(context, {
           keyringAccount,
           onChainTransaction: transaction,
           pendingFromState,
@@ -393,7 +393,7 @@ export class TransactionSynchronizeService {
           continue;
         }
 
-        await this.#appendMappedTransaction(context, {
+        this.#appendMappedTransaction(context, {
           keyringAccount,
           onChainTransaction,
           pendingFromState,
@@ -417,14 +417,14 @@ export class TransactionSynchronizeService {
     });
   }
 
-  async #appendMappedTransaction(
+  #appendMappedTransaction(
     context: SyncContext,
     params: {
       keyringAccount: StellarKeyringAccount;
       onChainTransaction: Transaction;
       pendingFromState?: KeyringTransaction;
     },
-  ): Promise<void> {
+  ): void {
     const { keyringAccount, onChainTransaction, pendingFromState } = params;
 
     const mappedTransaction = this.#transactionMapper.mapTransactionSafe({
