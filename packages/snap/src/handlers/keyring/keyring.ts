@@ -131,7 +131,7 @@ export class KeyringHandler implements Keyring {
         this.#logger.debug('Keyring request handled', {
           origin,
           method: request.method,
-          result,
+          result: keyringRequestResult,
         });
         return keyringRequestResult;
       }, this.#logger)) ?? null;
