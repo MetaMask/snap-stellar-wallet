@@ -330,7 +330,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
   });
 
-  it('keeps SEP-41 persisted with zero balance when new sync returns zero', async () => {
+  it('omits SEP-41 zero balance from balance payload while persisting it in state', async () => {
     setupTest();
 
     const {
@@ -373,9 +373,9 @@ describe('OnChainAccountSynchronizeService', () => {
       KeyringEvent.AccountBalancesUpdated,
       expect.objectContaining({
         balances: {
-          [keyringAccount.id]: expect.objectContaining({
-            [sep41Id]: { unit: 'USDC', amount: '0' },
-          }),
+          [keyringAccount.id]: {
+            [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
+          },
         },
       }),
     );
@@ -394,7 +394,7 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(sep41Row?.balance).toBe('0');
   });
 
-  it('still emits SEP-41 zero balance on later syncs after missed events', async () => {
+  it('omits SEP-41 zero balance from balance payload on later syncs after missed events', async () => {
     setupTest();
 
     const {
@@ -456,15 +456,18 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(balanceEventCalls[3]?.[2]).toStrictEqual(
       expect.objectContaining({
         balances: {
-          [keyringAccount.id]: expect.objectContaining({
-            [sep41Id]: { unit: 'USDC', amount: '0' },
-          }),
+          [keyringAccount.id]: {
+            [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
+          },
         },
       }),
     );
+    expect(balanceEventCalls[3]?.[2]).not.toHaveProperty(
+      `balances.${keyringAccount.id}.${sep41Id}`,
+    );
   });
 
-  it('simulates client receiving sync 1 and 4 while missing 2 and 3 with trustline removal and SEP-41 zero', async () => {
+  it('replays asset-list add/remove on sync 4 while balance payload omits tombstones and zero SEP-41', async () => {
     setupTest();
 
     const {
@@ -599,18 +602,27 @@ describe('OnChainAccountSynchronizeService', () => {
         isKeyringEmitCall(call, KeyringEvent.AccountBalancesUpdated),
       )
       .map((call) => call[2]);
+    const assetListEventCalls = emitSnapKeyringEventSpy.mock.calls
+      .filter((call) =>
+        isKeyringEmitCall(call, KeyringEvent.AccountAssetListUpdated),
+      )
+      .map((call) => call[2]);
     expect(balanceEventCalls).toHaveLength(4);
-    const sync1Payload = balanceEventCalls[0] as {
+    expect(assetListEventCalls).toHaveLength(4);
+    const sync1BalancePayload = balanceEventCalls[0] as {
       balances: Record<
         string,
         Record<string, { amount: string; unit: string }>
       >;
     };
-    const sync4Payload = balanceEventCalls[3] as {
+    const sync4BalancePayload = balanceEventCalls[3] as {
       balances: Record<
         string,
         Record<string, { amount: string; unit: string }>
       >;
+    };
+    const sync4AssetListPayload = assetListEventCalls[3] as {
+      assets: Record<string, { added: string[]; removed: string[] }>;
     };
 
     const simulatedClientBalances: Record<
@@ -621,7 +633,7 @@ describe('OnChainAccountSynchronizeService', () => {
     // Client receives sync 1.
     Object.assign(
       simulatedClientBalances,
-      sync1Payload.balances[keyringAccount.id] as Record<
+      sync1BalancePayload.balances[keyringAccount.id] as Record<
         string,
         { amount: string; unit: string }
       >,
@@ -631,26 +643,32 @@ describe('OnChainAccountSynchronizeService', () => {
 
     // Client misses sync 2 and 3.
 
-    // Client receives sync 4 and catches up.
+    // Client receives sync 4 balance patch: visible assets only; stale keys from sync 1 remain.
     Object.assign(
       simulatedClientBalances,
-      sync4Payload.balances[keyringAccount.id] as Record<
+      sync4BalancePayload.balances[keyringAccount.id] as Record<
         string,
         { amount: string; unit: string }
       >,
     );
-    // Trustline removal happened on sync 2 and was missed by client.
-    // Classic removals persist as tombstone entries (`limit` 0), so sync 4 still sends balance 0.
-    expect(simulatedClientBalances[USDC_CLASSIC]?.amount).toBe('0');
-    // SEP-41 zero entries are persisted and continue to be sent by sync balance update events,
-    // so sync 4 corrects the client if it missed a previous update.
-    expect(simulatedClientBalances[sep41Id]).toStrictEqual({
-      unit: 'USDC',
-      amount: '0',
+    expect(simulatedClientBalances[USDC_CLASSIC]?.amount).toBe('25');
+    expect(simulatedClientBalances[sep41Id]?.amount).toBe('0.00005');
+    expect(simulatedClientBalances[NATIVE]?.amount).toBe('1');
+
+    // Asset list replay on sync 4 reconciles visibility the client missed.
+    expect(sync4AssetListPayload.assets[keyringAccount.id]).toStrictEqual({
+      added: expect.arrayContaining([NATIVE]),
+      removed: expect.arrayContaining([USDC_CLASSIC, sep41Id]),
     });
+    expect(sync4BalancePayload.balances[keyringAccount.id]).not.toHaveProperty(
+      USDC_CLASSIC,
+    );
+    expect(sync4BalancePayload.balances[keyringAccount.id]).not.toHaveProperty(
+      sep41Id,
+    );
   });
 
-  it('runs four syncs with emit failures then full balance and asset-list reconciliation', async () => {
+  it('runs four syncs with emit failures then reconciles via replayed asset-list and visible balances', async () => {
     setupTest();
 
     const {
@@ -810,34 +828,37 @@ describe('OnChainAccountSynchronizeService', () => {
       return row!;
     };
 
-    // 1st `AccountBalancesUpdated` (after sync 1): USDC trustline at 0 + full snapshot.
+    // 1st `AccountBalancesUpdated` (after sync 1): USDC trustline at 0 + native.
     expect(accountBalancesFromNthBalanceEmit(0)).toMatchObject({
+      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
       [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
     });
 
-    // 2nd `AccountBalancesUpdated` (after sync 2): USDC removed on Horizon → tombstone balance 0 in payload.
-    expect(accountBalancesFromNthBalanceEmit(1)).toMatchObject({
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+    // 2nd `AccountBalancesUpdated` (after sync 2): USDC tombstone omitted; native only.
+    expect(accountBalancesFromNthBalanceEmit(1)).toStrictEqual({
+      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
     });
 
-    // 3rd `AccountBalancesUpdated` (after sync 3): EURC added on Horizon + USDC tombstone still in snapshot.
+    // 3rd `AccountBalancesUpdated` (after sync 3): EURC visible; USDC tombstone omitted.
     expect(accountBalancesFromNthBalanceEmit(2)).toMatchObject({
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
       [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
     });
+    expect(accountBalancesFromNthBalanceEmit(2)).not.toHaveProperty(
+      USDC_CLASSIC,
+    );
 
-    // 4th `AccountBalancesUpdated` (after sync 4): same on-chain entries as sync 3, but `find` read a stale
-    // baseline so asset-list deltas fire; balances stay a full per-asset map (native + SEP-41 + classics).
+    // 4th `AccountBalancesUpdated` (after sync 4): same visible balances as sync 3.
     const fourthBalanceSnapshot = accountBalancesFromNthBalanceEmit(3);
-    expect(Object.keys(fourthBalanceSnapshot).length).toBeGreaterThan(2);
-    expect(fourthBalanceSnapshot).toMatchObject({
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+    expect(fourthBalanceSnapshot).toStrictEqual({
+      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
       [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
     });
 
     const assetListCalls = emitSnapKeyringEventSpy.mock.calls.filter((call) =>
       isKeyringEmitCall(call, KeyringEvent.AccountAssetListUpdated),
     );
+    // Asset-list emit runs after balance emit in the same try block; sync 2 and 3 balance failures skip it.
     expect(assetListCalls).toHaveLength(2);
 
     const assetListDeltaFromNthAssetEmit = (
@@ -857,13 +878,13 @@ describe('OnChainAccountSynchronizeService', () => {
     // 1st `AccountAssetListUpdated` (after sync 1): USDC trustline becomes visible (limit > 0, balance 0).
     expect(assetListDeltaFromNthAssetEmit(0)).toStrictEqual({
       added: expect.arrayContaining([NATIVE, USDC_CLASSIC]),
-      removed: [],
+      removed: expect.arrayContaining([sep41Id]),
     });
 
-    // 2nd `AccountAssetListUpdated` (after sync 4): stale baseline vs current → EURC added, USDC removed from list.
+    // 2nd `AccountAssetListUpdated` (after sync 4): replays on-chain visibility — EURC added, USDC removed.
     expect(assetListDeltaFromNthAssetEmit(1)).toStrictEqual({
       added: expect.arrayContaining([NATIVE, EURC_CLASSIC]),
-      removed: [USDC_CLASSIC],
+      removed: expect.arrayContaining([USDC_CLASSIC, sep41Id]),
     });
   });
 

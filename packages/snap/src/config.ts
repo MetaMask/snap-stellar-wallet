@@ -88,14 +88,14 @@ const ConfigStruct = object({
     /**
      * The base fee multiplier for the Stellar network.
      */
-    baseFeeMultiplier: parseIntegerStruct(1, 1.2),
+    baseFeeMultiplier: parseIntegerStruct(1, 1.5),
     /**
      * The smart contract transaction fee multiplier for the Stellar network.
      * The multiplier is higher because smart contract transactions have tighter ledger limits than normal transactions.
      *
      * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering#ledger-limits
      */
-    simulationFeeMultiplier: parseIntegerStruct(1, 1.5),
+    simulationFeeMultiplier: parseIntegerStruct(1, 2),
   }),
   api: object({
     tokenApi: object({

@@ -122,8 +122,18 @@ export class KeyringHandler implements Keyring {
   async handle(origin: string, request: JsonRpcRequest): Promise<Json> {
     const result =
       (await withCatchAndThrowSnapError(async () => {
+        this.#logger.debug('Handle keyring request', {
+          origin,
+          request,
+        });
         validateOrigin(origin, request.method);
-        return handleKeyringRequest(this, request);
+        const result = await handleKeyringRequest(this, request);
+        this.#logger.debug('Keyring request handled', {
+          origin,
+          request,
+          result,
+        });
+        return result;
       }, this.#logger)) ?? null;
 
     return result;

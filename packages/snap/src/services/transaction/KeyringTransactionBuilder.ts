@@ -19,6 +19,11 @@ export enum KeyringTransactionType {
   Unknown = 'unknown',
 }
 
+enum KeyringTransactionTypeLabel {
+  ChangeTrustOptIn = 'trustline-approve',
+  ChangeTrustOptOut = 'trustline-disapprove',
+}
+
 export type KeyringTransactionAsset = {
   unit: string;
   type: KnownCaip19AssetIdOrSlip44Id;
@@ -126,7 +131,10 @@ export class KeyringTransactionBuilder {
     switch (request.type) {
       case KeyringTransactionType.ChangeTrustOptOut:
       case KeyringTransactionType.ChangeTrustOptIn:
-        return this.#createChangeTrustTransaction(request.request);
+        return this.#createChangeTrustTransaction(
+          request.request,
+          request.type,
+        );
       case KeyringTransactionType.Send:
         return this.#createSendTransaction(request.request);
       case KeyringTransactionType.Swap:
@@ -143,8 +151,23 @@ export class KeyringTransactionBuilder {
     }
   }
 
+  /**
+   * Builds a change-trust (trustline) keyring transaction.
+   *
+   * Maps opt-in to {@link TransactionType.TokenApprove} and opt-out to
+   * {@link TransactionType.TokenDisapprove}. Sets `details.typeLabel` so the UI can
+   * distinguish trustline approve vs disapprove until keyring types are fully adopted.
+   *
+   * @param request - Change-trust transaction fields (asset, fees, status, etc.).
+   * @param optInOrOut - Whether this is a trustline opt-in or opt-out.
+   * @returns A keyring transaction with token approve/disapprove type and UI type label.
+   * @see {@link https://github.com/MetaMask/accounts/pull/568}
+   */
   #createChangeTrustTransaction(
     request: ChangeTrustTransactionRequest,
+    optInOrOut:
+      | KeyringTransactionType.ChangeTrustOptIn
+      | KeyringTransactionType.ChangeTrustOptOut,
   ): KeyringTransaction {
     const {
       txId,
@@ -154,10 +177,18 @@ export class KeyringTransactionBuilder {
       status = TransactionStatus.Unconfirmed,
     } = request;
     const timestamp = this.#resolveTimestamp(request.timestamp);
+    const type =
+      optInOrOut === KeyringTransactionType.ChangeTrustOptIn
+        ? TransactionType.TokenApprove
+        : TransactionType.TokenDisapprove;
+
+    const typeLabel =
+      optInOrOut === KeyringTransactionType.ChangeTrustOptIn
+        ? KeyringTransactionTypeLabel.ChangeTrustOptIn
+        : KeyringTransactionTypeLabel.ChangeTrustOptOut;
 
     return this.#buildKeyringTransaction({
-      // TODO: Add the correct type
-      type: TransactionType.Unknown,
+      type,
       id: txId,
       account,
       scope,
@@ -166,6 +197,9 @@ export class KeyringTransactionBuilder {
       status,
       timestamp,
       fees: request.fees ?? [],
+      details: {
+        typeLabel,
+      },
     });
   }
 
@@ -318,6 +352,7 @@ export class KeyringTransactionBuilder {
     status,
     timestamp,
     fees,
+    details,
   }: {
     type: TransactionType;
     id: string;
@@ -328,6 +363,7 @@ export class KeyringTransactionBuilder {
     status: TransactionStatus;
     timestamp: number;
     fees: KeyringTransaction['fees'];
+    details?: KeyringTransaction['details'];
   }): KeyringTransaction {
     return {
       type,
@@ -345,6 +381,7 @@ export class KeyringTransactionBuilder {
       account: account.id,
       timestamp,
       fees,
+      ...(details === undefined ? {} : { details }),
     };
   }
 

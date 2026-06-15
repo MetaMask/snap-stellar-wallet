@@ -432,7 +432,7 @@ export class OnChainAccountSynchronizeService {
    *
    * @param stateSnapshotOnChainAccount - Last saved account from state, or `null` when none exists.
    * @param synchronizedOnChainAccount - Same account after Horizon, SEP-41, and merge steps.
-   * @returns `balanceChanges` for all known assets plus optional `assetListChanges`.
+   * @returns `balanceChanges` for on-chain-visible assets plus `assetListChanges` replayed each sync.
    */
   #computeKeyringSyncDeltas(
     stateSnapshotOnChainAccount: OnChainAccount | null,
@@ -458,52 +458,60 @@ export class OnChainAccountSynchronizeService {
           : stateSnapshotOnChainAccount.getRawAsset(assetId);
       const onChainEntry = synchronizedOnChainAccount.getRawAsset(assetId);
 
-      // Always send the full balance snapshot, even when values did not change.
-      // This lets the client recover if it missed a previous balances event.
-      // Example with 4 assets:
-      // - XLM (native), USDC classic trustline, EURC classic trustline, SOLBTC SEP-41.
+      // assetIds = union of state + on-chain rawAssetIds (includes tombstones and zero SEP-41).
+      // Asset list replays every sync from on-chain visibility so a client can recover missed events:
+      // visible on-chain → added; not visible on-chain (but still in assetIds) → removed.
+      // Balances are emitted only for on-chain-visible assets.
+      // Example: XLM (native), USDC/EURC/AQUA (classic trustlines), SOLBTC (SEP-41).
       // ------------------------- Sync 1 ------------------------------------------
       // - Sync 1 (success): payload received by client:
-      //   XLM=10 (raw total), USDC=25, EURC=0, SOLBTC=5.
+      //   state view: none (new account).
+      //   onChain view: XLM=10, USDC=25, EURC=0, SOLBTC=5.
+      //   balance payload: XLM=10, USDC=25, EURC=0, SOLBTC=5.
+      //   asset list payload: added XLM, USDC, EURC, SOLBTC; removed none.
       // ------------------------- Sync 2 ------------------------------------------
-      // - Sync 2 (client misses event): chain updates to
-      //   XLM=11, USDC=30, EURC trustline removed (it was already zero), SOLBTC=0.
-      //   Payload for this sync would include EURC amount=0 and SOLBTC amount=0,
-      //   but client missed it.
+      // - Sync 2 (client misses event):
+      //   state view: XLM=10, USDC=25, EURC=0, SOLBTC=5.
+      //   onChain view: XLM=11, USDC=30, AQUA trustline added, EURC trustline removed, SOLBTC=0.
+      //   balance payload: XLM=11, USDC=30, AQUA=0.
+      //   asset list payload: added XLM, USDC, AQUA; removed EURC, SOLBTC.
       // ------------------------- Sync 3 ------------------------------------------
-      // - Sync 3 (client misses event): chain updates to
-      //   XLM=9, USDC=30, SOLBTC still 0.
-      //   Because SEP-41 zero balances are persisted, payload still includes SOLBTC=0.
+      // - Sync 3 (client misses event):
+      //   state view: XLM=11, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
+      //   onChain view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
+      //   balance payload: XLM=9, USDC=30, AQUA.
+      //   asset list payload: added XLM, USDC, AQUA; removed EURC, SOLBTC (replayed).
       // ------------------------- Sync 4 ------------------------------------------
-      // - Sync 4 (success): we still emit full balances for on-chain view + latest snapshot,
-      //   so payload includes XLM=9 (raw total), USDC=30, SOLBTC=0.
-      //   Classic trustlines removed on chain are persisted as internal tombstones (`limit` 0),
-      //   so sync 4 can still send balance `0` for those asset ids if the client missed earlier events.
-      balanceChanges[assetId as string] =
-        assetId === nativeAssetId
-          ? {
-              unit: NATIVE_ASSET_SYMBOL,
-              amount: toDisplayBalance(
-                synchronizedOnChainAccount.nativeRawBalance,
-              ),
-            }
-          : this.#buildBalancePayloadFromEntries(
-              onChainEntry,
-              latestStateEntry,
-            );
-
-      const isVisibleFromState = this.#isAssetVisible(
-        assetId,
-        latestStateEntry,
-      );
+      // - Sync 4 (success): payload received by client:
+      //   state view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
+      //   onChain view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
+      //   balance payload: XLM=9, USDC=30, AQUA.
+      //   asset list payload: added XLM, USDC, AQUA; removed EURC, SOLBTC (replayed).
       const isVisibleFromOnChain = this.#isAssetVisible(assetId, onChainEntry);
-      // Add/remove is based on visibility transition between snapshots.
-      if (isVisibleFromOnChain && !isVisibleFromState) {
+
+      // Asset list: replay add/remove from on-chain visibility (not transition-based).
+      if (isVisibleFromOnChain) {
         addedAssets.push(assetId);
       }
 
-      if (isVisibleFromState && !isVisibleFromOnChain) {
+      if (!isVisibleFromOnChain) {
         removedAssets.push(assetId);
+      }
+
+      // Balance: on-chain-visible assets only (tombstones and zero SEP-41 omitted).
+      if (isVisibleFromOnChain) {
+        balanceChanges[assetId as string] =
+          assetId === nativeAssetId
+            ? {
+                unit: NATIVE_ASSET_SYMBOL,
+                amount: toDisplayBalance(
+                  synchronizedOnChainAccount.nativeRawBalance,
+                ),
+              }
+            : this.#buildBalancePayloadFromEntries(
+                onChainEntry,
+                latestStateEntry,
+              );
       }
     }
 
@@ -565,6 +573,9 @@ export class OnChainAccountSynchronizeService {
   ): Promise<void> {
     try {
       if (balancesPayload !== null) {
+        this.#logger.debug('Emit balances updated event', {
+          balancesPayload,
+        });
         await emitSnapKeyringEvent(
           getSnapProvider(),
           KeyringEvent.AccountBalancesUpdated,
@@ -572,6 +583,9 @@ export class OnChainAccountSynchronizeService {
         );
       }
       if (assetsPayload !== null) {
+        this.#logger.debug('Emit asset list updated event', {
+          assetsPayload,
+        });
         await emitSnapKeyringEvent(
           getSnapProvider(),
           KeyringEvent.AccountAssetListUpdated,
