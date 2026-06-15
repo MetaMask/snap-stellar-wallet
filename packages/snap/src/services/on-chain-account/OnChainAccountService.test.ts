@@ -233,11 +233,13 @@ describe('OnChainAccountService', () => {
       await onChainAccountService.synchronize(
         activatedAccountPairs,
         KnownCaip2ChainId.Mainnet,
+        [],
       );
 
       expect(synchronizeSpy).toHaveBeenCalledWith(
         activatedAccountPairs,
         KnownCaip2ChainId.Mainnet,
+        [],
       );
     });
   });

@@ -104,6 +104,7 @@ describe('TrackTransactionHandler', () => {
       synchronizeService: new SynchronizeService({
         logger,
         onChainAccountService: {} as never,
+        assetMetadataService: {} as never,
         transactionService: {} as never,
       }),
       accountService: new AccountService({

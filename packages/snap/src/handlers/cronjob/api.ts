@@ -36,6 +36,7 @@ export type ICronjobRequestHandler = {
 };
 
 export enum BackgroundEventMethod {
+  SynchronizeAssets = 'synchronizeAssets',
   SynchronizeAccounts = 'synchronizeAccounts',
   TrackTransaction = 'trackTransaction',
   RefreshConfirmationContext = 'refreshConfirmationContext',
@@ -100,6 +101,17 @@ export const SyncAccountJsonRpcRequestStruct = assign(
   }),
 );
 
+export const SyncAssetsParamsStruct = object({});
+
+export const SyncAssetsJsonRpcRequestStruct = assign(
+  JsonRpcRequestStruct,
+  object({
+    method: literal(BackgroundEventMethod.SynchronizeAssets),
+    // Omitted in declarative manifest cron jobs; handler ignores params if present.
+    params: optional(SyncAssetsParamsStruct),
+  }),
+);
+
 export const CronjobJsonRpcRequestStruct = object({
   status: boolean(),
 });
@@ -117,6 +129,12 @@ export type SyncAccountJsonRpcRequest = Infer<
 >;
 
 export type SyncAccountParams = Infer<typeof SyncAccountParamsStruct>;
+
+export type SyncAssetsParams = Infer<typeof SyncAssetsParamsStruct>;
+
+export type SyncAssetsJsonRpcRequest = Infer<
+  typeof SyncAssetsJsonRpcRequestStruct
+>;
 
 export type RefreshConfirmationContextJsonRpcRequest = Infer<
   typeof RefreshConfirmationContextJsonRpcRequestStruct

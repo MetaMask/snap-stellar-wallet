@@ -29,7 +29,7 @@ import type {
 import { getSnapProvider, isSep41Id, isSlip44Id } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
-import type { AssetMetadataService } from '../asset-metadata';
+import type { StellarAssetMetadata } from '../asset-metadata';
 import type { NetworkService } from '../network';
 import {
   AccountNotActivatedException,
@@ -57,13 +57,11 @@ export class TransactionService {
     transactionRepository,
     networkService,
     transactionBuilder,
-    assetMetadataService,
   }: {
     logger: ILogger;
     transactionRepository: TransactionRepository;
     networkService: NetworkService;
     transactionBuilder: TransactionBuilder;
-    assetMetadataService: AssetMetadataService;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🧾 TransactionService]');
     this.#transactionRepository = transactionRepository;
@@ -78,7 +76,6 @@ export class TransactionService {
       networkService,
       transactionRepository,
       transactionMapper,
-      assetMetadataService,
       logger,
     });
   }
@@ -641,14 +638,17 @@ export class TransactionService {
    *
    * @param activatedAccountPairs - Activated keyring/on-chain account pairs whose history will be synced.
    * @param scope - Network scope for Horizon fetches.
+   * @param sep41Assets - Preloaded SEP-41 assets from {@link SynchronizeService}.
    */
   async synchronize(
     activatedAccountPairs: ActivatedAccountPair[],
     scope: KnownCaip2ChainId,
+    sep41Assets: StellarAssetMetadata[],
   ): Promise<void> {
     await this.#transactionSynchronizeService.synchronize(
       activatedAccountPairs,
       scope,
+      sep41Assets,
     );
   }
 
