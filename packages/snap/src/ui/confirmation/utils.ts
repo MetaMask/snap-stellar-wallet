@@ -169,24 +169,44 @@ export function formatFeeData(
 }
 
 /**
- * Determines whether a transaction confirmation must be temporarily blocked by scan state.
+ * Determines whether the remote (Blockaid) transaction scan is still loading.
+ *
+ * @param params - Scan state.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @returns True while the remote scan is still in flight.
+ */
+export function isRemoteTransactionScanLoading(params: {
+  scanFetchStatus: FetchStatus;
+}): boolean {
+  // We only block while the scan is still running. A malicious result no longer
+  // disables confirm: per product/Blockaid, the user must always retain a
+  // "proceed anyway" path, gated behind the malicious acknowledgement screen
+  // (see {@link requiresMaliciousAcknowledgement}).
+  return params.scanFetchStatus === FetchStatus.Fetching;
+}
+
+/**
+ * Determines whether a malicious scan result requires explicit user
+ * acknowledgement before the transaction can be confirmed.
+ *
+ * When true, the confirmation footer swaps its primary button to "Review alerts"
+ * and routes the user through the acknowledgement screen instead of confirming
+ * directly. Warning-level results intentionally do not require this (reduced
+ * friction): they show the banner only.
  *
  * @param params - Scan and preference state.
  * @param params.preferences - User preferences controlling scan behavior.
  * @param params.scan - Latest transaction scan result.
- * @param params.scanFetchStatus - Latest transaction scan fetch status.
- * @returns True when the confirm action should be disabled.
+ * @returns True when the user must acknowledge a malicious result to proceed.
  */
-export function isConfirmDisabledByScan(params: {
+export function requiresMaliciousAcknowledgement(params: {
   preferences: GetPreferencesResult;
   scan?: TransactionScanResult | null;
-  scanFetchStatus: FetchStatus;
 }): boolean {
-  const { preferences, scan, scanFetchStatus } = params;
+  const { preferences, scan } = params;
   return (
-    scanFetchStatus === FetchStatus.Fetching ||
-    (preferences.useSecurityAlerts &&
-      scan?.validation?.type === TransactionScanValidationType.Malicious)
+    preferences.useSecurityAlerts &&
+    scan?.validation?.type === TransactionScanValidationType.Malicious
   );
 }
 
@@ -203,16 +223,40 @@ export function hasEnabledTransactionScan(
 }
 
 /**
- * Determines whether the confirm action must be blocked because background
- * re-validation found the pending transaction is no longer valid.
+ * Determines whether local background re-validation found the pending
+ * transaction is no longer valid.
  *
- * @param transactionsFetchStatus - Latest transaction validation fetch status.
- * @returns True when the confirm action should be disabled.
+ * @param transactionsFetchStatus - Latest transaction re-validation fetch status.
+ * @returns True when local re-validation has failed.
  */
-export function isConfirmDisabledByTransactionValidation(
+export function isLocalTransactionValidationFailed(
   transactionsFetchStatus: FetchStatus | undefined,
 ): boolean {
   return transactionsFetchStatus === FetchStatus.Error;
+}
+
+/**
+ * Single source of truth for whether the confirm action must be disabled.
+ *
+ * Combines the remote-scan and local-re-validation guards so the confirmation
+ * footer and the malicious-acknowledgement proceed handler can never drift
+ * apart. Flows without background re-validation (e.g. dapp sign-transaction)
+ * simply omit `transactionsFetchStatus`, which is treated as "not blocked".
+ *
+ * @param params - Latest fetch state.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @param params.transactionsFetchStatus - Latest transaction re-validation fetch status.
+ * @returns True when the confirm action should be disabled.
+ */
+export function shouldDisableConfirmation(params: {
+  scanFetchStatus?: FetchStatus;
+  transactionsFetchStatus?: FetchStatus;
+}): boolean {
+  return (
+    isRemoteTransactionScanLoading({
+      scanFetchStatus: params.scanFetchStatus ?? FetchStatus.Initial,
+    }) || isLocalTransactionValidationFailed(params.transactionsFetchStatus)
+  );
 }
 
 /**
@@ -254,7 +298,7 @@ export function resolveConfirmationBanner(params: {
   //   already validated at build time), so the banner exists solely on Error.
   // - Scan is preference-driven: while scan prefs are on, TransactionAlert owns
   //   the full async lifecycle (in-progress -> result/error -> null for benign).
-  if (isConfirmDisabledByTransactionValidation(transactionsFetchStatus)) {
+  if (isLocalTransactionValidationFailed(transactionsFetchStatus)) {
     return ConfirmationBanner.TransactionValidation;
   }
 

@@ -2,9 +2,7 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Address,
   Box,
-  Button,
   Container,
-  Footer,
   Heading,
   Icon,
   Image,
@@ -26,13 +24,19 @@ import type {
   FeeData,
 } from '../../api';
 import { FetchStatus } from '../../api';
-import { Asset, AssetIcon, ConfirmationAlerts, FeeRow } from '../../components';
+import {
+  Asset,
+  AssetIcon,
+  ConfirmationAlerts,
+  ConfirmationFooter,
+  FeeRow,
+} from '../../components';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
-  isConfirmDisabledByScan,
-  isConfirmDisabledByTransactionValidation,
   getNetworkName,
+  requiresMaliciousAcknowledgement,
+  shouldDisableConfirmation,
 } from '../../utils';
 
 export type ConfirmSignChangeTrustOptInProps = ConfirmationBaseProps &
@@ -59,12 +63,10 @@ export const ConfirmSignChangeTrustOptIn = ({
 }: ConfirmSignChangeTrustOptInProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
-  const shouldDisableConfirmButton =
-    isConfirmDisabledByScan({
-      preferences,
-      scan,
-      scanFetchStatus,
-    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
+  const shouldDisableConfirmButton = shouldDisableConfirmation({
+    scanFetchStatus,
+    transactionsFetchStatus,
+  });
 
   return (
     <Container>
@@ -155,17 +157,16 @@ export const ConfirmSignChangeTrustOptIn = ({
           />
         </Section>
       </Box>
-      <Footer>
-        <Button name={ConfirmSignChangeTrustOptInFormNames.Cancel}>
-          {t('confirmation.cancelButton')}
-        </Button>
-        <Button
-          name={ConfirmSignChangeTrustOptInFormNames.Confirm}
-          disabled={shouldDisableConfirmButton}
-        >
-          {t('confirmation.confirmButton')}
-        </Button>
-      </Footer>
+      <ConfirmationFooter
+        locale={locale}
+        cancelButtonName={ConfirmSignChangeTrustOptInFormNames.Cancel}
+        confirmButtonName={ConfirmSignChangeTrustOptInFormNames.Confirm}
+        confirmDisabled={shouldDisableConfirmButton}
+        requiresAcknowledgement={requiresMaliciousAcknowledgement({
+          preferences,
+          scan,
+        })}
+      />
     </Container>
   );
 };

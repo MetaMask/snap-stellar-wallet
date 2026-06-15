@@ -2,9 +2,7 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Address,
   Box,
-  Button,
   Container,
-  Footer,
   Heading,
   Icon,
   Image,
@@ -26,14 +24,16 @@ import { STELLAR_IMAGE } from '../../../images/icon';
 import type { ConfirmationBaseProps, FeeData } from '../../api';
 import { FetchStatus } from '../../api';
 import { Asset } from '../../components/Asset';
+import { ConfirmationFooter } from '../../components/ConfirmationFooter';
 import { FeeRow } from '../../components/Fee';
 import { TransactionAlert } from '../../components/TransactionAlert';
 import {
   getAccountName,
   getNetworkName,
   hasEnabledTransactionScan,
-  isConfirmDisabledByScan,
+  requiresMaliciousAcknowledgement,
   resolveAssetDisplay,
+  shouldDisableConfirmation,
 } from '../../utils';
 
 export type ConfirmSignTransactionProps = Omit<
@@ -177,9 +177,9 @@ export const ConfirmSignTransaction = ({
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
   const feePrice = tokenPrices?.[feeData.assetId] ?? null;
-  const shouldDisableConfirmButton = isConfirmDisabledByScan({
-    preferences,
-    scan,
+  // Sign-transaction has no local re-validation (no validateTxn step), so only
+  // the remote-scan-loading guard applies here.
+  const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
   });
 
@@ -308,17 +308,16 @@ export const ConfirmSignTransaction = ({
           ))}
         </Section>
       </Box>
-      <Footer>
-        <Button name={ConfirmSignTransactionFormNames.Cancel}>
-          {t('confirmation.cancelButton')}
-        </Button>
-        <Button
-          name={ConfirmSignTransactionFormNames.Confirm}
-          disabled={shouldDisableConfirmButton}
-        >
-          {t('confirmation.confirmButton')}
-        </Button>
-      </Footer>
+      <ConfirmationFooter
+        locale={locale}
+        cancelButtonName={ConfirmSignTransactionFormNames.Cancel}
+        confirmButtonName={ConfirmSignTransactionFormNames.Confirm}
+        confirmDisabled={shouldDisableConfirmButton}
+        requiresAcknowledgement={requiresMaliciousAcknowledgement({
+          preferences,
+          scan,
+        })}
+      />
     </Container>
   );
 };

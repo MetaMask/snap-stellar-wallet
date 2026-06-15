@@ -2,9 +2,7 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Address,
   Box,
-  Button,
   Container,
-  Footer,
   Heading,
   Icon,
   Image,
@@ -27,15 +25,20 @@ import type {
   FeeData,
 } from '../../api';
 import { FetchStatus } from '../../api';
-import { Asset, ConfirmationAlerts, FeeRow } from '../../components';
+import {
+  Asset,
+  ConfirmationAlerts,
+  ConfirmationFooter,
+  FeeRow,
+} from '../../components';
 import {
   getAccountExplorerUrl,
   getAccountName,
   getClassicAssetExplorerUrl,
   getNetworkName,
   getSepAssetExplorerUrl,
-  isConfirmDisabledByScan,
-  isConfirmDisabledByTransactionValidation,
+  requiresMaliciousAcknowledgement,
+  shouldDisableConfirmation,
 } from '../../utils';
 
 export type ConfirmSendTransactionProps = ConfirmationBaseProps &
@@ -68,12 +71,10 @@ export const ConfirmSendTransaction = ({
   const t = i18n(locale);
   const { address } = account;
   const { assetId, symbol } = assetMetadata;
-  const shouldDisableConfirmButton =
-    isConfirmDisabledByScan({
-      preferences,
-      scan,
-      scanFetchStatus,
-    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
+  const shouldDisableConfirmButton = shouldDisableConfirmation({
+    scanFetchStatus,
+    transactionsFetchStatus,
+  });
   const parsedAsset = parseCaipAssetType(assetId);
   let assetLink: string | undefined;
   if (!isSlip44Id(assetId)) {
@@ -184,17 +185,16 @@ export const ConfirmSendTransaction = ({
           />
         </Section>
       </Box>
-      <Footer>
-        <Button name={ConfirmSendTransactionFormNames.Cancel}>
-          {t('confirmation.cancelButton')}
-        </Button>
-        <Button
-          name={ConfirmSendTransactionFormNames.Confirm}
-          disabled={shouldDisableConfirmButton}
-        >
-          {t('confirmation.confirmButton')}
-        </Button>
-      </Footer>
+      <ConfirmationFooter
+        locale={locale}
+        cancelButtonName={ConfirmSendTransactionFormNames.Cancel}
+        confirmButtonName={ConfirmSendTransactionFormNames.Confirm}
+        confirmDisabled={shouldDisableConfirmButton}
+        requiresAcknowledgement={requiresMaliciousAcknowledgement({
+          preferences,
+          scan,
+        })}
+      />
     </Container>
   );
 };

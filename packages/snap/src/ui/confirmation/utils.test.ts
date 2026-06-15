@@ -1,107 +1,130 @@
-import { defaultPreferences as preferences } from './__fixtures__/confirmation.fixtures';
+import {
+  defaultPreferences as preferences,
+  maliciousScan,
+} from './__fixtures__/confirmation.fixtures';
 import { FetchStatus } from './api';
 import {
   ConfirmationBanner,
-  isConfirmDisabledByScan,
-  isConfirmDisabledByTransactionValidation,
+  isLocalTransactionValidationFailed,
+  isRemoteTransactionScanLoading,
+  requiresMaliciousAcknowledgement,
   resolveConfirmationBanner,
+  shouldDisableConfirmation,
 } from './utils';
 import { TransactionScanValidationType } from '../../services/transaction-scan';
 
+const warningScan = {
+  ...maliciousScan,
+  validation: {
+    type: TransactionScanValidationType.Warning,
+    reason: 'suspicious_request',
+    description: null,
+  },
+};
+
 describe('confirmation utils', () => {
-  describe('isConfirmDisabledByScan', () => {
+  describe('isRemoteTransactionScanLoading', () => {
     it('disables confirm while scan is fetching', () => {
       expect(
-        isConfirmDisabledByScan({
-          preferences,
-          scan: null,
+        isRemoteTransactionScanLoading({
           scanFetchStatus: FetchStatus.Fetching,
         }),
       ).toBe(true);
     });
 
-    it('disables confirm for malicious validation alerts', () => {
+    it('does not disable confirm once the scan has fetched', () => {
       expect(
-        isConfirmDisabledByScan({
-          preferences,
-          scan: {
-            status: 'SUCCESS',
-            estimatedChanges: { assets: [] },
-            validation: {
-              type: TransactionScanValidationType.Malicious,
-              reason: 'known_attacker',
-              description: null,
-            },
-            error: null,
-          },
-          scanFetchStatus: FetchStatus.Fetched,
-        }),
-      ).toBe(true);
-    });
-
-    it('does not disable confirm for simulation errors', () => {
-      expect(
-        isConfirmDisabledByScan({
-          preferences,
-          scan: {
-            status: 'ERROR',
-            estimatedChanges: { assets: [] },
-            validation: null,
-            error: {
-              type: 'simulation',
-              code: 'insufficient_balance',
-              message: 'insufficient_balance',
-            },
-          },
+        isRemoteTransactionScanLoading({
           scanFetchStatus: FetchStatus.Fetched,
         }),
       ).toBe(false);
     });
 
-    it('does not disable confirm for malicious validation when security alerts are disabled', () => {
+    it('does not disable confirm when the scan fetch status is not fetching', () => {
       expect(
-        isConfirmDisabledByScan({
-          preferences: {
-            ...preferences,
-            useSecurityAlerts: false,
-          },
-          scan: {
-            status: 'SUCCESS',
-            estimatedChanges: { assets: [] },
-            validation: {
-              type: TransactionScanValidationType.Malicious,
-              reason: 'known_attacker',
-              description: null,
-            },
-            error: null,
-          },
-          scanFetchStatus: FetchStatus.Fetched,
-        }),
+        isRemoteTransactionScanLoading({ scanFetchStatus: FetchStatus.Error }),
       ).toBe(false);
     });
   });
 
-  describe('isConfirmDisabledByTransactionValidation', () => {
+  describe('shouldDisableConfirmation', () => {
+    it('blocks while the scan is fetching', () => {
+      expect(
+        shouldDisableConfirmation({ scanFetchStatus: FetchStatus.Fetching }),
+      ).toBe(true);
+    });
+
+    it('blocks when re-validation reports an error', () => {
+      expect(
+        shouldDisableConfirmation({
+          scanFetchStatus: FetchStatus.Fetched,
+          transactionsFetchStatus: FetchStatus.Error,
+        }),
+      ).toBe(true);
+    });
+
+    it('does not block when scan is fetched and re-validation is clean', () => {
+      expect(
+        shouldDisableConfirmation({
+          scanFetchStatus: FetchStatus.Fetched,
+          transactionsFetchStatus: FetchStatus.Fetched,
+        }),
+      ).toBe(false);
+    });
+
+    it('does not block when both statuses are omitted', () => {
+      expect(shouldDisableConfirmation({})).toBe(false);
+    });
+  });
+
+  describe('requiresMaliciousAcknowledgement', () => {
+    it('requires acknowledgement for a malicious result when security alerts are enabled', () => {
+      expect(
+        requiresMaliciousAcknowledgement({ preferences, scan: maliciousScan }),
+      ).toBe(true);
+    });
+
+    it('does not require acknowledgement when security alerts are disabled', () => {
+      expect(
+        requiresMaliciousAcknowledgement({
+          preferences: { ...preferences, useSecurityAlerts: false },
+          scan: maliciousScan,
+        }),
+      ).toBe(false);
+    });
+
+    it('does not require acknowledgement for warning-level results', () => {
+      expect(
+        requiresMaliciousAcknowledgement({ preferences, scan: warningScan }),
+      ).toBe(false);
+    });
+
+    it('does not require acknowledgement when there is no scan result', () => {
+      expect(
+        requiresMaliciousAcknowledgement({ preferences, scan: null }),
+      ).toBe(false);
+    });
+  });
+
+  describe('isLocalTransactionValidationFailed', () => {
     it('disables confirm when re-validation reports an error', () => {
-      expect(isConfirmDisabledByTransactionValidation(FetchStatus.Error)).toBe(
-        true,
-      );
+      expect(isLocalTransactionValidationFailed(FetchStatus.Error)).toBe(true);
     });
 
     it('does not disable confirm while re-validation is fetching', () => {
-      expect(
-        isConfirmDisabledByTransactionValidation(FetchStatus.Fetching),
-      ).toBe(false);
+      expect(isLocalTransactionValidationFailed(FetchStatus.Fetching)).toBe(
+        false,
+      );
     });
 
     it('does not disable confirm when re-validation has fetched', () => {
-      expect(
-        isConfirmDisabledByTransactionValidation(FetchStatus.Fetched),
-      ).toBe(false);
+      expect(isLocalTransactionValidationFailed(FetchStatus.Fetched)).toBe(
+        false,
+      );
     });
 
     it('does not disable confirm when the status is undefined', () => {
-      expect(isConfirmDisabledByTransactionValidation(undefined)).toBe(false);
+      expect(isLocalTransactionValidationFailed(undefined)).toBe(false);
     });
   });
 
