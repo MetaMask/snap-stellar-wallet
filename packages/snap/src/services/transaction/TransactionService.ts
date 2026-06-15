@@ -29,6 +29,7 @@ import type {
 import { getSnapProvider, isSep41Id, isSlip44Id } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
+import type { AccountService } from '../account';
 import type { StellarAssetMetadata } from '../asset-metadata';
 import type { NetworkService } from '../network';
 import {
@@ -57,11 +58,13 @@ export class TransactionService {
     transactionRepository,
     networkService,
     transactionBuilder,
+    accountService,
   }: {
     logger: ILogger;
     transactionRepository: TransactionRepository;
     networkService: NetworkService;
     transactionBuilder: TransactionBuilder;
+    accountService: AccountService;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🧾 TransactionService]');
     this.#transactionRepository = transactionRepository;
@@ -76,6 +79,7 @@ export class TransactionService {
       networkService,
       transactionRepository,
       transactionMapper,
+      accountService,
       logger,
     });
   }

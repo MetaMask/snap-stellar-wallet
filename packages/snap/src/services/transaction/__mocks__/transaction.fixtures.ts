@@ -15,6 +15,7 @@ import {
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';
 import { KnownCaip2ChainId } from '../../../api';
 import { getSlip44AssetId, logger } from '../../../utils';
+import { mockAccountService } from '../../account/__mocks__/account.fixtures';
 import { createMemoryCache } from '../../cache/__mocks__/cache.fixtures';
 import { NetworkService } from '../../network';
 import { State } from '../../state/State';
@@ -28,6 +29,7 @@ export const createMockTransactionService = () => {
   const { cache } = createMemoryCache();
   const networkService = new NetworkService({ logger, cache });
   const transactionBuilder = new TransactionBuilder({ logger });
+  const { accountService } = mockAccountService();
   const transactionService = new TransactionService({
     logger,
     transactionRepository: new TransactionRepository(
@@ -41,6 +43,7 @@ export const createMockTransactionService = () => {
     ),
     networkService,
     transactionBuilder,
+    accountService,
   });
 
   const transactionRepositorySaveSpy = jest.spyOn(

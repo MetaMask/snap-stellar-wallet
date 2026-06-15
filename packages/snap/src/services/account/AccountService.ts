@@ -289,6 +289,19 @@ export class AccountService {
   }
 
   /**
+   * Lists all Stellar accounts in the keyring by scope.
+   *
+   * @param scope - The scope of the accounts to list.
+   * @returns A Promise that resolves to the list of accounts.
+   */
+  async listAccountsByScope(
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarKeyringAccount[]> {
+    const accounts = await this.#accountsRepository.getAll();
+    return accounts.filter((account) => account.scopes.includes(scope));
+  }
+
+  /**
    * Lists all Stellar accounts in the keyring by their IDs.
    *
    * @param ids - The IDs of the accounts to find.

@@ -1,10 +1,15 @@
-import { KeyringEvent, TransactionStatus } from '@metamask/keyring-api';
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
+import {
+  KeyringEvent,
+  TransactionStatus,
+  TransactionType,
+} from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import type { Horizon } from '@stellar/stellar-sdk';
 import { Keypair, Networks } from '@stellar/stellar-sdk';
 
 import { KnownCaip2ChainId } from '../../api';
+import { sep41SendTransactionResponse } from './__mocks__/horizon-transaction-responses.fixtures';
 import {
   buildMockClassicTransaction,
   generateMockTransactions,
@@ -14,9 +19,13 @@ import { Transaction } from './Transaction';
 import { TransactionMapper } from './TransactionMapper';
 import { TransactionRepository } from './TransactionRepository';
 import { TransactionSynchronizeService } from './TransactionSynchronizeService';
+import { toCaip19Sep41AssetId } from '../../utils';
 import { logger } from '../../utils/logger';
 import { getSnapProvider } from '../../utils/snap';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
+import type { AccountService } from '../account/AccountService';
+import type { StellarAssetMetadata } from '../asset-metadata/api';
+import { toStellarAssetMetadata } from '../asset-metadata/utils';
 import { createMemoryCache } from '../cache/__mocks__/cache.fixtures';
 import { NetworkService } from '../network';
 import {
@@ -79,8 +88,23 @@ function buildOnChainPaymentTransaction(params: {
 describe('TransactionSynchronizeService', () => {
   const scope = KnownCaip2ChainId.Mainnet;
   const destinationAddress = Keypair.random().publicKey();
+  const sep41SenderAddress =
+    'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO';
+  const sep41RecipientAddress =
+    'GB327AMKGJDXEMQREZRRVW7Y6KEKWPOWTJKCCYUQK7KKXVMCTNZEOYXU';
+  const sep41AssetId = toCaip19Sep41AssetId(
+    scope,
+    'CBIJBDNZNF4X35BJ4FFZWCDBSCKOP5NB4PLG4SNENRMLAPYG4P5FM6VN',
+  );
+  const sep41AssetMetadata: StellarAssetMetadata = toStellarAssetMetadata({
+    assetId: sep41AssetId,
+    decimals: 8,
+    symbol: 'SolvBTC',
+  });
 
-  const setup = () => {
+  const setup = (params?: {
+    allAccounts?: ReturnType<typeof generateStellarKeyringAccount>[];
+  }) => {
     const { cache } = createMemoryCache();
     const networkService = new NetworkService({ logger, cache });
     const transactionRepository = new TransactionRepository(
@@ -96,10 +120,16 @@ describe('TransactionSynchronizeService', () => {
       keyringTransactionBuilder: new KeyringTransactionBuilder(),
       logger,
     });
+    const accountService = {
+      listAccountsByScope: jest
+        .fn()
+        .mockResolvedValue(params?.allAccounts ?? []),
+    } as unknown as AccountService;
     const service = new TransactionSynchronizeService({
       networkService,
       transactionRepository,
       transactionMapper,
+      accountService,
       logger,
     });
 
@@ -107,6 +137,7 @@ describe('TransactionSynchronizeService', () => {
       service,
       networkService,
       transactionRepository,
+      accountService,
       getTransactionsSpy: jest.spyOn(networkService, 'getTransactions'),
       getTransactionSpy: jest.spyOn(networkService, 'getTransaction'),
       findByAccountIdsSpy: jest.spyOn(
@@ -293,6 +324,165 @@ describe('TransactionSynchronizeService', () => {
           [scope]: 'existing-token',
         },
       },
+    );
+  });
+
+  it('maps SEP-41 receive for a snap-managed recipient when send is confirmed', async () => {
+    const senderAccount = generateStellarKeyringAccount(
+      'sender-account',
+      sep41SenderAddress,
+      'sync-entropy',
+      0,
+    );
+    const recipientAccount = generateStellarKeyringAccount(
+      'recipient-account',
+      sep41RecipientAddress,
+      'sync-entropy',
+      1,
+    );
+    const {
+      service,
+      getTransactionsSpy,
+      findByAccountIdsSpy,
+      findLastScanTokenSpy,
+      saveManySpy,
+      emitSnapKeyringEventSpy,
+    } = setup({
+      allAccounts: [senderAccount, recipientAccount],
+    });
+    const { activatedAccountPair } = buildActivatedPair(
+      senderAccount.id,
+      senderAccount.address,
+    );
+    const onChainTransaction = Transaction.fromHorizon({
+      horizonTransaction: sep41SendTransactionResponse,
+      scope,
+    });
+
+    findByAccountIdsSpy.mockResolvedValue([]);
+    findLastScanTokenSpy.mockResolvedValue({
+      [senderAccount.id]: null,
+    });
+    getTransactionsSpy.mockResolvedValue([onChainTransaction]);
+
+    await service.synchronize([activatedAccountPair], scope, [
+      sep41AssetMetadata,
+    ]);
+
+    expect(emitSnapKeyringEventSpy).toHaveBeenCalledWith(
+      getSnapProvider(),
+      KeyringEvent.AccountTransactionsUpdated,
+      {
+        transactions: {
+          [senderAccount.id]: [
+            expect.objectContaining({
+              id: onChainTransaction.id,
+              account: senderAccount.id,
+              type: TransactionType.Send,
+            }),
+          ],
+          [recipientAccount.id]: [
+            expect.objectContaining({
+              id: onChainTransaction.id,
+              account: recipientAccount.id,
+              type: TransactionType.Receive,
+              from: [
+                expect.objectContaining({
+                  address: sep41SenderAddress,
+                }),
+              ],
+              to: [
+                expect.objectContaining({
+                  address: sep41RecipientAddress,
+                }),
+              ],
+            }),
+          ],
+        },
+      },
+    );
+    expect(saveManySpy).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: onChainTransaction.id,
+          account: senderAccount.id,
+          type: TransactionType.Send,
+        }),
+        expect.objectContaining({
+          id: onChainTransaction.id,
+          account: recipientAccount.id,
+          type: TransactionType.Receive,
+        }),
+      ]),
+      {
+        [senderAccount.id]: {
+          [scope]: sep41SendTransactionResponse.paging_token,
+        },
+      },
+    );
+  });
+
+  it('skips SEP-41 receive mapping when send is not confirmed', async () => {
+    const senderAccount = generateStellarKeyringAccount(
+      'sender-account-pending',
+      sep41SenderAddress,
+      'sync-entropy',
+      0,
+    );
+    const recipientAccount = generateStellarKeyringAccount(
+      'recipient-account-pending',
+      sep41RecipientAddress,
+      'sync-entropy',
+      1,
+    );
+    const {
+      service,
+      getTransactionsSpy,
+      findByAccountIdsSpy,
+      findLastScanTokenSpy,
+      emitSnapKeyringEventSpy,
+    } = setup({
+      allAccounts: [senderAccount, recipientAccount],
+    });
+    const { activatedAccountPair } = buildActivatedPair(
+      senderAccount.id,
+      senderAccount.address,
+    );
+    const onChainTransaction = Transaction.fromHorizon({
+      horizonTransaction: {
+        ...sep41SendTransactionResponse,
+        successful: false,
+      },
+      scope,
+    });
+
+    findByAccountIdsSpy.mockResolvedValue([]);
+    findLastScanTokenSpy.mockResolvedValue({
+      [senderAccount.id]: null,
+    });
+    getTransactionsSpy.mockResolvedValue([onChainTransaction]);
+
+    await service.synchronize([activatedAccountPair], scope, [
+      sep41AssetMetadata,
+    ]);
+
+    expect(emitSnapKeyringEventSpy).toHaveBeenCalledWith(
+      getSnapProvider(),
+      KeyringEvent.AccountTransactionsUpdated,
+      {
+        transactions: {
+          [senderAccount.id]: [
+            expect.objectContaining({
+              id: onChainTransaction.id,
+              account: senderAccount.id,
+              status: TransactionStatus.Failed,
+            }),
+          ],
+        },
+      },
+    );
+    expect(emitSnapKeyringEventSpy.mock.calls[0]?.[2]).not.toHaveProperty(
+      `transactions.${recipientAccount.id}`,
     );
   });
 });
