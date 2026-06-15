@@ -428,6 +428,7 @@ describe('TransactionMapper', () => {
             },
           },
         ],
+        // eslint-disable-next-line jest/no-conditional-in-test
         ...(details ? { details } : {}),
       });
     },

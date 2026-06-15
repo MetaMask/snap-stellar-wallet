@@ -195,8 +195,8 @@ describe('NetworkService', () => {
 
       // It doesn't equal to 55 * 1.5 = 82.5,
       // because rounded up to 83.
-      expect(first).toStrictEqual(83);
-      expect(second).toStrictEqual(83);
+      expect(first).toStrictEqual(new BigNumber(83));
+      expect(second).toStrictEqual(new BigNumber(83));
       expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(1);
     });
 
