@@ -25,6 +25,7 @@ import {
   RefreshConfirmationContextHandler,
 } from './handlers/cronjob/refreshConfirmationContext';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
+import { SyncAssetsHandler } from './handlers/cronjob/syncAssets';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
@@ -105,7 +106,6 @@ const onChainAccountService = new OnChainAccountService({
   logger,
   networkService,
   onChainAccountRepository,
-  assetMetadataService,
 });
 
 const transactionService = new TransactionService({
@@ -113,7 +113,6 @@ const transactionService = new TransactionService({
   transactionRepository,
   networkService,
   transactionBuilder,
-  assetMetadataService,
 });
 
 const priceService = new PriceService({
@@ -131,6 +130,7 @@ const transactionScanService = new TransactionScanService({
 const synchronizeService = new SynchronizeService({
   logger,
   onChainAccountService,
+  assetMetadataService,
   transactionService,
 });
 
@@ -229,6 +229,11 @@ const syncAccountsHandler = new SyncAccountsHandler({
   synchronizeService,
 });
 
+const syncAssetsHandler = new SyncAssetsHandler({
+  logger,
+  synchronizeService,
+});
+
 const cronjobMethodHandlers: Record<
   BackgroundEventMethod,
   ICronjobRequestHandler
@@ -237,6 +242,7 @@ const cronjobMethodHandlers: Record<
     refreshConfirmationContextHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
   [BackgroundEventMethod.SynchronizeAccounts]: syncAccountsHandler,
+  [BackgroundEventMethod.SynchronizeAssets]: syncAssetsHandler,
 };
 
 const cronjobHandler = new CronjobHandler({

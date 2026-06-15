@@ -5,7 +5,7 @@ import type { ILogger } from '../../utils';
 import { assertSameAddress } from '../account/utils';
 import { AccountNotActivatedException, type NetworkService } from '../network';
 import type { OnChainAccountRepository } from './OnChainAccountRepository';
-import type { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
+import type { StellarAssetMetadata } from '../asset-metadata';
 import type { ActivatedAccountPair } from '../sync/api';
 
 /**
@@ -22,12 +22,10 @@ export class OnChainAccountService {
   constructor({
     networkService,
     onChainAccountRepository,
-    assetMetadataService,
     logger,
   }: {
     networkService: NetworkService;
     onChainAccountRepository: OnChainAccountRepository;
-    assetMetadataService: AssetMetadataService;
     logger: ILogger;
   }) {
     this.#networkService = networkService;
@@ -35,7 +33,6 @@ export class OnChainAccountService {
       new OnChainAccountSynchronizeService({
         networkService,
         onChainAccountRepository,
-        assetMetadataService,
         logger,
       });
     this.#onChainAccountRepository = onChainAccountRepository;
@@ -114,14 +111,17 @@ export class OnChainAccountService {
    *
    * @param activatedAccountPairs - Activated account pairs to synchronize.
    * @param scope - CAIP-2 network.
+   * @param sep41Assets - Preloaded SEP-41 assets from {@link SynchronizeService}.
    */
   async synchronize(
     activatedAccountPairs: ActivatedAccountPair[],
     scope: KnownCaip2ChainId,
+    sep41Assets: StellarAssetMetadata[],
   ): Promise<void> {
     await this.#onChainAccountSynchronizeService.synchronize(
       activatedAccountPairs,
       scope,
+      sep41Assets,
     );
   }
 }

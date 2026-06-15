@@ -22,10 +22,7 @@ import { TransactionOrder } from './api';
 import type { Transaction } from './Transaction';
 import type { TransactionMapper } from './TransactionMapper';
 import type { TransactionRepository } from './TransactionRepository';
-import type {
-  AssetMetadataService,
-  StellarAssetMetadata,
-} from '../asset-metadata';
+import type { StellarAssetMetadata } from '../asset-metadata';
 import type { NetworkService } from '../network';
 import { isPendingTransactionStatus } from './utils';
 import type { ActivatedAccountPair } from '../sync/api';
@@ -67,8 +64,6 @@ export class TransactionSynchronizeService {
 
   readonly #transactionRepository: TransactionRepository;
 
-  readonly #assetMetadataService: AssetMetadataService;
-
   readonly #networkService: NetworkService;
 
   readonly #logger: ILogger;
@@ -80,19 +75,16 @@ export class TransactionSynchronizeService {
     networkService,
     transactionMapper,
     transactionRepository,
-    assetMetadataService,
     logger,
   }: {
     networkService: NetworkService;
     transactionRepository: TransactionRepository;
     transactionMapper: TransactionMapper;
-    assetMetadataService: AssetMetadataService;
     logger: ILogger;
   }) {
     this.#networkService = networkService;
     this.#transactionRepository = transactionRepository;
     this.#transactionMapper = transactionMapper;
-    this.#assetMetadataService = assetMetadataService;
     this.#logger = createPrefixedLogger(
       logger,
       '[💼 TransactionSynchronizeService]',
@@ -102,6 +94,7 @@ export class TransactionSynchronizeService {
   async synchronize(
     activatedAccountPairs: ActivatedAccountPair[],
     scope: KnownCaip2ChainId,
+    sep41Assets: StellarAssetMetadata[],
   ): Promise<void> {
     if (activatedAccountPairs.length === 0) {
       this.#logger.debug('No accounts to synchronize');
@@ -120,6 +113,7 @@ export class TransactionSynchronizeService {
         const context = await this.#createSyncContext(
           activatedAccountPairs,
           scope,
+          sep41Assets,
         );
 
         // Step 2: Fetch Horizon history per account → map to keyring transactions.
@@ -142,6 +136,7 @@ export class TransactionSynchronizeService {
   async #createSyncContext(
     activatedAccountPairs: ActivatedAccountPair[],
     scope: KnownCaip2ChainId,
+    sep41Assets: StellarAssetMetadata[],
   ): Promise<SyncContext> {
     const keyringAccounts: StellarKeyringAccount[] = [];
     const keyringAccountIds: KeyringAccountId[] = [];
@@ -156,12 +151,11 @@ export class TransactionSynchronizeService {
     }
 
     // Use Promise.all (not allSettled): if state cannot be loaded, sync cannot continue.
-    const [pendingByAccount, lastScanTokenByAccountId, sep41AssetsMetadata] =
-      await Promise.all([
-        this.#loadPendingTransactionsFromState(keyringAccountIds, scope),
-        this.#fetchLastScanTokens(keyringAccountIds, scope),
-        this.#getPersistedSep41AssetsMetadata(scope),
-      ]);
+    const [pendingByAccount, lastScanTokenByAccountId] = await Promise.all([
+      this.#loadPendingTransactionsFromState(keyringAccountIds, scope),
+      this.#fetchLastScanTokens(keyringAccountIds, scope),
+    ]);
+    const sep41AssetsMetadata = this.#toSep41AssetsMetadata(sep41Assets);
 
     return {
       scope,
@@ -174,12 +168,10 @@ export class TransactionSynchronizeService {
     };
   }
 
-  async #getPersistedSep41AssetsMetadata(
-    scope: KnownCaip2ChainId,
-  ): Promise<Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>> {
-    const persistedAssets =
-      await this.#assetMetadataService.fetchSep41AssetsOrSyncOnce(scope);
-    return persistedAssets.reduce<
+  #toSep41AssetsMetadata(
+    sep41Assets: StellarAssetMetadata[],
+  ): Record<KnownCaip19Sep41AssetId, StellarAssetMetadata> {
+    return sep41Assets.reduce<
       Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>
     >((acc, asset) => {
       acc[asset.assetId as KnownCaip19Sep41AssetId] = asset;

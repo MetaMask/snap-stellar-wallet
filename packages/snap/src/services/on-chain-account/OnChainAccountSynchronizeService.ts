@@ -24,7 +24,6 @@ import {
   toDisplayBalance,
 } from '../../utils';
 import type { StellarAssetMetadata } from '../asset-metadata';
-import type { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
 import type { NetworkService } from '../network';
 import type { ActivatedAccountPair } from '../sync/api';
 
@@ -51,8 +50,6 @@ export class OnChainAccountSynchronizeService {
 
   readonly #onChainAccountRepository: OnChainAccountRepository;
 
-  readonly #assetMetadataService: AssetMetadataService;
-
   readonly #logger: ILogger;
 
   /** Serializes full sync runs; see class JSDoc. */
@@ -61,17 +58,14 @@ export class OnChainAccountSynchronizeService {
   constructor({
     networkService,
     onChainAccountRepository,
-    assetMetadataService,
     logger,
   }: {
     networkService: NetworkService;
     onChainAccountRepository: OnChainAccountRepository;
-    assetMetadataService: AssetMetadataService;
     logger: ILogger;
   }) {
     this.#networkService = networkService;
     this.#onChainAccountRepository = onChainAccountRepository;
-    this.#assetMetadataService = assetMetadataService;
     this.#logger = createPrefixedLogger(
       logger,
       '[💼 OnChainAccountSynchronizeService]',
@@ -86,10 +80,12 @@ export class OnChainAccountSynchronizeService {
    *
    * @param activatedAccountPairs - Activated keyring/on-chain account pairs to sync for `scope`.
    * @param scope - CAIP-2 network.
+   * @param sep41Assets - Preloaded SEP-41 assets from {@link SynchronizeService}.
    */
   async synchronize(
     activatedAccountPairs: ActivatedAccountPair[],
     scope: KnownCaip2ChainId,
+    sep41Assets: StellarAssetMetadata[],
   ): Promise<void> {
     if (activatedAccountPairs.length === 0) {
       this.#logger.debug('No accounts to synchronize');
@@ -123,8 +119,6 @@ export class OnChainAccountSynchronizeService {
         this.#logger.debug('Load SEP-41 token balances');
         let sep41BalanceFetchResult: Sep41BalanceFetchResult | null = null;
         try {
-          const sep41Assets =
-            await this.#assetMetadataService.fetchSep41AssetsOrSyncOnce(scope);
           sep41BalanceFetchResult = await this.#synchronizeSep41AssetBalances({
             stellarAccountIds,
             scope,
