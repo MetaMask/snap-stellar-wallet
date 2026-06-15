@@ -1,13 +1,18 @@
 import {
   KeyringEvent,
+  FungibleAssetStruct,
+  TransactionStatus,
+  TransactionType,
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { Mutex } from 'async-mutex';
+import { cloneDeep } from 'lodash';
 
 import type {
   KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
+  StellarAddress,
   TransactionId,
 } from '../../api';
 import type { ILogger } from '../../utils';
@@ -15,9 +20,15 @@ import {
   batchesAllSettled,
   createPrefixedLogger,
   getSnapProvider,
+  isSameStr,
+  isSep41Id,
   pushToRecordArray,
 } from '../../utils';
-import type { KeyringAccountId, StellarKeyringAccount } from '../account';
+import type {
+  AccountService,
+  KeyringAccountId,
+  StellarKeyringAccount,
+} from '../account';
 import { TransactionOrder } from './api';
 import type { Transaction } from './Transaction';
 import type { TransactionMapper } from './TransactionMapper';
@@ -40,6 +51,8 @@ type SyncContext = {
   scope: KnownCaip2ChainId;
   keyringAccounts: StellarKeyringAccount[];
   keyringAccountsById: Map<KeyringAccountId, StellarKeyringAccount>;
+  /** All snap-managed accounts on `scope`, keyed by address for SEP-41 receive mapping. */
+  allAccountsByAddress: Map<StellarAddress, StellarKeyringAccount>;
   pendingByAccount: PendingTransactionsByAccount;
   lastScanTokenByAccountId: Record<KeyringAccountId, string | null>;
   /** Mapped keyring txs collected during steps 2–3; persisted and emitted in step 4. */
@@ -52,7 +65,7 @@ type SyncContext = {
  *
  * Sync run:
  * 1. Create {@link SyncContext} — pending txs from snap state, scan cursors, empty collector.
- * 2. Scan paginated on-chain history per account and map to keyring transactions.
+ * 2. Scan paginated on-chain history per account, map to keyring transactions, and apply best-effort SEP-41 receive mapping.
  * 3. Reconcile remaining snap pending txs against on-chain (by hash), then map.
  * 4. Save snap state and emit `AccountTransactionsUpdated` to the controller.
  *
@@ -66,6 +79,8 @@ export class TransactionSynchronizeService {
 
   readonly #networkService: NetworkService;
 
+  readonly #accountService: AccountService;
+
   readonly #logger: ILogger;
 
   /** Prevents overlapping sync runs from interleaving read–merge–write. */
@@ -75,16 +90,19 @@ export class TransactionSynchronizeService {
     networkService,
     transactionMapper,
     transactionRepository,
+    accountService,
     logger,
   }: {
     networkService: NetworkService;
     transactionRepository: TransactionRepository;
     transactionMapper: TransactionMapper;
+    accountService: AccountService;
     logger: ILogger;
   }) {
     this.#networkService = networkService;
     this.#transactionRepository = transactionRepository;
     this.#transactionMapper = transactionMapper;
+    this.#accountService = accountService;
     this.#logger = createPrefixedLogger(
       logger,
       '[💼 TransactionSynchronizeService]',
@@ -151,21 +169,41 @@ export class TransactionSynchronizeService {
     }
 
     // Use Promise.all (not allSettled): if state cannot be loaded, sync cannot continue.
-    const [pendingByAccount, lastScanTokenByAccountId] = await Promise.all([
-      this.#loadPendingTransactionsFromState(keyringAccountIds, scope),
-      this.#fetchLastScanTokens(keyringAccountIds, scope),
-    ]);
+    const [pendingByAccount, lastScanTokenByAccountId, allAccountsByAddress] =
+      await Promise.all([
+        this.#loadPendingTransactionsFromState(keyringAccountIds, scope),
+        this.#fetchLastScanTokens(keyringAccountIds, scope),
+        this.#loadAllAccountsByAddress(scope),
+      ]);
     const sep41AssetsMetadata = this.#toSep41AssetsMetadata(sep41Assets);
 
     return {
       scope,
       keyringAccounts,
       keyringAccountsById,
+      allAccountsByAddress,
       pendingByAccount,
       lastScanTokenByAccountId,
       transactionsToSave: {},
       sep41AssetsMetadata,
     };
+  }
+
+  async #loadAllAccountsByAddress(
+    scope: KnownCaip2ChainId,
+  ): Promise<Map<StellarAddress, StellarKeyringAccount>> {
+    const accounts = await this.#accountService.listAccountsByScope(scope);
+    const allAccountsByAddress = new Map<
+      StellarAddress,
+      StellarKeyringAccount
+    >();
+
+    // Lowercase keys so recipient lookup matches regardless of StrKey casing.
+    for (const account of accounts) {
+      allAccountsByAddress.set(account.address.toLowerCase(), account);
+    }
+
+    return allAccountsByAddress;
   }
 
   #toSep41AssetsMetadata(
@@ -266,7 +304,7 @@ export class TransactionSynchronizeService {
           noOfResolved += 1;
         }
 
-        await this.#appendMappedTransaction(context, {
+        this.#appendMappedTransaction(context, {
           keyringAccount,
           onChainTransaction: transaction,
           pendingFromState,
@@ -355,7 +393,7 @@ export class TransactionSynchronizeService {
           continue;
         }
 
-        await this.#appendMappedTransaction(context, {
+        this.#appendMappedTransaction(context, {
           keyringAccount,
           onChainTransaction,
           pendingFromState,
@@ -379,14 +417,14 @@ export class TransactionSynchronizeService {
     });
   }
 
-  async #appendMappedTransaction(
+  #appendMappedTransaction(
     context: SyncContext,
     params: {
       keyringAccount: StellarKeyringAccount;
       onChainTransaction: Transaction;
       pendingFromState?: KeyringTransaction;
     },
-  ): Promise<void> {
+  ): void {
     const { keyringAccount, onChainTransaction, pendingFromState } = params;
 
     const mappedTransaction = this.#transactionMapper.mapTransactionSafe({
@@ -402,6 +440,77 @@ export class TransactionSynchronizeService {
         context.transactionsToSave,
         keyringAccount.id,
         mappedTransaction,
+      );
+
+      this.#appendSep41ReceiveMappingSafe(context, {
+        keyringTransaction: mappedTransaction,
+        senderKeyringAccount: keyringAccount,
+      });
+    }
+  }
+
+  /**
+   * Best-effort SEP-41 receive mapping without failing the sync run.
+   *
+   * Horizon omits SEP-41 receives from the recipient's history. When a confirmed
+   * sender-side SEP-41 send maps to another snap-managed account, clone that mapped
+   * send as a receive for the recipient. Ineligible transactions are skipped silently;
+   * unexpected errors are logged and ignored.
+   *
+   * @param context - Mutable sync run state including account lookup and save queue.
+   * @param params - Mapped sender transaction and the account that produced it.
+   * @param params.keyringTransaction - Mapped send from the sender's scan or reconcile.
+   * @param params.senderKeyringAccount - Keyring account whose scan produced the send.
+   */
+  #appendSep41ReceiveMappingSafe(
+    context: SyncContext,
+    params: {
+      keyringTransaction: KeyringTransaction;
+      senderKeyringAccount: StellarKeyringAccount;
+    },
+  ): void {
+    try {
+      const { keyringTransaction, senderKeyringAccount } = params;
+
+      const toAccountAddress =
+        this.#getSep41RecipientAddressFromKeyringTransaction(
+          keyringTransaction,
+          senderKeyringAccount,
+        );
+
+      if (!toAccountAddress) {
+        return;
+      }
+
+      const recipientAccount = context.allAccountsByAddress.get(
+        toAccountAddress.toLowerCase(),
+      );
+      if (!recipientAccount) {
+        return;
+      }
+
+      const mappedReceive = cloneDeep(keyringTransaction);
+      mappedReceive.type = TransactionType.Receive;
+      mappedReceive.account = recipientAccount.id;
+
+      // Wallet-created sends can accumulate multiple status events; keep the latest only.
+      if (mappedReceive.events.length > 1) {
+        const latestEvent = mappedReceive.events.at(-1);
+        mappedReceive.events = latestEvent
+          ? [latestEvent]
+          : mappedReceive.events;
+      }
+
+      pushToRecordArray(
+        context.transactionsToSave,
+        recipientAccount.id,
+        mappedReceive,
+      );
+    } catch (error) {
+      // Not throwing the error to avoid blocking the sync.
+      this.#logger.logErrorWithDetails(
+        'Failed to append SEP-41 receive mapping',
+        { error },
       );
     }
   }
@@ -556,5 +665,45 @@ export class TransactionSynchronizeService {
     }
 
     pendingById.set(transaction.id, transaction);
+  }
+
+  /**
+   * Returns the recipient address when `transaction` is a confirmed SEP-41 send from
+   * `senderKeyringAccount`.
+   *
+   * @param transaction - Mapped keyring transaction from the sender scan or reconcile.
+   * @param senderKeyringAccount - Keyring account that produced the mapped send.
+   * @returns Recipient Stellar address, or `null` when ineligible.
+   */
+  #getSep41RecipientAddressFromKeyringTransaction(
+    transaction: KeyringTransaction,
+    senderKeyringAccount: StellarKeyringAccount,
+  ): string | null {
+    const to = transaction.to?.[0];
+    const from = transaction.from?.[0];
+    const fromAsset = from?.asset;
+    const toAsset = to?.asset;
+
+    if (
+      transaction.type !== TransactionType.Send ||
+      !to ||
+      !from ||
+      !FungibleAssetStruct.is(fromAsset) ||
+      !FungibleAssetStruct.is(toAsset) ||
+      // The transaction is not confirmed.
+      transaction.status !== TransactionStatus.Confirmed ||
+      // The transaction is not a SEP-41 send from the sender's account.
+      !isSameStr(from.address, senderKeyringAccount.address) ||
+      // The transaction is a self transfer.
+      isSameStr(from.address, to.address) ||
+      // The transaction's from and to asset types do not match.
+      !isSameStr(fromAsset.type, toAsset.type) ||
+      // The transaction's asset is not a SEP-41 asset.
+      !isSep41Id(fromAsset.type)
+    ) {
+      return null;
+    }
+
+    return to.address;
   }
 }

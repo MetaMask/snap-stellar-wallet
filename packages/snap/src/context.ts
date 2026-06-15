@@ -113,6 +113,7 @@ const transactionService = new TransactionService({
   transactionRepository,
   networkService,
   transactionBuilder,
+  accountService,
 });
 
 const priceService = new PriceService({
