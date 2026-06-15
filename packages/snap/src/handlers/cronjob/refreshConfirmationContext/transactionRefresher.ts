@@ -7,13 +7,17 @@ import {
   type ConfirmationDataContext,
   type IConfirmationContextRefresher,
 } from './api';
+import type { KnownCaip2ChainId } from '../../../api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
 import {
   Transaction,
   type TransactionService,
 } from '../../../services/transaction';
 import { assertTransactionTimeBound } from '../../../services/transaction/utils';
-import type { ContextWithTransactionValidation } from '../../../ui/confirmation/api';
+import type {
+  ContextWithSecurityScan,
+  ContextWithTransactionValidation,
+} from '../../../ui/confirmation/api';
 import {
   ContextWithTransactionValidationStruct,
   FetchStatus,
@@ -30,6 +34,15 @@ import {
 
 type TransactionValidationContext = ConfirmationDataContext &
   ContextWithTransactionValidation;
+
+/**
+ * Keep scanning the current envelope until it is within this window of expiry,
+ * then swap in a freshly rebuilt one. Comfortably larger than the ~20s refresh
+ * cadence so the scanned transaction is always renewed before it can expire
+ * between cycles, while avoiding a needless swap on every cycle. Mirrors TRON's
+ * `hasFreshExpiration` buffer.
+ */
+const SCAN_TRANSACTION_REFRESH_BUFFER_SECONDS = 60;
 
 /**
  * Re-validates the pending transaction while the sign confirmation dialog is open.
@@ -128,6 +141,7 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
       // envelope. It can miss divergence (payment vs createAccount on a deactivated
       // destination, stale Soroban footprint). Seq drift is covered by the submit-time
       // txBadSeq retry. For full fidelity, validate the stored envelope itself.
+      let rebuiltTransaction: Transaction;
       switch (request.method) {
         case ClientRequestMethod.ConfirmSend: {
           const assetMetadata = await this.#assetMetadataService.resolve(
@@ -139,34 +153,41 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
             decimals,
           );
           // Throws on insufficient balance, inactive destination, or fee estimate failure.
-          await this.#transactionService.createValidatedSendTransaction({
-            onChainAccount,
-            scope,
-            assetId: request.params.assetId,
-            destination: request.params.toAddress,
-            amount,
-          });
+          rebuiltTransaction =
+            await this.#transactionService.createValidatedSendTransaction({
+              onChainAccount,
+              scope,
+              assetId: request.params.assetId,
+              destination: request.params.toAddress,
+              amount,
+            });
           break;
         }
         case ClientRequestMethod.ChangeTrustOpt:
           // Throws when change-trust limits or account state are no longer valid.
-          await this.#transactionService.createValidatedChangeTrustTransaction({
-            onChainAccount,
-            scope,
-            assetId: request.params.assetId,
-            limit:
-              request.params.action === ChangeTrustOptAction.Delete
-                ? '0'
-                : request.params.limit,
-          });
+          rebuiltTransaction =
+            await this.#transactionService.createValidatedChangeTrustTransaction(
+              {
+                onChainAccount,
+                scope,
+                assetId: request.params.assetId,
+                limit:
+                  request.params.action === ChangeTrustOptAction.Delete
+                    ? '0'
+                    : request.params.limit,
+              },
+            );
           break;
         default:
           throw new Error('Unsupported request method for transaction refresh');
       }
 
-      // Still valid: nothing to write. The status stays Fetched and we don't drive a
-      // reschedule ourselves (other refreshers keep the cron alive while the dialog is open).
-      return null;
+      // Feed the rebuilt envelope (with a fresh time bound) to the security scan
+      // so simulation/validation never runs against an expired transaction. The
+      // user-facing `transaction` is intentionally left untouched: it is what the
+      // dialog shows and what `assertTransactionTimeBound` guards above; the
+      // signable envelope is rebuilt again at confirm time.
+      return this.#renewScanTransaction(validationCtx, rebuiltTransaction);
     } catch (error) {
       this.#logger.error(
         'Error re-validating confirmation transaction:',
@@ -181,5 +202,73 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
 
   isValidContext(ctx: Record<string, Json>): boolean {
     return ContextWithTransactionValidationStruct.is(ctx);
+  }
+
+  /**
+   * Writes the rebuilt transaction into the security-scan request so the scan
+   * refresher (which runs after this one) scans the renewed envelope.
+   *
+   * Skips the swap while the currently-scanned envelope is still comfortably
+   * far from expiry, keeping the Blockaid scan stable on a single envelope
+   * instead of churning onto a freshly rebuilt one every cycle.
+   *
+   * Returns `null` when the flow has no security scan attached (or the scanned
+   * envelope is still fresh), leaving the transaction status untouched (it stays
+   * `Fetched`).
+   *
+   * @param ctx - The current confirmation context.
+   * @param rebuiltTransaction - The freshly rebuilt transaction.
+   * @returns A patch updating the scan request, or `null` when there is nothing to propagate.
+   */
+  #renewScanTransaction(
+    ctx: TransactionValidationContext,
+    rebuiltTransaction: Transaction,
+  ): ConfirmationContextRefreshResult {
+    const { securityScanRequest } = ctx as TransactionValidationContext &
+      Partial<ContextWithSecurityScan>;
+    if (!securityScanRequest) {
+      return null;
+    }
+
+    if (
+      this.#isScanTransactionFresh(securityScanRequest.transaction, ctx.scope)
+    ) {
+      return null;
+    }
+
+    return {
+      result: {
+        securityScanRequest: {
+          ...securityScanRequest,
+          transaction: rebuiltTransaction.getRaw().toXDR(),
+        },
+      },
+      reschedule: false,
+    };
+  }
+
+  /**
+   * Whether the currently-scanned envelope still has comfortable time before
+   * expiry and can keep being scanned as-is.
+   *
+   * @param xdr - The envelope currently held in the security-scan request.
+   * @param scope - The network scope used to deserialize the envelope.
+   * @returns True when the envelope is fresh enough to keep scanning.
+   */
+  #isScanTransactionFresh(xdr: string, scope: KnownCaip2ChainId): boolean {
+    try {
+      const { expirationTime } = Transaction.fromXdr({ xdr, scope });
+      // No upper bound: the envelope never expires, so keep scanning it.
+      if (expirationTime === undefined) {
+        return true;
+      }
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      return (
+        expirationTime > nowSeconds + SCAN_TRANSACTION_REFRESH_BUFFER_SECONDS
+      );
+    } catch {
+      // Unparseable scan envelope: refresh it.
+      return false;
+    }
   }
 }

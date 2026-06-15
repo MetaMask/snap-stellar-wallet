@@ -1,9 +1,9 @@
 import type { Json } from '@metamask/utils';
 
+import { ConfirmationContextRefresherKey } from './api';
 import type {
   ConfirmationContextRefreshResult,
   ConfirmationContextRefreshers,
-  ConfirmationContextRefresherKey,
   ConfirmationDataContext,
   IConfirmationContextRefresher,
 } from './api';
@@ -170,8 +170,17 @@ export class RefreshConfirmationContextHandler extends CronjobBaseHandler<Refres
   }
 
   /**
-   * Runs enabled refreshers in parallel. Uses `allSettled` so one rejection
-   * does not prevent other refreshers from completing.
+   * Runs enabled refreshers for one cycle.
+   *
+   * The transaction refresher runs first and in isolation: it rebuilds the
+   * pending transaction with a fresh time bound and writes it into the
+   * security-scan request. Its patch is merged into the context the remaining
+   * refreshers see, so the scan refresher simulates/validates the renewed
+   * envelope rather than a (possibly expired) snapshot. The remaining refreshers
+   * then run in parallel.
+   *
+   * Each refresher is isolated so one rejection does not prevent the others from
+   * completing.
    *
    * @param ctx - Confirmation interface context passed to each refresher.
    * @param activeRefreshers - Refreshers selected by `refresherKeys`.
@@ -181,22 +190,58 @@ export class RefreshConfirmationContextHandler extends CronjobBaseHandler<Refres
     ctx: ConfirmationDataContext,
     activeRefreshers: readonly IConfirmationContextRefresher[],
   ): Promise<ConfirmationContextRefreshResult[]> {
-    const settled = await Promise.allSettled(
-      activeRefreshers.map(async (refresher) =>
-        this.#runRefresher(refresher, ctx),
+    const transactionRefresher = activeRefreshers.find(
+      (refresher) =>
+        refresher.key === ConfirmationContextRefresherKey.Transaction,
+    );
+    const remainingRefreshers = activeRefreshers.filter(
+      (refresher) => refresher !== transactionRefresher,
+    );
+
+    const results: ConfirmationContextRefreshResult[] = [];
+    let workingContext = ctx;
+
+    if (transactionRefresher) {
+      const transactionResult = await this.#settleRefresher(
+        transactionRefresher,
+        workingContext,
+      );
+      results.push(transactionResult);
+      if (transactionResult?.result) {
+        workingContext = { ...workingContext, ...transactionResult.result };
+      }
+    }
+
+    const remainingResults = await Promise.all(
+      remainingRefreshers.map(async (refresher) =>
+        this.#settleRefresher(refresher, workingContext),
       ),
     );
 
-    return settled.map((outcome, index) => {
-      if (outcome.status === 'fulfilled') {
-        return outcome.value;
-      }
+    return [...results, ...remainingResults];
+  }
+
+  /**
+   * Runs a single refresher and converts an unexpected rejection into `null`,
+   * so a failing refresher never blocks the others.
+   *
+   * @param refresher - The refresher to run.
+   * @param ctx - The context passed to the refresher.
+   * @returns The refresher result, or `null` when it rejected.
+   */
+  async #settleRefresher(
+    refresher: IConfirmationContextRefresher,
+    ctx: ConfirmationDataContext,
+  ): Promise<ConfirmationContextRefreshResult> {
+    try {
+      return await this.#runRefresher(refresher, ctx);
+    } catch (error) {
       this.logger.error(
-        `Refresher "${activeRefreshers[index]?.key}" rejected unexpectedly`,
-        outcome.reason,
+        `Refresher "${refresher.key}" rejected unexpectedly`,
+        error,
       );
       return null;
-    });
+    }
   }
 
   async #runRefresher(

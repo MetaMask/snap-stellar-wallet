@@ -6,6 +6,7 @@ import { ConfirmationTransactionRefresher } from './transactionRefresher';
 import { KnownCaip2ChainId } from '../../../api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
 import type { TransactionService } from '../../../services/transaction';
+import type { MockClassicOperation } from '../../../services/transaction/__mocks__/transaction.fixtures';
 import { buildMockClassicTransaction } from '../../../services/transaction/__mocks__/transaction.fixtures';
 import { FetchStatus } from '../../../ui/confirmation/api';
 import { getSlip44AssetId } from '../../../utils';
@@ -21,16 +22,35 @@ describe('ConfirmationTransactionRefresher', () => {
   const accountId = '11111111-1111-4111-8111-111111111111';
   const toAddress = 'GDPMFLKUGASUTWBN2XGYYKD27QGHCYH4BUFUTER4L23INYQ4JHDWFOIE';
 
-  const transaction = buildMockClassicTransaction(
-    [
-      {
-        type: 'payment',
-        params: { destination: toAddress, asset: 'native', amount: '1' },
-      },
-    ],
-    { networkPassphrase: Networks.TESTNET },
-  );
+  const paymentOperations: MockClassicOperation[] = [
+    {
+      type: 'payment',
+      params: { destination: toAddress, asset: 'native', amount: '1' },
+    },
+  ];
+
+  const transaction = buildMockClassicTransaction(paymentOperations, {
+    networkPassphrase: Networks.TESTNET,
+  });
   const transactionXdr = transaction.getRaw().toXDR();
+
+  // A scan envelope far from expiry (kept as-is) versus one inside the refresh
+  // buffer (swapped for the rebuilt transaction).
+  const freshScanTransactionXdr = buildMockClassicTransaction(
+    paymentOperations,
+    {
+      networkPassphrase: Networks.TESTNET,
+      timeout: 600,
+    },
+  )
+    .getRaw()
+    .toXDR();
+  const staleScanTransactionXdr = buildMockClassicTransaction(
+    paymentOperations,
+    { networkPassphrase: Networks.TESTNET, timeout: 30 },
+  )
+    .getRaw()
+    .toXDR();
 
   const sendRequest = {
     jsonrpc: '2.0' as const,
@@ -189,6 +209,97 @@ describe('ConfirmationTransactionRefresher', () => {
       scope,
       assetId: classicAssetId,
       limit: '0',
+    });
+  });
+
+  it('renews the security-scan transaction when the scanned envelope nears expiry', async () => {
+    const { refresher } = setup();
+    const securityScanRequest = {
+      accountAddress: toAddress,
+      origin: 'https://dapp.example',
+      scope,
+      transaction: staleScanTransactionXdr,
+    };
+
+    const result = await refresher.refresh(
+      createTransactionContext({ securityScanRequest }),
+    );
+
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          ...securityScanRequest,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
+    });
+  });
+
+  it('renews the security-scan transaction for change-trust flows', async () => {
+    const { refresher } = setup();
+    const securityScanRequest = {
+      accountAddress: toAddress,
+      origin: 'https://dapp.example',
+      scope,
+      transaction: staleScanTransactionXdr,
+    };
+
+    const result = await refresher.refresh(
+      createTransactionContext({
+        request: changeTrustAddRequest,
+        securityScanRequest,
+      }),
+    );
+
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          ...securityScanRequest,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
+    });
+  });
+
+  it('keeps the scanned envelope while it is still far from expiry', async () => {
+    const { refresher } = setup();
+    const securityScanRequest = {
+      accountAddress: toAddress,
+      origin: 'https://dapp.example',
+      scope,
+      transaction: freshScanTransactionXdr,
+    };
+
+    const result = await refresher.refresh(
+      createTransactionContext({ securityScanRequest }),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it('renews the security-scan transaction when the scanned envelope is unparseable', async () => {
+    const { refresher } = setup();
+    const securityScanRequest = {
+      accountAddress: toAddress,
+      origin: 'https://dapp.example',
+      scope,
+      transaction: 'OUTDATED_XDR',
+    };
+
+    const result = await refresher.refresh(
+      createTransactionContext({ securityScanRequest }),
+    );
+
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          ...securityScanRequest,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
     });
   });
 
