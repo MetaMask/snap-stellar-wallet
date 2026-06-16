@@ -443,24 +443,35 @@ export function isSendTransaction(
 }
 
 /**
- * Detects if the transaction is a dust payment transaction.
+ * Detects whether a transaction includes a dust (spam) native XLM payment to the account.
+ *
+ * A dust payment is a native XLM payment to `accountAddress` with an amount at or below
+ * {@link DUST_XLM_AMOUNT}.
  *
  * @param transaction - The transaction to check.
- * @param accountAddress - The Stellar address of the transaction owner.
- * @returns Whether the transaction is a dust payment transaction.
+ * @param accountAddress - The Stellar address that may receive the payment.
+ * @returns Whether the transaction includes a dust payment to `accountAddress`.
  */
 export function isDustPaymentTransaction(
   transaction: Transaction,
   accountAddress: string,
 ): boolean {
   const operationTypes = transaction.transactionOperations;
+
+  // if it is a self payment, we ignore it.
+  if (transaction.sourceAccount === accountAddress) {
+    return false;
+  }
+
   if (
     operationTypes.some(
       (operation) =>
         operation.type === StellarOperationType.Payment &&
         operation.destination === accountAddress &&
         operation.asset.isNative() &&
-        operation.amount === DUST_XLM_AMOUNT,
+        new BigNumber(operation.amount).isLessThanOrEqualTo(
+          new BigNumber(DUST_XLM_AMOUNT),
+        ),
     )
   ) {
     return true;
