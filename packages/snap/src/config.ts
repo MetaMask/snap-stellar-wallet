@@ -40,6 +40,16 @@ const parseIntegerStruct = (
     (value: string) => (value === '' ? undefined : parseInt(value, 10)),
   );
 
+const parseFloatStruct = (
+  minValue: number,
+  defaultValue: number,
+): Struct<number> =>
+  coerce(
+    defaulted(min(number(), minValue), defaultValue),
+    string(),
+    (value: string) => (value === '' ? undefined : parseFloat(value)),
+  );
+
 /**
  * A struct for validating the network config.
  */
@@ -88,14 +98,14 @@ const ConfigStruct = object({
     /**
      * The base fee multiplier for the Stellar network.
      */
-    baseFeeMultiplier: parseIntegerStruct(1, 1.2),
+    baseFeeMultiplier: parseFloatStruct(1, 1.5),
     /**
      * The smart contract transaction fee multiplier for the Stellar network.
      * The multiplier is higher because smart contract transactions have tighter ledger limits than normal transactions.
      *
      * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering#ledger-limits
      */
-    simulationFeeMultiplier: parseIntegerStruct(1, 1.5),
+    simulationFeeMultiplier: parseFloatStruct(1, 2),
   }),
   api: object({
     tokenApi: object({
