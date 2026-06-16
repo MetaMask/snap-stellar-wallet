@@ -106,9 +106,12 @@ describe('KeyringTransactionBuilder', () => {
       },
     });
 
-    expect(transaction.type).toBe(TransactionType.Unknown);
+    expect(transaction.type).toBe(TransactionType.TokenApprove);
     expect(transaction.id).toBe('tx-opt-in-1');
     expect(transaction.status).toBe(TransactionStatus.Unconfirmed);
+    expect(transaction.details).toStrictEqual({
+      typeLabel: 'trustline-approve',
+    });
     expect(transaction.events).toStrictEqual([
       { status: TransactionStatus.Unconfirmed, timestamp: fixedTimestamp },
     ]);
@@ -155,8 +158,11 @@ describe('KeyringTransactionBuilder', () => {
       },
     });
 
-    expect(transaction.type).toBe(TransactionType.Unknown);
+    expect(transaction.type).toBe(TransactionType.TokenDisapprove);
     expect(transaction.status).toBe(TransactionStatus.Confirmed);
+    expect(transaction.details).toStrictEqual({
+      typeLabel: 'trustline-disapprove',
+    });
     expect(transaction.events).toStrictEqual([
       { status: TransactionStatus.Confirmed, timestamp: fixedTimestamp },
     ]);

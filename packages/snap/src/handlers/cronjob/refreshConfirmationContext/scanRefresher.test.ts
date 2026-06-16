@@ -7,7 +7,10 @@ import {
   TransactionScanOption,
   TransactionScanValidationType,
 } from '../../../services/transaction-scan';
-import { FetchStatus } from '../../../ui/confirmation/api';
+import {
+  ConfirmationInterfaceKey,
+  FetchStatus,
+} from '../../../ui/confirmation/api';
 import { logger } from '../../../utils/logger';
 
 describe('ConfirmationScanRefresher', () => {
@@ -48,6 +51,7 @@ describe('ConfirmationScanRefresher', () => {
     overrides: Parameters<typeof createConfirmationDataContext>[0] = {},
   ) {
     return createConfirmationDataContext({
+      interfaceKey: ConfirmationInterfaceKey.SignTransaction,
       preferences: {
         useSecurityAlerts: true,
         simulateOnChainActions: true,
@@ -59,7 +63,7 @@ describe('ConfirmationScanRefresher', () => {
     });
   }
 
-  it('returns fetched scan data and reschedules on success', async () => {
+  it('includes simulation and validation for sign-transaction', async () => {
     const { refresher, transactionScanService } = setup();
 
     const result = await refresher.refresh(createScanContext());
@@ -77,6 +81,42 @@ describe('ConfirmationScanRefresher', () => {
         scanFetchStatus: FetchStatus.Fetched,
       },
       reschedule: true,
+    });
+  });
+
+  it.each([
+    ConfirmationInterfaceKey.ConfirmSendTransaction,
+    ConfirmationInterfaceKey.ChangeTrustlineOptIn,
+    ConfirmationInterfaceKey.ChangeTrustlineOptOut,
+  ])(
+    'skips remote simulation for %s even when simulateOnChainActions is enabled',
+    async (interfaceKey) => {
+      const { refresher, transactionScanService } = setup();
+
+      await refresher.refresh(createScanContext({ interfaceKey }));
+
+      expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
+        ...securityScanRequest,
+        options: [TransactionScanOption.Validation],
+      });
+    },
+  );
+
+  it('omits simulation for sign-transaction when simulateOnChainActions is disabled', async () => {
+    const { refresher, transactionScanService } = setup();
+
+    await refresher.refresh(
+      createScanContext({
+        preferences: {
+          useSecurityAlerts: true,
+          simulateOnChainActions: false,
+        },
+      }),
+    );
+
+    expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
+      ...securityScanRequest,
+      options: [TransactionScanOption.Validation],
     });
   });
 
