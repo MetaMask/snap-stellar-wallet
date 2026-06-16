@@ -159,12 +159,12 @@ export function formatFeeData(
   amountInStroops: string,
 ): FeeData {
   const nativeAssetMetadata = getNativeAssetMetadata(scope);
-  const amountInLumen = toDisplayBalance(new BigNumber(amountInStroops));
+  const amountInXlm = toDisplayBalance(new BigNumber(amountInStroops));
   return {
     assetId: nativeAssetMetadata.assetId,
     symbol: nativeAssetMetadata.symbol,
     iconUrl: nativeAssetMetadata.iconUrl,
-    amount: amountInLumen,
+    amount: amountInXlm,
   };
 }
 

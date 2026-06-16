@@ -7,7 +7,10 @@ import {
   TransactionScanOption,
   TransactionScanValidationType,
 } from '../../../services/transaction-scan';
-import { FetchStatus } from '../../../ui/confirmation/api';
+import {
+  ConfirmationInterfaceKey,
+  FetchStatus,
+} from '../../../ui/confirmation/api';
 import { logger } from '../../../utils/logger';
 
 describe('ConfirmationScanRefresher', () => {
@@ -48,6 +51,7 @@ describe('ConfirmationScanRefresher', () => {
     overrides: Parameters<typeof createConfirmationDataContext>[0] = {},
   ) {
     return createConfirmationDataContext({
+      interfaceKey: ConfirmationInterfaceKey.SignTransaction,
       preferences: {
         useSecurityAlerts: true,
         simulateOnChainActions: true,
@@ -78,6 +82,25 @@ describe('ConfirmationScanRefresher', () => {
       reschedule: true,
     });
   });
+
+  it.each([
+    ConfirmationInterfaceKey.SignTransaction,
+    ConfirmationInterfaceKey.ConfirmSendTransaction,
+    ConfirmationInterfaceKey.ChangeTrustlineOptIn,
+    ConfirmationInterfaceKey.ChangeTrustlineOptOut,
+  ])(
+    'never requests remote simulation for %s even when simulateOnChainActions is enabled',
+    async (interfaceKey) => {
+      const { refresher, transactionScanService } = setup();
+
+      await refresher.refresh(createScanContext({ interfaceKey }));
+
+      expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
+        ...securityScanRequest,
+        options: [TransactionScanOption.Validation],
+      });
+    },
+  );
 
   it('preserves locally-derived estimated changes over the Blockaid result', async () => {
     const { refresher } = setup();

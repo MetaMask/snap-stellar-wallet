@@ -93,7 +93,7 @@ export type ParsedSep41TransferInvoke = {
  * offer's `amountBought` / `assetBought`, not the receive amount and asset in `last`
  * (those match the operation's fixed `destAmount` / `destAsset`).
  *
- * All amounts are display-formatted (e.g. stroops converted to lumens).
+ * All amounts are display-formatted (e.g. stroops converted to XLM).
  *
  * @param xdrString - Base64-encoded `TransactionResult` XDR from Horizon.
  * @param scope - CAIP-2 chain used to encode parsed asset ids.

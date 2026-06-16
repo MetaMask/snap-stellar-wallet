@@ -22,8 +22,6 @@ import { createPrefixedLogger } from '../../../utils/logger';
 
 type SecurityScanContext = ConfirmationDataContext & ContextWithSecurityScan;
 
-type SecurityScanPreferences = ContextWithSecurityScan['preferences'];
-
 /**
  * Refreshes the Blockaid security validation in the confirmation dialog context.
  *
@@ -60,7 +58,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     if (!scanCtx.securityScanRequest) {
       return false;
     }
-    return this.#getScanOptions(scanCtx.preferences).length > 0;
+    return this.#getScanOptions(scanCtx).length > 0;
   }
 
   recoveryResult(
@@ -70,7 +68,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     if (scanCtx.scanFetchStatus !== FetchStatus.Fetching) {
       return null;
     }
-    const optionsEnabled = this.#getScanOptions(scanCtx.preferences).length > 0;
+    const optionsEnabled = this.#getScanOptions(scanCtx).length > 0;
     return {
       result: {
         // Preserve the locally-derived estimated changes; only the scan fetch
@@ -91,7 +89,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     const scanRequest = scanCtx.securityScanRequest as NonNullable<
       SecurityScanContext['securityScanRequest']
     >;
-    const options = this.#getScanOptions(scanCtx.preferences);
+    const options = this.#getScanOptions(scanCtx);
     const localEstimatedChanges = scanCtx.scan?.estimatedChanges ?? {
       assets: [],
     };
@@ -150,15 +148,15 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     };
   }
 
-  #getScanOptions(
-    preferences: SecurityScanPreferences,
-  ): TransactionScanOption[] {
+  #getScanOptions(ctx: SecurityScanContext): TransactionScanOption[] {
     const options: TransactionScanOption[] = [];
 
     // Remote simulation is intentionally not requested: estimated balance
     // changes are derived from the local on-chain simulation. Blockaid is used
-    // for security validation only.
-    if (preferences.useSecurityAlerts) {
+    // for security validation only. (This completes the flow-aware change from
+    // PR #112: sign-transaction no longer needs remote simulation either, now
+    // that the local simulation drives the fund-flow breakdown.)
+    if (ctx.preferences.useSecurityAlerts) {
       options.push(TransactionScanOption.Validation);
     }
 

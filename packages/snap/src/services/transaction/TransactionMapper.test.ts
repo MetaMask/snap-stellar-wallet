@@ -231,7 +231,10 @@ describe('TransactionMapper', () => {
       toAmount: '0',
       toAddress: accountAddress,
       fromAddress: accountAddress,
-      txnType: TransactionType.Unknown,
+      txnType: TransactionType.TokenApprove,
+      details: {
+        typeLabel: 'trustline-approve',
+      },
     },
     {
       testCase: 'remove change trust transaction',
@@ -252,7 +255,10 @@ describe('TransactionMapper', () => {
       toAmount: '0',
       toAddress: accountAddress,
       fromAddress: accountAddress,
-      txnType: TransactionType.Unknown,
+      txnType: TransactionType.TokenDisapprove,
+      details: {
+        typeLabel: 'trustline-disapprove',
+      },
     },
     {
       testCase: 'send transaction',
@@ -362,6 +368,7 @@ describe('TransactionMapper', () => {
       txnType,
       fromAddress,
       toAddress,
+      details,
     }) => {
       const { keyringAccount, transactionMapper } = setup();
 
@@ -421,6 +428,8 @@ describe('TransactionMapper', () => {
             },
           },
         ],
+        // eslint-disable-next-line jest/no-conditional-in-test
+        ...(details ? { details } : {}),
       });
     },
   );
