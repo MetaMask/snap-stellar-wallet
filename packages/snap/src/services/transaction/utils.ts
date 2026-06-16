@@ -458,7 +458,7 @@ export function isDustPaymentTransaction(
 ): boolean {
   const operationTypes = transaction.transactionOperations;
 
-  // if it is a self payment, we ignore it.
+  // Ignore transactions authored by `accountAddress` (e.g. self-payments) when detecting dust spam
   if (transaction.sourceAccount === accountAddress) {
     return false;
   }
