@@ -10,6 +10,7 @@ import type { TransactionScanService } from '../../../services/transaction-scan'
 import { TransactionScanOption } from '../../../services/transaction-scan';
 import type { ContextWithSecurityScan } from '../../../ui/confirmation/api';
 import {
+  ConfirmationInterfaceKey,
   ContextWithSecurityScanStruct,
   FetchStatus,
 } from '../../../ui/confirmation/api';
@@ -17,8 +18,6 @@ import type { ILogger } from '../../../utils/logger';
 import { createPrefixedLogger } from '../../../utils/logger';
 
 type SecurityScanContext = ConfirmationDataContext & ContextWithSecurityScan;
-
-type SecurityScanPreferences = ContextWithSecurityScan['preferences'];
 
 /**
  * Refreshes Blockaid security scan / simulation results in the confirmation dialog context.
@@ -52,7 +51,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     if (!scanCtx.securityScanRequest) {
       return false;
     }
-    return this.#getScanOptions(scanCtx.preferences).length > 0;
+    return this.#getScanOptions(scanCtx).length > 0;
   }
 
   recoveryResult(
@@ -62,7 +61,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     if (scanCtx.scanFetchStatus !== FetchStatus.Fetching) {
       return null;
     }
-    const optionsEnabled = this.#getScanOptions(scanCtx.preferences).length > 0;
+    const optionsEnabled = this.#getScanOptions(scanCtx).length > 0;
     return {
       result: {
         scan: null,
@@ -81,7 +80,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     const scanRequest = scanCtx.securityScanRequest as NonNullable<
       SecurityScanContext['securityScanRequest']
     >;
-    const options = this.#getScanOptions(scanCtx.preferences);
+    const options = this.#getScanOptions(scanCtx);
 
     try {
       const scan = await this.#transactionScanService.scanTransaction({
@@ -112,16 +111,21 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     return ContextWithSecurityScanStruct.is(ctx);
   }
 
-  #getScanOptions(
-    preferences: SecurityScanPreferences,
-  ): TransactionScanOption[] {
+  #getScanOptions(ctx: SecurityScanContext): TransactionScanOption[] {
     const options: TransactionScanOption[] = [];
 
-    if (preferences.simulateOnChainActions) {
+    // Remote simulation is only used where there is no local re-validation to
+    // cover submittability — the dapp sign-transaction flow. Send and
+    // change-trust rely on local re-validation, so we skip remote simulation
+    // (it proved unreliable on TRON).
+    if (
+      ctx.preferences.simulateOnChainActions &&
+      ctx.interfaceKey === ConfirmationInterfaceKey.SignTransaction
+    ) {
       options.push(TransactionScanOption.Simulation);
     }
 
-    if (preferences.useSecurityAlerts) {
+    if (ctx.preferences.useSecurityAlerts) {
       options.push(TransactionScanOption.Validation);
     }
 
