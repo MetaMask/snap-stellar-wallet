@@ -107,6 +107,10 @@ export const MEMO_REQUIRED_KEY = 'config.memo_required';
 export const ACCOUNT_REQUIRES_MEMO = 'MQ==';
 
 /**
- * The dust payment amount for the Stellar network.
+ * Maximum native XLM threshold for an incoming
+ * payment to be treated as dust spam.
+ *
+ * Incoming native XLM payments at or below this value are omitted from activity
+ * history. The threshold matches the 0.001 value used on TRON and Solana.
  */
-export const DUST_XLM_AMOUNT = '0.0000001';
+export const DUST_XLM_AMOUNT = '0.001';
