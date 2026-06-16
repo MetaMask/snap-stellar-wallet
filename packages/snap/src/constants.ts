@@ -47,10 +47,8 @@ export const NATIVE_ASSET_SYMBOL = 'XLM';
 
 /**
  * The name for the native asset of Stellar.
- *
- * @see https://stellar.org/learn/lumens
  */
-export const NATIVE_ASSET_NAME = 'Lumen';
+export const NATIVE_ASSET_NAME = 'XLM';
 
 /**
  * The minimum base fee in stroops for the Stellar network.
