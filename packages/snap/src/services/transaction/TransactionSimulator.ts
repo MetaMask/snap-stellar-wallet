@@ -116,6 +116,36 @@ export class TransactionSimulator {
     });
   }
 
+  /**
+   * Runs {@link simulate} and returns only the simulation endpoints used to
+   * derive estimated balance changes for the confirmation UI.
+   *
+   * `initialState` is the post-fee snapshot (fee already deducted from the fee
+   * source) and `finalState` is the snapshot after all operations have been
+   * applied. Diffing these two excludes the network fee from the per-asset
+   * rows (it is surfaced separately as its own fee row), matching the
+   * EVM/Tron confirmation experience.
+   *
+   * @param transaction - Wrapped Stellar transaction.
+   * @param account - Loaded signing account (Horizon-shaped raw for balances).
+   * @param options - Optional `expectedOPTypes` and `preloadedAccounts`.
+   * @returns The post-fee initial state and the final state after all operations.
+   * @throws {TransactionValidationException} When simulation produces no states.
+   */
+  simulateEndpoints(
+    transaction: Transaction,
+    account: OnChainAccount,
+    options?: TransactionSimulatorOptions,
+  ): { initialState: SimulationState; finalState: SimulationState } {
+    const states = this.simulate(transaction, account, options);
+    const initialState = states[0];
+    const finalState = states[states.length - 1];
+    if (initialState === undefined || finalState === undefined) {
+      throw new TransactionValidationException('Simulation produced no states');
+    }
+    return { initialState, finalState };
+  }
+
   #run(params: {
     operations: SupportedOPType[];
     transaction: Transaction;

@@ -25,6 +25,7 @@ import type { ConfirmationBaseProps, FeeData } from '../../api';
 import { FetchStatus } from '../../api';
 import { Asset } from '../../components/Asset';
 import { ConfirmationFooter } from '../../components/ConfirmationFooter';
+import { EstimatedChanges } from '../../components/EstimatedChanges/EstimatedChanges';
 import { FeeRow } from '../../components/Fee';
 import { TransactionAlert } from '../../components/TransactionAlert';
 import {
@@ -249,6 +250,11 @@ export const ConfirmSignTransaction = ({
             </Box>
           ))}
         </Section>
+
+        <EstimatedChanges
+          changes={scan?.estimatedChanges ?? null}
+          preferences={preferences}
+        />
 
         <Section>
           {readableTransaction.operations.map((operationJson, index) => (

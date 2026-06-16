@@ -17,7 +17,10 @@ import type {
   ChangeTrustOptJsonRpcRequest,
   ConfirmSendJsonRpcRequest,
 } from '../../handlers/clientRequest/api';
-import type { SecurityScanRequest } from '../../services/transaction-scan';
+import type {
+  SecurityScanRequest,
+  TransactionScanResult,
+} from '../../services/transaction-scan';
 import type { ILogger, Locale } from '../../utils';
 import {
   createInterface,
@@ -62,6 +65,12 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
   securityScanRequest?: Omit<SecurityScanRequest, 'origin' | 'scope'>;
   transactionValidationRequest?: TransactionValidationRequest;
   tokenPrices?: ContextWithPrices['tokenPrices'];
+  /**
+   * Seeds the initial scan result so locally-derived data (e.g. estimated
+   * balance changes from on-chain simulation) renders immediately on dialog
+   * open, before any remote security scan completes.
+   */
+  initialScan?: TransactionScanResult;
 };
 
 type ConfirmationDialogWithFee =
@@ -196,7 +205,7 @@ export class ConfirmationUXController {
         currency: preferences.currency,
         scope,
         feeData: fee ? formatFeeData(scope, fee) : {},
-        scan: null,
+        scan: params.initialScan ?? null,
         scanFetchStatus: enableSecurityScan
           ? FetchStatus.Fetching
           : FetchStatus.Fetched,

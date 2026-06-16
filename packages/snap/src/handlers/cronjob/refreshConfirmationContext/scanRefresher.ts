@@ -6,7 +6,11 @@ import {
   type ConfirmationDataContext,
   type IConfirmationContextRefresher,
 } from './api';
-import type { TransactionScanService } from '../../../services/transaction-scan';
+import type {
+  TransactionScanEstimatedChanges,
+  TransactionScanResult,
+  TransactionScanService,
+} from '../../../services/transaction-scan';
 import { TransactionScanOption } from '../../../services/transaction-scan';
 import type { ContextWithSecurityScan } from '../../../ui/confirmation/api';
 import {
@@ -21,7 +25,11 @@ type SecurityScanContext = ConfirmationDataContext & ContextWithSecurityScan;
 type SecurityScanPreferences = ContextWithSecurityScan['preferences'];
 
 /**
- * Refreshes Blockaid security scan / simulation results in the confirmation dialog context.
+ * Refreshes the Blockaid security validation in the confirmation dialog context.
+ *
+ * Estimated balance changes are owned by the local on-chain simulation (seeded
+ * at dialog open), so this refresher only requests Blockaid `Validation` and
+ * never overwrites the locally-derived `estimatedChanges`.
  */
 export class ConfirmationScanRefresher implements IConfirmationContextRefresher {
   readonly key = ConfirmationContextRefresherKey.Scan;
@@ -65,7 +73,9 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     const optionsEnabled = this.#getScanOptions(scanCtx.preferences).length > 0;
     return {
       result: {
-        scan: null,
+        // Preserve the locally-derived estimated changes; only the scan fetch
+        // status reflects the (validation) failure.
+        scan: scanCtx.scan ?? null,
         scanFetchStatus: optionsEnabled
           ? FetchStatus.Error
           : FetchStatus.Fetched,
@@ -82,6 +92,9 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
       SecurityScanContext['securityScanRequest']
     >;
     const options = this.#getScanOptions(scanCtx.preferences);
+    const localEstimatedChanges = scanCtx.scan?.estimatedChanges ?? {
+      assets: [],
+    };
 
     try {
       const scan = await this.#transactionScanService.scanTransaction({
@@ -91,7 +104,9 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
 
       return {
         result: {
-          scan,
+          // Blockaid only contributes validation/error; the locally-derived
+          // estimated changes always take precedence.
+          scan: this.#scanWithLocalChanges(scan, localEstimatedChanges),
           scanFetchStatus: scan ? FetchStatus.Fetched : FetchStatus.Error,
         },
         reschedule: scan !== null,
@@ -100,7 +115,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
       this.#logger.error('Error refreshing confirmation security scan:', error);
       return {
         result: {
-          scan: null,
+          scan: this.#scanWithLocalChanges(null, localEstimatedChanges),
           scanFetchStatus: FetchStatus.Error,
         },
         reschedule: false,
@@ -112,15 +127,37 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     return ContextWithSecurityScanStruct.is(ctx);
   }
 
+  /**
+   * Merges a Blockaid scan result with the locally-derived estimated changes,
+   * preserving the fund-flow breakdown regardless of the remote scan outcome.
+   *
+   * @param scan - The Blockaid scan result, or null when none was returned.
+   * @param localEstimatedChanges - The estimated changes from local simulation.
+   * @returns A scan result carrying the local estimated changes.
+   */
+  #scanWithLocalChanges(
+    scan: TransactionScanResult | null,
+    localEstimatedChanges: TransactionScanEstimatedChanges,
+  ): TransactionScanResult {
+    if (scan) {
+      return { ...scan, estimatedChanges: localEstimatedChanges };
+    }
+    return {
+      status: 'ERROR',
+      estimatedChanges: localEstimatedChanges,
+      validation: null,
+      error: null,
+    };
+  }
+
   #getScanOptions(
     preferences: SecurityScanPreferences,
   ): TransactionScanOption[] {
     const options: TransactionScanOption[] = [];
 
-    if (preferences.simulateOnChainActions) {
-      options.push(TransactionScanOption.Simulation);
-    }
-
+    // Remote simulation is intentionally not requested: estimated balance
+    // changes are derived from the local on-chain simulation. Blockaid is used
+    // for security validation only.
     if (preferences.useSecurityAlerts) {
       options.push(TransactionScanOption.Validation);
     }

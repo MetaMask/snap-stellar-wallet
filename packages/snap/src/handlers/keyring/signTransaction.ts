@@ -6,6 +6,7 @@ import {
   SignTransactionResponseStruct,
 } from './api';
 import type { AccountResolver } from '../accountResolver';
+import { ResolveAccountSource } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
@@ -17,6 +18,7 @@ import {
   assertTransactionTimeBound,
   collectTransactionAssetCaipIds,
 } from '../../services/transaction/utils';
+import type { TransactionScanEstimatedChanges } from '../../services/transaction-scan';
 import type { Wallet } from '../../services/wallet';
 import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
@@ -41,6 +43,8 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
 
   readonly #confirmationUIController: ConfirmationUXController;
 
+  readonly #accountResolver: AccountResolver;
+
   constructor({
     logger,
     accountResolver,
@@ -61,6 +65,7 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
     });
     this.#transactionService = transactionService;
     this.#confirmationUIController = confirmationUIController;
+    this.#accountResolver = accountResolver;
   }
 
   protected async execute(
@@ -132,6 +137,15 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       ),
     ) as ContextWithPrices['tokenPrices'];
 
+    // Estimated balance changes come from local on-chain simulation (not the
+    // remote security scan), so they render immediately on dialog open. The
+    // remote scan only contributes security validation.
+    const estimatedChanges = await this.#deriveEstimatedChanges(
+      request,
+      transaction,
+      account,
+    );
+
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
         scope: request.scope,
@@ -147,8 +161,54 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
           accountAddress: account.address,
           transaction: transaction.getRaw().toXDR(),
         },
+        initialScan: {
+          status: 'SUCCESS',
+          estimatedChanges,
+          validation: null,
+          error: null,
+        },
         tokenPrices,
       })) === true
     );
+  }
+
+  /**
+   * Best-effort local simulation of the signer's balance changes. Resolves the
+   * on-chain account and runs the local simulator; any failure (account not
+   * activated, unsupported/Soroban transaction, network error) resolves to an
+   * empty result so the confirmation simply hides the estimated-changes section.
+   *
+   * @param request - The validated sign-transaction request.
+   * @param transaction - The transaction with fee already applied.
+   * @param account - The resolved keyring account.
+   * @returns The estimated changes, or `{ assets: [] }` when unavailable.
+   */
+  async #deriveEstimatedChanges(
+    request: SignTransactionRequest,
+    transaction: Transaction,
+    account: StellarKeyringAccount,
+  ): Promise<TransactionScanEstimatedChanges> {
+    try {
+      const { onChainAccount } = await this.#accountResolver.resolveAccount({
+        accountId: account.id,
+        scope: request.scope,
+        options: {
+          onChainAccount: { load: true, source: ResolveAccountSource.OnChain },
+          wallet: false,
+        },
+      });
+
+      return await this.#transactionService.deriveEstimatedChanges({
+        transaction,
+        onChainAccount,
+        signerAddress: account.address,
+      });
+    } catch (error) {
+      this.logger.logErrorWithDetails(
+        'Failed to derive estimated changes for sign transaction',
+        error,
+      );
+      return { assets: [] };
+    }
   }
 }

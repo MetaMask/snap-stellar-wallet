@@ -8,6 +8,7 @@ import { groupBy } from 'lodash';
 import { InsufficientBalanceException } from './exceptions';
 import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
 import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
+import { mapSimulationToEstimatedChanges } from './mapSimulationToEstimatedChanges';
 import { Transaction } from './Transaction';
 import type { TransactionBuilder } from './TransactionBuilder';
 import { TransactionMapper } from './TransactionMapper';
@@ -30,7 +31,10 @@ import { getSnapProvider, isSep41Id, isSlip44Id } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { AccountService } from '../account';
-import type { StellarAssetMetadata } from '../asset-metadata';
+import type {
+  AssetMetadataService,
+  StellarAssetMetadata,
+} from '../asset-metadata';
 import type { NetworkService } from '../network';
 import {
   AccountNotActivatedException,
@@ -38,6 +42,7 @@ import {
 } from '../network/exceptions';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import type { ActivatedAccountPair } from '../sync/api';
+import type { TransactionScanEstimatedChanges } from '../transaction-scan';
 import type { Wallet } from '../wallet';
 
 export class TransactionService {
@@ -53,23 +58,28 @@ export class TransactionService {
 
   readonly #transactionSynchronizeService: TransactionSynchronizeService;
 
+  readonly #assetMetadataService: AssetMetadataService;
+
   constructor({
     logger,
     transactionRepository,
     networkService,
     transactionBuilder,
     accountService,
+    assetMetadataService,
   }: {
     logger: ILogger;
     transactionRepository: TransactionRepository;
     networkService: NetworkService;
     transactionBuilder: TransactionBuilder;
     accountService: AccountService;
+    assetMetadataService: AssetMetadataService;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🧾 TransactionService]');
     this.#transactionRepository = transactionRepository;
     this.#networkService = networkService;
     this.#transactionBuilder = transactionBuilder;
+    this.#assetMetadataService = assetMetadataService;
     this.#keyringTransactionBuilder = new KeyringTransactionBuilder();
     const transactionMapper = new TransactionMapper({
       keyringTransactionBuilder: this.#keyringTransactionBuilder,
@@ -520,6 +530,62 @@ export class TransactionService {
   ): void {
     const simulator = new TransactionSimulator();
     simulator.simulate(transaction, onChainAccount, options);
+  }
+
+  /**
+   * Derives the signer's estimated balance changes from a local on-chain
+   * simulation, mapped into the {@link TransactionScanEstimatedChanges} shape the
+   * confirmation UI renders. Used to seed the `sign-transaction` confirmation
+   * fund-flow breakdown without relying on a remote (Blockaid) simulation.
+   *
+   * The network fee is excluded from the per-asset rows (the diff baselines on
+   * the post-fee simulation snapshot); it is surfaced separately as the fee row.
+   *
+   * Best-effort: any failure (unsupported operation, unknown destination
+   * account, Soroban invoke producing no modeled deltas, etc.) resolves to an
+   * empty result so the UI simply hides the section.
+   *
+   * @param params - The parameters.
+   * @param params.transaction - The transaction with fee already applied.
+   * @param params.onChainAccount - The loaded signing account.
+   * @param params.signerAddress - The Stellar address whose changes are surfaced.
+   * @returns The estimated changes, or `{ assets: [] }` when they cannot be derived.
+   */
+  async deriveEstimatedChanges(params: {
+    transaction: Transaction;
+    onChainAccount: OnChainAccount;
+    signerAddress: string;
+  }): Promise<TransactionScanEstimatedChanges> {
+    const { transaction, onChainAccount, signerAddress } = params;
+    try {
+      const preloadedAccounts = await this.#getPreloadedAccounts(
+        transaction,
+        onChainAccount,
+      );
+
+      const simulator = new TransactionSimulator();
+      const { initialState, finalState } = simulator.simulateEndpoints(
+        transaction,
+        onChainAccount,
+        { preloadedAccounts },
+      );
+
+      const assets = await mapSimulationToEstimatedChanges({
+        initialState,
+        finalState,
+        signerAddress,
+        scope: transaction.scope,
+        assetMetadataService: this.#assetMetadataService,
+      });
+
+      return { assets };
+    } catch (error) {
+      this.#logger.logErrorWithDetails(
+        'Failed to derive estimated balance changes',
+        error,
+      );
+      return { assets: [] };
+    }
   }
 
   /**
