@@ -567,7 +567,7 @@ export class TransactionService {
       const { initialState, finalState } = simulator.simulateEndpoints(
         transaction,
         onChainAccount,
-        { preloadedAccounts },
+        { preloadedAccounts, allowOperationSourceAccount: true },
       );
 
       const assets = await mapSimulationToEstimatedChanges({

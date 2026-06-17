@@ -24,6 +24,7 @@ import {
 } from './simulation';
 import type { Transaction } from './Transaction';
 import {
+  assertAccountInvolvesTransaction,
   assertInvokeHostFunctionSoleOperation,
   assertTransactionTimeBound,
   assertTransactionScope,
@@ -64,6 +65,12 @@ export enum SupportedOperations {
  */
 export type TransactionSimulatorOptions = {
   expectedOPTypes?: SupportedOperations[];
+  /**
+   * Allow simulation when the loaded account is only an operation source. Keep
+   * this scoped to sign-transaction estimated changes; normal validation still
+   * requires the wallet account to be the transaction or fee source.
+   */
+  allowOperationSourceAccount?: boolean;
   /**
    * Extra accounts merged into simulation (e.g. payment destinations). Ignored when simulation path does not apply.
    */
@@ -205,16 +212,19 @@ export class TransactionSimulator {
     transaction: Transaction,
     options?: TransactionSimulatorOptions,
   ): asserts ops is SupportedOPType[] {
-    const { expectedOPTypes = [] } = options ?? {};
+    const { expectedOPTypes = [], allowOperationSourceAccount = false } =
+      options ?? {};
 
     // Ensure the transaction is not expired
     assertTransactionTimeBound(transaction);
 
     // Ensure the transaction scope matches the account scope.
     assertTransactionScope(transaction, account.scope);
-    // Envelope must involve this wallet as source or fee source (API XDR or in-app builds).
-    // TODO: we may need to relax it in future when we support fee payment by other account.
-    assertTransactionSourceAccount(transaction, account.accountId);
+    if (allowOperationSourceAccount) {
+      assertAccountInvolvesTransaction(transaction, account.accountId);
+    } else {
+      assertTransactionSourceAccount(transaction, account.accountId);
+    }
 
     // Soroban `invokeHostFunction` is only allowed as a single-op tx and is a no-op for state.
     assertInvokeHostFunctionSoleOperation(transaction);
@@ -327,9 +337,9 @@ export class TransactionSimulator {
   }): SimulationState {
     // Assume the state is cloned beforehand
     const { state, feeSource, fee } = params;
-    // it is possible that the transaction fee source is different than the wallet user,
-    // if the transaction is passed from external, we dont support it yet,
-    // hence `getAccount` will throw an error.
+    // The fee source must be present in the simulation state. For
+    // sign-transaction estimated changes, external fee sources are preloaded
+    // from the transaction's participating accounts.
     const feePayer = getAccount(state, feeSource);
 
     const spendable = getSpendableNative(feePayer);

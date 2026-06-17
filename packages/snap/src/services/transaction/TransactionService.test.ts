@@ -287,6 +287,31 @@ describe('TransactionService', () => {
         },
       );
 
+    const buildNativePaymentWithTxSource = (params: {
+      txSource: string;
+      operationSource: string;
+      destination: string;
+    }) =>
+      buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              source: params.operationSource,
+              destination: params.destination,
+              asset: 'native',
+              amount: '10',
+            },
+          },
+        ],
+        {
+          networkPassphrase: Networks.PUBLIC,
+          source: { accountId: params.txSource, sequence: '1' },
+          baseFeePerOperation: '100',
+          timeout: 30,
+        },
+      );
+
     it('derives the signer XLM outflow from local simulation', async () => {
       const { transactionService } = createMockTransactionService();
       const wallet = getTestWallet();
@@ -309,6 +334,61 @@ describe('TransactionService', () => {
         symbol: 'XLM',
         price: null,
       });
+    });
+
+    it('derives changes when the signer is only the operation source', async () => {
+      const { transactionService } = createMockTransactionService();
+      const wallet = getTestWallet();
+      const txSource = generateStellarAddress();
+      const destination = generateStellarAddress();
+
+      jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccounts')
+        .mockResolvedValue([
+          buildOnChainAccount(txSource, 500),
+          buildOnChainAccount(destination, 50),
+        ]);
+
+      const result = await transactionService.deriveEstimatedChanges({
+        transaction: buildNativePaymentWithTxSource({
+          txSource,
+          operationSource: wallet.address,
+          destination,
+        }),
+        onChainAccount: buildOnChainAccount(wallet.address, 500),
+        signerAddress: wallet.address,
+      });
+
+      expect(result.assets).toHaveLength(1);
+      expect(result.assets[0]).toMatchObject({
+        type: 'out',
+        value: 10,
+        symbol: 'XLM',
+        price: null,
+      });
+    });
+
+    it('returns empty assets when an operation-source transaction cannot load the fee source', async () => {
+      const { transactionService } = createMockTransactionService();
+      const wallet = getTestWallet();
+      const txSource = generateStellarAddress();
+      const destination = generateStellarAddress();
+
+      jest
+        .spyOn(NetworkService.prototype, 'loadOnChainAccounts')
+        .mockResolvedValue([buildOnChainAccount(destination, 50)]);
+
+      const result = await transactionService.deriveEstimatedChanges({
+        transaction: buildNativePaymentWithTxSource({
+          txSource,
+          operationSource: wallet.address,
+          destination,
+        }),
+        onChainAccount: buildOnChainAccount(wallet.address, 500),
+        signerAddress: wallet.address,
+      });
+
+      expect(result).toStrictEqual({ assets: [] });
     });
 
     it('returns empty assets when the local simulation fails', async () => {
