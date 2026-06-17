@@ -22,7 +22,7 @@ import type { ILogger } from './logger';
 import { logger as defaultLogger } from './logger';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must accept arbitrary `Error` subclass ctor signatures
-type AnyErrorConstructor = abstract new (...args: any[]) => Error;
+export type AnyErrorConstructor = abstract new (...args: any[]) => Error;
 
 /**
  * Re-throws `error` when it is an instance of **any** constructor in `exceptionClasses` (subclasses

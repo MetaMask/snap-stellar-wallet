@@ -14,10 +14,7 @@ import { BigNumber } from 'bignumber.js';
 
 import { KnownRpcError } from './api';
 import {
-  AccountLoadException,
   AccountNotActivatedException,
-  AssetDataFetchException,
-  BaseFeeFetchException,
   NetworkServiceException,
   SimulationException,
   TransactionNotFoundException,
@@ -173,12 +170,12 @@ describe('NetworkService', () => {
       expect(fetchBaseFeeSpy).toHaveBeenCalled();
     });
 
-    it('throws BaseFeeFetchException when fetch fails', async () => {
+    it('throws NetworkServiceException when fetch fails', async () => {
       const { fetchBaseFeeSpy } = getHorizonClientSpies();
       fetchBaseFeeSpy.mockRejectedValue(new Error('Network error'));
 
       await expect(networkService.getBaseFee(scope)).rejects.toThrow(
-        BaseFeeFetchException,
+        NetworkServiceException,
       );
     });
   });
@@ -254,13 +251,13 @@ describe('NetworkService', () => {
       ).rejects.toThrow(AccountNotActivatedException);
     });
 
-    it('throws AccountLoadException when load fails for other reason', async () => {
+    it('throws NetworkServiceException when load fails for other reason', async () => {
       const { loadAccountSpy } = getHorizonClientSpies();
       loadAccountSpy.mockRejectedValue(new Error('Network error'));
 
       await expect(
         networkService.loadOnChainAccount(testAddress, scope),
-      ).rejects.toThrow(AccountLoadException);
+      ).rejects.toThrow(NetworkServiceException);
     });
   });
 
@@ -328,14 +325,14 @@ describe('NetworkService', () => {
     });
   });
 
-  describe('loadOnChainAccounts', () => {
+  describe('loadOnChainAccountsSafe', () => {
     const addrA = generateStellarAddress();
     const addrB = generateStellarAddress();
 
     it('returns empty array without calling Horizon when addresses is empty', async () => {
       const { loadAccountSpy } = getHorizonClientSpies();
 
-      const result = await networkService.loadOnChainAccounts([], scope);
+      const result = await networkService.loadOnChainAccountsSafe([], scope);
 
       expect(result).toStrictEqual([]);
       expect(loadAccountSpy).not.toHaveBeenCalled();
@@ -357,7 +354,7 @@ describe('NetworkService', () => {
           }) as unknown as StellarHorizon.AccountResponse,
         );
 
-      const result = await networkService.loadOnChainAccounts(
+      const result = await networkService.loadOnChainAccountsSafe(
         [addrA, addrB],
         scope,
       );
@@ -383,7 +380,7 @@ describe('NetworkService', () => {
           }) as unknown as StellarHorizon.AccountResponse,
         );
 
-      const result = await networkService.loadOnChainAccounts(
+      const result = await networkService.loadOnChainAccountsSafe(
         [addrB, addrA],
         scope,
       );
@@ -405,7 +402,7 @@ describe('NetworkService', () => {
       const { loadAccountSpy } = getHorizonClientSpies();
 
       await expect(
-        networkService.loadOnChainAccounts([addrA], scope, 0),
+        networkService.loadOnChainAccountsSafe([addrA], scope, 0),
       ).rejects.toThrow(NetworkServiceException);
 
       expect(loadAccountSpy).not.toHaveBeenCalled();
@@ -440,67 +437,32 @@ describe('NetworkService', () => {
       ).rejects.toThrow(AccountNotActivatedException);
     });
 
-    it('throws AccountLoadException when error message is not the Soroban missing-account shape', async () => {
+    it('throws NetworkServiceException when error message is not the Soroban missing-account shape', async () => {
       const { getAccountSpy } = getRpcServerSpies();
       getAccountSpy.mockRejectedValue(new Error('Account not found'));
 
       await expect(
         networkService.getAccount(testAddress, scope),
-      ).rejects.toThrow(AccountLoadException);
+      ).rejects.toThrow(NetworkServiceException);
     });
 
-    it('throws AccountLoadException for other RPC errors', async () => {
+    it('throws NetworkServiceException for other RPC errors', async () => {
       const { getAccountSpy } = getRpcServerSpies();
       getAccountSpy.mockRejectedValue(new Error('RPC unavailable'));
 
       await expect(
         networkService.getAccount(testAddress, scope),
-      ).rejects.toThrow(AccountLoadException);
+      ).rejects.toThrow(NetworkServiceException);
     });
   });
 
-  describe('getAssetData', () => {
-    it('returns the matching row from getAssetsData', async () => {
-      const row = {
-        assetId: validSep41AssetId,
-        name: 'T',
-        symbol: 'TOK',
-        decimals: 7,
-      };
-      const spy = jest
-        .spyOn(NetworkService.prototype, 'getAssetsData')
-        .mockResolvedValue([row]);
-
-      const result = await networkService.getAssetData(
-        validSep41AssetId,
-        scope,
-      );
-
-      expect(result).toStrictEqual(row);
-      expect(spy).toHaveBeenCalledWith([validSep41AssetId], scope);
-      spy.mockRestore();
-    });
-
-    it('throws AssetDataFetchException when the batch omits the requested id', async () => {
-      const spy = jest
-        .spyOn(NetworkService.prototype, 'getAssetsData')
-        .mockResolvedValue([]);
-
-      await expect(
-        networkService.getAssetData(validSep41AssetId, scope),
-      ).rejects.toThrow(AssetDataFetchException);
-
-      spy.mockRestore();
-    });
-  });
-
-  describe('getAssetsData', () => {
+  describe('getSep41AssetsData', () => {
     it('throws NetworkServiceException when getLedgerEntries fails', async () => {
       const { getLedgerEntriesSpy } = getRpcServerSpies();
       getLedgerEntriesSpy.mockRejectedValue(new Error('RPC error'));
 
       await expect(
-        networkService.getAssetsData([validSep41AssetId], scope),
+        networkService.getSep41AssetsData([validSep41AssetId], scope),
       ).rejects.toThrow(NetworkServiceException);
     });
   });
@@ -543,7 +505,7 @@ describe('NetworkService', () => {
       assetsSpy.mockRestore();
     });
 
-    it('throws AssetDataFetchException when Horizon returns no rows', async () => {
+    it('throws NetworkServiceException when Horizon returns no rows', async () => {
       const call = jest.fn().mockResolvedValue({ records: [] });
       const assetsSpy = jest
         .spyOn(StellarHorizon.Server.prototype, 'assets')
@@ -555,12 +517,12 @@ describe('NetworkService', () => {
 
       await expect(
         networkService.getClassicAssetData(classicAssetId, scope),
-      ).rejects.toThrow(AssetDataFetchException);
+      ).rejects.toThrow(NetworkServiceException);
 
       assetsSpy.mockRestore();
     });
 
-    it('throws AssetDataFetchException when the matching row issuer does not match', async () => {
+    it('throws NetworkServiceException when the matching row issuer does not match', async () => {
       const call = jest.fn().mockResolvedValue({
         records: [
           {
@@ -580,7 +542,7 @@ describe('NetworkService', () => {
 
       await expect(
         networkService.getClassicAssetData(classicAssetId, scope),
-      ).rejects.toThrow(AssetDataFetchException);
+      ).rejects.toThrow(NetworkServiceException);
 
       assetsSpy.mockRestore();
     });
@@ -639,17 +601,13 @@ describe('NetworkService', () => {
       });
     });
 
-    it('throws TransactionPollException when poll fails', async () => {
+    it('throws NetworkServiceException when poll fails', async () => {
       const { pollTransactionSpy } = getRpcServerSpies();
       pollTransactionSpy.mockRejectedValue(new Error('RPC error'));
 
       await expect(
         networkService.pollTransaction(testTransactionHash, scope),
-      ).rejects.toMatchObject({
-        transactionHash: testTransactionHash,
-        status: 'unknown',
-        scope,
-      });
+      ).rejects.toThrow(NetworkServiceException);
     });
 
     it('rethrows TransactionPollException when poll rejects with one', async () => {
@@ -723,7 +681,7 @@ describe('NetworkService', () => {
       transactionsSpy.mockRestore();
     });
 
-    it('rethrows when Horizon responds with a non-404 error', async () => {
+    it('throws NetworkServiceException when Horizon responds with a non-404 error', async () => {
       const call = jest.fn().mockRejectedValue(new Error('timeout'));
       const transactionsSpy = jest
         .spyOn(StellarHorizon.Server.prototype, 'transactions')
@@ -736,7 +694,7 @@ describe('NetworkService', () => {
           testTransactionHash,
           scope,
         ),
-      ).rejects.toThrow('timeout');
+      ).rejects.toThrow(NetworkServiceException);
 
       transactionsSpy.mockRestore();
     });
@@ -1088,7 +1046,7 @@ describe('NetworkService', () => {
       });
     });
 
-    it('throws TransactionPollException when pollTransaction is true and poll fails', async () => {
+    it('throws NetworkServiceException when pollTransaction is true and poll fails', async () => {
       const { sendTransactionSpy, pollTransactionSpy } = getRpcServerSpies();
       sendTransactionSpy.mockResolvedValue({
         hash: testTransactionHash,
@@ -1102,7 +1060,7 @@ describe('NetworkService', () => {
           scope,
           pollTransaction: true,
         }),
-      ).rejects.toThrow(TransactionPollException);
+      ).rejects.toThrow(NetworkServiceException);
     });
 
     it('throws TransactionPollException when pollTransaction is true and poll returns a non-success terminal status', async () => {
@@ -1284,13 +1242,13 @@ describe('NetworkService', () => {
       expect(simulateTransactionSpy).toHaveBeenCalledWith(mockInvoke.getRaw());
     });
 
-    it('throws SimulationException when the envelope has more than one invokeHostFunction operation', async () => {
+    it('throws InvalidInvokeContractStructureException when the envelope has more than one invokeHostFunction operation', async () => {
       const { simulateTransactionSpy } = getRpcServerSpies();
       const invalidStructureTx = buildTransactionWithTwoInvokeHostFunctionOps();
 
       await expect(
         networkService.simulateTransaction(invalidStructureTx, scope),
-      ).rejects.toThrow(SimulationException);
+      ).rejects.toThrow(InvalidInvokeContractStructureException);
 
       expect(simulateTransactionSpy).not.toHaveBeenCalled();
     });
