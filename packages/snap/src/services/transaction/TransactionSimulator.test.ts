@@ -280,6 +280,51 @@ const destinationAddress = generateStellarAddress();
 describe('TransactionSimulator', () => {
   const simulator = new TransactionSimulator();
 
+  describe('simulateEndpoints', () => {
+    it('returns the post-fee initial state and a final state excluding the fee', () => {
+      const wallet = getTestWallet();
+      const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
+        nativeBalance: 500,
+        subentryCount: 0,
+        assets: [],
+      });
+
+      const tx = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              source: wallet.address,
+              destination: destinationAddress,
+              asset: 'native',
+              amount: '10',
+            },
+          },
+        ],
+        mainnetSimulatorTxOptions(wallet.address, '1'),
+      );
+
+      const { initialState, finalState } = simulator.simulateEndpoints(
+        tx,
+        onChainAccount,
+        { preloadedAccounts: [destOnChainAccount(destinationAddress)] },
+      );
+
+      const initialBalance = initialState.accounts.get(
+        wallet.address,
+      )?.nativeRawBalance;
+      const finalBalance = finalState.accounts.get(
+        wallet.address,
+      )?.nativeRawBalance;
+
+      // initialState is the post-fee snapshot: 500 XLM minus the 100-stroop fee.
+      expect(initialBalance?.toFixed()).toBe('4999999900');
+      // finalState applies the 10 XLM (1e8 stroops) payment on top of that, so
+      // the signer delta excludes the fee (already baked into the baseline).
+      expect(finalBalance?.toFixed()).toBe('4899999900');
+    });
+  });
+
   describe('preflight validation', () => {
     it('throws when account scope does not match transaction network', () => {
       const wallet = getTestWallet();

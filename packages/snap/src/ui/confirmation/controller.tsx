@@ -9,7 +9,6 @@ import {
   formatFeeData,
   formatOrigin,
   getPreferencesWithFallback,
-  hasEnabledTransactionScan,
 } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
@@ -181,9 +180,14 @@ export class ConfirmationUXController {
         preferences.useExternalPricingData &&
         tokenPrices !== undefined;
 
+      // The remote scan is validation-only (estimated changes come from local
+      // simulation), so only schedule it when security alerts are on. Gating on
+      // `hasEnabledTransactionScan` here would also fire for
+      // `simulateOnChainActions`, scheduling a refresher with no work to do and
+      // briefly disabling the confirm button for nothing.
       const enableSecurityScan =
         renderOptions.scanTxn &&
-        hasEnabledTransactionScan(preferences) &&
+        preferences.useSecurityAlerts &&
         params.securityScanRequest !== undefined;
 
       const enableTransactionValidation =

@@ -34,6 +34,13 @@ function formatValue(value: number | null): string {
   return new BigNumber(value ?? 0).toFixed();
 }
 
+/**
+ * Renders one asset-change row.
+ *
+ * @param props - The component props.
+ * @param props.asset - The asset change to render.
+ * @returns The row element.
+ */
 const AssetChangeRow = ({
   asset,
 }: {
