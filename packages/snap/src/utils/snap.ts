@@ -1,17 +1,19 @@
 import type { JsonSLIP10Node } from '@metamask/key-tree';
 import type { EntropySourceId } from '@metamask/keyring-api';
-import type {
-  ComponentOrElement,
-  DialogResult,
-  EntropySource,
-  GetClientStatusResult,
-  GetPreferencesResult,
-  Json,
-  ResolveInterfaceResult,
-  SnapsProvider,
-  UpdateInterfaceResult,
+import {
+  getJsonError,
+  type ComponentOrElement,
+  type DialogResult,
+  type EntropySource,
+  type GetClientStatusResult,
+  type GetPreferencesResult,
+  type Json,
+  type ResolveInterfaceResult,
+  type SnapsProvider,
+  type UpdateInterfaceResult,
 } from '@metamask/snaps-sdk';
 
+import { logger } from './logger';
 import { type Serializable, serialize, deserialize } from './serialization';
 
 export enum Duration {
@@ -611,5 +613,27 @@ export async function trackSecurityScanCompleted(properties: {
     scan_status: properties.scanStatus,
     has_security_alerts: properties.hasSecurityAlerts,
   });
+}
+
+/**
+ * Track an error in MetaMask via Sentry (`snap_trackError`).
+ *
+ * RPC failures are caught and logged but never rethrown, so this is
+ * safe to call from already-failing error-handling paths without risk
+ * of masking the original failure.
+ *
+ * @param error - The error to report to Sentry.
+ * @returns The Sentry event ID on success, or `undefined` on failure.
+ */
+export async function trackError(error: Error): Promise<string | undefined> {
+  try {
+    return await snap.request({
+      method: 'snap_trackError',
+      params: { error: getJsonError(error) },
+    });
+  } catch (rpcError) {
+    logger.warn({ rpcError }, 'Failed to track error via snap_trackError');
+    return undefined;
+  }
 }
 /* eslint-enable @typescript-eslint/naming-convention */
