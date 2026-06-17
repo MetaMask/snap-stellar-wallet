@@ -102,7 +102,11 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
     request: SignAndSendTransactionJsonRpcRequest,
   ): Promise<SignAndSendTransactionJsonRpcResponse> {
     const { wallet, onChainAccount, account } = resolved;
-    const { transaction: transactionBase64Xdr, scope } = request.params;
+    const {
+      transaction: transactionBase64Xdr,
+      scope,
+      options,
+    } = request.params;
 
     const transaction =
       await this.#transactionService.createValidatedSwapTransaction({
@@ -132,6 +136,7 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
       account,
       scope,
       transaction,
+      isCrossChain: this.#isCrossChainBridge(scope, options),
     });
 
     // Schedule the track-transaction background event.
@@ -148,19 +153,42 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
     };
   }
 
+  /**
+   * Determines whether the submitted transaction is a cross-chain bridge based on
+   * the source and destination chain metadata supplied by the client.
+   *
+   * @param scope - The CAIP-2 chain id the transaction is submitted on (the source chain).
+   * @param options - The request options, optionally carrying `sourceChainId` and `destChainId`.
+   * @returns True when a destination chain is provided and differs from the source chain.
+   */
+  #isCrossChainBridge(
+    scope: KnownCaip2ChainId,
+    options: SignAndSendTransactionJsonRpcRequest['params']['options'],
+  ): boolean {
+    const destChainId = options?.destChainId;
+    if (destChainId === undefined) {
+      return false;
+    }
+    const sourceChainId = options?.sourceChainId ?? scope;
+    return sourceChainId !== destChainId;
+  }
+
   async #savePendingTransaction(params: {
     transactionId: string;
     scope: KnownCaip2ChainId;
     account: StellarKeyringAccount;
     transaction: Transaction;
+    isCrossChain: boolean;
   }): Promise<void> {
     try {
-      const { transactionId, scope, account, transaction } = params;
+      const { transactionId, scope, account, transaction, isCrossChain } =
+        params;
       const request = this.#createPendingTransactionRequest({
         transactionId,
         scope,
         account,
         transaction,
+        isCrossChain,
       });
 
       await this.#transactionService.savePendingKeyringTransaction({
@@ -181,9 +209,14 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
     scope: KnownCaip2ChainId;
     account: StellarKeyringAccount;
     transaction: Transaction;
+    isCrossChain: boolean;
   }): PendingTransactionRequest {
-    const { transactionId, scope, account, transaction } = params;
-    const swapDetails = this.#createPendingSwapDetails(transaction, scope);
+    const { transactionId, scope, account, transaction, isCrossChain } = params;
+    const swapDetails = this.#createPendingSwapDetails(
+      transaction,
+      scope,
+      isCrossChain,
+    );
 
     if (swapDetails !== null) {
       return {
@@ -198,6 +231,9 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
       txId: transactionId,
       account,
       scope,
+      // Mark undecoded cross-chain transactions as bridge sends so the activity
+      // history does not surface them as a generic unknown transaction.
+      ...(isCrossChain && { transactionType: TransactionType.BridgeSend }),
       asset: {
         type: KnownCaip19Slip44IdMap[scope],
         symbol: NATIVE_ASSET_SYMBOL,
@@ -208,6 +244,7 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
   #createPendingSwapDetails(
     transaction: Transaction,
     scope: KnownCaip2ChainId,
+    isCrossChain: boolean,
   ): PendingSwapDetails | null {
     const pathPaymentOperation = transaction.transactionOperations.find(
       (operation) =>
@@ -253,7 +290,9 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
     }
 
     return {
-      transactionType: TransactionType.Swap,
+      transactionType: isCrossChain
+        ? TransactionType.BridgeSend
+        : TransactionType.Swap,
       from: [
         {
           address: sourceAddress,

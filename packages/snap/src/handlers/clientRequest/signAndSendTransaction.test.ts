@@ -358,6 +358,175 @@ describe('SignAndSendTransactionHandler', () => {
     });
   });
 
+  it('marks an undecoded cross-chain transaction as a bridge send', async () => {
+    const {
+      handler,
+      account,
+      request,
+      savePendingKeyringTransaction,
+      scheduleBackgroundEvent,
+    } = setup();
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        options: {
+          sourceChainId: scope,
+          destChainId: 'eip155:1',
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        transactionType: TransactionType.BridgeSend,
+        asset: {
+          type: 'stellar:pubnet/slip44:148',
+          symbol: 'XLM',
+        },
+      },
+    });
+    expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
+      scope,
+      txId: transactionId,
+      accountIdsOrAddresses: [account.id],
+    });
+  });
+
+  it('keeps a same-chain swap when source and destination chains match', async () => {
+    const { handler, account, request, savePendingKeyringTransaction } =
+      setup();
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        options: {
+          sourceChainId: scope,
+          destChainId: scope,
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        asset: {
+          type: 'stellar:pubnet/slip44:148',
+          symbol: 'XLM',
+        },
+      },
+    });
+  });
+
+  it('marks a classic path payment as a bridge send when cross-chain', async () => {
+    const {
+      handler,
+      account,
+      wallet,
+      onChainAccount,
+      request,
+      createValidatedSwapTransaction,
+      savePendingKeyringTransaction,
+    } = setup();
+    const destinationAsset = {
+      code: 'USDC',
+      issuer: getTestWallet().address,
+    } as const;
+    const destinationAssetId = toCaip19ClassicAssetId(
+      scope,
+      destinationAsset.code,
+      destinationAsset.issuer,
+    );
+    const transaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'pathPaymentStrictSend',
+          params: {
+            sendAsset: 'native',
+            sendAmount: '10',
+            destination: wallet.address,
+            destAsset: destinationAsset,
+            destMin: '5',
+          },
+        },
+      ],
+      {
+        baseFeePerOperation: '100',
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: onChainAccount.sequenceNumber,
+        },
+      },
+    );
+    const xdr = transaction.getRaw().toXDR();
+    createValidatedSwapTransaction.mockResolvedValueOnce(transaction);
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        transaction: xdr,
+        options: {
+          sourceChainId: scope,
+          destChainId: 'eip155:1',
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        transactionType: TransactionType.BridgeSend,
+        from: [
+          {
+            address: wallet.address,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: '10',
+              fungible: true,
+            },
+          },
+        ],
+        to: [
+          {
+            address: wallet.address,
+            asset: {
+              unit: 'USDC',
+              type: destinationAssetId,
+              amount: '5',
+              fungible: true,
+            },
+          },
+        ],
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(transaction.totalFee),
+              fungible: true,
+            },
+          },
+        ],
+      },
+    });
+  });
+
   describe('tracks transaction events', () => {
     it('tracks transaction submitted', async () => {
       const { handler, account, request, trackTransactionSubmittedSpy } =

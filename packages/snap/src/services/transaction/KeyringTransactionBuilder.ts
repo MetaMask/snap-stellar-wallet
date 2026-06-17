@@ -71,6 +71,7 @@ export type PendingTransactionRequest = {
   status?: TransactionStatus;
 } & (
   | {
+      transactionType?: TransactionType;
       asset: {
         type: KnownCaip19AssetIdOrSlip44Id;
         symbol: string;
@@ -256,7 +257,7 @@ export class KeyringTransactionBuilder {
     const { asset } = request;
 
     return this.#buildKeyringTransaction({
-      type: TransactionType.Unknown,
+      type: request.transactionType ?? TransactionType.Unknown,
       id: txId,
       account,
       scope,

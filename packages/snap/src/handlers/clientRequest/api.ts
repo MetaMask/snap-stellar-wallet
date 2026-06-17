@@ -19,7 +19,7 @@ import {
   coerce,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
-import { parseCaipAssetType } from '@metamask/utils';
+import { CaipChainIdStruct, parseCaipAssetType } from '@metamask/utils';
 
 import {
   JsonRpcRequestStruct,
@@ -199,6 +199,14 @@ export const SignAndSendTransactionJsonRpcRequestStruct = assign(
         object({
           visible: optional(boolean()),
           type: optional(string()),
+          /**
+           * CAIP-2 chain id of the source chain.
+           */
+          sourceChainId: optional(CaipChainIdStruct),
+          /**
+           * CAIP-2 chain id of the destination chain.
+           */
+          destChainId: optional(CaipChainIdStruct),
         }),
       ),
     }),
