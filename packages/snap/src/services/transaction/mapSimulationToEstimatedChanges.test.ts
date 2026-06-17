@@ -53,6 +53,7 @@ describe('mapSimulationToEstimatedChanges', () => {
       value: 10,
       price: null,
       symbol: 'XLM',
+      logo: null,
     });
     expect(assetMetadataService.resolve).not.toHaveBeenCalled();
   });

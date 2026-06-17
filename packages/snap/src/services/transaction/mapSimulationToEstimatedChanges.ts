@@ -97,7 +97,7 @@ export async function mapSimulationToEstimatedChanges(params: {
         decimals: meta.units[0].decimals,
         symbol: meta.symbol,
         name: meta.name ?? meta.symbol,
-        logo: meta.iconUrl ?? null,
+        logo: null,
       }),
     );
   }
