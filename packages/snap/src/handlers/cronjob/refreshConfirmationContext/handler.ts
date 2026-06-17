@@ -195,7 +195,8 @@ export class RefreshConfirmationContextHandler extends CronjobBaseHandler<Refres
         refresher.key === ConfirmationContextRefresherKey.Transaction,
     );
     const remainingRefreshers = activeRefreshers.filter(
-      (refresher) => refresher !== transactionRefresher,
+      (refresher) =>
+        refresher.key !== ConfirmationContextRefresherKey.Transaction,
     );
 
     const results: ConfirmationContextRefreshResult[] = [];
@@ -207,6 +208,9 @@ export class RefreshConfirmationContextHandler extends CronjobBaseHandler<Refres
         workingContext,
       );
       results.push(transactionResult);
+      // Merge the transaction refresher's patch into the context the remaining
+      // refreshers see, so they work off the renewed envelope (latest fee,
+      // account sequence, extended expiry) rather than the original snapshot.
       if (transactionResult?.result) {
         workingContext = { ...workingContext, ...transactionResult.result };
       }
