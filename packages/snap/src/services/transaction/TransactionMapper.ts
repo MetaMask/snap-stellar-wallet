@@ -1,5 +1,5 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
-import { TransactionType } from '@metamask/keyring-api';
+import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
 import { Asset } from '@stellar/stellar-sdk';
 
 import { StellarOperationType } from './api';
@@ -111,7 +111,7 @@ export class TransactionMapper {
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
     assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>,
-  ): KeyringTransaction {
+  ): KeyringTransaction | undefined {
     const { address } = keyringAccount;
 
     if (transaction.hasInvokeHostFunction && transaction.operationCount === 1) {
@@ -366,7 +366,12 @@ export class TransactionMapper {
   #mapReceiveTransaction(
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
-  ): KeyringTransaction {
+  ): KeyringTransaction | undefined {
+    // Skip failed transactions for receive mapping.
+    if (transaction.status === TransactionStatus.Failed) {
+      return undefined;
+    }
+
     // Use the first deduplicated receive asset (by CAIP-19 id).
     const [receiveAsset] = this.#extractReceiveOperationAssetAndAmount(
       transaction,
