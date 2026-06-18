@@ -494,6 +494,26 @@ describe('TransactionMapper', () => {
     ).toBeUndefined();
   });
 
+  it('returns undefined for failed receive transactions', () => {
+    const { keyringAccount, transactionMapper } = setup();
+
+    const transaction = Transaction.fromHorizon({
+      horizonTransaction: {
+        ...receivePaymentTransactionResponse,
+        successful: false,
+      },
+      scope,
+    });
+
+    expect(
+      transactionMapper.mapTransactionSafe({
+        transaction,
+        keyringAccount,
+        assetMetadata: {},
+      }),
+    ).toBeUndefined();
+  });
+
   it('falls back to destMin for swap when result_xdr is missing', () => {
     const { keyringAccount, transactionMapper } = setup();
 
