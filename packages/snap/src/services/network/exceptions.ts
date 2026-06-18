@@ -2,7 +2,7 @@ import type { KnownCaip2ChainId } from '../../api';
 import {
   StellarSnapException,
   type StellarSnapExceptionOptions,
-} from '../../exceptions/base';
+} from '../../utils/errors';
 
 /** Base for all network-related errors (fees, account load, send, poll). */
 export class NetworkServiceException extends StellarSnapException {}
