@@ -398,7 +398,7 @@ describe('SignAndSendTransactionHandler', () => {
     });
   });
 
-  it('keeps a same-chain swap when source and destination chains match', async () => {
+  it('does not mark a same-chain transaction as a bridge send when source and destination chains match', async () => {
     const { handler, account, request, savePendingKeyringTransaction } =
       setup();
 
