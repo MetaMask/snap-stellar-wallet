@@ -290,6 +290,18 @@ export function isInvokeHostFunctionOperation(
 }
 
 /**
+ * Detects if the operation is a payment operation.
+ *
+ * @param operation - The operation to check.
+ * @returns Whether the operation is a payment operation.
+ */
+export function isPaymentOperation(
+  operation: Operation,
+): operation is Operation.Payment {
+  return operation.type === StellarOperationType.Payment;
+}
+
+/**
  * Detects if the operation is a path payment operation.
  *
  * @param operation - The operation to check.

@@ -113,6 +113,16 @@ export const SwapTransactionXdrStruct = refine(
         return true;
       }
 
+      // For some bridge trades, the first operation is a payment to the bridge deposit account,
+      // and the second operation is a payment to the fee wallet
+      if (
+        operationTypes.length === 2 &&
+        firstOperation === StellarOperationType.Payment &&
+        secondOperation === StellarOperationType.Payment
+      ) {
+        return true;
+      }
+
       // Classic route requiring a new destination-asset trustline first.
       if (
         operationTypes.length === 3 &&

@@ -211,6 +211,28 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
     ).not.toThrow();
   });
 
+  it('accepts a signAndSendTransaction JSON-RPC request with swap asset ids', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'signAndSendTransaction',
+          params: {
+            accountId,
+            scope,
+            transaction,
+            options: {
+              sourceAssetId: 'stellar:pubnet/slip44:148',
+              destAssetId: 'eip155:1/slip44:60',
+            },
+          },
+        },
+        SignAndSendTransactionJsonRpcRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
   it.each([
     { transaction: 'not-xdr', options: { type: 'swap' } },
     { transaction, options: { type: 'swap', visible: 'yes' } },

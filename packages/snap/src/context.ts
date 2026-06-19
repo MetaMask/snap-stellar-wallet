@@ -281,6 +281,7 @@ const signAndSendTransactionHandler = new SignAndSendTransactionHandler({
   logger,
   accountResolver,
   transactionService,
+  assetMetadataService,
 });
 
 const confirmSendHandler = new ConfirmSendHandler({
