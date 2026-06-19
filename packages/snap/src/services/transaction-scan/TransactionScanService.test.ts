@@ -225,4 +225,102 @@ describe('TransactionScanService', () => {
     const result = await service.scanTransaction(scanParams);
     expect(result).toBeNull();
   });
+
+  describe('estimated changes decimal precision', () => {
+    it('computes display value from raw_value for fractional native XLM', async () => {
+      const { service, securityAlertsApiClient } = setup();
+      securityAlertsApiClient.scanTransaction.mockResolvedValue({
+        simulation: {
+          status: 'Success',
+          account_summary: {
+            account_assets_diffs: [
+              {
+                asset: { type: 'NATIVE', code: 'XLM' },
+                asset_type: 'NATIVE',
+                out: {
+                  raw_value: 5000000,
+                  value: 0,
+                  usd_price: 0.11,
+                },
+              },
+            ],
+          },
+        },
+        validation: null,
+      });
+
+      const result = await service.scanTransaction({
+        ...scanParams,
+        options: [TransactionScanOption.Simulation],
+      });
+
+      expect(result?.estimatedChanges.assets[0]?.value).toBe(0.5);
+    });
+
+    it('computes display value from raw_value when value is rounded', async () => {
+      const { service, securityAlertsApiClient } = setup();
+      securityAlertsApiClient.scanTransaction.mockResolvedValue({
+        simulation: {
+          status: 'Success',
+          account_summary: {
+            account_assets_diffs: [
+              {
+                asset: { type: 'NATIVE', code: 'XLM' },
+                asset_type: 'NATIVE',
+                out: {
+                  raw_value: 15000000,
+                  value: 2,
+                  usd_price: 0.33,
+                },
+              },
+            ],
+          },
+        },
+        validation: null,
+      });
+
+      const result = await service.scanTransaction({
+        ...scanParams,
+        options: [TransactionScanOption.Simulation],
+      });
+
+      expect(result?.estimatedChanges.assets[0]?.value).toBe(1.5);
+    });
+
+    it('falls back to value when asset decimals are unknown', async () => {
+      const { service, securityAlertsApiClient } = setup();
+      securityAlertsApiClient.scanTransaction.mockResolvedValue({
+        simulation: {
+          status: 'Success',
+          account_summary: {
+            account_assets_diffs: [
+              {
+                asset: {
+                  type: 'CONTRACT',
+                  address:
+                    'CASUP2OPFVEHCWGP2XLBXOV7DQIQIT42AQISG4MXAZGNLVFFN63X7WRT',
+                  symbol: 'USDC',
+                  name: 'USD Coin',
+                },
+                asset_type: 'CONTRACT',
+                out: {
+                  raw_value: 1500000,
+                  value: 1.5,
+                  usd_price: 1.5,
+                },
+              },
+            ],
+          },
+        },
+        validation: null,
+      });
+
+      const result = await service.scanTransaction({
+        ...scanParams,
+        options: [TransactionScanOption.Simulation],
+      });
+
+      expect(result?.estimatedChanges.assets[0]?.value).toBe(1.5);
+    });
+  });
 });

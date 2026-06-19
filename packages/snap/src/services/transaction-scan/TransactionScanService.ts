@@ -1,3 +1,5 @@
+import { BigNumber } from 'bignumber.js';
+
 import { TransactionScanOption } from './api';
 import type {
   StellarAssetDiff,
@@ -10,8 +12,10 @@ import type {
 } from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import type { KnownCaip2ChainId } from '../../api';
+import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { ILogger } from '../../utils';
 import { createPrefixedLogger } from '../../utils';
+import { normalizeAmount } from '../../utils/currency';
 
 export class TransactionScanService {
   readonly #securityAlertsApiClient: SecurityAlertsApiClient;
@@ -128,9 +132,61 @@ export class TransactionScanService {
       symbol,
       name: assetDiff.asset.name ?? symbol,
       logo: null,
-      value: transfer?.value ?? null,
+      value: this.#computeDisplayValue(transfer, assetDiff),
       price: transfer?.usd_price ?? null,
     };
+  }
+
+  /**
+   * Computes the human-readable amount for an asset transfer.
+   * Prefers {@link StellarAssetTransferDetails.raw_value} with known decimals
+   * (Tron parity) because Blockaid's `value` can be imprecise for fractional
+   * native XLM amounts.
+   *
+   * @param transfer - The in/out transfer details from Blockaid.
+   * @param assetDiff - The parent asset diff (used to resolve decimals).
+   * @returns The display amount, or null when unavailable.
+   */
+  #computeDisplayValue(
+    transfer: StellarAssetDiff['in'] | StellarAssetDiff['out'],
+    assetDiff: StellarAssetDiff,
+  ): number | null {
+    if (transfer === undefined || transfer === null) {
+      return null;
+    }
+
+    const decimals = this.#resolveAssetDecimals(assetDiff);
+    if (decimals !== undefined && transfer.raw_value !== undefined) {
+      return normalizeAmount(
+        new BigNumber(transfer.raw_value),
+        decimals,
+      ).toNumber();
+    }
+
+    return transfer.value ?? null;
+  }
+
+  /**
+   * Resolves asset decimals for Blockaid simulation diffs.
+   * Native and classic Stellar assets use 7 decimal places; contract tokens
+   * do not expose decimals in the Blockaid payload today.
+   *
+   * @param assetDiff - The asset diff from Blockaid.
+   * @returns The decimals when known.
+   */
+  #resolveAssetDecimals(assetDiff: StellarAssetDiff): number | undefined {
+    const { asset_type: assetType, asset } = assetDiff;
+
+    if (
+      assetType === 'NATIVE' ||
+      asset.type === 'NATIVE' ||
+      assetType === 'ASSET' ||
+      asset.type === 'ASSET'
+    ) {
+      return STELLAR_DECIMAL_PLACES;
+    }
+
+    return undefined;
   }
 
   #mapValidation(

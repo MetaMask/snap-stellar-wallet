@@ -23,7 +23,18 @@ describe('ConfirmationScanRefresher', () => {
   };
   const scanResult = {
     status: 'SUCCESS' as const,
-    estimatedChanges: { assets: [] },
+    estimatedChanges: {
+      assets: [
+        {
+          type: 'out' as const,
+          value: 2,
+          price: null,
+          symbol: 'USDC',
+          name: 'USD Coin',
+          logo: null,
+        },
+      ],
+    },
     validation: {
       type: TransactionScanValidationType.Benign,
       reason: null,
@@ -63,16 +74,17 @@ describe('ConfirmationScanRefresher', () => {
     });
   }
 
-  it('requests validation only and never remote simulation', async () => {
+  it('requests simulation and validation for sign transaction when both scan preferences are enabled', async () => {
     const { refresher, transactionScanService } = setup();
 
     const result = await refresher.refresh(createScanContext());
 
-    // Remote simulation is intentionally omitted; estimated changes come from
-    // the local on-chain simulation instead.
     expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
       ...securityScanRequest,
-      options: [TransactionScanOption.Validation],
+      options: [
+        TransactionScanOption.Simulation,
+        TransactionScanOption.Validation,
+      ],
     });
     expect(result).toStrictEqual({
       result: {
@@ -86,29 +98,49 @@ describe('ConfirmationScanRefresher', () => {
   it.each([
     ConfirmationInterfaceKey.SignTransaction,
     ConfirmationInterfaceKey.ConfirmSendTransaction,
-    ConfirmationInterfaceKey.ChangeTrustlineOptIn,
-    ConfirmationInterfaceKey.ChangeTrustlineOptOut,
   ])(
-    'never requests remote simulation for %s even when simulateOnChainActions is enabled',
+    'requests simulation for %s when estimated changes are enabled',
     async (interfaceKey) => {
       const { refresher, transactionScanService } = setup();
 
-      await refresher.refresh(createScanContext({ interfaceKey }));
+      await refresher.refresh(
+        createScanContext({
+          interfaceKey,
+          preferences: {
+            useSecurityAlerts: false,
+            simulateOnChainActions: true,
+          },
+        }),
+      );
 
       expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
         ...securityScanRequest,
-        options: [TransactionScanOption.Validation],
+        options: [TransactionScanOption.Simulation],
       });
     },
   );
 
-  it('preserves locally-derived estimated changes over the Blockaid result', async () => {
+  it.each([
+    ConfirmationInterfaceKey.ChangeTrustlineOptIn,
+    ConfirmationInterfaceKey.ChangeTrustlineOptOut,
+  ])('does not request simulation for %s', async (interfaceKey) => {
+    const { refresher, transactionScanService } = setup();
+
+    await refresher.refresh(createScanContext({ interfaceKey }));
+
+    expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
+      ...securityScanRequest,
+      options: [TransactionScanOption.Validation],
+    });
+  });
+
+  it('uses Blockaid estimated changes when remote simulation returns asset rows', async () => {
     const { refresher } = setup();
     const localEstimatedChanges = {
       assets: [
         {
           type: 'out' as const,
-          value: 12.5,
+          value: 1,
           price: null,
           symbol: 'XLM',
           name: 'Stellar Lumens',
@@ -130,8 +162,50 @@ describe('ConfirmationScanRefresher', () => {
 
     expect(result).toStrictEqual({
       result: {
+        scan: scanResult,
+        scanFetchStatus: FetchStatus.Fetched,
+      },
+      reschedule: true,
+    });
+  });
+
+  it('falls back to locally-derived estimated changes when Blockaid returns no asset rows', async () => {
+    const { refresher, transactionScanService } = setup();
+    const localEstimatedChanges = {
+      assets: [
+        {
+          type: 'out' as const,
+          value: 12.5,
+          price: null,
+          symbol: 'XLM',
+          name: 'Stellar Lumens',
+          logo: null,
+        },
+      ],
+    };
+    const emptyRemoteScan = {
+      ...scanResult,
+      estimatedChanges: { assets: [] },
+    };
+    transactionScanService.scanTransaction.mockResolvedValueOnce(
+      emptyRemoteScan,
+    );
+
+    const result = await refresher.refresh(
+      createScanContext({
         scan: {
-          ...scanResult,
+          status: 'SUCCESS',
+          estimatedChanges: localEstimatedChanges,
+          validation: null,
+          error: null,
+        },
+      }),
+    );
+
+    expect(result).toStrictEqual({
+      result: {
+        scan: {
+          ...emptyRemoteScan,
           estimatedChanges: localEstimatedChanges,
         },
         scanFetchStatus: FetchStatus.Fetched,
@@ -185,12 +259,28 @@ describe('ConfirmationScanRefresher', () => {
     });
   });
 
-  it('does not fetch when only simulateOnChainActions is enabled', () => {
+  it('fetches when only simulateOnChainActions is enabled for sign transaction', () => {
     const { refresher } = setup();
 
     expect(
       refresher.shouldFetch(
         createScanContext({
+          preferences: {
+            useSecurityAlerts: false,
+            simulateOnChainActions: true,
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('does not fetch when only simulateOnChainActions is enabled for change trust', () => {
+    const { refresher } = setup();
+
+    expect(
+      refresher.shouldFetch(
+        createScanContext({
+          interfaceKey: ConfirmationInterfaceKey.ChangeTrustlineOptIn,
           preferences: {
             useSecurityAlerts: false,
             simulateOnChainActions: true,

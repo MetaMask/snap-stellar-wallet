@@ -14,6 +14,7 @@ import type {
 import { TransactionScanOption } from '../../../services/transaction-scan';
 import type { ContextWithSecurityScan } from '../../../ui/confirmation/api';
 import {
+  ConfirmationInterfaceKey,
   ContextWithSecurityScanStruct,
   FetchStatus,
 } from '../../../ui/confirmation/api';
@@ -23,11 +24,7 @@ import { createPrefixedLogger } from '../../../utils/logger';
 type SecurityScanContext = ConfirmationDataContext & ContextWithSecurityScan;
 
 /**
- * Refreshes the Blockaid security validation in the confirmation dialog context.
- *
- * Estimated balance changes are owned by the local on-chain simulation (seeded
- * at dialog open), so this refresher only requests Blockaid `Validation` and
- * never overwrites the locally-derived `estimatedChanges`.
+ * Refreshes the Blockaid scan in the confirmation dialog context.
  */
 export class ConfirmationScanRefresher implements IConfirmationContextRefresher {
   readonly key = ConfirmationContextRefresherKey.Scan;
@@ -71,8 +68,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     const optionsEnabled = this.#getScanOptions(scanCtx).length > 0;
     return {
       result: {
-        // Preserve the locally-derived estimated changes; only the scan fetch
-        // status reflects the (validation) failure.
+        // Keep any locally-seeded estimate visible if the remote scan cannot recover.
         scan: scanCtx.scan ?? null,
         scanFetchStatus: optionsEnabled
           ? FetchStatus.Error
@@ -90,7 +86,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
       SecurityScanContext['securityScanRequest']
     >;
     const options = this.#getScanOptions(scanCtx);
-    const localEstimatedChanges = scanCtx.scan?.estimatedChanges ?? {
+    const fallbackEstimatedChanges = scanCtx.scan?.estimatedChanges ?? {
       assets: [],
     };
 
@@ -102,9 +98,10 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
 
       return {
         result: {
-          // Blockaid only contributes validation/error; the locally-derived
-          // estimated changes always take precedence.
-          scan: this.#scanWithLocalChanges(scan, localEstimatedChanges),
+          scan: this.#scanWithEstimatedChangesFallback(
+            scan,
+            fallbackEstimatedChanges,
+          ),
           scanFetchStatus: scan ? FetchStatus.Fetched : FetchStatus.Error,
         },
         reschedule: scan !== null,
@@ -113,7 +110,10 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
       this.#logger.error('Error refreshing confirmation security scan:', error);
       return {
         result: {
-          scan: this.#scanWithLocalChanges(null, localEstimatedChanges),
+          scan: this.#scanWithEstimatedChangesFallback(
+            null,
+            fallbackEstimatedChanges,
+          ),
           scanFetchStatus: FetchStatus.Error,
         },
         reschedule: false,
@@ -126,36 +126,50 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
   }
 
   /**
-   * Merges a Blockaid scan result with the locally-derived estimated changes,
-   * preserving the fund-flow breakdown regardless of the remote scan outcome.
+   * Merges a Blockaid scan result with the locally-seeded estimated changes.
+   * Remote estimated changes are preferred when Blockaid returns displayable
+   * asset rows; otherwise the locally-derived fallback stays on screen.
    *
    * @param scan - The Blockaid scan result, or null when none was returned.
-   * @param localEstimatedChanges - The estimated changes from local simulation.
-   * @returns A scan result carrying the local estimated changes.
+   * @param fallbackEstimatedChanges - The locally-seeded estimated changes.
+   * @returns A scan result carrying the best available estimated changes.
    */
-  #scanWithLocalChanges(
+  #scanWithEstimatedChangesFallback(
     scan: TransactionScanResult | null,
-    localEstimatedChanges: TransactionScanEstimatedChanges,
+    fallbackEstimatedChanges: TransactionScanEstimatedChanges,
   ): TransactionScanResult {
     if (scan) {
-      return { ...scan, estimatedChanges: localEstimatedChanges };
+      const estimatedChanges = this.#hasEstimatedChanges(scan.estimatedChanges)
+        ? scan.estimatedChanges
+        : fallbackEstimatedChanges;
+
+      return { ...scan, estimatedChanges };
     }
     return {
       status: 'ERROR',
-      estimatedChanges: localEstimatedChanges,
+      estimatedChanges: fallbackEstimatedChanges,
       validation: null,
       error: null,
     };
   }
 
+  #hasEstimatedChanges(
+    estimatedChanges: TransactionScanEstimatedChanges,
+  ): boolean {
+    return estimatedChanges.assets.length > 0;
+  }
+
   #getScanOptions(ctx: SecurityScanContext): TransactionScanOption[] {
     const options: TransactionScanOption[] = [];
 
-    // Remote simulation is intentionally not requested: estimated balance
-    // changes are derived from the local on-chain simulation. Blockaid is used
-    // for security validation only. (This completes the flow-aware change from
-    // PR #112: sign-transaction no longer needs remote simulation either, now
-    // that the local simulation drives the fund-flow breakdown.)
+    if (
+      ctx.preferences.simulateOnChainActions &&
+      (ctx.interfaceKey === ConfirmationInterfaceKey.SignTransaction ||
+        ctx.interfaceKey === ConfirmationInterfaceKey.ConfirmSendTransaction)
+    ) {
+      options.push(TransactionScanOption.Simulation);
+    }
+
     if (ctx.preferences.useSecurityAlerts) {
       options.push(TransactionScanOption.Validation);
     }

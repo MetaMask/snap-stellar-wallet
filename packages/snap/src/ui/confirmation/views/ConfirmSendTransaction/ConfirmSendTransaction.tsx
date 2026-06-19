@@ -11,13 +11,10 @@ import {
   Text as SnapText,
   Tooltip,
 } from '@metamask/snaps-sdk/jsx';
-import { parseCaipAssetType } from '@metamask/utils';
 
 import { ConfirmSendTransactionFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
-import type { StellarAssetMetadata } from '../../../../services/asset-metadata';
-import { isSlip44Id, i18n } from '../../../../utils';
-import { xlmIcon } from '../../../images';
+import { i18n } from '../../../../utils';
 import { STELLAR_IMAGE } from '../../../images/icon';
 import type {
   ContextWithPrices,
@@ -26,17 +23,15 @@ import type {
 } from '../../api';
 import { FetchStatus } from '../../api';
 import {
-  Asset,
   ConfirmationAlerts,
   ConfirmationFooter,
+  EstimatedChanges,
   FeeRow,
 } from '../../components';
 import {
   getAccountExplorerUrl,
   getAccountName,
-  getClassicAssetExplorerUrl,
   getNetworkName,
-  getSepAssetExplorerUrl,
   requiresMaliciousAcknowledgement,
   shouldDisableConfirmation,
 } from '../../utils';
@@ -44,19 +39,14 @@ import {
 export type ConfirmSendTransactionProps = ConfirmationBaseProps &
   ContextWithPrices & {
     account: StellarKeyringAccount;
-    assetMetadata: StellarAssetMetadata;
     feeData: FeeData;
-  } & {
     toAddress: string;
-    amount: string;
   };
 
 export const ConfirmSendTransaction = ({
   account,
   toAddress,
-  amount,
   scope,
-  assetMetadata,
   locale,
   networkImage,
   feeData,
@@ -70,21 +60,10 @@ export const ConfirmSendTransaction = ({
 }: ConfirmSendTransactionProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
-  const { assetId, symbol } = assetMetadata;
   const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
     transactionsFetchStatus,
   });
-  const parsedAsset = parseCaipAssetType(assetId);
-  let assetLink: string | undefined;
-  if (!isSlip44Id(assetId)) {
-    assetLink =
-      parsedAsset.assetNamespace === 'sep41'
-        ? getSepAssetExplorerUrl(parsedAsset.assetReference)
-        : getClassicAssetExplorerUrl(parsedAsset.assetReference);
-  }
-  const assetIconUrl = isSlip44Id(assetId) ? xlmIcon : assetMetadata.iconUrl;
-  const assetPrice = tokenPrices?.[assetId] ?? null;
 
   return (
     <Container>
@@ -100,6 +79,14 @@ export const ConfirmSendTransaction = ({
           <Heading size="lg">{t(`confirmation.transaction.title`)}</Heading>
           <Box>{null}</Box>
         </Box>
+
+        {preferences.simulateOnChainActions ? (
+          <EstimatedChanges
+            changes={scan?.estimatedChanges ?? null}
+            preferences={preferences}
+            scanFetchStatus={scanFetchStatus}
+          />
+        ) : null}
 
         <Section>
           {origin ? (
@@ -142,23 +129,6 @@ export const ConfirmSendTransaction = ({
                 avatar
               />
             </Link>
-          </Box>
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.estimatedChanges.send')}
-            </SnapText>
-            <Asset
-              symbol={symbol}
-              amount={amount}
-              iconUrl={assetIconUrl}
-              link={assetLink}
-              price={assetPrice}
-              preferences={preferences}
-              priceLoading={
-                preferences?.useExternalPricingData &&
-                tokenPricesFetchStatus === FetchStatus.Fetching
-              }
-            />
           </Box>
           {/* Network */}
           <Box alignment="space-between" direction="horizontal">

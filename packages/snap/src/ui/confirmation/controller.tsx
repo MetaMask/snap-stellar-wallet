@@ -1,8 +1,8 @@
 import type { DialogResult } from '@metamask/snaps-sdk';
 
 import {
+  ConfirmationInterfaceKey,
   FetchStatus,
-  type ConfirmationInterfaceKey,
   type ContextWithPrices,
 } from './api';
 import {
@@ -180,14 +180,13 @@ export class ConfirmationUXController {
         preferences.useExternalPricingData &&
         tokenPrices !== undefined;
 
-      // The remote scan is validation-only (estimated changes come from local
-      // simulation), so only schedule it when security alerts are on. Gating on
-      // `hasEnabledTransactionScan` here would also fire for
-      // `simulateOnChainActions`, scheduling a refresher with no work to do and
-      // briefly disabling the confirm button for nothing.
+      const canUseRemoteSimulation =
+        interfaceKey === ConfirmationInterfaceKey.SignTransaction ||
+        interfaceKey === ConfirmationInterfaceKey.ConfirmSendTransaction;
       const enableSecurityScan =
         renderOptions.scanTxn &&
-        preferences.useSecurityAlerts &&
+        (preferences.useSecurityAlerts ||
+          (preferences.simulateOnChainActions && canUseRemoteSimulation)) &&
         params.securityScanRequest !== undefined;
 
       const enableTransactionValidation =

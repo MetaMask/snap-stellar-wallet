@@ -290,9 +290,7 @@ describe('ConfirmSendHandler', () => {
       origin: METAMASK_ORIGIN,
       renderContext: {
         account,
-        assetMetadata,
         toAddress: destinationAddress,
-        amount: '1',
       },
       renderOptions: {
         loadPrice: true,
@@ -302,6 +300,23 @@ describe('ConfirmSendHandler', () => {
       securityScanRequest: {
         accountAddress: account.address,
         transaction: unsignedScanXdr,
+      },
+      initialScan: {
+        status: 'SUCCESS',
+        estimatedChanges: {
+          assets: [
+            {
+              type: 'out',
+              value: 1,
+              price: null,
+              symbol: assetMetadata.symbol,
+              name: assetMetadata.name,
+              logo: assetMetadata.iconUrl,
+            },
+          ],
+        },
+        validation: null,
+        error: null,
       },
       transactionValidationRequest: {
         accountId: account.id,

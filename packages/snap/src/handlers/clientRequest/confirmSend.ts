@@ -33,6 +33,7 @@ import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import {
   hasDecimals,
+  isSlip44Id,
   toSmallestUnit,
   trackTransactionAdded,
   trackTransactionApproved,
@@ -46,6 +47,7 @@ import type {
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
 import { AccountNotActivatedException } from '../../services/network';
+import type { TransactionScanEstimatedChanges } from '../../services/transaction-scan';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
@@ -294,6 +296,10 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     const { request, account, assetMetadata, fee, scope, transaction } = params;
     const { toAddress, amount, assetId } = request.params;
     const xdr = transaction.getRaw().toXDR();
+    const estimatedChanges = this.#buildEstimatedChangesFallback({
+      amount,
+      assetMetadata,
+    });
 
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
@@ -301,9 +307,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         origin: METAMASK_ORIGIN,
         renderContext: {
           account,
-          assetMetadata,
           toAddress,
-          amount,
         },
         fee: fee.toString(),
         interfaceKey: ConfirmationInterfaceKey.ConfirmSendTransaction,
@@ -316,6 +320,12 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           accountAddress: account.address,
           transaction: xdr,
         },
+        initialScan: {
+          status: 'SUCCESS',
+          estimatedChanges,
+          validation: null,
+          error: null,
+        },
         transactionValidationRequest: {
           accountId: account.id,
           transaction: xdr,
@@ -326,6 +336,30 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         } as ContextWithPrices['tokenPrices'],
       })) === true
     );
+  }
+
+  #buildEstimatedChangesFallback({
+    amount,
+    assetMetadata,
+  }: {
+    amount: string;
+    assetMetadata: StellarAssetMetadata;
+  }): TransactionScanEstimatedChanges {
+    const { assetId, symbol, iconUrl, name } = assetMetadata;
+    const logo = isSlip44Id(assetId) ? null : (iconUrl ?? null);
+
+    return {
+      assets: [
+        {
+          type: 'out',
+          value: Number(amount),
+          price: null,
+          symbol,
+          name: name ?? symbol,
+          logo,
+        },
+      ],
+    };
   }
 
   /**

@@ -137,9 +137,9 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       ),
     ) as ContextWithPrices['tokenPrices'];
 
-    // Estimated balance changes come from local on-chain simulation (not the
-    // remote security scan), so they render immediately on dialog open. The
-    // remote scan only contributes security validation.
+    // Seed a local estimate so the dialog can render immediately. If Blockaid
+    // later returns displayable simulation results, the scan refresher replaces
+    // this fallback with the remote estimate.
     const estimatedChanges = await this.#deriveEstimatedChanges(
       request,
       transaction,

@@ -5,6 +5,7 @@ import {
 import { FetchStatus } from './api';
 import {
   ConfirmationBanner,
+  isFetchStatusLoadingOrFetching,
   isLocalTransactionValidationFailed,
   isRemoteTransactionScanLoading,
   requiresMaliciousAcknowledgement,
@@ -23,6 +24,22 @@ const warningScan = {
 };
 
 describe('confirmation utils', () => {
+  describe('isFetchStatusLoadingOrFetching', () => {
+    it.each([FetchStatus.Initial, FetchStatus.Fetching])(
+      'returns true for %s',
+      (status) => {
+        expect(isFetchStatusLoadingOrFetching(status)).toBe(true);
+      },
+    );
+
+    it.each([FetchStatus.Fetched, FetchStatus.Error])(
+      'returns false for %s',
+      (status) => {
+        expect(isFetchStatusLoadingOrFetching(status)).toBe(false);
+      },
+    );
+  });
+
   describe('isRemoteTransactionScanLoading', () => {
     it('disables confirm while scan is fetching', () => {
       expect(
