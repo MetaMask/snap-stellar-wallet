@@ -40,6 +40,20 @@ function formatValue(value: number | null): string {
   return new BigNumber(value ?? 0).toFixed();
 }
 
+/**
+ * Builds a stable list key for an estimated-change row.
+ *
+ * @param asset - The asset change row.
+ * @param index - The row index within its send/receive group.
+ * @returns A stable key for JSX list rendering.
+ */
+function getAssetChangeKey(
+  asset: TransactionScanAssetChange,
+  index: number,
+): string {
+  return `${asset.type}-${asset.symbol}-${asset.value ?? 'unknown'}-${index}`;
+}
+
 const EstimatedChangesHeader = ({
   preferences,
 }: {
@@ -163,8 +177,10 @@ export const EstimatedChanges = ({
             {t('confirmation.estimatedChanges.send')}
           </SnapText>
           <Box direction="vertical" alignment="end">
-            {send.map((asset) => (
-              <AssetChangeRow asset={asset} />
+            {send.map((asset, index) => (
+              <Box key={getAssetChangeKey(asset, index)}>
+                <AssetChangeRow asset={asset} />
+              </Box>
             ))}
           </Box>
         </Box>
@@ -175,8 +191,10 @@ export const EstimatedChanges = ({
             {t('confirmation.estimatedChanges.receive')}
           </SnapText>
           <Box direction="vertical" alignment="end">
-            {receive.map((asset) => (
-              <AssetChangeRow asset={asset} />
+            {receive.map((asset, index) => (
+              <Box key={getAssetChangeKey(asset, index)}>
+                <AssetChangeRow asset={asset} />
+              </Box>
             ))}
           </Box>
         </Box>
