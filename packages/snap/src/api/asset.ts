@@ -57,6 +57,7 @@ export const FiatCaipAssetStruct = definePattern<CaipAssetType>(
   /^swift:0\/iso4217:[A-Za-z]{3}$/u,
 );
 
+/** Validation struct for a known Stellar CAIP-19 asset id or slip44 id. */
 export const KnownCaip19AssetIdOrSlip44IdStruct = union([
   KnownCaip19Sep41AssetStruct,
   KnownCaip19ClassicAssetStruct,
