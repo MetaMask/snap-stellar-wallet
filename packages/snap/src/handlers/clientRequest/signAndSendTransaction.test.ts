@@ -646,12 +646,12 @@ describe('SignAndSendTransactionHandler', () => {
           amount: '0',
           fungible: true,
         },
-        toAsset: {
-          unit: 'stellar',
-          type: destinationAssetId,
-          amount: '0',
-          fungible: true,
-        },
+         toAsset: {
+           unit: 'USDC',
+           type: destinationAssetId,
+           amount: '0',
+           fungible: true,
+         }
         fees: [
           {
             type: FeeType.Base,
