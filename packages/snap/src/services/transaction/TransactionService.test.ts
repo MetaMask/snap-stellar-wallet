@@ -318,7 +318,7 @@ describe('TransactionService', () => {
       const destination = generateStellarAddress();
 
       jest
-        .spyOn(NetworkService.prototype, 'loadOnChainAccounts')
+        .spyOn(NetworkService.prototype, 'loadOnChainAccountsSafe')
         .mockResolvedValue([buildOnChainAccount(destination, 50)]);
 
       const result = await transactionService.deriveEstimatedChanges({
@@ -343,7 +343,7 @@ describe('TransactionService', () => {
       const destination = generateStellarAddress();
 
       jest
-        .spyOn(NetworkService.prototype, 'loadOnChainAccounts')
+        .spyOn(NetworkService.prototype, 'loadOnChainAccountsSafe')
         .mockResolvedValue([
           buildOnChainAccount(txSource, 500),
           buildOnChainAccount(destination, 50),
@@ -375,7 +375,7 @@ describe('TransactionService', () => {
       const destination = generateStellarAddress();
 
       jest
-        .spyOn(NetworkService.prototype, 'loadOnChainAccounts')
+        .spyOn(NetworkService.prototype, 'loadOnChainAccountsSafe')
         .mockResolvedValue([buildOnChainAccount(destination, 50)]);
 
       const result = await transactionService.deriveEstimatedChanges({
@@ -398,7 +398,7 @@ describe('TransactionService', () => {
 
       // Destination is not loaded, so simulation throws and the section hides.
       jest
-        .spyOn(NetworkService.prototype, 'loadOnChainAccounts')
+        .spyOn(NetworkService.prototype, 'loadOnChainAccountsSafe')
         .mockResolvedValue([]);
 
       const result = await transactionService.deriveEstimatedChanges({
