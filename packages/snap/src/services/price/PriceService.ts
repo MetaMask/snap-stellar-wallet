@@ -150,18 +150,19 @@ export class PriceService {
       return cachedSpotPricesByAssetId;
     }
 
-    // The Price API can return null for assets it has no quote for, e.g.
-    //   { 'stellar:.../asset:USDC-...': null }
-    // We cache that null instead of omitting the key, so later requests reuse
-    // the cache rather than calling the API again. After TTL expires, a refetch
-    // can store a real SpotPrice once the API starts returning one.
-    const nonCachedSpotPrices = await this.#getSpotPrices(
-      nonCachedAssetTypes,
-      vsCurrency,
-    );
-
+    let nonCachedSpotPrices: Partial<SpotPricesResponse> = {};
     // Continue even if there is an error caching the spot prices
     try {
+      // The Price API can return null for assets it has no quote for, e.g.
+      //   { 'stellar:.../asset:USDC-...': null }
+      // We cache that null instead of omitting the key, so later requests reuse
+      // the cache rather than calling the API again. After TTL expires, a refetch
+      // can store a real SpotPrice once the API starts returning one.
+      nonCachedSpotPrices = await this.#getSpotPrices(
+        nonCachedAssetTypes,
+        vsCurrency,
+      );
+      
       await this.#cache.mset(
         Object.entries(nonCachedSpotPrices).map(
           ([tokenCaipAssetType, spotPrice]) => ({

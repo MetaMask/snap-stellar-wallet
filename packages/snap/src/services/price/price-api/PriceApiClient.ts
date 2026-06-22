@@ -24,6 +24,7 @@ import {
   assertHttpResponse,
   HttpException,
   HttpResponseException,
+  InvalidHttpRequestParamsException,
   InvalidHttpResponseException,
   normalizeHttpException,
 } from '../../../utils/http';
@@ -188,6 +189,7 @@ export class PriceApiClient {
       normalized,
       [
         PriceApiException,
+        InvalidHttpRequestParamsException,
         InvalidHttpResponseException,
         ...(exceptionClasses ?? []),
       ],

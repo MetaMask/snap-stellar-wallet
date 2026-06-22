@@ -219,6 +219,7 @@ export const VsCurrencyParamStruct = TickerStruct;
 export type VsCurrencyParam = Infer<typeof VsCurrencyParamStruct>;
 
 export const GetSpotPricesParamsStruct = object({
+  // TODO: add validation to ensure the array is not empty
   assetIds: array(CaipAssetTypeStruct),
   vsCurrency: VsCurrencyParamStruct,
 });
