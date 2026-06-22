@@ -1,12 +1,11 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import {
   SecurityAlertsApiClient,
-  TransactionScanException,
   TransactionScanOption,
   TransactionScanValidationType,
 } from '.';
 import { KnownCaip2ChainId } from '../../api';
-import { logger } from '../../utils/logger';
+import { HttpResponseException } from '../../utils/http';
 
 jest.mock('../../utils/logger');
 
@@ -14,7 +13,8 @@ describe('SecurityAlertsApiClient', () => {
   const baseUrl = 'https://security-alerts.api.cx.metamask.io';
   const accountAddress =
     'GDPMFLKUGASUTWBN2XGYYKD27QGHCYH4BUFUTER4L23INYQ4JHDWFOIE';
-  const transaction = 'AAAAAgAAAAA=';
+  const transaction =
+    'AAAAAgAAAADjngeX0YTNoQ15A0xC83aMm/sDnXrmLF+apmXvdmkUugAAAGQAC3gAAAAAQQAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAOZfkjSFZ31vI/Nx28cC6iAFWLWcPIvJhM2NVoxmfgVTAAAAAAAAAAAAmJaAAAAAAAAAAAA=';
 
   function setup(response: unknown = { validation: null, simulation: null }) {
     const fetchMock = jest.fn().mockResolvedValue({
@@ -22,11 +22,7 @@ describe('SecurityAlertsApiClient', () => {
       status: 200,
       json: jest.fn().mockResolvedValue(response),
     });
-    const client = new SecurityAlertsApiClient(
-      { baseUrl },
-      logger,
-      fetchMock as unknown as typeof globalThis.fetch,
-    );
+    const client = new SecurityAlertsApiClient({ baseUrl }, fetchMock);
 
     return {
       client,
@@ -98,17 +94,13 @@ describe('SecurityAlertsApiClient', () => {
     });
   });
 
-  it('throws TransactionScanException for HTTP errors', async () => {
+  it('throws HttpResponseException for HTTP errors', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: false,
       status: 500,
       json: jest.fn(),
     });
-    const client = new SecurityAlertsApiClient(
-      { baseUrl },
-      logger,
-      fetchMock as unknown as typeof globalThis.fetch,
-    );
+    const client = new SecurityAlertsApiClient({ baseUrl }, fetchMock);
 
     await expect(
       client.scanTransaction({
@@ -118,6 +110,6 @@ describe('SecurityAlertsApiClient', () => {
         transaction,
         options: [TransactionScanOption.Validation],
       }),
-    ).rejects.toThrow(TransactionScanException);
+    ).rejects.toThrow(HttpResponseException);
   });
 });

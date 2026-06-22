@@ -34,9 +34,9 @@ describe('ConfirmationScanRefresher', () => {
 
   function setup() {
     const transactionScanService: jest.Mocked<
-      Pick<TransactionScanService, 'scanTransaction'>
+      Pick<TransactionScanService, 'scanTransactionSafe'>
     > = {
-      scanTransaction: jest.fn().mockResolvedValue(scanResult),
+      scanTransactionSafe: jest.fn().mockResolvedValue(scanResult),
     };
     const refresher = new ConfirmationScanRefresher({
       logger,
@@ -68,7 +68,7 @@ describe('ConfirmationScanRefresher', () => {
 
     const result = await refresher.refresh(createScanContext());
 
-    expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
+    expect(transactionScanService.scanTransactionSafe).toHaveBeenCalledWith({
       ...securityScanRequest,
       options: [
         TransactionScanOption.Simulation,
@@ -95,7 +95,7 @@ describe('ConfirmationScanRefresher', () => {
 
       await refresher.refresh(createScanContext({ interfaceKey }));
 
-      expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
+      expect(transactionScanService.scanTransactionSafe).toHaveBeenCalledWith({
         ...securityScanRequest,
         options: [TransactionScanOption.Validation],
       });
@@ -114,7 +114,7 @@ describe('ConfirmationScanRefresher', () => {
       }),
     );
 
-    expect(transactionScanService.scanTransaction).toHaveBeenCalledWith({
+    expect(transactionScanService.scanTransactionSafe).toHaveBeenCalledWith({
       ...securityScanRequest,
       options: [TransactionScanOption.Validation],
     });
@@ -122,7 +122,7 @@ describe('ConfirmationScanRefresher', () => {
 
   it('returns error status when scan returns null', async () => {
     const { refresher, transactionScanService } = setup();
-    transactionScanService.scanTransaction.mockResolvedValueOnce(null);
+    transactionScanService.scanTransactionSafe.mockResolvedValueOnce(null);
 
     const result = await refresher.refresh(
       createScanContext({
