@@ -162,7 +162,7 @@ export class PriceService {
         nonCachedAssetTypes,
         vsCurrency,
       );
-      
+
       await this.#cache.mset(
         Object.entries(nonCachedSpotPrices).map(
           ([tokenCaipAssetType, spotPrice]) => ({
