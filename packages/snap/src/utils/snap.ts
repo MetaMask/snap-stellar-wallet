@@ -12,6 +12,7 @@ import {
   type SnapsProvider,
   type UpdateInterfaceResult,
 } from '@metamask/snaps-sdk';
+import { ensureError } from '@metamask/utils';
 
 import { logger } from './logger';
 import { type Serializable, serialize, deserialize } from './serialization';
@@ -438,7 +439,7 @@ export async function trackEvent(
   properties: Record<string, Json>,
 ): Promise<void> {
   try {
-    await snap.request({
+    await getSnapProvider().request({
       method: 'snap_trackEvent',
       params: {
         event: {
@@ -447,8 +448,9 @@ export async function trackEvent(
         },
       },
     });
-  } catch {
-    // Silently fail if tracking fails - we don't want to interrupt the user flow
+  } catch (error) {
+    // Silently fail if tracking fails - we don't want to interrupt the user flow.
+    logger.warn({ error }, 'Failed to track event via snap_trackEvent');
   }
 }
 
@@ -625,11 +627,17 @@ export async function trackSecurityScanCompleted(properties: {
  * @param error - The error to report to Sentry.
  * @returns The Sentry event ID on success, or `undefined` on failure.
  */
-export async function trackError(error: Error): Promise<string | undefined> {
+export async function trackError(
+  error: Error | unknown,
+): Promise<string | undefined> {
   try {
-    return await snap.request({
+    let errorToTrack = error;
+    if (!(error instanceof Error)) {
+      errorToTrack = ensureError(error);
+    }
+    return await getSnapProvider().request({
       method: 'snap_trackError',
-      params: { error: getJsonError(error) },
+      params: { error: getJsonError(errorToTrack) },
     });
   } catch (rpcError) {
     logger.warn({ rpcError }, 'Failed to track error via snap_trackError');
