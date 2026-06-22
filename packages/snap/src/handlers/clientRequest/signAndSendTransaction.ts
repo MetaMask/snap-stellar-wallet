@@ -1,12 +1,6 @@
-import {
-  FeeType,
-  TransactionType,
-  type Transaction as KeyringTransaction,
-} from '@metamask/keyring-api';
+import { TransactionType } from '@metamask/keyring-api';
 import type { CaipAssetType } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
-import type { Asset } from '@stellar/stellar-sdk';
-import { BigNumber } from 'bignumber.js';
 
 import type {
   SignAndSendTransactionJsonRpcRequest,
@@ -17,7 +11,6 @@ import {
   SignAndSendTransactionJsonRpcResponseStruct,
 } from './api';
 import {
-  KnownCaip19Slip44IdMap,
   type KnownCaip19AssetIdOrSlip44Id,
   type KnownCaip2ChainId,
 } from '../../api';
@@ -26,51 +19,35 @@ import {
   type ResolvedActivatedAccount,
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
-import { METAMASK_ORIGIN, NATIVE_ASSET_SYMBOL } from '../../constants';
+import { METAMASK_ORIGIN, STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
-import type { AssetMetadataService } from '../../services/asset-metadata';
-import { StellarOperationType } from '../../services/transaction/api';
+import type {
+  AssetMetadataService,
+  StellarAssetMetadata,
+} from '../../services/asset-metadata';
 import {
-  KeyringTransactionType,
-  type PendingTransactionRequest,
-} from '../../services/transaction/KeyringTransactionBuilder';
+  getNativeAssetMetadata,
+  toStellarAssetMetadata,
+} from '../../services/asset-metadata/utils';
+import { StellarOperationType } from '../../services/transaction/api';
+import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
 import type { Transaction } from '../../services/transaction/Transaction';
 import type { TransactionService } from '../../services/transaction/TransactionService';
-import {
-  isPaymentOperation,
-  parseOperationAssetReference,
-} from '../../services/transaction/utils';
+import { isPathPaymentOperation } from '../../services/transaction/utils';
 import {
   isClassicAssetId,
   isSlip44Id,
-  isStellarAssetId,
   parseClassicAssetCodeIssuer,
-  toDisplayBalance,
+  removeTrailingZeros,
 } from '../../utils';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
-import { trackTransactionSubmitted } from '../../utils/snap';
+import { trackError, trackTransactionSubmitted } from '../../utils/snap';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
-
-type PendingSwapDetails = {
-  transactionType: TransactionType;
-  from: KeyringTransaction['from'];
-  to: KeyringTransaction['to'];
-  fees: KeyringTransaction['fees'];
-};
 
 type SwapAssetIds = {
   sourceAssetId: KnownCaip19AssetIdOrSlip44Id;
   destAssetId: CaipAssetType;
-};
-
-type DecodedSwapDetails = {
-  sourceAddress: string;
-  destinationAddress: string;
-  sendAmount: string;
-  receiveAmount: string;
-  fromAsset: KeyringTransaction['from'][number]['asset'] | null;
-  toAsset: KeyringTransaction['from'][number]['asset'] | null;
 };
 
 export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
@@ -216,276 +193,142 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
     swapAssetIds: SwapAssetIds;
   }): Promise<void> {
     try {
-      const request = await this.#createPendingTransactionRequest(params);
+      const { transactionId, scope, account, transaction, swapAssetIds } =
+        params;
+      if (this.#isCrossChain(swapAssetIds)) {
+        await this.#transactionService.savePendingKeyringTransactionSafe({
+          type: KeyringTransactionType.BridgeSend,
+          request: {
+            fees: this.#transactionService.keyringTransactionBuilder.getBaseFees(
+              transaction.totalFee,
+              scope,
+            ),
+            txId: transactionId,
+            account,
+            scope,
+            transactionType: TransactionType.BridgeSend,
+            // For cross-chain swaps, we don't have any from and to assets,
+            // the client will map the assets based on the transaction Id.
+            from: [],
+            to: [],
+          },
+        });
+      } else {
+        // If it is a native swap, we can extract the send and dest amounts from the transaction.
+        // For contract swaps, we will fallback to have sendAmount and destAmount to 0.
+        const { sendAmount, destAmount } =
+          this.#resolveSameChainSwapAmounts(transaction);
 
-      await this.#transactionService.savePendingKeyringTransaction({
-        type: KeyringTransactionType.Pending,
-        request,
-      });
-    } catch (error: unknown) {
-      this.logger.logErrorWithDetails(
-        'Failed to save pending transaction',
+        const { sourceAssetMetadata, destAssetMetadata } =
+          await this.#resolveSameChainSwapAssetIds(
+            swapAssetIds.sourceAssetId,
+            swapAssetIds.destAssetId as KnownCaip19AssetIdOrSlip44Id,
+            scope,
+          );
+
+        await this.#transactionService.savePendingKeyringTransactionSafe({
+          type: KeyringTransactionType.Swap,
+          request: {
+            fees: this.#transactionService.keyringTransactionBuilder.getBaseFees(
+              transaction.totalFee,
+              scope,
+            ),
+            txId: transactionId,
+            account,
+            scope,
+            toAddress: account.address,
+            fromAsset: {
+              unit: sourceAssetMetadata.units[0].symbol,
+              type: sourceAssetMetadata.assetId,
+              amount: sendAmount,
+              fungible: true,
+            },
+            toAsset: {
+              unit: destAssetMetadata.units[0].symbol,
+              type: destAssetMetadata.assetId,
+              amount: destAmount,
+              fungible: true,
+            },
+          },
+        });
+      }
+    } catch (error) {
+      await trackError(error);
+      this.logger.warn('Failed to map a transaction for swap and bridge send', {
         error,
-      );
-      // Do not throw here; continue even if the pending transaction was not saved.
+      });
     }
   }
 
-  async #createPendingTransactionRequest(params: {
-    transactionId: string;
-    scope: KnownCaip2ChainId;
-    account: StellarKeyringAccount;
-    transaction: Transaction;
-    swapAssetIds: SwapAssetIds | null;
-  }): Promise<PendingTransactionRequest> {
-    const { transactionId, scope, account } = params;
-    const swapDetails = await this.#createPendingSwapDetails(params);
+  #resolveSameChainSwapAmounts(transaction: Transaction): {
+    sendAmount: string;
+    destAmount: string;
+  } {
+    // for any case we can detect if it is a swap transaction, we force the swap value to 0
+    // E.g: Swap with contract, Swap with payment.
+    let sendAmount = '0';
+    let destAmount = '0';
 
-    if (swapDetails !== null) {
-      return { txId: transactionId, account, scope, ...swapDetails };
-    }
-
-    return {
-      txId: transactionId,
-      account,
-      scope,
-      asset: {
-        type: KnownCaip19Slip44IdMap[scope],
-        symbol: NATIVE_ASSET_SYMBOL,
-      },
-    };
-  }
-
-  /**
-   * Builds the from/to/fees activity for a swap or bridge.
-   *
-   * Asset identities (`type` + `unit`) come from the client-supplied asset ids
-   * (resolved through {@link AssetMetadataService} for Stellar assets), while
-   * amounts and addresses are taken from the decoded path payment when present.
-   *
-   * @param params - The parameters.
-   * @param params.transaction - The submitted Stellar transaction.
-   * @param params.scope - The CAIP-2 chain id the transaction was submitted on.
-   * @param params.account - The keyring account that submitted the transaction.
-   * @param params.swapAssetIds - The source/destination asset ids, when supplied.
-   * @returns The swap details, or `null` when there is nothing to describe.
-   */
-  async #createPendingSwapDetails(params: {
-    transaction: Transaction;
-    scope: KnownCaip2ChainId;
-    account: StellarKeyringAccount;
-    swapAssetIds: SwapAssetIds | null;
-  }): Promise<PendingSwapDetails | null> {
-    const { transaction, scope, account, swapAssetIds } = params;
-    const decoded =
-      this.#decodePathPaymentSwap(transaction, scope) ??
-      (swapAssetIds ? this.#decodeBridgePayment(transaction, scope) : null);
-
-    if (decoded === null && swapAssetIds === null) {
-      return null;
-    }
-
-    const fromAsset = swapAssetIds
-      ? await this.#resolveSwapAsset(
-          swapAssetIds.sourceAssetId,
-          decoded?.sendAmount ?? '0',
-        )
-      : (decoded?.fromAsset ?? null);
-    const toAsset = swapAssetIds
-      ? await this.#resolveSwapAsset(
-          swapAssetIds.destAssetId,
-          decoded?.receiveAmount ?? '0',
-        )
-      : (decoded?.toAsset ?? null);
-
-    if (fromAsset === null || toAsset === null) {
-      return null;
-    }
-
-    return {
-      transactionType:
-        swapAssetIds && this.#isCrossChain(swapAssetIds)
-          ? TransactionType.BridgeSend
-          : TransactionType.Swap,
-      from: [
-        {
-          address: decoded?.sourceAddress ?? account.address,
-          asset: fromAsset,
-        },
-      ],
-      to: [
-        {
-          address: decoded?.destinationAddress ?? account.address,
-          asset: toAsset,
-        },
-      ],
-      fees: this.#createBaseFees(transaction, scope),
-    };
-  }
-
-  /**
-   * Builds a keyring asset from a client-supplied CAIP-19 asset id, resolving
-   * the symbol via {@link AssetMetadataService} for Stellar assets and falling
-   * back to the CAIP asset reference for assets on other chains.
-   *
-   * @param assetId - The CAIP-19 asset id.
-   * @param amount - The asset amount.
-   * @returns The keyring asset.
-   */
-  async #resolveSwapAsset(
-    assetId: CaipAssetType,
-    amount: string,
-  ): Promise<KeyringTransaction['from'][number]['asset']> {
-    const unit = await this.#resolveSwapAssetUnit(assetId);
-
-    return {
-      unit,
-      type: assetId as KnownCaip19AssetIdOrSlip44Id,
-      amount: new BigNumber(amount).toFixed(),
-      fungible: true,
-    };
-  }
-
-  async #resolveSwapAssetUnit(assetId: CaipAssetType): Promise<string> {
-    if (!isStellarAssetId(assetId)) {
-      return parseCaipAssetType(assetId).assetReference;
-    }
-
-    try {
-      return (
-        await this.#assetMetadataService.resolve(
-          assetId as KnownCaip19AssetIdOrSlip44Id,
-        )
-      ).symbol;
-    } catch (error: unknown) {
-      this.logger.logErrorWithDetails(
-        'Failed to resolve swap asset metadata; using fallback unit',
-        { assetId, error },
-      );
-      return this.#getFallbackAssetUnit(assetId);
-    }
-  }
-
-  #getFallbackAssetUnit(assetId: CaipAssetType): string {
-    const { assetReference } = parseCaipAssetType(assetId);
-
-    if (isSlip44Id(assetId)) {
-      return NATIVE_ASSET_SYMBOL;
-    }
-
-    if (isClassicAssetId(assetId)) {
-      return parseClassicAssetCodeIssuer(assetReference).assetCode;
-    }
-
-    return assetReference;
-  }
-
-  #decodePathPaymentSwap(
-    transaction: Transaction,
-    scope: KnownCaip2ChainId,
-  ): DecodedSwapDetails | null {
-    const operation = transaction.transactionOperations.find(
-      (op) =>
-        op.type === StellarOperationType.PathPaymentStrictSend ||
-        op.type === StellarOperationType.PathPaymentStrictReceive,
+    // In the Request Struct, we already ensure it map to our pattern,
+    // Either it is using native swap, or it is using contract swap.
+    // Contract swap will fallback to have sendAmount and destAmount to 0.
+    const swapOperationIndex = transaction.transactionOperations.findIndex(
+      (operation) => isPathPaymentOperation(operation),
     );
-
-    if (operation === undefined) {
-      return null;
+    if (swapOperationIndex >= 0) {
+      const swapOperation =
+        transaction.transactionOperations[swapOperationIndex];
+      if (swapOperation && isPathPaymentOperation(swapOperation)) {
+        // Extract the send/dest amount from the successful transaction result by the index of the swap operation.
+        if (swapOperation.type === StellarOperationType.PathPaymentStrictSend) {
+          destAmount = removeTrailingZeros(swapOperation.destMin);
+          sendAmount = removeTrailingZeros(swapOperation.sendAmount);
+        } else {
+          destAmount = removeTrailingZeros(swapOperation.destAmount);
+          sendAmount = removeTrailingZeros(swapOperation.sendMax);
+        }
+      }
     }
 
-    const { sendAsset, sendAmount, destAsset, receiveAmount, destination } =
-      operation.type === StellarOperationType.PathPaymentStrictSend
-        ? {
-            sendAsset: operation.sendAsset,
-            sendAmount: operation.sendAmount,
-            destAsset: operation.destAsset,
-            receiveAmount: operation.destMin,
-            destination: operation.destination,
-          }
-        : {
-            sendAsset: operation.sendAsset,
-            sendAmount: operation.sendMax,
-            destAsset: operation.destAsset,
-            receiveAmount: operation.destAmount,
-            destination: operation.destination,
-          };
-
     return {
-      sourceAddress: operation.source ?? transaction.sourceAccount,
-      destinationAddress: destination,
       sendAmount,
-      receiveAmount,
-      fromAsset: this.#keyringAssetFromStellarAsset(
-        scope,
-        sendAsset,
-        sendAmount,
-      ),
-      toAsset: this.#keyringAssetFromStellarAsset(
-        scope,
-        destAsset,
-        receiveAmount,
-      ),
+      destAmount,
     };
   }
 
-  #decodeBridgePayment(
-    transaction: Transaction,
+  async #resolveSameChainSwapAssetIds(
+    sourceAssetId: KnownCaip19AssetIdOrSlip44Id,
+    destAssetId: KnownCaip19AssetIdOrSlip44Id,
     scope: KnownCaip2ChainId,
-  ): DecodedSwapDetails | null {
-    const operation =
-      transaction.transactionOperations.find(isPaymentOperation);
-
-    if (operation === undefined) {
-      return null;
-    }
-
+  ): Promise<{
+    sourceAssetMetadata: StellarAssetMetadata;
+    destAssetMetadata: StellarAssetMetadata;
+  }> {
+    const [sourceAssetMetadata, destAssetMetadata] = await Promise.all([
+      this.#resolveAsset(sourceAssetId, scope),
+      this.#resolveAsset(destAssetId, scope),
+    ]);
     return {
-      sourceAddress: operation.source ?? transaction.sourceAccount,
-      destinationAddress: operation.destination,
-      sendAmount: operation.amount,
-      receiveAmount: '0',
-      fromAsset: this.#keyringAssetFromStellarAsset(
-        scope,
-        operation.asset,
-        operation.amount,
-      ),
-      toAsset: null,
+      sourceAssetMetadata,
+      destAssetMetadata,
     };
   }
 
-  #createBaseFees(
-    transaction: Transaction,
+  async #resolveAsset(
+    assetId: KnownCaip19AssetIdOrSlip44Id,
     scope: KnownCaip2ChainId,
-  ): KeyringTransaction['fees'] {
-    return [
-      {
-        type: FeeType.Base,
-        asset: {
-          unit: NATIVE_ASSET_SYMBOL,
-          type: KnownCaip19Slip44IdMap[scope],
-          amount: toDisplayBalance(transaction.totalFee),
-          fungible: true,
-        },
-      },
-    ];
-  }
-
-  #keyringAssetFromStellarAsset(
-    scope: KnownCaip2ChainId,
-    asset: Asset,
-    amount: string,
-  ): KeyringTransaction['from'][number]['asset'] | null {
-    const type = parseOperationAssetReference(scope, asset.toString());
-    if (type === null) {
-      return null;
+  ): Promise<StellarAssetMetadata> {
+    if (isSlip44Id(assetId)) {
+      return getNativeAssetMetadata(scope);
+    } else if (isClassicAssetId(assetId)) {
+      const { assetCode } = parseClassicAssetCodeIssuer(assetId);
+      return toStellarAssetMetadata({
+        assetId,
+        decimals: STELLAR_DECIMAL_PLACES,
+        symbol: assetCode,
+        name: assetCode,
+      });
     }
-
-    return {
-      unit: asset.isNative() ? NATIVE_ASSET_SYMBOL : asset.getCode(),
-      type,
-      amount: new BigNumber(amount).toFixed(),
-      fungible: true,
-    };
+    return await this.#assetMetadataService.resolve(assetId);
   }
 }

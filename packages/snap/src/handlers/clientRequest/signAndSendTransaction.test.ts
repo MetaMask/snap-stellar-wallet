@@ -120,7 +120,7 @@ describe('SignAndSendTransactionHandler', () => {
       .mockResolvedValue(transactionId);
     const savePendingKeyringTransaction = jest.spyOn(
       TransactionService.prototype,
-      'savePendingKeyringTransaction',
+      'savePendingKeyringTransactionSafe',
     );
     const scheduleBackgroundEvent = jest
       .spyOn(TrackTransactionHandler, 'scheduleBackgroundEvent')
@@ -217,41 +217,31 @@ describe('SignAndSendTransactionHandler', () => {
       pollTransaction: false,
     });
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.Swap,
       request: {
         txId: transactionId,
         account,
         scope,
-        transactionType: TransactionType.Swap,
-        from: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
-        to: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
+        toAddress: account.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
+        toAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
         fees: [
           {
             type: FeeType.Base,
             asset: {
               unit: 'XLM',
               type: KnownCaip19Slip44IdMap[scope],
-              amount: expect.any(String),
+              amount: toDisplayBalance(transaction.totalFee),
               fungible: true,
             },
           },
@@ -269,6 +259,7 @@ describe('SignAndSendTransactionHandler', () => {
     const {
       handler,
       account,
+      transaction,
       request,
       savePendingKeyringTransaction,
       scheduleBackgroundEvent,
@@ -287,41 +278,31 @@ describe('SignAndSendTransactionHandler', () => {
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.Swap,
       request: {
         txId: transactionId,
         account,
         scope,
-        transactionType: TransactionType.Swap,
-        from: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
-        to: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
+        toAddress: account.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
+        toAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
         fees: [
           {
             type: FeeType.Base,
             asset: {
               unit: 'XLM',
               type: KnownCaip19Slip44IdMap[scope],
-              amount: expect.any(String),
+              amount: toDisplayBalance(transaction.totalFee),
               fungible: true,
             },
           },
@@ -403,34 +384,24 @@ describe('SignAndSendTransactionHandler', () => {
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.Swap,
       request: {
         txId: transactionId,
         account,
         scope,
-        transactionType: TransactionType.Swap,
-        from: [
-          {
-            address: wallet.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '10',
-              fungible: true,
-            },
-          },
-        ],
-        to: [
-          {
-            address: wallet.address,
-            asset: {
-              unit: 'USDC',
-              type: destinationAssetId,
-              amount: '5',
-              fungible: true,
-            },
-          },
-        ],
+        toAddress: wallet.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '10',
+          fungible: true,
+        },
+        toAsset: {
+          unit: 'stellar',
+          type: destinationAssetId,
+          amount: '5',
+          fungible: true,
+        },
         fees: [
           {
             type: FeeType.Base,
@@ -450,6 +421,7 @@ describe('SignAndSendTransactionHandler', () => {
     const {
       handler,
       account,
+      transaction,
       request,
       savePendingKeyringTransaction,
       scheduleBackgroundEvent,
@@ -467,41 +439,21 @@ describe('SignAndSendTransactionHandler', () => {
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.BridgeSend,
       request: {
         txId: transactionId,
         account,
         scope,
         transactionType: TransactionType.BridgeSend,
-        from: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
-        to: [
-          {
-            address: account.address,
-            asset: {
-              unit: '60',
-              type: 'eip155:1/slip44:60',
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
+        from: [],
+        to: [],
         fees: [
           {
             type: FeeType.Base,
             asset: {
               unit: 'XLM',
               type: KnownCaip19Slip44IdMap[scope],
-              amount: expect.any(String),
+              amount: toDisplayBalance(transaction.totalFee),
               fungible: true,
             },
           },
@@ -515,7 +467,7 @@ describe('SignAndSendTransactionHandler', () => {
     });
   });
 
-  it('uses the bridge deposit payment amount for the sent asset', async () => {
+  it('saves cross-chain bridge send without from and to assets', async () => {
     const {
       handler,
       account,
@@ -575,34 +527,14 @@ describe('SignAndSendTransactionHandler', () => {
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.BridgeSend,
       request: {
         txId: transactionId,
         account,
         scope,
         transactionType: TransactionType.BridgeSend,
-        from: [
-          {
-            address: wallet.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '0.99125',
-              fungible: true,
-            },
-          },
-        ],
-        to: [
-          {
-            address: bridgeDestination,
-            asset: {
-              unit: '60',
-              type: 'eip155:1/slip44:60',
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
+        from: [],
+        to: [],
         fees: [
           {
             type: FeeType.Base,
@@ -619,8 +551,13 @@ describe('SignAndSendTransactionHandler', () => {
   });
 
   it('does not mark a same-chain transaction as a bridge send when source and destination assets are on the same chain', async () => {
-    const { handler, account, request, savePendingKeyringTransaction } =
-      setup();
+    const {
+      handler,
+      account,
+      transaction,
+      request,
+      savePendingKeyringTransaction,
+    } = setup();
     const destinationAssetId =
       'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
 
@@ -636,41 +573,31 @@ describe('SignAndSendTransactionHandler', () => {
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.Swap,
       request: {
         txId: transactionId,
         account,
         scope,
-        transactionType: TransactionType.Swap,
-        from: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
-        to: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'USDC',
-              type: destinationAssetId,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
+        toAddress: account.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
+        toAsset: {
+          unit: 'stellar',
+          type: destinationAssetId,
+          amount: '0',
+          fungible: true,
+        },
         fees: [
           {
             type: FeeType.Base,
             asset: {
               unit: 'XLM',
               type: KnownCaip19Slip44IdMap[scope],
-              amount: expect.any(String),
+              amount: toDisplayBalance(transaction.totalFee),
               fungible: true,
             },
           },
@@ -683,6 +610,7 @@ describe('SignAndSendTransactionHandler', () => {
     const {
       handler,
       account,
+      transaction,
       request,
       savePendingKeyringTransaction,
       assetMetadataResolve,
@@ -706,41 +634,31 @@ describe('SignAndSendTransactionHandler', () => {
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.Swap,
       request: {
         txId: transactionId,
         account,
         scope,
-        transactionType: TransactionType.Swap,
-        from: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
-        to: [
-          {
-            address: account.address,
-            asset: {
-              unit: 'USDC',
-              type: destinationAssetId,
-              amount: '0',
-              fungible: true,
-            },
-          },
-        ],
+        toAddress: account.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
+        toAsset: {
+          unit: 'stellar',
+          type: destinationAssetId,
+          amount: '0',
+          fungible: true,
+        },
         fees: [
           {
             type: FeeType.Base,
             asset: {
               unit: 'XLM',
               type: KnownCaip19Slip44IdMap[scope],
-              amount: expect.any(String),
+              amount: toDisplayBalance(transaction.totalFee),
               fungible: true,
             },
           },
@@ -801,34 +719,14 @@ describe('SignAndSendTransactionHandler', () => {
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.BridgeSend,
       request: {
         txId: transactionId,
         account,
         scope,
         transactionType: TransactionType.BridgeSend,
-        from: [
-          {
-            address: wallet.address,
-            asset: {
-              unit: 'XLM',
-              type: NATIVE,
-              amount: '10',
-              fungible: true,
-            },
-          },
-        ],
-        to: [
-          {
-            address: wallet.address,
-            asset: {
-              unit: '60',
-              type: 'eip155:1/slip44:60',
-              amount: '5',
-              fungible: true,
-            },
-          },
-        ],
+        from: [],
+        to: [],
         fees: [
           {
             type: FeeType.Base,

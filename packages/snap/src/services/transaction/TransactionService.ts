@@ -85,6 +85,15 @@ export class TransactionService {
   }
 
   /**
+   * Gets the keyring transaction builder.
+   *
+   * @returns The keyring transaction builder.
+   */
+  get keyringTransactionBuilder(): KeyringTransactionBuilder {
+    return this.#keyringTransactionBuilder;
+  }
+
+  /**
    * Gets the base fee for a transaction.
    *
    * @param scope - The CAIP-2 chain ID.
