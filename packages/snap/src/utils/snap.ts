@@ -14,7 +14,6 @@ import {
 } from '@metamask/snaps-sdk';
 import { ensureError } from '@metamask/utils';
 
-import { isHttpException } from './http';
 import { logger } from './logger';
 import { type Serializable, serialize, deserialize } from './serialization';
 
@@ -633,10 +632,6 @@ export async function trackError(
 ): Promise<string | undefined> {
   try {
     let errorToTrack = error;
-    // Http exceptions does not need to be tracked by Sentry
-    if (isHttpException(error)) {
-      return undefined;
-    }
 
     if (!(error instanceof Error)) {
       errorToTrack = ensureError(error);
