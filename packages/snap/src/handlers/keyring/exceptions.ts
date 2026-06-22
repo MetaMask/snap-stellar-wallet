@@ -8,20 +8,9 @@ import { ensureError } from '@metamask/utils';
 import type { ResolveAccountAddressJsonRpcRequest } from './api';
 import type { KnownCaip2ChainId } from '../../api/network';
 import { AccountServiceException } from '../../services/account/exceptions';
-import {
-  AccountLoadException,
-  AccountNotActivatedException,
-  AssetDataFetchException,
-  BaseFeeFetchException,
-  NetworkServiceException,
-  SimulationException,
-  TransactionPollException,
-  TransactionRetryableException,
-  TransactionSendException,
-} from '../../services/network/exceptions';
+import { NetworkServiceException } from '../../services/network/exceptions';
 import {
   TransactionDeserializationException,
-  TransactionScopeNotMatchException,
   TransactionValidationException,
 } from '../../services/transaction/exceptions';
 
@@ -125,8 +114,7 @@ export function toSep43Error(error: unknown): Sep43Error {
     // `opts.address` from the dapp.
     wrapped instanceof AccountServiceException ||
     wrapped instanceof TransactionDeserializationException ||
-    wrapped instanceof TransactionValidationException ||
-    wrapped instanceof TransactionScopeNotMatchException
+    wrapped instanceof TransactionValidationException
   ) {
     return new Sep43Error({
       code: Sep43ErrorCode.InvalidRequest,
@@ -134,17 +122,7 @@ export function toSep43Error(error: unknown): Sep43Error {
     });
   }
 
-  if (
-    wrapped instanceof AccountNotActivatedException ||
-    wrapped instanceof AccountLoadException ||
-    wrapped instanceof AssetDataFetchException ||
-    wrapped instanceof BaseFeeFetchException ||
-    wrapped instanceof SimulationException ||
-    wrapped instanceof TransactionPollException ||
-    wrapped instanceof TransactionRetryableException ||
-    wrapped instanceof TransactionSendException ||
-    wrapped instanceof NetworkServiceException
-  ) {
+  if (wrapped instanceof NetworkServiceException) {
     return new Sep43Error({
       code: Sep43ErrorCode.ExternalService,
       ext: [wrapped.message],

@@ -432,7 +432,7 @@ export class OnChainAccountSynchronizeService {
    *
    * @param stateSnapshotOnChainAccount - Last saved account from state, or `null` when none exists.
    * @param synchronizedOnChainAccount - Same account after Horizon, SEP-41, and merge steps.
-   * @returns `balanceChanges` for on-chain-visible assets plus `assetListChanges` replayed each sync.
+   * @returns `balanceChanges` for on-chain-visible assets plus `assetListChanges` from state/on-chain visibility transitions.
    */
   #computeKeyringSyncDeltas(
     stateSnapshotOnChainAccount: OnChainAccount | null,
@@ -459,9 +459,11 @@ export class OnChainAccountSynchronizeService {
       const onChainEntry = synchronizedOnChainAccount.getRawAsset(assetId);
 
       // assetIds = union of state + on-chain rawAssetIds (includes tombstones and zero SEP-41).
-      // Asset list replays every sync from on-chain visibility so a client can recover missed events:
-      // visible on-chain → added; not visible on-chain (but still in assetIds) → removed.
-      // Balances are emitted only for on-chain-visible assets.
+      // Asset list is transition-based between persisted state and the on-chain view for this sync:
+      // newly visible on-chain vs state → added; no longer visible on-chain vs state → removed.
+      // Native is always included in added. When state already matches on-chain, asset-list deltas
+      // are empty aside from native (no replay of prior removals). Balances are emitted only for
+      // on-chain-visible assets; the client drops stale balance keys when it handles asset removed.
       // Example: XLM (native), USDC/EURC/AQUA (classic trustlines), SOLBTC (SEP-41).
       // ------------------------- Sync 1 ------------------------------------------
       // - Sync 1 (success): payload received by client:
@@ -474,27 +476,31 @@ export class OnChainAccountSynchronizeService {
       //   state view: XLM=10, USDC=25, EURC=0, SOLBTC=5.
       //   onChain view: XLM=11, USDC=30, AQUA trustline added, EURC trustline removed, SOLBTC=0.
       //   balance payload: XLM=11, USDC=30, AQUA=0.
-      //   asset list payload: added XLM, USDC, AQUA; removed EURC, SOLBTC.
+      //   asset list payload: added XLM, AQUA; removed EURC, SOLBTC.
       // ------------------------- Sync 3 ------------------------------------------
       // - Sync 3 (client misses event):
       //   state view: XLM=11, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
       //   onChain view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
-      //   balance payload: XLM=9, USDC=30, AQUA.
-      //   asset list payload: added XLM, USDC, AQUA; removed EURC, SOLBTC (replayed).
+      //   balance payload: XLM=9, USDC=30, AQUA=0.
+      //   asset list payload: added XLM only; removed none (visibility unchanged vs state).
       // ------------------------- Sync 4 ------------------------------------------
       // - Sync 4 (success): payload received by client:
       //   state view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
       //   onChain view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
-      //   balance payload: XLM=9, USDC=30, AQUA.
-      //   asset list payload: added XLM, USDC, AQUA; removed EURC, SOLBTC (replayed).
+      //   balance payload: XLM=9, USDC=30, AQUA=0.
+      //   asset list payload: added XLM only; removed none (state matches on-chain).
       const isVisibleFromOnChain = this.#isAssetVisible(assetId, onChainEntry);
+      const isVisibleFromState = this.#isAssetVisible(
+        assetId,
+        latestStateEntry,
+      );
 
-      // Asset list: replay add/remove from on-chain visibility (not transition-based).
-      if (isVisibleFromOnChain) {
+      // Asset list: transition-based add/remove between persisted state and on-chain visibility.
+      if (!isVisibleFromState && isVisibleFromOnChain) {
         addedAssets.push(assetId);
       }
 
-      if (!isVisibleFromOnChain) {
+      if (isVisibleFromState && !isVisibleFromOnChain) {
         removedAssets.push(assetId);
       }
 

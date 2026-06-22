@@ -308,7 +308,7 @@ export class AssetMetadataService {
       assetIds,
       this.#sepAssetChunkSize,
       this.#sepAssetBatchSize,
-      async (chunk) => this.#networkService.getAssetsData(chunk, scope),
+      async (chunk) => this.#networkService.getSep41AssetsData(chunk, scope),
     );
 
     const { assets, missingAssetIds } =

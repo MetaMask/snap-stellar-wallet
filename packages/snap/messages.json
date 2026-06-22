@@ -11,9 +11,6 @@
   "confirmation.estimatedChanges.send": {
     "message": "You send"
   },
-  "confirmation.bandwidthConsumed": {
-    "message": "Bandwidth consumed"
-  },
   "confirmation.estimatedChanges.receive": {
     "message": "You receive"
   },
@@ -471,7 +468,7 @@
     "message": "Add XLM to your wallet to get started."
   },
   "confirmation.accountActivation.address": {
-    "message": "Stellar address."
+    "message": "Stellar address"
   },
   "confirmation.accountActivation.copyAddress": {
     "message": "Copy Address"

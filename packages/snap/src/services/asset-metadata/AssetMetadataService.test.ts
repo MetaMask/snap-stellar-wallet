@@ -71,7 +71,7 @@ function createService(deps: {
   } as unknown as AssetMetadataRepository;
 
   const network = {
-    getAssetsData: jest.fn().mockResolvedValue([]),
+    getSep41AssetsData: jest.fn().mockResolvedValue([]),
     getClassicAssetData: jest.fn(),
     ...deps.network,
   } as unknown as NetworkService;
@@ -95,8 +95,8 @@ function createService(deps: {
     saveMany: repo.saveMany as jest.MockedFunction<
       AssetMetadataRepository['saveMany']
     >,
-    getAssetsData: network.getAssetsData as jest.MockedFunction<
-      NetworkService['getAssetsData']
+    getSep41AssetsData: network.getSep41AssetsData as jest.MockedFunction<
+      NetworkService['getSep41AssetsData']
     >,
     getClassicAssetData: network.getClassicAssetData as jest.MockedFunction<
       NetworkService['getClassicAssetData']

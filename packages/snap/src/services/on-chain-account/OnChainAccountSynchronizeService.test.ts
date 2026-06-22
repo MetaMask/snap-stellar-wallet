@@ -467,7 +467,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
   });
 
-  it('replays asset-list add/remove on sync 4 while balance payload omits tombstones and zero SEP-41', async () => {
+  it('emits no asset-list transitions on sync 4 when state matches on-chain while balance payload omits tombstones and zero SEP-41', async () => {
     setupTest();
 
     const {
@@ -655,10 +655,10 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(simulatedClientBalances[sep41Id]?.amount).toBe('0.00005');
     expect(simulatedClientBalances[NATIVE]?.amount).toBe('1');
 
-    // Asset list replay on sync 4 reconciles visibility the client missed.
+    // Asset list on sync 4: state already matches on-chain, so no add/remove transitions.
     expect(sync4AssetListPayload.assets[keyringAccount.id]).toStrictEqual({
       added: expect.arrayContaining([NATIVE]),
-      removed: expect.arrayContaining([USDC_CLASSIC, sep41Id]),
+      removed: [],
     });
     expect(sync4BalancePayload.balances[keyringAccount.id]).not.toHaveProperty(
       USDC_CLASSIC,
@@ -668,7 +668,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
   });
 
-  it('runs four syncs with emit failures then reconciles via replayed asset-list and visible balances', async () => {
+  it('runs four syncs with emit failures then reconciles via transition-based asset-list and visible balances', async () => {
     setupTest();
 
     const {
@@ -878,13 +878,13 @@ describe('OnChainAccountSynchronizeService', () => {
     // 1st `AccountAssetListUpdated` (after sync 1): USDC trustline becomes visible (limit > 0, balance 0).
     expect(assetListDeltaFromNthAssetEmit(0)).toStrictEqual({
       added: expect.arrayContaining([NATIVE, USDC_CLASSIC]),
-      removed: expect.arrayContaining([sep41Id]),
+      removed: [],
     });
 
-    // 2nd `AccountAssetListUpdated` (after sync 4): replays on-chain visibility — EURC added, USDC removed.
+    // 2nd `AccountAssetListUpdated` (after sync 4): stale state baseline vs current on-chain — EURC added, USDC removed.
     expect(assetListDeltaFromNthAssetEmit(1)).toStrictEqual({
       added: expect.arrayContaining([NATIVE, EURC_CLASSIC]),
-      removed: expect.arrayContaining([USDC_CLASSIC, sep41Id]),
+      removed: expect.arrayContaining([USDC_CLASSIC]),
     });
   });
 

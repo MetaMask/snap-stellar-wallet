@@ -414,10 +414,11 @@ export class TransactionService {
           (accountId) => accountId !== onChainAccount.accountId,
         );
 
-    const preloadedAccounts = await this.#networkService.loadOnChainAccounts(
-      participatingAccounts,
-      transaction.scope,
-    );
+    const preloadedAccounts =
+      await this.#networkService.loadOnChainAccountsSafe(
+        participatingAccounts,
+        transaction.scope,
+      );
 
     return preloadedAccounts.filter(
       (account): account is OnChainAccount => account !== null,

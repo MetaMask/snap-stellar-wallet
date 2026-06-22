@@ -166,7 +166,7 @@ describe('TransactionService', () => {
       } as const;
       const loadOnChainAccountsSpy = jest.spyOn(
         NetworkService.prototype,
-        'loadOnChainAccounts',
+        'loadOnChainAccountsSafe',
       );
       loadOnChainAccountsSpy.mockResolvedValue([]);
       const simulateTransactionSpy = jest.spyOn(
@@ -217,7 +217,7 @@ describe('TransactionService', () => {
       const { transactionService } = createMockTransactionService();
       const loadOnChainAccountsSpy = jest.spyOn(
         NetworkService.prototype,
-        'loadOnChainAccounts',
+        'loadOnChainAccountsSafe',
       );
       loadOnChainAccountsSpy.mockResolvedValue([]);
       const simulateTransactionSpy = jest.spyOn(
