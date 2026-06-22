@@ -28,7 +28,7 @@ export const AssetIcon = (props: AssetIconProps): ComponentOrElement => {
   const iconSrc =
     iconUrl === undefined || trim(iconUrl) === '' ? questionMarkSvg : iconUrl;
 
-  // TODO: Image URL may not valid or 404, add a image resolver to resolve the image url before displaying it,
+  // TODO: Image URL may not valid or 404, add a image resolver to resolve the image url before displaying it.
   return (
     <Image
       borderRadius="full"
