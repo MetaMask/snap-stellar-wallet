@@ -163,8 +163,12 @@ export const withCatchAndThrowSnapError = async <ResponseT>(
   try {
     return await fn();
   } catch (errorInstance: unknown) {
+    // Send raw error to Sentry
+    await trackError(errorInstance);
+
     let error: SnapRpcError;
 
+    // Mask error to SnapRpcError
     if (errorInstance instanceof Error) {
       if (isStellarSnapException(errorInstance)) {
         error = new SnapError(errorInstance);
@@ -182,8 +186,6 @@ export const withCatchAndThrowSnapError = async <ResponseT>(
       `[SnapError] ${JSON.stringify(error.toJSON(), null, 2)}`,
     );
 
-    // Send error to Sentry
-    await trackError(error);
     // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw error;
   }
