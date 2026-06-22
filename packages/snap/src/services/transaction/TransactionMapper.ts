@@ -32,11 +32,9 @@ import type {
   KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
-  getSlip44AssetId,
   removeTrailingZeros,
   stellarAssetToCaip19,
   toDisplayBalance,
@@ -68,7 +66,8 @@ export class TransactionMapper {
    * @param params.keyringAccount - Account that owns the activity.
    * @param params.transactionFromState - Existing pending transaction to reconcile.
    * @param params.assetMetadata - SEP-41 asset metadata keyed by CAIP-19 id for send mapping.
-   * @returns Mapped keyring transaction, or `undefined` when skipped or unmappable.
+   * @returns Mapped keyring transaction, `undefined` when intentionally skipped (dust or failed receive),
+   * or an unknown-typed transaction when mapping fails so batch mapping can continue.
    */
   mapTransactionSafe(params: {
     transaction: Transaction;
@@ -88,8 +87,12 @@ export class TransactionMapper {
 
       if (transactionFromState) {
         // Pending txs are not on Horizon until confirmed; once on-chain data exists,
-        // preserve the existing keyring transaction and only refresh status and fees.
-        return this.#mapUpdatedTransaction(transaction, transactionFromState);
+        // preserve the existing keyring transaction and refresh status, fees, and swap legs.
+        return this.#mapUpdatedTransaction(
+          transaction,
+          keyringAccount,
+          transactionFromState,
+        );
       }
 
       if (isDustPaymentTransaction(transaction, keyringAccount.address)) {
@@ -98,12 +101,16 @@ export class TransactionMapper {
 
       return this.#mapTransaction(transaction, keyringAccount, assetMetadata);
     } catch (error) {
-      // Log and return undefined so batch mapping can continue for other transactions.
-      this.#logger.logErrorWithDetails('Unable to map a transaction', {
-        error,
-        transactionId: transaction.id,
-      });
-      return undefined;
+      // Log and fall back to unknown so batch mapping can continue for other transactions.
+      this.#logger.logErrorWithDetails(
+        'Unable to map a transaction, map to a unknown transaction',
+        {
+          error,
+          transactionId: transaction.id,
+        },
+      );
+
+      return this.#mapUnknownTransaction(transaction, keyringAccount);
     }
   }
 
@@ -125,15 +132,16 @@ export class TransactionMapper {
       );
     }
 
+    // Send transaction: if all operation are payment operations or create account operation.
+    // It have higher priority than swap transaction if both are payment operations.
+    if (isSendTransaction(transaction, address)) {
+      return this.#mapSendTransaction(transaction, keyringAccount);
+    }
+
     // Swap transaction: if the transaction has a path payment strict send operation
     // and sender and destination are the same address.
     if (isSwapTransaction(transaction, address)) {
       return this.#mapSwapTransaction(transaction, keyringAccount);
-    }
-
-    // Send transaction: if all operation are payment operations or create account operation.
-    if (isSendTransaction(transaction, address)) {
-      return this.#mapSendTransaction(transaction, keyringAccount);
     }
 
     // Change-trust opt-in: all operations are change trust with non-zero limit.
@@ -167,11 +175,36 @@ export class TransactionMapper {
 
   #mapUpdatedTransaction(
     transaction: Transaction,
+    keyringAccount: StellarKeyringAccount,
     transactionFromState: KeyringTransaction,
   ): KeyringTransaction {
+    let { from } = transactionFromState;
+    let { to } = transactionFromState;
+  
+    // For swaps, best-effort re-maps `from`/`to` from on-chain results for accurate amounts
+    try {
+      if (transactionFromState.type === TransactionType.Swap) {
+        const swapTransaction = this.#mapSwapTransaction(
+          transaction,
+          keyringAccount,
+        );
+        from = swapTransaction.from;
+        to = swapTransaction.to;
+      }
+    } catch {
+      // Best effort only; contract-based swaps may not be re-mappable from classic ops.
+      from = transactionFromState.from;
+      to = transactionFromState.to;
+    }
+
     return {
       ...transactionFromState,
-      fees: this.#getBaseFees(transaction),
+      from,
+      to,
+      fees: this.#keyringTransactionBuilder.getBaseFees(
+        transaction.totalFee,
+        transaction.scope,
+      ),
       events: [
         ...transactionFromState.events,
         {
@@ -199,7 +232,10 @@ export class TransactionMapper {
       account: keyringAccount,
       scope: transaction.scope,
       status: transaction.status,
-      fees: this.#getBaseFees(transaction),
+      fees: this.#keyringTransactionBuilder.getBaseFees(
+        transaction.totalFee,
+        transaction.scope,
+      ),
       timestamp: this.#getCreateTime(transaction),
     };
   }
@@ -462,29 +498,12 @@ export class TransactionMapper {
     }
   }
 
-  #getBaseFees(transaction: Transaction): KeyringTransaction['fees'] {
-    return [
-      {
-        type: 'base',
-        asset: {
-          unit: NATIVE_ASSET_SYMBOL,
-          type: getSlip44AssetId(transaction.scope),
-          // Horizon reports fee_charged in stroops (smallest XLM unit).
-          amount: toDisplayBalance(transaction.feeCharged),
-          fungible: true,
-        },
-      },
-    ];
-  }
-
   #getCreateTime(transaction: Transaction): number {
-    if (!transaction.rawData?.created_at) {
-      return Math.floor(Date.now() / 1000); // seconds since epoch
-    }
-    // Horizon `created_at` is a UTC ISO-8601 string.
-    return Math.floor(
-      new Date(transaction.rawData?.created_at).getTime() / 1000,
-    ); // seconds since epoch
+    const createdAtSeconds = transaction.rawData?.created_at
+      ? Math.floor(new Date(transaction.rawData.created_at).getTime() / 1000)
+      : undefined;
+
+    return this.#keyringTransactionBuilder.getCreateTime(createdAtSeconds);
   }
 
   #assetToKeyringAssetRow(
