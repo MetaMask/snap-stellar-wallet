@@ -1,5 +1,5 @@
 import { ensureError } from '@metamask/utils';
-import { Networks } from '@stellar/stellar-sdk';
+import { Networks, NotFoundError } from '@stellar/stellar-sdk';
 import type { BigNumber } from 'bignumber.js';
 
 import { KnownCaip2ChainId } from '../../api';
@@ -80,5 +80,8 @@ export function isAccountNotFoundError(
   error: unknown,
   accountAddress: string,
 ): boolean {
+  if (error instanceof NotFoundError) {
+    return true;
+  }
   return ensureError(error).message === `Account not found: ${accountAddress}`;
 }

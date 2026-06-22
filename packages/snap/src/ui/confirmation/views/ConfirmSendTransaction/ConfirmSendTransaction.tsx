@@ -5,7 +5,6 @@ import {
   Container,
   Heading,
   Icon,
-  Image,
   Link,
   Section,
   Text as SnapText,
@@ -14,8 +13,8 @@ import {
 
 import { ConfirmSendTransactionFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
+import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
-import { STELLAR_IMAGE } from '../../../images/icon';
 import type {
   ContextWithPrices,
   ConfirmationBaseProps,
@@ -28,10 +27,10 @@ import {
   EstimatedChanges,
   FeeRow,
 } from '../../components';
+import { NetworkRow } from '../../components/Network';
 import {
   getAccountExplorerUrl,
   getAccountName,
-  getNetworkName,
   requiresMaliciousAcknowledgement,
   shouldDisableConfirmation,
 } from '../../utils';
@@ -131,20 +130,11 @@ export const ConfirmSendTransaction = ({
             </Link>
           </Box>
           {/* Network */}
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.network')}
-            </SnapText>
-            <Box direction="horizontal" alignment="end">
-              <Image
-                borderRadius="medium"
-                src={networkImage ?? STELLAR_IMAGE}
-                height={16}
-                width={16}
-              />
-              <SnapText>{getNetworkName(scope)}</SnapText>
-            </Box>
-          </Box>
+          <NetworkRow
+            networkImage={networkImage}
+            scope={scope}
+            locale={locale as Locale}
+          />
           <Box>{null}</Box>
           {/* Fee Breakdown */}
           <FeeRow

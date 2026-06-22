@@ -29,7 +29,7 @@ import {
   showDialog,
   updateInterfaceIfExists,
 } from '../../utils';
-import { STELLAR_IMAGE } from '../images/icon';
+import { xlmIcon } from '../images';
 import {
   renderConfirmationView,
   type ConfirmationViewProps,
@@ -203,7 +203,7 @@ export class ConfirmationUXController {
           : FetchStatus.Fetched,
         preferences,
         locale: preferences.locale as Locale,
-        networkImage: STELLAR_IMAGE,
+        networkImage: xlmIcon,
         origin: formatOrigin(origin),
         currency: preferences.currency,
         scope,

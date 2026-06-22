@@ -6,7 +6,6 @@ import {
 } from '@metamask/keyring-api';
 import type { Horizon } from '@stellar/stellar-sdk';
 import { Networks } from '@stellar/stellar-sdk';
-import { BigNumber } from 'bignumber.js';
 
 import {
   addChangeTrustResponse,
@@ -32,6 +31,7 @@ import { StellarOperationType } from './api';
 import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 import { Transaction } from './Transaction';
 import { TransactionMapper } from './TransactionMapper';
+import * as transactionUtils from './utils';
 import { KnownCaip2ChainId } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import {
@@ -105,6 +105,21 @@ describe('TransactionMapper', () => {
 
   const nativeAsset = getSlip44AssetId(scope);
 
+  const horizonCreatedAtSeconds = (createdAt: string): number =>
+    Math.floor(new Date(createdAt).getTime() / 1000);
+
+  const expectedBaseFees = (transaction: Transaction) => [
+    {
+      type: FeeType.Base,
+      asset: {
+        unit: NATIVE_ASSET_SYMBOL,
+        type: nativeAsset,
+        amount: toDisplayBalance(transaction.feeCharged),
+        fungible: true,
+      },
+    },
+  ];
+
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
@@ -114,7 +129,7 @@ describe('TransactionMapper', () => {
     jest.useRealTimers();
   });
 
-  it('returns undefined when transaction raw data is missing', () => {
+  it('maps to unknown when transaction raw data is missing', () => {
     const { keyringAccount, transactionMapper } = setup();
     const built = buildMockClassicTransaction(
       [
@@ -133,13 +148,29 @@ describe('TransactionMapper', () => {
       },
     );
 
-    expect(
-      transactionMapper.mapTransactionSafe({
-        transaction: built,
-        keyringAccount,
-        assetMetadata: {},
-      }),
-    ).toBeUndefined();
+    const keyringTransaction = transactionMapper.mapTransactionSafe({
+      transaction: built,
+      keyringAccount,
+      assetMetadata: {},
+    });
+
+    expect(keyringTransaction).toStrictEqual({
+      type: TransactionType.Unknown,
+      id: built.id,
+      from: [],
+      to: [],
+      events: [
+        {
+          status: built.status,
+          timestamp: horizonCreatedAtSeconds('2026-01-15T00:00:00.000Z'),
+        },
+      ],
+      chain: scope,
+      status: built.status,
+      account: keyringAccount.id,
+      timestamp: horizonCreatedAtSeconds('2026-01-15T00:00:00.000Z'),
+      fees: expectedBaseFees(built),
+    });
   });
 
   it.each([
@@ -385,7 +416,7 @@ describe('TransactionMapper', () => {
         },
       });
 
-      const timestamp = new Date(response.created_at).getTime() / 1000;
+      const timestamp = horizonCreatedAtSeconds(response.created_at);
 
       expect(keyringTransaction).toStrictEqual({
         type: txnType,
@@ -417,22 +448,35 @@ describe('TransactionMapper', () => {
         status: TransactionStatus.Confirmed,
         account: keyringAccount.id,
         timestamp,
-        fees: [
-          {
-            type: FeeType.Base,
-            asset: {
-              unit: NATIVE_ASSET_SYMBOL,
-              type: nativeAsset,
-              amount: toDisplayBalance(new BigNumber(response.fee_charged)),
-              fungible: true,
-            },
-          },
-        ],
+        fees: expectedBaseFees(transaction),
         // eslint-disable-next-line jest/no-conditional-in-test
         ...(details ? { details } : {}),
       });
     },
   );
+
+  it('maps as send before swap when both matchers would apply', () => {
+    const swapSpy = jest
+      .spyOn(transactionUtils, 'isSwapTransaction')
+      .mockReturnValue(true);
+    const { keyringAccount, transactionMapper } = setup();
+    const transaction = Transaction.fromHorizon({
+      horizonTransaction: sendTransactionResponse,
+      scope,
+    });
+
+    const keyringTransaction = transactionMapper.mapTransactionSafe({
+      transaction,
+      keyringAccount,
+      assetMetadata: {},
+    });
+
+    expect(
+      transactionUtils.isSendTransaction(transaction, accountAddress),
+    ).toBe(true);
+    expect(keyringTransaction?.type).toBe(TransactionType.Send);
+    expect(swapSpy).not.toHaveBeenCalled();
+  });
 
   it.each([contractInvokeTransactionResponse])(
     'maps an unrecognized transaction as unknown',
@@ -450,7 +494,7 @@ describe('TransactionMapper', () => {
         assetMetadata: {},
       });
 
-      const timestamp = new Date(response.created_at).getTime() / 1000;
+      const timestamp = horizonCreatedAtSeconds(response.created_at);
 
       expect(keyringTransaction).toStrictEqual({
         type: TransactionType.Unknown,
@@ -462,17 +506,7 @@ describe('TransactionMapper', () => {
         status: TransactionStatus.Confirmed,
         account: keyringAccount.id,
         timestamp,
-        fees: [
-          {
-            type: FeeType.Base,
-            asset: {
-              unit: NATIVE_ASSET_SYMBOL,
-              type: nativeAsset,
-              amount: toDisplayBalance(new BigNumber(response.fee_charged)),
-              fungible: true,
-            },
-          },
-        ],
+        fees: expectedBaseFees(transaction),
       });
     },
   );
@@ -482,6 +516,26 @@ describe('TransactionMapper', () => {
 
     const transaction = Transaction.fromHorizon({
       horizonTransaction: spamTransactionResponse,
+      scope,
+    });
+
+    expect(
+      transactionMapper.mapTransactionSafe({
+        transaction,
+        keyringAccount,
+        assetMetadata: {},
+      }),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined for failed receive transactions', () => {
+    const { keyringAccount, transactionMapper } = setup();
+
+    const transaction = Transaction.fromHorizon({
+      horizonTransaction: {
+        ...receivePaymentTransactionResponse,
+        successful: false,
+      },
       scope,
     });
 
@@ -610,6 +664,9 @@ describe('TransactionMapper', () => {
       status: TransactionStatus.Unconfirmed,
       timestamp: 1700000000,
     }) as [KeyringTransaction];
+    const confirmedTimestamp = horizonCreatedAtSeconds(
+      '2026-01-15T00:00:00.000Z',
+    );
 
     const keyringTransaction = transactionMapper.mapTransactionSafe({
       transaction,
@@ -621,20 +678,66 @@ describe('TransactionMapper', () => {
     expect(keyringTransaction).toStrictEqual({
       ...pendingFromState,
       status: TransactionStatus.Confirmed,
-      fees: [
-        {
-          type: FeeType.Base,
-          asset: {
-            unit: NATIVE_ASSET_SYMBOL,
-            type: nativeAsset,
-            amount: '0.00002',
-            fungible: true,
-          },
-        },
-      ],
+      fees: expectedBaseFees(transaction),
       events: [
         ...pendingFromState.events,
-        { status: TransactionStatus.Confirmed, timestamp: 1768435200 },
+        { status: TransactionStatus.Confirmed, timestamp: confirmedTimestamp },
+      ],
+    });
+  });
+
+  it('refreshes swap from/to from on-chain data when merging pending swap state', () => {
+    const { keyringAccount, transactionMapper } = setup();
+    const response = swapTransactionWithoutFeeCollectResponse;
+    const transaction = Transaction.fromHorizon({
+      horizonTransaction: response,
+      scope,
+    });
+    const [pendingFromState] = generateMockTransactions(1, {
+      id: transaction.id,
+      account: keyringAccount.id,
+      scope,
+      type: TransactionType.Swap,
+      status: TransactionStatus.Unconfirmed,
+      timestamp: 1700000000,
+      amount: '999',
+    }) as [KeyringTransaction];
+    const onChainSwap = transactionMapper.mapTransactionSafe({
+      transaction,
+      keyringAccount,
+      assetMetadata: {},
+    });
+
+    const keyringTransaction = transactionMapper.mapTransactionSafe({
+      transaction,
+      keyringAccount,
+      assetMetadata: {},
+      transactionFromState: pendingFromState,
+    });
+
+    expect(onChainSwap?.from).toStrictEqual([
+      {
+        address: accountAddress,
+        asset: {
+          unit: NATIVE_ASSET_SYMBOL,
+          type: nativeAsset,
+          amount: '1',
+          fungible: true,
+        },
+      },
+    ]);
+    expect(keyringTransaction).toStrictEqual({
+      ...pendingFromState,
+      from: onChainSwap?.from,
+      to: onChainSwap?.to,
+      status: TransactionStatus.Confirmed,
+      fees: expectedBaseFees(transaction),
+      events: [
+        ...pendingFromState.events,
+        {
+          status: TransactionStatus.Confirmed,
+          timestamp: horizonCreatedAtSeconds(response.created_at),
+        },
       ],
     });
   });

@@ -1,5 +1,6 @@
 import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import { Image } from '@metamask/snaps-sdk/jsx';
+import { trim } from 'lodash';
 
 import questionMarkSvg from '../../images/question-mark.svg';
 
@@ -24,8 +25,10 @@ const sizeMap: Record<'sm' | 'md' | 'lg' | 'xl', number> = {
 export const AssetIcon = (props: AssetIconProps): ComponentOrElement => {
   const { iconUrl, size = 'md' } = props;
 
-  const iconSrc = iconUrl ?? questionMarkSvg;
+  const iconSrc =
+    iconUrl === undefined || trim(iconUrl) === '' ? questionMarkSvg : iconUrl;
 
+  // TODO: Image URL may not valid or 404, add a image resolver to resolve the image url before displaying it.
   return (
     <Image
       borderRadius="full"
