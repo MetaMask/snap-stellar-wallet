@@ -133,7 +133,7 @@ export class TransactionMapper {
     }
 
     // Send transaction: if all operation are payment operations or create account operation.
-    // It have higher priority than swap transaction if both are payment operations.
+    // It has higher priority than swap transaction if both are payment operations.
     if (isSendTransaction(transaction, address)) {
       return this.#mapSendTransaction(transaction, keyringAccount);
     }
