@@ -19,7 +19,7 @@ import {
 } from '../../../api';
 
 // The token metadata schema for the Token API.
-// Using type instead of object to avoid error throw if addtional fields are added to the response.
+// Using type instead of object to avoid throwing an error if additional fields are added to the response.
 export const TokenMetadataStruct = type({
   decimals: integer(),
   assetId: union([

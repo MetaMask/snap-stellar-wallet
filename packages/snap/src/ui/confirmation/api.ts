@@ -1,5 +1,4 @@
 import type { GetPreferencesResult } from '@metamask/snaps-sdk';
-import { union } from '@metamask/snaps-sdk';
 import type { Infer } from '@metamask/superstruct';
 import {
   boolean,
@@ -9,6 +8,7 @@ import {
   type,
   string,
   nullable,
+  union,
   nonempty,
 } from '@metamask/superstruct';
 

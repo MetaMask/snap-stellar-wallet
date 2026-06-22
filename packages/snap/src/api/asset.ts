@@ -1,4 +1,4 @@
-import { union } from '@metamask/snaps-sdk';
+import { union } from '@metamask/superstruct';
 import type { Infer } from '@metamask/superstruct';
 import type { CaipAssetType } from '@metamask/utils';
 import { definePattern } from '@metamask/utils';
