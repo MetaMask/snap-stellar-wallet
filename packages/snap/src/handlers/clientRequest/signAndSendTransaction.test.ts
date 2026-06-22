@@ -396,12 +396,12 @@ describe('SignAndSendTransactionHandler', () => {
           amount: '10',
           fungible: true,
         },
-         toAsset: {
-           unit: 'USDC',
-           type: destinationAssetId,
-           amount: '5',
-           fungible: true,
-         }
+        toAsset: {
+          unit: 'USDC',
+          type: destinationAssetId,
+          amount: '5',
+          fungible: true,
+        },
         fees: [
           {
             type: FeeType.Base,
@@ -585,12 +585,12 @@ describe('SignAndSendTransactionHandler', () => {
           amount: '0',
           fungible: true,
         },
-         toAsset: {
-           unit: 'USDC',
-           type: destinationAssetId,
-           amount: '0',
-           fungible: true,
-         }
+        toAsset: {
+          unit: 'USDC',
+          type: destinationAssetId,
+          amount: '0',
+          fungible: true,
+        },
         fees: [
           {
             type: FeeType.Base,
@@ -646,12 +646,12 @@ describe('SignAndSendTransactionHandler', () => {
           amount: '0',
           fungible: true,
         },
-         toAsset: {
-           unit: 'USDC',
-           type: destinationAssetId,
-           amount: '0',
-           fungible: true,
-         }
+        toAsset: {
+          unit: 'USDC',
+          type: destinationAssetId,
+          amount: '0',
+          fungible: true,
+        },
         fees: [
           {
             type: FeeType.Base,
