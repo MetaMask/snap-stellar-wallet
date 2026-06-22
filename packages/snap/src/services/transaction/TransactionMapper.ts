@@ -180,7 +180,7 @@ export class TransactionMapper {
   ): KeyringTransaction {
     let { from } = transactionFromState;
     let { to } = transactionFromState;
-  
+
     // For swaps, best-effort re-maps `from`/`to` from on-chain results for accurate amounts
     try {
       if (transactionFromState.type === TransactionType.Swap) {

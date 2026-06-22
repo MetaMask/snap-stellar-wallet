@@ -5,7 +5,6 @@ import {
   Container,
   Heading,
   Icon,
-  Image,
   Section,
   Text as SnapText,
   Tooltip,
@@ -15,8 +14,8 @@ import { parseCaipAssetType } from '@metamask/utils';
 import { ConfirmSignChangeTrustOptInFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { StellarAssetMetadata } from '../../../../services/asset-metadata';
+import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
-import { STELLAR_IMAGE } from '../../../images/icon';
 import type {
   ContextWithPrices,
   ConfirmationBaseProps,
@@ -30,10 +29,10 @@ import {
   ConfirmationFooter,
   FeeRow,
 } from '../../components';
+import { NetworkRow } from '../../components/Network';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
-  getNetworkName,
   requiresMaliciousAcknowledgement,
   shouldDisableConfirmation,
 } from '../../utils';
@@ -130,20 +129,12 @@ export const ConfirmSignChangeTrustOptIn = ({
             />
           </Box>
 
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.network')}
-            </SnapText>
-            <Box direction="horizontal" alignment="end">
-              <Image
-                borderRadius="medium"
-                src={networkImage ?? STELLAR_IMAGE}
-                height={16}
-                width={16}
-              />
-              <SnapText>{getNetworkName(scope)}</SnapText>
-            </Box>
-          </Box>
+          {/* Network */}
+          <NetworkRow
+            networkImage={networkImage}
+            scope={scope}
+            locale={locale as Locale}
+          />
           <Box>{null}</Box>
           {/* Fee Breakdown */}
           <FeeRow

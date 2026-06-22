@@ -471,9 +471,9 @@ describe('TransactionMapper', () => {
       assetMetadata: {},
     });
 
-    expect(transactionUtils.isSendTransaction(transaction, accountAddress)).toBe(
-      true,
-    );
+    expect(
+      transactionUtils.isSendTransaction(transaction, accountAddress),
+    ).toBe(true);
     expect(keyringTransaction?.type).toBe(TransactionType.Send);
     expect(swapSpy).not.toHaveBeenCalled();
   });
