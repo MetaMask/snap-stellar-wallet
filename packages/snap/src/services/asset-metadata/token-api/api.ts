@@ -8,6 +8,7 @@ import {
   union,
   nonempty,
   number,
+  type,
 } from '@metamask/superstruct';
 
 import {
@@ -17,7 +18,9 @@ import {
   UrlStruct,
 } from '../../../api';
 
-export const TokenMetadataStruct = object({
+// The token metadata schema for the Token API.
+// Using type instead of object to avoid error throw if addtional fields are added to the response.
+export const TokenMetadataStruct = type({
   decimals: integer(),
   assetId: union([
     KnownCaip19ClassicAssetStruct,
