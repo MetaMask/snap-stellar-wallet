@@ -172,12 +172,12 @@ export class RefreshConfirmationContextHandler extends CronjobBaseHandler<Refres
   /**
    * Runs enabled refreshers for one cycle.
    *
-   * The transaction refresher runs first and in isolation: it rebuilds the
-   * pending transaction with a fresh time bound and writes it into the
-   * security-scan request. Its patch is merged into the context the remaining
-   * refreshers see, so the scan refresher simulates/validates the renewed
-   * envelope rather than a (possibly expired) snapshot. The remaining refreshers
-   * then run in parallel.
+   * The transaction refresher runs first and in isolation: it re-validates the
+   * pending transaction against current on-chain state and rebuilds it with a
+   * fresh time bound, writing the rebuilt envelope into the security-scan
+   * request. Its patch is merged into the context the remaining refreshers see,
+   * so the scan refresher validates the renewed envelope rather than a stale
+   * snapshot. The remaining refreshers then run in parallel.
    *
    * Each refresher is isolated so one rejection does not prevent the others from
    * completing.

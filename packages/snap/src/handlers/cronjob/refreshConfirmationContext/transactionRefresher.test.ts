@@ -34,21 +34,12 @@ describe('ConfirmationTransactionRefresher', () => {
   });
   const transactionXdr = transaction.getRaw().toXDR();
 
-  // A scan envelope far from expiry (kept as-is) versus one inside the refresh
-  // buffer (swapped for the rebuilt transaction).
-  const freshScanTransactionXdr = buildMockClassicTransaction(
-    paymentOperations,
-    {
-      networkPassphrase: Networks.TESTNET,
-      timeout: 600,
-    },
-  )
-    .getRaw()
-    .toXDR();
-  const staleScanTransactionXdr = buildMockClassicTransaction(
-    paymentOperations,
-    { networkPassphrase: Networks.TESTNET, timeout: 30 },
-  )
+  // The envelope previously held in the security-scan request. Each refresh
+  // cycle rebuilds the transaction and swaps this for the freshly rebuilt one.
+  const scanTransactionXdr = buildMockClassicTransaction(paymentOperations, {
+    networkPassphrase: Networks.TESTNET,
+    timeout: 600,
+  })
     .getRaw()
     .toXDR();
 
@@ -212,13 +203,13 @@ describe('ConfirmationTransactionRefresher', () => {
     });
   });
 
-  it('renews the security-scan transaction when the scanned envelope nears expiry', async () => {
+  it('renews the security-scan transaction with the rebuilt envelope', async () => {
     const { refresher } = setup();
     const securityScanRequest = {
       accountAddress: toAddress,
       origin: 'https://dapp.example',
       scope,
-      transaction: staleScanTransactionXdr,
+      transaction: scanTransactionXdr,
     };
 
     const result = await refresher.refresh(
@@ -242,7 +233,7 @@ describe('ConfirmationTransactionRefresher', () => {
       accountAddress: toAddress,
       origin: 'https://dapp.example',
       scope,
-      transaction: staleScanTransactionXdr,
+      transaction: scanTransactionXdr,
     };
 
     const result = await refresher.refresh(
@@ -250,46 +241,6 @@ describe('ConfirmationTransactionRefresher', () => {
         request: changeTrustAddRequest,
         securityScanRequest,
       }),
-    );
-
-    expect(result).toStrictEqual({
-      result: {
-        securityScanRequest: {
-          ...securityScanRequest,
-          transaction: transactionXdr,
-        },
-      },
-      reschedule: false,
-    });
-  });
-
-  it('keeps the scanned envelope while it is still far from expiry', async () => {
-    const { refresher } = setup();
-    const securityScanRequest = {
-      accountAddress: toAddress,
-      origin: 'https://dapp.example',
-      scope,
-      transaction: freshScanTransactionXdr,
-    };
-
-    const result = await refresher.refresh(
-      createTransactionContext({ securityScanRequest }),
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it('renews the security-scan transaction when the scanned envelope is unparseable', async () => {
-    const { refresher } = setup();
-    const securityScanRequest = {
-      accountAddress: toAddress,
-      origin: 'https://dapp.example',
-      scope,
-      transaction: 'OUTDATED_XDR',
-    };
-
-    const result = await refresher.refresh(
-      createTransactionContext({ securityScanRequest }),
     );
 
     expect(result).toStrictEqual({
