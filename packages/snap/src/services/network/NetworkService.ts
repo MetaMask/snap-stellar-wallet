@@ -132,7 +132,7 @@ export class NetworkService {
     } catch (error: unknown) {
       return this.#throwError({
         error,
-        fallbackError: 'Failed to get base fee',
+        fallbackError: `Failed to get base fee for scope: ${scope}`,
       });
     }
   }
