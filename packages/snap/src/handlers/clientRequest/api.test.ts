@@ -172,7 +172,7 @@ describe('SignAndSendTransactionJsonRpcResponseStruct', () => {
 describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
   const transaction = buildTestInvokeXdr();
 
-  it('accepts a valid signAndSendTransaction JSON-RPC request without options', () => {
+  it('rejects a signAndSendTransaction JSON-RPC request without options', () => {
     expect(() =>
       assert(
         {
@@ -187,7 +187,7 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
         },
         SignAndSendTransactionJsonRpcRequestStruct,
       ),
-    ).not.toThrow();
+    ).toThrow(StructError);
   });
 
   it('accepts a signAndSendTransaction JSON-RPC request without an options type', () => {
@@ -203,6 +203,8 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
             transaction,
             options: {
               visible: false,
+              sourceAssetId: 'stellar:pubnet/slip44:148',
+              destAssetId: 'eip155:1/slip44:60',
             },
           },
         },

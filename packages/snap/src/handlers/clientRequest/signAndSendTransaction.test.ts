@@ -147,6 +147,10 @@ describe('SignAndSendTransactionHandler', () => {
         accountId,
         scope,
         transaction: xdr,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: NATIVE,
+        },
       },
     };
 
@@ -218,10 +222,40 @@ describe('SignAndSendTransactionHandler', () => {
         txId: transactionId,
         account,
         scope,
-        asset: {
-          type: 'stellar:pubnet/slip44:148',
-          symbol: 'XLM',
-        },
+        transactionType: TransactionType.Swap,
+        from: [
+          {
+            address: account.address,
+            asset: {
+              unit: 'XLM',
+              type: NATIVE,
+              amount: '0',
+              fungible: true,
+            },
+          },
+        ],
+        to: [
+          {
+            address: account.address,
+            asset: {
+              unit: 'XLM',
+              type: NATIVE,
+              amount: '0',
+              fungible: true,
+            },
+          },
+        ],
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: expect.any(String),
+              fungible: true,
+            },
+          },
+        ],
       },
     });
     expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
@@ -246,6 +280,8 @@ describe('SignAndSendTransactionHandler', () => {
         ...request.params,
         options: {
           visible: false,
+          sourceAssetId: NATIVE,
+          destAssetId: NATIVE,
         },
       },
     });
@@ -256,10 +292,40 @@ describe('SignAndSendTransactionHandler', () => {
         txId: transactionId,
         account,
         scope,
-        asset: {
-          type: 'stellar:pubnet/slip44:148',
-          symbol: 'XLM',
-        },
+        transactionType: TransactionType.Swap,
+        from: [
+          {
+            address: account.address,
+            asset: {
+              unit: 'XLM',
+              type: NATIVE,
+              amount: '0',
+              fungible: true,
+            },
+          },
+        ],
+        to: [
+          {
+            address: account.address,
+            asset: {
+              unit: 'XLM',
+              type: NATIVE,
+              amount: '0',
+              fungible: true,
+            },
+          },
+        ],
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: expect.any(String),
+              fungible: true,
+            },
+          },
+        ],
       },
     });
     expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
@@ -329,6 +395,10 @@ describe('SignAndSendTransactionHandler', () => {
       params: {
         ...request.params,
         transaction: xdr,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: destinationAssetId,
+        },
       },
     });
 
@@ -344,7 +414,7 @@ describe('SignAndSendTransactionHandler', () => {
             address: wallet.address,
             asset: {
               unit: 'XLM',
-              type: KnownCaip19Slip44IdMap[scope],
+              type: NATIVE,
               amount: '10',
               fungible: true,
             },
