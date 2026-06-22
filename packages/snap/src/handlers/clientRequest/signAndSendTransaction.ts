@@ -330,6 +330,20 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
         name: assetCode,
       });
     }
-    return await this.#assetMetadataService.resolve(assetId);
+    try {
+      return await this.#assetMetadataService.resolve(assetId);
+    } catch (error) {
+      this.logger.warn(
+        'Failed to resolve asset metadata; using fallback symbol',
+        { assetId, error },
+      );
+      const { assetReference } = parseCaipAssetType(assetId);
+      return toStellarAssetMetadata({
+        assetId,
+        decimals: STELLAR_DECIMAL_PLACES,
+        symbol: assetReference,
+        name: assetReference,
+      });
+    }
   }
 }
