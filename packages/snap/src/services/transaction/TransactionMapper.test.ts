@@ -114,7 +114,7 @@ describe('TransactionMapper', () => {
       asset: {
         unit: NATIVE_ASSET_SYMBOL,
         type: nativeAsset,
-        amount: toDisplayBalance(transaction.totalFee),
+        amount: toDisplayBalance(transaction.feeCharged),
         fungible: true,
       },
     },

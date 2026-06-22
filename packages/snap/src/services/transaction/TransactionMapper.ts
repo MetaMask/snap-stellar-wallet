@@ -103,7 +103,7 @@ export class TransactionMapper {
     } catch (error) {
       // Log and fall back to unknown so batch mapping can continue for other transactions.
       this.#logger.logErrorWithDetails(
-        'Unable to map a transaction, map to a unknown transaction',
+        'Unable to map a transaction, mapping to an unknown transaction',
         {
           error,
           transactionId: transaction.id,
@@ -202,7 +202,7 @@ export class TransactionMapper {
       from,
       to,
       fees: this.#keyringTransactionBuilder.getBaseFees(
-        transaction.totalFee,
+        transaction.feeCharged,
         transaction.scope,
       ),
       events: [
@@ -233,7 +233,7 @@ export class TransactionMapper {
       scope: transaction.scope,
       status: transaction.status,
       fees: this.#keyringTransactionBuilder.getBaseFees(
-        transaction.totalFee,
+        transaction.feeCharged,
         transaction.scope,
       ),
       timestamp: this.#getCreateTime(transaction),
