@@ -321,7 +321,8 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
     if (isSlip44Id(assetId)) {
       return getNativeAssetMetadata(scope);
     } else if (isClassicAssetId(assetId)) {
-      const { assetCode } = parseClassicAssetCodeIssuer(assetId);
+      const { assetReference } = parseCaipAssetType(assetId);
+      const { assetCode } = parseClassicAssetCodeIssuer(assetReference);
       return toStellarAssetMetadata({
         assetId,
         decimals: STELLAR_DECIMAL_PLACES,
