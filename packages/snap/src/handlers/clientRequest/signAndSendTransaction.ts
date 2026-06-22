@@ -60,7 +60,7 @@ type PendingSwapDetails = {
 };
 
 type SwapAssetIds = {
-  sourceAssetId: CaipAssetType;
+  sourceAssetId: KnownCaip19AssetIdOrSlip44Id;
   destAssetId: CaipAssetType;
 };
 
@@ -166,7 +166,8 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
       chainIdCaip: scope,
     });
 
-    const swapAssetIds = this.#getSwapAssetIds(options);
+    const { sourceAssetId, destAssetId } = options;
+    const swapAssetIds = { sourceAssetId, destAssetId };
 
     await this.#savePendingTransaction({
       transactionId: transactionHash,
@@ -191,22 +192,6 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
   }
 
   /**
-   * Reads the source and destination asset ids supplied by the multichain flow.
-   *
-   * @param options - The request options.
-   * @returns The swap asset ids, or `null` when the flow did not supply them.
-   */
-  #getSwapAssetIds(
-    options: SignAndSendTransactionJsonRpcRequest['params']['options'],
-  ): SwapAssetIds | null {
-    const { sourceAssetId, destAssetId } = options ?? {};
-    if (sourceAssetId === undefined || destAssetId === undefined) {
-      return null;
-    }
-    return { sourceAssetId, destAssetId };
-  }
-
-  /**
    * A swap is cross-chain when its source and destination assets live on
    * different chains (e.g. a Stellar asset bridged to an EVM asset).
    *
@@ -228,7 +213,7 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
     scope: KnownCaip2ChainId;
     account: StellarKeyringAccount;
     transaction: Transaction;
-    swapAssetIds: SwapAssetIds | null;
+    swapAssetIds: SwapAssetIds;
   }): Promise<void> {
     try {
       const request = await this.#createPendingTransactionRequest(params);

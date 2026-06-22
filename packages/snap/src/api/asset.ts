@@ -1,4 +1,5 @@
 import type { Infer } from '@metamask/superstruct';
+import { union } from '@metamask/superstruct';
 import type { CaipAssetType } from '@metamask/utils';
 import { definePattern } from '@metamask/utils';
 
@@ -78,3 +79,10 @@ export type KnownCaip19AssetId =
 export type KnownCaip19AssetIdOrSlip44Id =
   | KnownCaip19AssetId
   | KnownCaip19Slip44Id;
+
+/** Validation struct for a known Stellar CAIP-19 asset id or slip44 id. */
+export const KnownCaip19AssetIdOrSlip44IdStruct = union([
+  KnownCaip19Sep41AssetStruct,
+  KnownCaip19ClassicAssetStruct,
+  KnownCaip19Slip44IdStruct,
+]);
