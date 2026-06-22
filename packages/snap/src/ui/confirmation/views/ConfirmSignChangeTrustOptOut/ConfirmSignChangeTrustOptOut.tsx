@@ -17,7 +17,6 @@ import type { StellarKeyringAccount } from '../../../../services/account';
 import type { StellarAssetMetadata } from '../../../../services/asset-metadata';
 import { i18n } from '../../../../utils';
 import { STELLAR_IMAGE } from '../../../images/icon';
-import usdtSvg from '../../../images/usdt.svg';
 import type {
   ConfirmationBaseProps,
   ContextWithPrices,
@@ -85,8 +84,7 @@ export const ConfirmSignChangeTrustOptOut = ({
             })}
           </Heading>
           <Box>
-            {/* TODO: Replace with the asset icon, dummy for testing */}
-            <AssetIcon iconUrl={usdtSvg} size="xl" />
+            <AssetIcon iconUrl={assetMetadata.iconUrl} size="xl" />
           </Box>
           <Box>{null}</Box>
           <Box>{null}</Box>
@@ -123,10 +121,9 @@ export const ConfirmSignChangeTrustOptOut = ({
               {t('confirmation.asset')}
             </SnapText>
 
-            {/* TODO: Replace with the asset icon, dummy for testing */}
             <Asset
               symbol={assetMetadata.symbol}
-              iconUrl={usdtSvg}
+              iconUrl={assetMetadata.iconUrl}
               link={getClassicAssetExplorerUrl(
                 parseCaipAssetType(assetMetadata.assetId).assetReference,
               )}
