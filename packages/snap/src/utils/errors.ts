@@ -20,9 +20,10 @@ import {
 
 import type { ILogger } from './logger';
 import { logger as defaultLogger } from './logger';
+import { trackError } from './snap';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must accept arbitrary `Error` subclass ctor signatures
-type AnyErrorConstructor = abstract new (...args: any[]) => Error;
+export type AnyErrorConstructor = abstract new (...args: any[]) => Error;
 
 /**
  * Re-throws `error` when it is an instance of **any** constructor in `exceptionClasses` (subclasses
@@ -162,12 +163,20 @@ export const withCatchAndThrowSnapError = async <ResponseT>(
   try {
     return await fn();
   } catch (errorInstance: unknown) {
+    // Send raw error to Sentry
+    await trackError(errorInstance);
+
     let error: SnapRpcError;
 
+    // Mask error to SnapRpcError
     if (errorInstance instanceof Error) {
-      error = isSnapRpcError(errorInstance)
-        ? errorInstance
-        : new SnapError(errorInstance);
+      if (isStellarSnapException(errorInstance)) {
+        error = new SnapError(errorInstance);
+      } else if (isSnapRpcError(errorInstance)) {
+        error = errorInstance;
+      } else {
+        error = new SnapError(errorInstance);
+      }
     } else {
       error = new SnapError(errorInstance as string | Error);
     }
@@ -176,7 +185,38 @@ export const withCatchAndThrowSnapError = async <ResponseT>(
       { error },
       `[SnapError] ${JSON.stringify(error.toJSON(), null, 2)}`,
     );
+
     // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw error;
   }
 };
+
+export type StellarSnapExceptionOptions = {
+  cause?: unknown;
+  data?: Record<string, unknown>;
+};
+
+export class StellarSnapException extends Error {
+  readonly data?: Record<string, unknown>;
+
+  constructor(message: string, options?: StellarSnapExceptionOptions) {
+    super(message, { cause: options?.cause });
+    this.name = new.target.name;
+    this.data = options?.data;
+
+    // Explicitly hides this constructor from the stack trace if supported.
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
+  }
+}
+
+/**
+ * @param error - Value from a `catch` clause.
+ * @returns Whether `error` is a {@link StellarSnapException} (including subclasses).
+ */
+export function isStellarSnapException(
+  error: unknown,
+): error is StellarSnapException {
+  return error instanceof StellarSnapException;
+}

@@ -14,3 +14,4 @@ export * from './async';
 export * from './assert';
 export * from './array';
 export * from './i18n';
+export * from './http';
