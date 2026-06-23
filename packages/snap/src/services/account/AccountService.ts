@@ -123,12 +123,17 @@ export class AccountService {
    * @param options - The options for account creation.
    * @param options.entropySource - The entropy source to use for derivation.
    * @param options.index - The derivation index to use (defaults to the lowest unused index).
-   * @returns A Promise that resolves to the created account. If an account with the same derivation path and entropy source already exists, it is returned instead.
+   * @returns A Promise that resolves to the account and whether it was newly created.
+   * When an account with the same derivation path and entropy source already exists,
+   * that account is returned with `isNewAccount: false` and nothing is persisted.
    */
   async create(options?: {
     entropySource?: EntropySourceId;
     index?: number;
-  }): Promise<StellarKeyringAccount> {
+  }): Promise<{
+    account: StellarKeyringAccount;
+    isNewAccount: boolean;
+  }> {
     const accounts = await this.#accountsRepository.getAll();
 
     const entropySource =
@@ -155,7 +160,10 @@ export class AccountService {
       this.#logger.warn(
         'An account already exists with the same derivation path and entropy source. Skipping account creation.',
       );
-      return sameAccount;
+      return {
+        account: sameAccount,
+        isNewAccount: false,
+      };
     }
 
     const account = await this.#deriveAccount({
@@ -165,7 +173,10 @@ export class AccountService {
 
     await this.#accountsRepository.save(account);
 
-    return account;
+    return {
+      account,
+      isNewAccount: true,
+    };
   }
 
   /**

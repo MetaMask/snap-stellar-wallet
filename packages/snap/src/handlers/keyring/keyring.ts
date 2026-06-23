@@ -149,24 +149,27 @@ export class KeyringHandler implements Keyring {
   async createAccount(options?: CreateAccountOptions): Promise<KeyringAccount> {
     validateRequest(options, CreateAccountOptionsStruct);
 
-    const account = await this.#accountService.create(options);
+    const { account, isNewAccount } =
+      await this.#accountService.create(options);
 
-    try {
-      await this.#emitCreatedAccountEvent(account, options);
-    } catch (error: unknown) {
-      // Rollback if the event emission fails, e.g user rejected the account creation
+    if (isNewAccount) {
       try {
-        await this.#accountService.delete(account.id);
-      } catch (deleteError: unknown) {
-        // A more specific exception for the delete operation
-        throw new KeyringAccountRollbackException(account.id, {
-          cause: deleteError,
+        await this.#emitCreatedAccountEvent(account, options);
+      } catch (error: unknown) {
+        // Rollback if the event emission fails, e.g user rejected the account creation
+        try {
+          await this.#accountService.delete(account.id);
+        } catch (deleteError: unknown) {
+          // A more specific exception for the delete operation
+          throw new KeyringAccountRollbackException(account.id, {
+            cause: deleteError,
+          });
+        }
+
+        throw new KeyringEmitAccountCreatedEventException({
+          cause: error,
         });
       }
-
-      throw new KeyringEmitAccountCreatedEventException({
-        cause: error,
-      });
     }
 
     return this.#toKeyringAccount(account);
@@ -189,7 +192,7 @@ export class KeyringHandler implements Keyring {
     let accounts: KeyringAccount[] = [];
 
     if (options.type === AccountCreationType.Bip44DeriveIndex) {
-      const account = await this.#accountService.create({
+      const { account } = await this.#accountService.create({
         entropySource: options.entropySource,
         index: options.groupIndex,
       });
@@ -346,24 +349,21 @@ export class KeyringHandler implements Keyring {
       DiscoverAccountsStruct,
     );
 
-    // DiscoverAccountsStruct enforces exactly one scope; this guards TypeScript.
-    const scope = scopes[0];
-    if (scope === undefined) {
-      // eslint-disable-next-line @typescript-eslint/only-throw-error -- InvalidParamsError is the JSON-RPC snap error surface
-      throw new InvalidParamsError(
-        'Invariant: discoverAccounts requires one scope',
-      );
-    }
-
     const account = await this.#accountService.deriveKeyringAccount({
       entropySource,
       index: groupIndex,
     });
-    // Discover an account if it exists on the blockchain.
-    const isActivated = await this.#onChainAccountService.isAccountActivated({
-      accountAddress: account.address,
-      scope,
-    });
+
+    const activityOnScopes = await Promise.all(
+      scopes.map(async (scope) =>
+        this.#onChainAccountService.isAccountActivated({
+          accountAddress: account.address,
+          scope,
+        }),
+      ),
+    );
+
+    const isActivated = activityOnScopes.some((active) => active);
 
     if (!isActivated) {
       return [];

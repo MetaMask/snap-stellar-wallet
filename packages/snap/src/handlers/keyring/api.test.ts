@@ -188,6 +188,15 @@ describe('DiscoverAccountsStruct', () => {
     expect(() => assert(request, DiscoverAccountsStruct)).not.toThrow();
   });
 
+  it('accepts multiple scopes', () => {
+    const request = {
+      scopes: [KnownCaip2ChainId.Mainnet, KnownCaip2ChainId.Testnet],
+      entropySource: 'entropy-source-1',
+      groupIndex: 0,
+    };
+    expect(() => assert(request, DiscoverAccountsStruct)).not.toThrow();
+  });
+
   it.each([
     {
       scopes: [],

@@ -63,29 +63,32 @@ describe('AccountService', () => {
 
       const result = await accountService.create();
 
-      expect(saveSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result.account);
       expect(deriveAddressSpy).toHaveBeenCalledWith({
         entropySource,
         index: expectedIndex,
       });
       expect(result).toStrictEqual({
-        id: expect.any(String),
-        entropySource,
-        derivationPath: expectedDerivationPath,
-        index: expectedIndex,
-        type: KEYRING_ACCOUNT_TYPE,
-        address: expect.any(String),
-        scopes: [KnownCaip2ChainId.Mainnet],
-        methods: ['signMessage', 'signTransaction', 'signAuthEntry'],
-        options: {
-          entropy: {
-            type: 'mnemonic',
-            id: entropySource,
-            derivationPath: expectedDerivationPath,
-            groupIndex: expectedIndex,
+        account: {
+          id: expect.any(String),
+          entropySource,
+          derivationPath: expectedDerivationPath,
+          index: expectedIndex,
+          type: KEYRING_ACCOUNT_TYPE,
+          address: expect.any(String),
+          scopes: [KnownCaip2ChainId.Mainnet],
+          methods: ['signMessage', 'signTransaction', 'signAuthEntry'],
+          options: {
+            entropy: {
+              type: 'mnemonic',
+              id: entropySource,
+              derivationPath: expectedDerivationPath,
+              groupIndex: expectedIndex,
+            },
+            exportable: true,
           },
-          exportable: true,
         },
+        isNewAccount: true,
       });
     });
 
@@ -98,29 +101,32 @@ describe('AccountService', () => {
         index: 1,
       });
 
-      expect(saveSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result.account);
       expect(result).toStrictEqual({
-        id: expect.any(String),
-        entropySource: 'entropy-source-2',
-        derivationPath: "m/44'/148'/1'",
-        index: 1,
-        type: KEYRING_ACCOUNT_TYPE,
-        address: expect.any(String),
-        scopes: [KnownCaip2ChainId.Mainnet],
-        methods: [
-          MultichainMethod.SignMessage,
-          MultichainMethod.SignTransaction,
-          MultichainMethod.SignAuthEntry,
-        ],
-        options: {
-          entropy: {
-            type: 'mnemonic',
-            id: 'entropy-source-2',
-            derivationPath: "m/44'/148'/1'",
-            groupIndex: 1,
+        account: {
+          id: expect.any(String),
+          entropySource: 'entropy-source-2',
+          derivationPath: "m/44'/148'/1'",
+          index: 1,
+          type: KEYRING_ACCOUNT_TYPE,
+          address: expect.any(String),
+          scopes: [KnownCaip2ChainId.Mainnet],
+          methods: [
+            MultichainMethod.SignMessage,
+            MultichainMethod.SignTransaction,
+            MultichainMethod.SignAuthEntry,
+          ],
+          options: {
+            entropy: {
+              type: 'mnemonic',
+              id: 'entropy-source-2',
+              derivationPath: "m/44'/148'/1'",
+              groupIndex: 1,
+            },
+            exportable: true,
           },
-          exportable: true,
         },
+        isNewAccount: true,
       });
     });
 
@@ -140,34 +146,37 @@ describe('AccountService', () => {
         entropySource,
       });
 
-      expect(saveSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result.account);
       expect(result).toStrictEqual({
-        id: expect.any(String),
-        entropySource,
-        derivationPath: expectedDerivationPath,
-        index: expectedIndex,
-        type: KEYRING_ACCOUNT_TYPE,
-        address: expect.any(String),
-        scopes: [KnownCaip2ChainId.Mainnet],
-        methods: [
-          MultichainMethod.SignMessage,
-          MultichainMethod.SignTransaction,
-          MultichainMethod.SignAuthEntry,
-        ],
-        options: {
-          entropy: {
-            type: 'mnemonic',
-            id: entropySource,
-            derivationPath: expectedDerivationPath,
-            groupIndex: expectedIndex,
+        account: {
+          id: expect.any(String),
+          entropySource,
+          derivationPath: expectedDerivationPath,
+          index: expectedIndex,
+          type: KEYRING_ACCOUNT_TYPE,
+          address: expect.any(String),
+          scopes: [KnownCaip2ChainId.Mainnet],
+          methods: [
+            MultichainMethod.SignMessage,
+            MultichainMethod.SignTransaction,
+            MultichainMethod.SignAuthEntry,
+          ],
+          options: {
+            entropy: {
+              type: 'mnemonic',
+              id: entropySource,
+              derivationPath: expectedDerivationPath,
+              groupIndex: expectedIndex,
+            },
+            exportable: true,
           },
-          exportable: true,
         },
+        isNewAccount: true,
       });
     });
 
     it('returns an existing account if it already exists', async () => {
-      const { getAllSpy } = getAccountsRepositorySpies();
+      const { getAllSpy, saveSpy } = getAccountsRepositorySpies();
       const entropySource = 'entropy-source-1';
       const mockAccounts = generateMockStellarKeyringAccounts(5, entropySource);
       getAllSpy.mockResolvedValue(mockAccounts);
@@ -177,7 +186,11 @@ describe('AccountService', () => {
         index: 0,
       });
 
-      expect(result).toStrictEqual(mockAccounts[0]);
+      expect(saveSpy).not.toHaveBeenCalled();
+      expect(result).toStrictEqual({
+        account: mockAccounts[0],
+        isNewAccount: false,
+      });
     });
   });
 
@@ -289,7 +302,7 @@ describe('AccountService', () => {
   describe('delete', () => {
     it('deletes an account', async () => {
       const { deleteSpy } = getAccountsRepositorySpies();
-      const account = await accountService.create();
+      const { account } = await accountService.create();
 
       await accountService.delete(account.id);
 

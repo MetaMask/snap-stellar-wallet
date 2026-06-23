@@ -94,6 +94,11 @@ describe('KeyringHandler', () => {
     };
   };
 
+  const mockCreateAccountResult = (
+    account: StellarKeyringAccount,
+    isNewAccount = true,
+  ) => ({ account, isNewAccount });
+
   const getAccountServiceSpies = () => ({
     listAccountsSpy: jest.spyOn(AccountService.prototype, 'listAccounts'),
     findByIdSpy: jest.spyOn(AccountService.prototype, 'findById'),
@@ -248,7 +253,7 @@ describe('KeyringHandler', () => {
   describe('createAccount', () => {
     it('creates an account', async () => {
       const { createAccountSpy } = getAccountServiceSpies();
-      createAccountSpy.mockResolvedValue(mockAccount);
+      createAccountSpy.mockResolvedValue(mockCreateAccountResult(mockAccount));
 
       const result = await keyringHandler.createAccount();
 
@@ -258,7 +263,7 @@ describe('KeyringHandler', () => {
 
     it('emits the account-created event', async () => {
       const { createAccountSpy } = getAccountServiceSpies();
-      createAccountSpy.mockResolvedValue(mockAccount);
+      createAccountSpy.mockResolvedValue(mockCreateAccountResult(mockAccount));
       const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
       emitSnapKeyringEventSpy.mockResolvedValue();
 
@@ -279,6 +284,19 @@ describe('KeyringHandler', () => {
       );
     });
 
+    it('does not emit account-created event for an existing account', async () => {
+      const { createAccountSpy } = getAccountServiceSpies();
+      createAccountSpy.mockResolvedValue(
+        mockCreateAccountResult(mockAccount, false),
+      );
+      const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
+
+      const result = await keyringHandler.createAccount();
+
+      expect(result).toStrictEqual(toKeyringAccount(mockAccount));
+      expect(emitSnapKeyringEventSpy).not.toHaveBeenCalled();
+    });
+
     it('propagates errors when account creation fails', async () => {
       const { createAccountSpy } = getAccountServiceSpies();
       createAccountSpy.mockRejectedValue(new Error('Account creation failed'));
@@ -290,7 +308,7 @@ describe('KeyringHandler', () => {
 
     it('rolls back and throws when account-created event emission fails', async () => {
       const { createAccountSpy, deleteSpy } = getAccountServiceSpies();
-      createAccountSpy.mockResolvedValue(mockAccount);
+      createAccountSpy.mockResolvedValue(mockCreateAccountResult(mockAccount));
       deleteSpy.mockResolvedValue(undefined);
       jest
         .mocked(emitSnapKeyringEvent)
@@ -304,7 +322,7 @@ describe('KeyringHandler', () => {
 
     it('throws KeyringAccountRollbackException when rollback fails', async () => {
       const { createAccountSpy, deleteSpy } = getAccountServiceSpies();
-      createAccountSpy.mockResolvedValue(mockAccount);
+      createAccountSpy.mockResolvedValue(mockCreateAccountResult(mockAccount));
       deleteSpy.mockRejectedValue(new Error('Rollback failed'));
       jest
         .mocked(emitSnapKeyringEvent)
@@ -319,7 +337,7 @@ describe('KeyringHandler', () => {
   describe('createAccounts', () => {
     it('creates one account for bip44:derive-index without emitting AccountCreated', async () => {
       const { createAccountSpy } = getAccountServiceSpies();
-      createAccountSpy.mockResolvedValue(mockAccount);
+      createAccountSpy.mockResolvedValue(mockCreateAccountResult(mockAccount));
       const emitSnapKeyringEventSpy = jest.mocked(emitSnapKeyringEvent);
 
       const result = await keyringHandler.createAccounts({
@@ -588,7 +606,7 @@ describe('KeyringHandler', () => {
       ]);
     });
 
-    it('returns empty array if the account is not activated on the Stellar network', async () => {
+    it('returns empty array if the account is not activated on any requested scope', async () => {
       jest
         .spyOn(AccountService.prototype, 'deriveKeyringAccount')
         .mockResolvedValue(mockAccount);
@@ -603,6 +621,58 @@ describe('KeyringHandler', () => {
       );
 
       expect(result).toStrictEqual([]);
+    });
+
+    it('returns empty array when the account is not activated on any of multiple scopes', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'deriveKeyringAccount')
+        .mockResolvedValue(mockAccount);
+      const isAccountActivatedSpy = jest
+        .spyOn(OnChainAccountService.prototype, 'isAccountActivated')
+        .mockResolvedValue(false);
+
+      const scopes = [KnownCaip2ChainId.Mainnet, KnownCaip2ChainId.Testnet];
+      const result = await keyringHandler.discoverAccounts(
+        scopes,
+        'entropy-source-1',
+        0,
+      );
+
+      expect(isAccountActivatedSpy).toHaveBeenCalledTimes(2);
+      expect(isAccountActivatedSpy).toHaveBeenCalledWith({
+        accountAddress: mockAccount.address,
+        scope: KnownCaip2ChainId.Mainnet,
+      });
+      expect(isAccountActivatedSpy).toHaveBeenCalledWith({
+        accountAddress: mockAccount.address,
+        scope: KnownCaip2ChainId.Testnet,
+      });
+      expect(result).toStrictEqual([]);
+    });
+
+    it('discovers an account when activated on any requested scope', async () => {
+      jest
+        .spyOn(AccountService.prototype, 'deriveKeyringAccount')
+        .mockResolvedValue(mockAccount);
+      jest
+        .spyOn(OnChainAccountService.prototype, 'isAccountActivated')
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+
+      const scopes = [KnownCaip2ChainId.Mainnet, KnownCaip2ChainId.Testnet];
+      const result = await keyringHandler.discoverAccounts(
+        scopes,
+        'entropy-source-1',
+        0,
+      );
+
+      expect(result).toStrictEqual([
+        {
+          type: DiscoveredAccountType.Bip44,
+          scopes,
+          derivationPath: mockAccount.derivationPath,
+        },
+      ]);
     });
 
     it('propagates errors when account discovery fails', async () => {
