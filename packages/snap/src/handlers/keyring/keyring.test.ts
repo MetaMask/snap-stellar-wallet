@@ -25,7 +25,6 @@ import {
   KeyringAccountRollbackException,
   KeyringEmitAccountCreatedEventException,
   KeyringEmitAccountDeletedEventException,
-  KeyringException,
 } from './exceptions';
 import { KeyringHandler } from './keyring';
 import { KnownCaip2ChainId } from '../../api';
@@ -570,7 +569,7 @@ describe('KeyringHandler', () => {
           limit: 2,
           next: '00000000-0000-4000-8000-000000000000',
         }),
-      ).rejects.toThrow(KeyringException);
+      ).rejects.toThrow(InvalidParamsError);
     });
   });
 

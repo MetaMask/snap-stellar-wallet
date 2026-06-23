@@ -50,7 +50,6 @@ import {
   KeyringAccountRollbackException,
   KeyringEmitAccountCreatedEventException,
   KeyringEmitAccountDeletedEventException,
-  KeyringException,
 } from './exceptions';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
@@ -313,12 +312,10 @@ export class KeyringHandler implements Keyring {
     // Safeguard: If the next cursor is invalid, throw the account-based exception
     // with the correct account identifier.
     if (next !== undefined && next !== null && startIndex === -1) {
-      throw new KeyringException('Invalid transaction pagination cursor', {
-        data: {
-          accountId,
-          next,
-        },
-      });
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- InvalidParamsError is the JSON-RPC snap error surface
+      throw new InvalidParamsError(
+        `Invalid transaction pagination cursor ${next}`,
+      );
     }
 
     // Get transactions from startIndex to startIndex + limit
