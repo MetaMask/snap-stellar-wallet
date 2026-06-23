@@ -1,6 +1,4 @@
-export class PriceApiException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'PriceApiException';
-  }
-}
+import { StellarSnapException } from '../../../utils/errors';
+
+/** Base for all Price API client errors. */
+export class PriceApiException extends StellarSnapException {}
