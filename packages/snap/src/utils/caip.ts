@@ -46,6 +46,16 @@ export function toCaip19Sep41AssetId(
 }
 
 /**
+ * Returns true when the CAIP-19 asset id belongs to a Stellar namespace.
+ *
+ * @param assetId - CAIP-19 asset id from any chain namespace.
+ * @returns True when the asset id uses the Stellar CAIP-2 prefix.
+ */
+export function isStellarAssetId(assetId: string): boolean {
+  return assetId.startsWith('stellar:');
+}
+
+/**
  * Checks if the given asset ID is a slip44 ID.
  *
  * @param assetId - The CAIP-19 asset ID or slip44 ID.

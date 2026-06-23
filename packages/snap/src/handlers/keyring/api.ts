@@ -10,7 +10,6 @@ import {
   literal,
   number,
   union,
-  size,
   nonempty,
   assign,
   nullable,
@@ -96,7 +95,7 @@ export const ResolveAccountAddressRequestStruct = object({
  * Validation struct for the discoverAccounts request.
  */
 export const DiscoverAccountsStruct = object({
-  scopes: size(array(KnownCaip2ChainIdStruct), 1, 1),
+  scopes: nonempty(array(KnownCaip2ChainIdStruct)),
   entropySource: nonempty(string()),
   groupIndex: min(integer(), 0),
 });

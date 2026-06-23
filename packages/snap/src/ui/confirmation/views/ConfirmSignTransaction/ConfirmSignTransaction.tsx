@@ -5,7 +5,6 @@ import {
   Container,
   Heading,
   Icon,
-  Image,
   Section,
   Text as SnapText,
   Tooltip,
@@ -20,16 +19,15 @@ import type { StellarKeyringAccount } from '../../../../services/account';
 import type { ReadableTransactionJson } from '../../../../services/transaction';
 import type { Locale, LocalizedMessage } from '../../../../utils';
 import { i18n } from '../../../../utils';
-import { STELLAR_IMAGE } from '../../../images/icon';
 import type { ConfirmationBaseProps, FeeData } from '../../api';
 import { FetchStatus } from '../../api';
 import { Asset } from '../../components/Asset';
 import { ConfirmationFooter } from '../../components/ConfirmationFooter';
 import { FeeRow } from '../../components/Fee';
+import { NetworkRow } from '../../components/Network';
 import { TransactionAlert } from '../../components/TransactionAlert';
 import {
   getAccountName,
-  getNetworkName,
   hasEnabledTransactionScan,
   requiresMaliciousAcknowledgement,
   resolveAssetDisplay,
@@ -220,20 +218,14 @@ export const ConfirmSignTransaction = ({
             </SnapText>
             <Address address={addressCaip10} truncate displayName avatar />
           </Box>
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.network')}
-            </SnapText>
-            <Box direction="horizontal" alignment="end">
-              <Image
-                borderRadius="medium"
-                src={networkImage ?? STELLAR_IMAGE}
-                height={16}
-                width={16}
-              />
-              <SnapText>{getNetworkName(scope)}</SnapText>
-            </Box>
-          </Box>
+          {/* Network */}
+          <NetworkRow
+            networkImage={networkImage}
+            scope={scope}
+            locale={locale as Locale}
+          />
+          <Box>{null}</Box>
+          {/* Fee */}
           <FeeRow
             fee={feeData}
             preferences={preferences}

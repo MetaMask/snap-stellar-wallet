@@ -242,6 +242,59 @@ describe('KeyringTransactionBuilder', () => {
     });
   });
 
+  it('uses caller-provided transaction type for asset-only pending transaction', () => {
+    const builder = new KeyringTransactionBuilder();
+
+    const transaction = builder.createTransaction({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: 'tx-pending-bridge-send-1',
+        account,
+        scope,
+        transactionType: TransactionType.BridgeSend,
+        asset: {
+          type: 'stellar:pubnet/slip44:148',
+          symbol: 'XLM',
+        },
+      },
+    });
+
+    expect(transaction).toStrictEqual({
+      type: TransactionType.BridgeSend,
+      id: 'tx-pending-bridge-send-1',
+      from: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      to: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      events: [
+        { status: TransactionStatus.Unconfirmed, timestamp: fixedTimestamp },
+      ],
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      account: account.id,
+      timestamp: fixedTimestamp,
+      fees: [],
+    });
+  });
+
   it('creates a swap transaction with expected keyring fields', () => {
     const builder = new KeyringTransactionBuilder();
 

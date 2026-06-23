@@ -110,14 +110,12 @@ const ConfigStruct = object({
   api: object({
     tokenApi: object({
       baseUrl: UrlStruct,
-      chunkSize: parseIntegerStruct(1, 20),
     }),
     staticApi: object({
       baseUrl: UrlStruct,
     }),
     priceApi: object({
       baseUrl: UrlStruct,
-      chunkSize: parseIntegerStruct(1, 20),
     }),
     securityAlertsApi: object({
       baseUrl: UrlStruct,
@@ -186,14 +184,12 @@ export const AppConfig = create(
     api: {
       tokenApi: {
         baseUrl: process.env.TOKEN_API_BASE_URL,
-        chunkSize: process.env.TOKEN_API_CHUNK_SIZE,
       },
       staticApi: {
         baseUrl: process.env.STATIC_API_BASE_URL,
       },
       priceApi: {
         baseUrl: process.env.PRICE_API_BASE_URL,
-        chunkSize: process.env.PRICE_API_CHUNK_SIZE,
       },
       securityAlertsApi: {
         baseUrl:

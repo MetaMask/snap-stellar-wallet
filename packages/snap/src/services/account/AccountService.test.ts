@@ -3,7 +3,6 @@ import { AccountsRepository } from './AccountsRepository';
 import type { StellarKeyringAccount } from './api';
 import {
   AccountNotFoundException,
-  AccountRollbackException,
   DerivedAccountAddressMismatchException,
 } from './exceptions';
 import { KnownCaip2ChainId } from '../../api';
@@ -64,30 +63,32 @@ describe('AccountService', () => {
 
       const result = await accountService.create();
 
-      expect(saveSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result.account);
       expect(deriveAddressSpy).toHaveBeenCalledWith({
         entropySource,
         index: expectedIndex,
       });
       expect(result).toStrictEqual({
-        id: expect.any(String),
-        entropySource,
-        derivationPath: expectedDerivationPath,
-        index: expectedIndex,
-        type: KEYRING_ACCOUNT_TYPE,
-        address: expect.any(String),
-        scopes: [KnownCaip2ChainId.Mainnet],
-        methods: ['signMessage', 'signTransaction'],
-        // methods: ['signMessage', 'signTransaction', 'signAuthEntry'], // TODO: Add this once keyring-api supports it
-        options: {
-          entropy: {
-            type: 'mnemonic',
-            id: entropySource,
-            derivationPath: expectedDerivationPath,
-            groupIndex: expectedIndex,
+        account: {
+          id: expect.any(String),
+          entropySource,
+          derivationPath: expectedDerivationPath,
+          index: expectedIndex,
+          type: KEYRING_ACCOUNT_TYPE,
+          address: expect.any(String),
+          scopes: [KnownCaip2ChainId.Mainnet],
+          methods: ['signMessage', 'signTransaction', 'signAuthEntry'],
+          options: {
+            entropy: {
+              type: 'mnemonic',
+              id: entropySource,
+              derivationPath: expectedDerivationPath,
+              groupIndex: expectedIndex,
+            },
+            exportable: true,
           },
-          exportable: true,
         },
+        isNewAccount: true,
       });
     });
 
@@ -100,29 +101,32 @@ describe('AccountService', () => {
         index: 1,
       });
 
-      expect(saveSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result.account);
       expect(result).toStrictEqual({
-        id: expect.any(String),
-        entropySource: 'entropy-source-2',
-        derivationPath: "m/44'/148'/1'",
-        index: 1,
-        type: KEYRING_ACCOUNT_TYPE,
-        address: expect.any(String),
-        scopes: [KnownCaip2ChainId.Mainnet],
-        methods: [
-          MultichainMethod.SignMessage,
-          MultichainMethod.SignTransaction,
-          // MultichainMethod.SignAuthEntry, // TODO: Add this once keyring-api supports it
-        ],
-        options: {
-          entropy: {
-            type: 'mnemonic',
-            id: 'entropy-source-2',
-            derivationPath: "m/44'/148'/1'",
-            groupIndex: 1,
+        account: {
+          id: expect.any(String),
+          entropySource: 'entropy-source-2',
+          derivationPath: "m/44'/148'/1'",
+          index: 1,
+          type: KEYRING_ACCOUNT_TYPE,
+          address: expect.any(String),
+          scopes: [KnownCaip2ChainId.Mainnet],
+          methods: [
+            MultichainMethod.SignMessage,
+            MultichainMethod.SignTransaction,
+            MultichainMethod.SignAuthEntry,
+          ],
+          options: {
+            entropy: {
+              type: 'mnemonic',
+              id: 'entropy-source-2',
+              derivationPath: "m/44'/148'/1'",
+              groupIndex: 1,
+            },
+            exportable: true,
           },
-          exportable: true,
         },
+        isNewAccount: true,
       });
     });
 
@@ -142,34 +146,37 @@ describe('AccountService', () => {
         entropySource,
       });
 
-      expect(saveSpy).toHaveBeenCalledWith(result);
+      expect(saveSpy).toHaveBeenCalledWith(result.account);
       expect(result).toStrictEqual({
-        id: expect.any(String),
-        entropySource,
-        derivationPath: expectedDerivationPath,
-        index: expectedIndex,
-        type: KEYRING_ACCOUNT_TYPE,
-        address: expect.any(String),
-        scopes: [KnownCaip2ChainId.Mainnet],
-        methods: [
-          MultichainMethod.SignMessage,
-          MultichainMethod.SignTransaction,
-          // MultichainMethod.SignAuthEntry, // TODO: Add this once keyring-api supports it
-        ],
-        options: {
-          entropy: {
-            type: 'mnemonic',
-            id: entropySource,
-            derivationPath: expectedDerivationPath,
-            groupIndex: expectedIndex,
+        account: {
+          id: expect.any(String),
+          entropySource,
+          derivationPath: expectedDerivationPath,
+          index: expectedIndex,
+          type: KEYRING_ACCOUNT_TYPE,
+          address: expect.any(String),
+          scopes: [KnownCaip2ChainId.Mainnet],
+          methods: [
+            MultichainMethod.SignMessage,
+            MultichainMethod.SignTransaction,
+            MultichainMethod.SignAuthEntry,
+          ],
+          options: {
+            entropy: {
+              type: 'mnemonic',
+              id: entropySource,
+              derivationPath: expectedDerivationPath,
+              groupIndex: expectedIndex,
+            },
+            exportable: true,
           },
-          exportable: true,
         },
+        isNewAccount: true,
       });
     });
 
     it('returns an existing account if it already exists', async () => {
-      const { getAllSpy } = getAccountsRepositorySpies();
+      const { getAllSpy, saveSpy } = getAccountsRepositorySpies();
       const entropySource = 'entropy-source-1';
       const mockAccounts = generateMockStellarKeyringAccounts(5, entropySource);
       getAllSpy.mockResolvedValue(mockAccounts);
@@ -179,62 +186,11 @@ describe('AccountService', () => {
         index: 0,
       });
 
-      expect(result).toStrictEqual(mockAccounts[0]);
-    });
-
-    it('creates an account with a callback', async () => {
-      const { saveSpy } = getAccountsRepositorySpies();
-      const callback = jest.fn();
-
-      const result = await accountService.create(
-        {
-          entropySource: 'entropy-source-1',
-          index: 0,
-        },
-        callback,
-      );
-
-      expect(callback).toHaveBeenCalledWith(result);
-      expect(saveSpy).toHaveBeenCalledWith(result);
-    });
-
-    it('deletes the account and throws an error if the callback fails', async () => {
-      const { saveSpy, deleteSpy } = getAccountsRepositorySpies();
-      const callback = jest
-        .fn()
-        .mockRejectedValue(new Error('Callback failed'));
-
-      await expect(
-        accountService.create(
-          {
-            entropySource: 'entropy-source-1',
-            index: 0,
-          },
-          callback,
-        ),
-      ).rejects.toThrow('Callback failed');
-
-      expect(saveSpy.mock.calls[0]?.[0]?.id).toStrictEqual(expect.any(String));
-      expect(deleteSpy).toHaveBeenCalledWith(saveSpy.mock.calls[0]?.[0]?.id);
-      expect(saveSpy).toHaveBeenCalled();
-    });
-
-    it('throws AccountRollbackException if the rollback fails', async () => {
-      const { deleteSpy } = getAccountsRepositorySpies();
-      const callback = jest
-        .fn()
-        .mockRejectedValue(new Error('Callback failed'));
-      deleteSpy.mockRejectedValue(new Error('Rollback failed'));
-
-      await expect(
-        accountService.create(
-          {
-            entropySource: 'entropy-source-1',
-            index: 0,
-          },
-          callback,
-        ),
-      ).rejects.toThrow(AccountRollbackException);
+      expect(saveSpy).not.toHaveBeenCalled();
+      expect(result).toStrictEqual({
+        account: mockAccounts[0],
+        isNewAccount: false,
+      });
     });
   });
 
@@ -346,7 +302,7 @@ describe('AccountService', () => {
   describe('delete', () => {
     it('deletes an account', async () => {
       const { deleteSpy } = getAccountsRepositorySpies();
-      const account = await accountService.create();
+      const { account } = await accountService.create();
 
       await accountService.delete(account.id);
 
@@ -491,10 +447,10 @@ describe('AccountService', () => {
       expect(account).toStrictEqual({
         ...mockAccount,
         id: expect.any(String),
-        // TODO: Remove when keyring-api supports all methods
         methods: [
           MultichainMethod.SignMessage,
           MultichainMethod.SignTransaction,
+          MultichainMethod.SignAuthEntry,
         ],
       });
     });

@@ -19,6 +19,8 @@ import { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import { bufferToUint8Array } from '../../utils/buffer';
+import { logger } from '../../utils/logger';
+import * as snapUtils from '../../utils/snap';
 import type { StellarKeyringAccount } from '../account';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
 import {
@@ -170,6 +172,7 @@ describe('OnChainAccountSynchronizeService', () => {
 
   const setupTest = () => {
     jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
+    jest.spyOn(snapUtils, 'trackError').mockResolvedValue(undefined);
   };
 
   const buildActivatedAccountPair = (
@@ -467,7 +470,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
   });
 
-  it('replays asset-list add/remove on sync 4 while balance payload omits tombstones and zero SEP-41', async () => {
+  it('emits no asset-list transitions on sync 4 when state matches on-chain while balance payload omits tombstones and zero SEP-41', async () => {
     setupTest();
 
     const {
@@ -655,10 +658,10 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(simulatedClientBalances[sep41Id]?.amount).toBe('0.00005');
     expect(simulatedClientBalances[NATIVE]?.amount).toBe('1');
 
-    // Asset list replay on sync 4 reconciles visibility the client missed.
+    // Asset list on sync 4: state already matches on-chain, so no add/remove transitions.
     expect(sync4AssetListPayload.assets[keyringAccount.id]).toStrictEqual({
       added: expect.arrayContaining([NATIVE]),
-      removed: expect.arrayContaining([USDC_CLASSIC, sep41Id]),
+      removed: [],
     });
     expect(sync4BalancePayload.balances[keyringAccount.id]).not.toHaveProperty(
       USDC_CLASSIC,
@@ -668,7 +671,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
   });
 
-  it('runs four syncs with emit failures then reconciles via replayed asset-list and visible balances', async () => {
+  it('runs four syncs with emit failures then reconciles via transition-based asset-list and visible balances', async () => {
     setupTest();
 
     const {
@@ -878,13 +881,13 @@ describe('OnChainAccountSynchronizeService', () => {
     // 1st `AccountAssetListUpdated` (after sync 1): USDC trustline becomes visible (limit > 0, balance 0).
     expect(assetListDeltaFromNthAssetEmit(0)).toStrictEqual({
       added: expect.arrayContaining([NATIVE, USDC_CLASSIC]),
-      removed: expect.arrayContaining([sep41Id]),
+      removed: [],
     });
 
-    // 2nd `AccountAssetListUpdated` (after sync 4): replays on-chain visibility — EURC added, USDC removed.
+    // 2nd `AccountAssetListUpdated` (after sync 4): stale state baseline vs current on-chain — EURC added, USDC removed.
     expect(assetListDeltaFromNthAssetEmit(1)).toStrictEqual({
       added: expect.arrayContaining([NATIVE, EURC_CLASSIC]),
-      removed: expect.arrayContaining([USDC_CLASSIC, sep41Id]),
+      removed: expect.arrayContaining([USDC_CLASSIC]),
     });
   });
 
@@ -910,6 +913,20 @@ describe('OnChainAccountSynchronizeService', () => {
       mockSep41Assets,
     );
 
+    expect(snapUtils.trackError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'sep41 fetch temporarily unavailable',
+      }),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[💼 OnChainAccountSynchronizeService]',
+      'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 asset entries where needed',
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'sep41 fetch temporarily unavailable',
+        }),
+      }),
+    );
     expect(setAssetSpy).not.toHaveBeenCalled();
   });
 
@@ -1038,5 +1055,39 @@ describe('OnChainAccountSynchronizeService', () => {
 
     expect(saveManySpy).toHaveBeenCalled();
     expect(emitSnapKeyringEventSpy).not.toHaveBeenCalled();
+  });
+
+  it('tracks and logs emit failures without failing synchronize', async () => {
+    setupTest();
+
+    const { activatedAccountPair: pair } = setupOnChainAccountWithBalance(
+      'entropy-sync-emit-failure',
+    );
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
+    getSep41AssetBalancesSpy.mockResolvedValue({
+      [pair.onChainAccount.accountId]: {
+        [sep41Id]: new BigNumber('1000'),
+      },
+    });
+
+    const emitError = new Error('client handler unavailable');
+    const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
+    emitSnapKeyringEventSpy.mockRejectedValue(emitError);
+
+    const { onChainAccountService, saveManySpy } = setupSynchronizeService();
+
+    await onChainAccountService.synchronize(
+      [pair],
+      KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
+    );
+
+    expect(saveManySpy).toHaveBeenCalled();
+    expect(snapUtils.trackError).toHaveBeenCalledWith(emitError);
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[💼 OnChainAccountSynchronizeService]',
+      'Failed to emit keyring events after synchronize',
+      { error: emitError },
+    );
   });
 });

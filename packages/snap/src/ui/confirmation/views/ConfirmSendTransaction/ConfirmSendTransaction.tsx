@@ -5,7 +5,6 @@ import {
   Container,
   Heading,
   Icon,
-  Image,
   Link,
   Section,
   Text as SnapText,
@@ -16,9 +15,9 @@ import { parseCaipAssetType } from '@metamask/utils';
 import { ConfirmSendTransactionFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { StellarAssetMetadata } from '../../../../services/asset-metadata';
+import type { Locale } from '../../../../utils';
 import { isSlip44Id, i18n } from '../../../../utils';
 import { xlmIcon } from '../../../images';
-import { STELLAR_IMAGE } from '../../../images/icon';
 import type {
   ContextWithPrices,
   ConfirmationBaseProps,
@@ -31,11 +30,11 @@ import {
   ConfirmationFooter,
   FeeRow,
 } from '../../components';
+import { NetworkRow } from '../../components/Network';
 import {
   getAccountExplorerUrl,
   getAccountName,
   getClassicAssetExplorerUrl,
-  getNetworkName,
   getSepAssetExplorerUrl,
   requiresMaliciousAcknowledgement,
   shouldDisableConfirmation,
@@ -161,20 +160,11 @@ export const ConfirmSendTransaction = ({
             />
           </Box>
           {/* Network */}
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.network')}
-            </SnapText>
-            <Box direction="horizontal" alignment="end">
-              <Image
-                borderRadius="medium"
-                src={networkImage ?? STELLAR_IMAGE}
-                height={16}
-                width={16}
-              />
-              <SnapText>{getNetworkName(scope)}</SnapText>
-            </Box>
-          </Box>
+          <NetworkRow
+            networkImage={networkImage}
+            scope={scope}
+            locale={locale as Locale}
+          />
           <Box>{null}</Box>
           {/* Fee Breakdown */}
           <FeeRow

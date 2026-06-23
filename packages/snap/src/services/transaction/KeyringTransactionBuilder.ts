@@ -1,4 +1,5 @@
 import {
+  FeeType,
   TransactionStatus,
   TransactionType,
   type Transaction as KeyringTransaction,
@@ -7,6 +8,8 @@ import {
 import { KeyringTransactionBuilderException } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api/asset';
+import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import { getSlip44AssetId, toDisplayBalance } from '../../utils';
 import type { StellarKeyringAccount } from '../account/api';
 
 export enum KeyringTransactionType {
@@ -71,6 +74,7 @@ export type PendingTransactionRequest = {
   status?: TransactionStatus;
 } & (
   | {
+      transactionType?: TransactionType;
       asset: {
         type: KnownCaip19AssetIdOrSlip44Id;
         symbol: string;
@@ -234,7 +238,7 @@ export class KeyringTransactionBuilder {
   #createPendingTransaction(
     request: PendingTransactionRequest,
   ): KeyringTransaction {
-    const timestamp = this.#getCreateTime();
+    const timestamp = this.getCreateTime();
     const { txId, account, scope } = request;
     const status = request.status ?? TransactionStatus.Unconfirmed;
 
@@ -256,7 +260,7 @@ export class KeyringTransactionBuilder {
     const { asset } = request;
 
     return this.#buildKeyringTransaction({
-      type: TransactionType.Unknown,
+      type: request.transactionType ?? TransactionType.Unknown,
       id: txId,
       account,
       scope,
@@ -388,10 +392,41 @@ export class KeyringTransactionBuilder {
   #resolveTimestamp(
     timestamp: KeyringTransaction['timestamp'] | undefined,
   ): number {
-    return timestamp ?? this.#getCreateTime();
+    return timestamp ?? this.getCreateTime();
   }
 
-  #getCreateTime(): number {
-    return Math.floor(Date.now() / 1000); // seconds since epoch
+  /**
+   * Gets a timestamp in seconds since epoch.
+   *
+   * @param timestamp - Optional Unix timestamp in seconds; defaults to the current time.
+   * @returns Timestamp in seconds since epoch.
+   */
+  getCreateTime(timestamp?: number): number {
+    return Math.floor(timestamp ?? Date.now() / 1000); // seconds since epoch
+  }
+
+  /**
+   * Gets the base fees for a transaction.
+   *
+   * @param feeAmountInStroops - The fee amount in stroops.
+   * @param scope - The CAIP-2 chain ID.
+   * @returns The base fees for a transaction.
+   */
+  getBaseFees(
+    feeAmountInStroops: BigNumber,
+    scope: KnownCaip2ChainId,
+  ): KeyringTransaction['fees'] {
+    return [
+      {
+        type: FeeType.Base,
+        asset: {
+          unit: NATIVE_ASSET_SYMBOL,
+          type: getSlip44AssetId(scope),
+          // Horizon reports fee_charged in stroops (smallest XLM unit).
+          amount: toDisplayBalance(feeAmountInStroops),
+          fungible: true,
+        },
+      },
+    ];
   }
 }

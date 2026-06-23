@@ -1,17 +1,20 @@
 import type { JsonSLIP10Node } from '@metamask/key-tree';
 import type { EntropySourceId } from '@metamask/keyring-api';
-import type {
-  ComponentOrElement,
-  DialogResult,
-  EntropySource,
-  GetClientStatusResult,
-  GetPreferencesResult,
-  Json,
-  ResolveInterfaceResult,
-  SnapsProvider,
-  UpdateInterfaceResult,
+import {
+  getJsonError,
+  type ComponentOrElement,
+  type DialogResult,
+  type EntropySource,
+  type GetClientStatusResult,
+  type GetPreferencesResult,
+  type Json,
+  type ResolveInterfaceResult,
+  type SnapsProvider,
+  type UpdateInterfaceResult,
 } from '@metamask/snaps-sdk';
+import { ensureError } from '@metamask/utils';
 
+import { logger } from './logger';
 import { type Serializable, serialize, deserialize } from './serialization';
 
 export enum Duration {
@@ -436,7 +439,7 @@ export async function trackEvent(
   properties: Record<string, Json>,
 ): Promise<void> {
   try {
-    await snap.request({
+    await getSnapProvider().request({
       method: 'snap_trackEvent',
       params: {
         event: {
@@ -445,8 +448,9 @@ export async function trackEvent(
         },
       },
     });
-  } catch {
-    // Silently fail if tracking fails - we don't want to interrupt the user flow
+  } catch (error) {
+    // Silently fail if tracking fails - we don't want to interrupt the user flow.
+    logger.warn({ error }, 'Failed to track event via snap_trackEvent');
   }
 }
 
@@ -611,5 +615,34 @@ export async function trackSecurityScanCompleted(properties: {
     scan_status: properties.scanStatus,
     has_security_alerts: properties.hasSecurityAlerts,
   });
+}
+
+/**
+ * Track an error in MetaMask via Sentry (`snap_trackError`).
+ *
+ * RPC failures are caught and logged but never rethrown, so this is
+ * safe to call from already-failing error-handling paths without risk
+ * of masking the original failure.
+ *
+ * @param error - The error to report to Sentry.
+ * @returns The Sentry event ID on success, or `undefined` on failure.
+ */
+export async function trackError(
+  error: Error | unknown,
+): Promise<string | undefined> {
+  try {
+    let errorToTrack = error;
+
+    if (!(error instanceof Error)) {
+      errorToTrack = ensureError(error);
+    }
+    return await getSnapProvider().request({
+      method: 'snap_trackError',
+      params: { error: getJsonError(errorToTrack) },
+    });
+  } catch (rpcError) {
+    logger.warn({ rpcError }, 'Failed to track error via snap_trackError');
+    return undefined;
+  }
 }
 /* eslint-enable @typescript-eslint/naming-convention */

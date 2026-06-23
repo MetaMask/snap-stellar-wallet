@@ -6,16 +6,17 @@ import {
   FiatExchangeRatesResponseStruct,
   GetHistoricalPricesParamsStruct,
   GetHistoricalPricesResponseStruct,
+  GetSpotPricesParamsStruct,
+  GetSpotPricesResponseStruct,
   SpotPriceStruct,
-  SpotPricesStruct,
-  type SpotPrices,
+  type SpotPricesResponse,
 } from './api';
 import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from '../api';
 
 const stellarClassicUsdc =
   'stellar:testnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN' as const;
 
-const validSpotPrices: SpotPrices = {
+const validSpotPrices: SpotPricesResponse = {
   'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501': {
     id: 'solana',
     price: 150,
@@ -126,9 +127,11 @@ describe('price-api structs', () => {
     });
   });
 
-  describe('SpotPricesStruct', () => {
+  describe('GetSpotPricesResponseStruct', () => {
     it('accepts valid spot prices map including null entry', () => {
-      expect(() => assert(validSpotPrices, SpotPricesStruct)).not.toThrow();
+      expect(() =>
+        assert(validSpotPrices, GetSpotPricesResponseStruct),
+      ).not.toThrow();
     });
 
     it('rejects negative price on an asset', () => {
@@ -140,7 +143,7 @@ describe('price-api structs', () => {
       );
 
       expect(() =>
-        assert(spotPricesWithInvalidPrice, SpotPricesStruct),
+        assert(spotPricesWithInvalidPrice, GetSpotPricesResponseStruct),
       ).toThrow(StructError);
     });
 
@@ -150,7 +153,33 @@ describe('price-api structs', () => {
           {
             'invalid-asset-key': { id: 'x', price: 1 },
           },
-          SpotPricesStruct,
+          GetSpotPricesResponseStruct,
+        ),
+      ).toThrow(StructError);
+    });
+  });
+
+  describe('GetSpotPricesParamsStruct', () => {
+    it('accepts assetIds and vsCurrency', () => {
+      expect(() =>
+        assert(
+          {
+            assetIds: [stellarClassicUsdc],
+            vsCurrency: 'usd',
+          },
+          GetSpotPricesParamsStruct,
+        ),
+      ).not.toThrow();
+    });
+
+    it('rejects invalid vsCurrency', () => {
+      expect(() =>
+        assert(
+          {
+            assetIds: [stellarClassicUsdc],
+            vsCurrency: 'not-a-ticker',
+          },
+          GetSpotPricesParamsStruct,
         ),
       ).toThrow(StructError);
     });
