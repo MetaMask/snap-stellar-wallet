@@ -190,6 +190,11 @@ describe('DiscoverAccountsStruct', () => {
 
   it.each([
     {
+      scopes: [],
+      entropySource: 'entropy-source-1',
+      groupIndex: 1,
+    },
+    {
       scopes: [KnownCaip2ChainId.Mainnet],
       entropySource: 'entropy-source-1',
       groupIndex: 1.5,

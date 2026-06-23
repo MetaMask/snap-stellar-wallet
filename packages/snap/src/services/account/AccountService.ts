@@ -1,14 +1,10 @@
 import type { EntropySourceId } from '@metamask/keyring-api';
 import { getSelectedAccounts } from '@metamask/keyring-snap-sdk';
-import { ensureError } from '@metamask/utils';
+import { InvalidParamsError } from '@metamask/snaps-sdk';
 
 import type { AccountsRepository } from './AccountsRepository';
 import type { StellarKeyringAccount, StellarDerivationPath } from './api';
-import {
-  AccountNotFoundException,
-  AccountRollbackException,
-  AccountServiceException,
-} from './exceptions';
+import { AccountNotFoundException } from './exceptions';
 import { assertSameAddress } from './utils';
 import type { StellarAddress, KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
@@ -75,7 +71,7 @@ export class AccountService {
    * @param params.accountAddress - The address of the account to resolve.
    * @returns A promise that resolves to the keyring account from state.
    * @throws {AccountNotFoundException} When no account matches the given id or address/scope.
-   * @throws {AccountServiceException} When `accountAddress` is set without `scope`, or neither id nor address is set.
+   * @throws {InvalidParamsError} When `accountAddress` is set without `scope`, or neither id nor address is set.
    * @throws {DerivedAccountAddressMismatchException} When the stored address does not match re-derivation.
    */
   async resolveAccount({
@@ -93,7 +89,8 @@ export class AccountService {
       account = await this.#resolveKeyringAccountById(accountId);
     } else if (accountAddress) {
       if (!scope) {
-        throw new AccountServiceException(
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- InvalidParamsError is the JSON-RPC snap error surface
+        throw new InvalidParamsError(
           'Scope is required when resolving by address',
         );
       }
@@ -102,7 +99,8 @@ export class AccountService {
         address: accountAddress,
       });
     } else {
-      throw new AccountServiceException(
+      // eslint-disable-next-line @typescript-eslint/only-throw-error -- InvalidParamsError is the JSON-RPC snap error surface
+      throw new InvalidParamsError(
         'Either accountId or accountAddress is required',
       );
     }
@@ -125,16 +123,12 @@ export class AccountService {
    * @param options - The options for account creation.
    * @param options.entropySource - The entropy source to use for derivation.
    * @param options.index - The derivation index to use (defaults to the lowest unused index).
-   * @param callback - Optional callback invoked after the account is created; if it throws, the account is removed.
    * @returns A Promise that resolves to the created account. If an account with the same derivation path and entropy source already exists, it is returned instead.
    */
-  async create(
-    options?: {
-      entropySource?: EntropySourceId;
-      index?: number;
-    },
-    callback?: (account: StellarKeyringAccount) => Promise<void>,
-  ): Promise<StellarKeyringAccount> {
+  async create(options?: {
+    entropySource?: EntropySourceId;
+    index?: number;
+  }): Promise<StellarKeyringAccount> {
     const accounts = await this.#accountsRepository.getAll();
 
     const entropySource =
@@ -170,27 +164,6 @@ export class AccountService {
     });
 
     await this.#accountsRepository.save(account);
-
-    // If a callback is provided, call it with the account
-    // If the callback fails, delete the newly created account and re-throw the error
-    if (callback) {
-      try {
-        await callback(account);
-      } catch (error) {
-        // Rollback: if callback fails, delete the account
-        try {
-          await this.#accountsRepository.delete(account.id);
-        } catch (deleteError: unknown) {
-          this.#logger.logErrorWithDetails(
-            'Failed to rollback account creation',
-            ensureError(deleteError),
-          );
-          throw new AccountRollbackException(account.id, account.address);
-        }
-        // Re-throw the error to be handled by the caller
-        throw error;
-      }
-    }
 
     return account;
   }
@@ -473,7 +446,7 @@ export class AccountService {
       methods: [
         MultichainMethod.SignMessage,
         MultichainMethod.SignTransaction,
-        // MultichainMethod.SignAuthEntry, // TODO: Add this once keyring-api supports it
+        MultichainMethod.SignAuthEntry,
       ],
     };
   }

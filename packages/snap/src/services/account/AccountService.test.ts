@@ -3,7 +3,6 @@ import { AccountsRepository } from './AccountsRepository';
 import type { StellarKeyringAccount } from './api';
 import {
   AccountNotFoundException,
-  AccountRollbackException,
   DerivedAccountAddressMismatchException,
 } from './exceptions';
 import { KnownCaip2ChainId } from '../../api';
@@ -77,8 +76,7 @@ describe('AccountService', () => {
         type: KEYRING_ACCOUNT_TYPE,
         address: expect.any(String),
         scopes: [KnownCaip2ChainId.Mainnet],
-        methods: ['signMessage', 'signTransaction'],
-        // methods: ['signMessage', 'signTransaction', 'signAuthEntry'], // TODO: Add this once keyring-api supports it
+        methods: ['signMessage', 'signTransaction', 'signAuthEntry'],
         options: {
           entropy: {
             type: 'mnemonic',
@@ -112,7 +110,7 @@ describe('AccountService', () => {
         methods: [
           MultichainMethod.SignMessage,
           MultichainMethod.SignTransaction,
-          // MultichainMethod.SignAuthEntry, // TODO: Add this once keyring-api supports it
+          MultichainMethod.SignAuthEntry,
         ],
         options: {
           entropy: {
@@ -154,7 +152,7 @@ describe('AccountService', () => {
         methods: [
           MultichainMethod.SignMessage,
           MultichainMethod.SignTransaction,
-          // MultichainMethod.SignAuthEntry, // TODO: Add this once keyring-api supports it
+          MultichainMethod.SignAuthEntry,
         ],
         options: {
           entropy: {
@@ -180,61 +178,6 @@ describe('AccountService', () => {
       });
 
       expect(result).toStrictEqual(mockAccounts[0]);
-    });
-
-    it('creates an account with a callback', async () => {
-      const { saveSpy } = getAccountsRepositorySpies();
-      const callback = jest.fn();
-
-      const result = await accountService.create(
-        {
-          entropySource: 'entropy-source-1',
-          index: 0,
-        },
-        callback,
-      );
-
-      expect(callback).toHaveBeenCalledWith(result);
-      expect(saveSpy).toHaveBeenCalledWith(result);
-    });
-
-    it('deletes the account and throws an error if the callback fails', async () => {
-      const { saveSpy, deleteSpy } = getAccountsRepositorySpies();
-      const callback = jest
-        .fn()
-        .mockRejectedValue(new Error('Callback failed'));
-
-      await expect(
-        accountService.create(
-          {
-            entropySource: 'entropy-source-1',
-            index: 0,
-          },
-          callback,
-        ),
-      ).rejects.toThrow('Callback failed');
-
-      expect(saveSpy.mock.calls[0]?.[0]?.id).toStrictEqual(expect.any(String));
-      expect(deleteSpy).toHaveBeenCalledWith(saveSpy.mock.calls[0]?.[0]?.id);
-      expect(saveSpy).toHaveBeenCalled();
-    });
-
-    it('throws AccountRollbackException if the rollback fails', async () => {
-      const { deleteSpy } = getAccountsRepositorySpies();
-      const callback = jest
-        .fn()
-        .mockRejectedValue(new Error('Callback failed'));
-      deleteSpy.mockRejectedValue(new Error('Rollback failed'));
-
-      await expect(
-        accountService.create(
-          {
-            entropySource: 'entropy-source-1',
-            index: 0,
-          },
-          callback,
-        ),
-      ).rejects.toThrow(AccountRollbackException);
     });
   });
 
@@ -491,10 +434,10 @@ describe('AccountService', () => {
       expect(account).toStrictEqual({
         ...mockAccount,
         id: expect.any(String),
-        // TODO: Remove when keyring-api supports all methods
         methods: [
           MultichainMethod.SignMessage,
           MultichainMethod.SignTransaction,
+          MultichainMethod.SignAuthEntry,
         ],
       });
     });
