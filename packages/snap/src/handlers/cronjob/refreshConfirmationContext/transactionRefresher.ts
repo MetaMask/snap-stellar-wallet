@@ -8,11 +8,10 @@ import {
   type IConfirmationContextRefresher,
 } from './api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
-import {
+import type {
   Transaction,
-  type TransactionService,
+  TransactionService,
 } from '../../../services/transaction';
-import { assertTransactionTimeBound } from '../../../services/transaction/utils';
 import type {
   ContextWithSecurityScan,
   ContextWithTransactionValidation,
@@ -37,8 +36,8 @@ type TransactionValidationContext = ConfirmationDataContext &
 /**
  * Re-validates the pending transaction while the sign confirmation dialog is open.
  * Transaction slice of the confirmation context refresh pipeline; on every cycle
- * it checks time bounds, fees, and balance against the latest on-chain account
- * state and propagates the rebuilt envelope to the security-scan request.
+ * it rebuilds against the latest on-chain account state and propagates the fresh
+ * envelope to the security-scan request for the scan refresher.
  */
 export class ConfirmationTransactionRefresher implements IConfirmationContextRefresher {
   readonly key = ConfirmationContextRefresherKey.Transaction;
@@ -99,21 +98,7 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
   ): Promise<ConfirmationContextRefreshResult> {
     const validationCtx = ctx as TransactionValidationContext;
     try {
-      const {
-        request,
-        accountId,
-        scope,
-        transaction: transactionXdr,
-      } = validationCtx;
-
-      // Deserialize the envelope awaiting signature and assert its own time bound.
-      // The draft rebuilt below gets a fresh timeout, so validating that draft would
-      // miss expiry of the transaction the user is actually looking at.
-      const transaction = Transaction.fromXdr({
-        xdr: transactionXdr,
-        scope,
-      });
-      assertTransactionTimeBound(transaction);
+      const { request, accountId, scope } = validationCtx;
 
       // Load the sender from the network so validation uses current sequence and balances.
       const { onChainAccount } = await this.#accountResolver.resolveAccount({
@@ -173,14 +158,27 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
           throw new Error('Unsupported request method for transaction refresh');
       }
 
-      // Feed the rebuilt envelope to the security scan so it validates the same
-      // envelope re-validation just produced. For these flows the scan is
-      // validation-only (simulation is sign-transaction only) and so is
-      // timebound-agnostic; expiry of the user-facing transaction is already
-      // guarded by `assertTransactionTimeBound` above. The user-facing
-      // `transaction` is intentionally left untouched: it is what the dialog
-      // shows; the signable envelope is rebuilt again at confirm time.
-      return this.#renewScanTransaction(validationCtx, rebuiltTransaction);
+      const { securityScanRequest, origin } =
+        validationCtx as TransactionValidationContext &
+          Partial<ContextWithSecurityScan> & { origin?: string };
+      const rebuiltTransactionXdr = rebuiltTransaction.getRaw().toXDR();
+
+      // Always feed the rebuilt envelope to the scan refresher. The user-facing
+      // `transaction` field is intentionally left untouched; the signable envelope
+      // is rebuilt again at confirm time.
+      return {
+        result: {
+          securityScanRequest: {
+            ...securityScanRequest,
+            accountAddress:
+              securityScanRequest?.accountAddress ?? onChainAccount.accountId,
+            origin: securityScanRequest?.origin ?? origin ?? '',
+            scope,
+            transaction: rebuiltTransactionXdr,
+          },
+        },
+        reschedule: false,
+      };
     } catch (error) {
       this.#logger.error(
         'Error re-validating confirmation transaction:',
@@ -195,37 +193,5 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
 
   isValidContext(ctx: Record<string, Json>): boolean {
     return ContextWithTransactionValidationStruct.is(ctx);
-  }
-
-  /**
-   * Writes the rebuilt transaction into the security-scan request so the scan
-   * refresher (which runs after this one) scans the renewed envelope.
-   *
-   * Returns `null` when the flow has no security scan attached, leaving the
-   * transaction status untouched (it stays `Fetched`).
-   *
-   * @param ctx - The current confirmation context.
-   * @param rebuiltTransaction - The freshly rebuilt transaction.
-   * @returns A patch updating the scan request, or `null` when there is nothing to propagate.
-   */
-  #renewScanTransaction(
-    ctx: TransactionValidationContext,
-    rebuiltTransaction: Transaction,
-  ): ConfirmationContextRefreshResult {
-    const { securityScanRequest } = ctx as TransactionValidationContext &
-      Partial<ContextWithSecurityScan>;
-    if (!securityScanRequest) {
-      return null;
-    }
-
-    return {
-      result: {
-        securityScanRequest: {
-          ...securityScanRequest,
-          transaction: rebuiltTransaction.getRaw().toXDR(),
-        },
-      },
-      reschedule: false,
-    };
   }
 }

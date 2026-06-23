@@ -124,6 +124,7 @@ describe('ConfirmationTransactionRefresher', () => {
       transactionsFetchStatus: FetchStatus.Fetched,
       accountId,
       scope,
+      origin: 'https://metamask.io',
       request: sendRequest,
       ...overrides,
     });
@@ -134,7 +135,7 @@ describe('ConfirmationTransactionRefresher', () => {
     expect(refresher.key).toBe(ConfirmationContextRefresherKey.Transaction);
   });
 
-  it('re-validates the send transaction and returns no patch on success', async () => {
+  it('re-validates the send transaction and propagates the rebuilt envelope to security scan', async () => {
     const { refresher, transactionService } = setup();
 
     const result = await refresher.refresh(createTransactionContext());
@@ -148,7 +149,17 @@ describe('ConfirmationTransactionRefresher', () => {
       destination: toAddress,
       amount: expect.anything(),
     });
-    expect(result).toBeNull();
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          accountAddress: accountId,
+          origin: 'https://metamask.io',
+          scope,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
+    });
   });
 
   it('marks the transaction invalid when re-validation throws', async () => {
@@ -183,7 +194,17 @@ describe('ConfirmationTransactionRefresher', () => {
     expect(
       transactionService.createValidatedSendTransaction,
     ).not.toHaveBeenCalled();
-    expect(result).toBeNull();
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          accountAddress: accountId,
+          origin: 'https://metamask.io',
+          scope,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
+    });
   });
 
   it('re-validates a change-trust opt-out transaction with a zero limit', async () => {
@@ -254,9 +275,8 @@ describe('ConfirmationTransactionRefresher', () => {
     });
   });
 
-  it('marks the transaction invalid when the original envelope has expired', async () => {
+  it('rebuilds when the stored envelope has expired', async () => {
     const { refresher, transactionService } = setup();
-    // The stored XDR being signed is expired, even though the rebuilt draft would be valid.
     const mockNow = 1_700_000_000_000;
     jest.useFakeTimers();
     jest.setSystemTime(mockNow);
@@ -281,9 +301,16 @@ describe('ConfirmationTransactionRefresher', () => {
 
       expect(
         transactionService.createValidatedSendTransaction,
-      ).not.toHaveBeenCalled();
+      ).toHaveBeenCalled();
       expect(result).toStrictEqual({
-        result: { transactionsFetchStatus: FetchStatus.Error },
+        result: {
+          securityScanRequest: {
+            accountAddress: accountId,
+            origin: 'https://metamask.io',
+            scope,
+            transaction: transactionXdr,
+          },
+        },
         reschedule: false,
       });
     } finally {
