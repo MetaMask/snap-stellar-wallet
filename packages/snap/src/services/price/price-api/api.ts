@@ -12,6 +12,7 @@ import {
   record,
   string,
   tuple,
+  type,
   union,
 } from '@metamask/superstruct';
 import { CaipAssetTypeStruct } from '@metamask/utils';
@@ -120,7 +121,7 @@ export type Ticker = Infer<typeof TickerStruct>;
  * Struct for validating exchange rate data from the API.
  * Includes bounds validation to prevent malicious data injection.
  */
-export const ExchangeRateStruct = object({
+export const ExchangeRateStruct = type({
   name: string(),
   ticker: TickerStruct,
   value: min(number(), 0),
@@ -149,8 +150,7 @@ export type FiatExchangeRatesResponse = Infer<
  *
  * For safety, most fields are marked optional and nullable even though it goes against the type in the Price API source code.
  */
-
-export const SpotPriceStruct = object({
+export const SpotPriceStruct = type({
   id: string(),
   price: min(number(), 0),
   marketCap: optional(nullable(min(number(), 0))),
@@ -206,17 +206,25 @@ export type SpotPrice = Infer<typeof SpotPriceStruct>;
  *   "eip155:1/slip44:60": { ... },
  *   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1/slip44:501": null
  */
-export const SpotPricesStruct = record(
+export const GetSpotPricesResponseStruct = record(
   CaipAssetTypeStruct,
   nullable(SpotPriceStruct),
 );
 
-export type SpotPrices = Infer<typeof SpotPricesStruct>;
+export type SpotPricesResponse = Infer<typeof GetSpotPricesResponseStruct>;
 
 // In the Price API source code, the parameters `vsCurrency` and `ticker` represent the same list of values.
 // We create aliases here for clarity.
 export const VsCurrencyParamStruct = TickerStruct;
 export type VsCurrencyParam = Infer<typeof VsCurrencyParamStruct>;
+
+export const GetSpotPricesParamsStruct = object({
+  // TODO: add validation to ensure the array is not empty
+  assetIds: array(CaipAssetTypeStruct),
+  vsCurrency: VsCurrencyParamStruct,
+});
+
+export type GetSpotPricesParams = Infer<typeof GetSpotPricesParamsStruct>;
 
 export const GetHistoricalPricesParamsStruct = object({
   assetType: CaipAssetTypeStruct,
@@ -230,7 +238,7 @@ export type GetHistoricalPricesParams = Infer<
   typeof GetHistoricalPricesParamsStruct
 >;
 
-export const GetHistoricalPricesResponseStruct = object({
+export const GetHistoricalPricesResponseStruct = type({
   prices: array(tuple([number(), number()])),
   marketCaps: array(tuple([number(), number()])),
   totalVolumes: array(tuple([number(), number()])),

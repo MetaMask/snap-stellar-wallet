@@ -10,6 +10,12 @@ import { KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
+import { AssetMetadataService } from '../../services/asset-metadata';
+import {
+  createMockAssetMetadataService,
+  generateMockStellarAssetMetadata,
+  NATIVE,
+} from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import {
   OnChainAccount,
   OnChainAccountService,
@@ -96,6 +102,16 @@ describe('SignAndSendTransactionHandler', () => {
       .mockResolvedValue(wallet);
 
     const { transactionService } = createMockTransactionService();
+    const { service: assetMetadataService } = createMockAssetMetadataService();
+    const assetMetadataResolve = jest
+      .spyOn(AssetMetadataService.prototype, 'resolve')
+      .mockImplementation(async (assetId) => {
+        const metadata = generateMockStellarAssetMetadata()[assetId];
+        if (metadata === undefined) {
+          throw new Error(`Asset metadata not found for asset id: ${assetId}`);
+        }
+        return metadata;
+      });
     const createValidatedSwapTransaction = jest
       .spyOn(TransactionService.prototype, 'createValidatedSwapTransaction')
       .mockResolvedValue(transaction);
@@ -104,7 +120,7 @@ describe('SignAndSendTransactionHandler', () => {
       .mockResolvedValue(transactionId);
     const savePendingKeyringTransaction = jest.spyOn(
       TransactionService.prototype,
-      'savePendingKeyringTransaction',
+      'savePendingKeyringTransactionSafe',
     );
     const scheduleBackgroundEvent = jest
       .spyOn(TrackTransactionHandler, 'scheduleBackgroundEvent')
@@ -115,6 +131,7 @@ describe('SignAndSendTransactionHandler', () => {
       logger,
       accountResolver,
       transactionService,
+      assetMetadataService,
     });
 
     const trackTransactionSubmittedSpy = jest.spyOn(
@@ -130,6 +147,10 @@ describe('SignAndSendTransactionHandler', () => {
         accountId,
         scope,
         transaction: xdr,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: NATIVE,
+        },
       },
     };
 
@@ -150,6 +171,7 @@ describe('SignAndSendTransactionHandler', () => {
       scheduleBackgroundEvent,
       signTransactionSpy,
       trackTransactionSubmittedSpy,
+      assetMetadataResolve,
     };
   }
 
@@ -195,15 +217,35 @@ describe('SignAndSendTransactionHandler', () => {
       pollTransaction: false,
     });
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.Swap,
       request: {
         txId: transactionId,
         account,
         scope,
-        asset: {
-          type: 'stellar:pubnet/slip44:148',
-          symbol: 'XLM',
+        toAddress: account.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
         },
+        toAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(transaction.totalFee),
+              fungible: true,
+            },
+          },
+        ],
       },
     });
     expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
@@ -217,6 +259,7 @@ describe('SignAndSendTransactionHandler', () => {
     const {
       handler,
       account,
+      transaction,
       request,
       savePendingKeyringTransaction,
       scheduleBackgroundEvent,
@@ -228,20 +271,42 @@ describe('SignAndSendTransactionHandler', () => {
         ...request.params,
         options: {
           visible: false,
+          sourceAssetId: NATIVE,
+          destAssetId: NATIVE,
         },
       },
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.Swap,
       request: {
         txId: transactionId,
         account,
         scope,
-        asset: {
-          type: 'stellar:pubnet/slip44:148',
-          symbol: 'XLM',
+        toAddress: account.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
         },
+        toAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(transaction.totalFee),
+              fungible: true,
+            },
+          },
+        ],
       },
     });
     expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
@@ -311,38 +376,357 @@ describe('SignAndSendTransactionHandler', () => {
       params: {
         ...request.params,
         transaction: xdr,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: destinationAssetId,
+        },
       },
     });
 
     expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
-      type: KeyringTransactionType.Pending,
+      type: KeyringTransactionType.Swap,
       request: {
         txId: transactionId,
         account,
         scope,
-        transactionType: TransactionType.Swap,
-        from: [
+        toAddress: wallet.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '10',
+          fungible: true,
+        },
+        toAsset: {
+          unit: 'USDC',
+          type: destinationAssetId,
+          amount: '5',
+          fungible: true,
+        },
+        fees: [
           {
-            address: wallet.address,
+            type: FeeType.Base,
             asset: {
               unit: 'XLM',
               type: KnownCaip19Slip44IdMap[scope],
-              amount: '10',
+              amount: toDisplayBalance(transaction.totalFee),
               fungible: true,
             },
           },
         ],
-        to: [
+      },
+    });
+  });
+
+  it('marks an undecoded cross-chain transaction as a bridge send', async () => {
+    const {
+      handler,
+      account,
+      transaction,
+      request,
+      savePendingKeyringTransaction,
+      scheduleBackgroundEvent,
+    } = setup();
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: 'eip155:1/slip44:60',
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.BridgeSend,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        transactionType: TransactionType.BridgeSend,
+        from: [],
+        to: [],
+        fees: [
           {
-            address: wallet.address,
+            type: FeeType.Base,
             asset: {
-              unit: 'USDC',
-              type: destinationAssetId,
-              amount: '5',
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(transaction.totalFee),
               fungible: true,
             },
           },
         ],
+      },
+    });
+    expect(scheduleBackgroundEvent).toHaveBeenCalledWith({
+      scope,
+      txId: transactionId,
+      accountIdsOrAddresses: [account.id],
+    });
+  });
+
+  it('saves cross-chain bridge send without from and to assets', async () => {
+    const {
+      handler,
+      account,
+      wallet,
+      onChainAccount,
+      request,
+      createValidatedSwapTransaction,
+      savePendingKeyringTransaction,
+    } = setup();
+    const bridgeDestination = getTestWallet({
+      seed: new Uint8Array(32).fill(2),
+    }).address;
+    const feeDestination = getTestWallet({
+      seed: new Uint8Array(32).fill(3),
+    }).address;
+    const transaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: bridgeDestination,
+            asset: 'native',
+            amount: '0.99125',
+          },
+        },
+        {
+          type: 'payment',
+          params: {
+            destination: feeDestination,
+            asset: 'native',
+            amount: '0.00002',
+          },
+        },
+      ],
+      {
+        baseFeePerOperation: '100',
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: onChainAccount.sequenceNumber,
+        },
+      },
+    );
+    const xdr = transaction.getRaw().toXDR();
+    createValidatedSwapTransaction.mockResolvedValueOnce(transaction);
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        transaction: xdr,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: 'eip155:1/slip44:60',
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.BridgeSend,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        transactionType: TransactionType.BridgeSend,
+        from: [],
+        to: [],
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(transaction.totalFee),
+              fungible: true,
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it('does not mark a same-chain transaction as a bridge send when source and destination assets are on the same chain', async () => {
+    const {
+      handler,
+      account,
+      transaction,
+      request,
+      savePendingKeyringTransaction,
+    } = setup();
+    const destinationAssetId =
+      'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: destinationAssetId,
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Swap,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        toAddress: account.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
+        toAsset: {
+          unit: 'USDC',
+          type: destinationAssetId,
+          amount: '0',
+          fungible: true,
+        },
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(transaction.totalFee),
+              fungible: true,
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it('saves pending activity with fallback symbols when Stellar metadata resolution fails', async () => {
+    const {
+      handler,
+      account,
+      transaction,
+      request,
+      savePendingKeyringTransaction,
+      assetMetadataResolve,
+    } = setup();
+    const destinationAssetId =
+      'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+
+    assetMetadataResolve.mockRejectedValueOnce(
+      new Error('Metadata unavailable'),
+    );
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: destinationAssetId,
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.Swap,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        toAddress: account.address,
+        fromAsset: {
+          unit: 'XLM',
+          type: NATIVE,
+          amount: '0',
+          fungible: true,
+        },
+        toAsset: {
+          unit: 'USDC',
+          type: destinationAssetId,
+          amount: '0',
+          fungible: true,
+        },
+        fees: [
+          {
+            type: FeeType.Base,
+            asset: {
+              unit: 'XLM',
+              type: KnownCaip19Slip44IdMap[scope],
+              amount: toDisplayBalance(transaction.totalFee),
+              fungible: true,
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it('marks a classic path payment as a bridge send when cross-chain', async () => {
+    const {
+      handler,
+      account,
+      wallet,
+      onChainAccount,
+      request,
+      createValidatedSwapTransaction,
+      savePendingKeyringTransaction,
+    } = setup();
+    const destinationAsset = {
+      code: 'USDC',
+      issuer: getTestWallet().address,
+    } as const;
+    const transaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'pathPaymentStrictSend',
+          params: {
+            sendAsset: 'native',
+            sendAmount: '10',
+            destination: wallet.address,
+            destAsset: destinationAsset,
+            destMin: '5',
+          },
+        },
+      ],
+      {
+        baseFeePerOperation: '100',
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: onChainAccount.sequenceNumber,
+        },
+      },
+    );
+    const xdr = transaction.getRaw().toXDR();
+    createValidatedSwapTransaction.mockResolvedValueOnce(transaction);
+
+    await handler.handle({
+      ...request,
+      params: {
+        ...request.params,
+        transaction: xdr,
+        options: {
+          sourceAssetId: NATIVE,
+          destAssetId: 'eip155:1/slip44:60',
+        },
+      },
+    });
+
+    expect(savePendingKeyringTransaction).toHaveBeenCalledWith({
+      type: KeyringTransactionType.BridgeSend,
+      request: {
+        txId: transactionId,
+        account,
+        scope,
+        transactionType: TransactionType.BridgeSend,
+        from: [],
+        to: [],
         fees: [
           {
             type: FeeType.Base,

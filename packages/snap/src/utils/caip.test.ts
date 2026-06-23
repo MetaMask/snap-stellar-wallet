@@ -7,6 +7,7 @@ import {
   isClassicAssetId,
   isSep41Id,
   isSlip44Id,
+  isStellarAssetId,
   parseClassicAssetCodeIssuer,
   stellarAssetToCaip19,
   toCaip19ClassicAssetId,
@@ -185,5 +186,22 @@ describe('stellarAssetToCaip19', () => {
         KnownCaip2ChainId.Mainnet,
       ),
     ).toThrow('Invalid asset');
+  });
+});
+
+describe('isStellarAssetId', () => {
+  it('returns true for Stellar CAIP-19 asset ids', () => {
+    expect(isStellarAssetId(SLIP44_ASSET_ID)).toBe(true);
+    expect(isStellarAssetId(CLASSIC_ASSET_ID)).toBe(true);
+    expect(isStellarAssetId(SEP41_ASSET_ID)).toBe(true);
+  });
+
+  it('returns false for non-Stellar CAIP-19 asset ids', () => {
+    expect(isStellarAssetId('eip155:1/slip44:60')).toBe(false);
+    expect(
+      isStellarAssetId(
+        'eip155:1/erc20:0x0000000000000000000000000000000000000000',
+      ),
+    ).toBe(false);
   });
 });
