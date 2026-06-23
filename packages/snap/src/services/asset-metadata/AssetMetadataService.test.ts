@@ -21,7 +21,6 @@ jest.mock('../../config', () => ({
     api: {
       tokenApi: {
         baseUrl: 'https://tokens.test',
-        chunkSize: 10,
       },
       staticApi: {
         baseUrl: 'https://static.test',
