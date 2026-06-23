@@ -91,7 +91,7 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
     };
 
     try {
-      const scan = await this.#transactionScanService.scanTransaction({
+      const scan = await this.#transactionScanService.scanTransactionSafe({
         ...scanRequest,
         options,
       });

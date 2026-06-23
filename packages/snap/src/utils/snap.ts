@@ -632,6 +632,7 @@ export async function trackError(
 ): Promise<string | undefined> {
   try {
     let errorToTrack = error;
+
     if (!(error instanceof Error)) {
       errorToTrack = ensureError(error);
     }

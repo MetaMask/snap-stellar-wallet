@@ -1,6 +1,3 @@
-export class PriceServiceException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'PriceServiceException';
-  }
-}
+import { StellarSnapException } from '../../utils';
+
+export class PriceServiceException extends StellarSnapException {}

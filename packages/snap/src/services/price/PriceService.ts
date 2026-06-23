@@ -12,6 +12,7 @@ import {
   createPrefixedLogger,
   getFiatTicker,
   isFiat,
+  trackError,
   type ILogger,
   type Serializable,
 } from '../../utils';
@@ -23,7 +24,7 @@ import type {
   GetHistoricalPricesParams,
   GetHistoricalPricesResponse,
   SpotPrice,
-  SpotPrices,
+  SpotPricesResponse,
   Ticker,
   VsCurrencyParam,
 } from './price-api/api';
@@ -64,13 +65,9 @@ export class PriceService {
     cache: ICache<Serializable>;
     logger: ILogger;
   }) {
-    this.#priceApiClient = new PriceApiClient(
-      {
-        baseUrl: AppConfig.api.priceApi.baseUrl,
-        chunkSize: AppConfig.api.priceApi.chunkSize,
-      },
-      logger,
-    );
+    this.#priceApiClient = new PriceApiClient({
+      baseUrl: AppConfig.api.priceApi.baseUrl,
+    });
     this.#cache = cache;
     this.#logger = createPrefixedLogger(logger, '[🪙 PriceService]');
   }
@@ -95,7 +92,7 @@ export class PriceService {
       vsCurrency?: VsCurrencyParam | string;
     },
     refreshCache: boolean = false,
-  ): Promise<Partial<SpotPrices>> {
+  ): Promise<Partial<SpotPricesResponse>> {
     return this.#getCachedSpotPrices(assetIds, vsCurrency, refreshCache);
   }
 
@@ -114,7 +111,7 @@ export class PriceService {
     tokenCaip19Types: CaipAssetType[],
     vsCurrency: VsCurrencyParam | string = 'usd',
     refreshCache: boolean = false,
-  ): Promise<Partial<SpotPrices>> {
+  ): Promise<Partial<SpotPricesResponse>> {
     const uniqueAssetTypes = [...new Set(tokenCaip19Types)];
 
     const cacheKeyPrefix = 'PriceService:getSpotPrices';
@@ -129,13 +126,12 @@ export class PriceService {
         ? {}
         : await this.#cache.mget(uniqueAssetTypes.map(toCacheKey));
     } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Error fetching cached spot prices',
-        error,
-      );
+      this.#logger.warn('Error fetching cached spot prices', error);
+
+      await trackError(error);
     }
 
-    const cachedSpotPricesByAssetId: Partial<SpotPrices> = {};
+    const cachedSpotPricesByAssetId: Partial<SpotPricesResponse> = {};
     const nonCachedAssetTypes: CaipAssetType[] = [];
     for (const assetType of uniqueAssetTypes) {
       const value = cachedSpotPricesRecord[toCacheKey(assetType)];
@@ -154,13 +150,19 @@ export class PriceService {
       return cachedSpotPricesByAssetId;
     }
 
-    const nonCachedSpotPrices = await this.#priceApiClient.getSpotPrices(
-      nonCachedAssetTypes,
-      vsCurrency,
-    );
-
+    let nonCachedSpotPrices: Partial<SpotPricesResponse> = {};
     // Continue even if there is an error caching the spot prices
     try {
+      // The Price API can return null for assets it has no quote for, e.g.
+      //   { 'stellar:.../asset:USDC-...': null }
+      // We cache that null instead of omitting the key, so later requests reuse
+      // the cache rather than calling the API again. After TTL expires, a refetch
+      // can store a real SpotPrice once the API starts returning one.
+      nonCachedSpotPrices = await this.#getSpotPrices(
+        nonCachedAssetTypes,
+        vsCurrency,
+      );
+
       await this.#cache.mset(
         Object.entries(nonCachedSpotPrices).map(
           ([tokenCaipAssetType, spotPrice]) => ({
@@ -171,7 +173,8 @@ export class PriceService {
         ),
       );
     } catch (error) {
-      this.#logger.logErrorWithDetails('Error caching spot prices', error);
+      this.#logger.warn('Error caching spot prices', error);
+      await trackError(error);
     }
 
     return {
@@ -265,35 +268,38 @@ export class PriceService {
     const toTicker = parseCaipAssetType(to).assetReference.toLowerCase();
 
     // For each time period, call the Price API to fetch the historical prices
-    const promises = HISTORICAL_PRICE_TIME_PERIODS.map(async (timePeriod) =>
-      this.getHistoricalPrices(
-        {
-          assetType: from,
-          timePeriod,
-          // It is possible that the toTicker is not a valid vsCurrency,
-          // but we can safely cast it to VsCurrencyParam because the Price API will throw an error if it is not a valid value
-          vsCurrency: toTicker as VsCurrencyParam,
-        },
-        // Refresh the cache to ensure we get the latest data
-        true,
-      )
+    const promises = HISTORICAL_PRICE_TIME_PERIODS.map(async (timePeriod) => {
+      try {
+        const response = await this.getHistoricalPrices(
+          {
+            assetType: from,
+            timePeriod,
+            // It is possible that the toTicker is not a valid vsCurrency,
+            // but we can safely cast it to VsCurrencyParam because the Price API will throw an error if it is not a valid value
+            vsCurrency: toTicker as VsCurrencyParam,
+          },
+          // Refresh the cache to ensure we get the latest data
+          true,
+        );
         // Wrap the response in an object with the time period and the response for easier reducing
-        .then((response) => ({
+        return {
           timePeriod,
           response,
-        }))
+        };
+      } catch (error) {
+        await trackError(error);
         // Gracefully handle individual errors to avoid breaking the entire operation
-        .catch((error) => {
-          this.#logger.logErrorWithDetails(
-            `Error fetching historical prices for ${from} to ${to} with time period ${timePeriod}. Returning null object.`,
-            error,
-          );
-          return {
-            timePeriod,
-            response: GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT,
-          };
-        }),
-    );
+        this.#logger.warn(
+          `Error fetching historical prices for ${from} to ${to} with time period ${timePeriod}. Returning null object.`,
+          error,
+        );
+
+        return {
+          timePeriod,
+          response: GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT,
+        };
+      }
+    });
 
     const wrappedHistoricalPrices = await Promise.all(promises);
 
@@ -566,7 +572,7 @@ export class PriceService {
     refreshCache: boolean = false,
   ): Promise<{
     fiatExchangeRates: FiatExchangeRatesResponse;
-    cryptoPrices: Partial<SpotPrices>;
+    cryptoPrices: Partial<SpotPricesResponse>;
   }> {
     const assetIds = allAssets.filter((asset) => !isFiat(asset));
 
@@ -591,7 +597,7 @@ export class PriceService {
   }: {
     asset: CaipAssetType;
     fiatExchangeRates: FiatExchangeRatesResponse;
-    cryptoPrices: Partial<SpotPrices>;
+    cryptoPrices: Partial<SpotPricesResponse>;
   }): BigNumber {
     if (isFiat(asset)) {
       /**
@@ -626,4 +632,20 @@ export class PriceService {
       ? ''
       : new BigNumber(value).dividedBy(rate).toString();
   };
+
+  async #getSpotPrices(
+    assetIds: CaipAssetType[],
+    vsCurrency: VsCurrencyParam | string = 'usd',
+  ): Promise<Partial<SpotPricesResponse>> {
+    if (assetIds.length === 0) {
+      return {};
+    }
+    const deduplicatedAssetIds = [...new Set(assetIds)];
+
+    const spotPrices = await this.#priceApiClient.getSpotPrices(
+      deduplicatedAssetIds,
+      vsCurrency,
+    );
+    return spotPrices;
+  }
 }

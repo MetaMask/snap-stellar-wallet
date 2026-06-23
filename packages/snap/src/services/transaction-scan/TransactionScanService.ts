@@ -14,7 +14,7 @@ import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import type { KnownCaip2ChainId } from '../../api';
 import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { ILogger } from '../../utils';
-import { createPrefixedLogger } from '../../utils';
+import { createPrefixedLogger, trackError } from '../../utils';
 import { normalizeAmount } from '../../utils/currency';
 
 export class TransactionScanService {
@@ -33,7 +33,7 @@ export class TransactionScanService {
     this.#logger = createPrefixedLogger(logger, '[🛡️ TransactionScanService]');
   }
 
-  async scanTransaction({
+  async scanTransactionSafe({
     accountAddress,
     origin,
     scope,
@@ -56,11 +56,13 @@ export class TransactionScanService {
       });
 
       return this.#mapScan(result, options);
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Error scanning Stellar transaction',
-        error,
-      );
+    } catch (error: unknown) {
+      this.#logger.warn('Error scanning Stellar transaction', {
+        reason: error,
+      });
+
+      await trackError(error);
+
       return null;
     }
   }
