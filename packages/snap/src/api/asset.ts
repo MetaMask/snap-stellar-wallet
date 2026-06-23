@@ -1,4 +1,3 @@
-import { union } from '@metamask/superstruct';
 import type { Infer } from '@metamask/superstruct';
 import { union } from '@metamask/superstruct';
 import type { CaipAssetType } from '@metamask/utils';
