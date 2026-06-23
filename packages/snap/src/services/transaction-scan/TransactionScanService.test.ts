@@ -65,7 +65,7 @@ describe('TransactionScanService', () => {
       },
     });
 
-    const result = await service.scanTransaction(scanParams);
+    const result = await service.scanTransactionSafe(scanParams);
 
     expect(result).toStrictEqual({
       status: 'SUCCESS',
@@ -100,7 +100,7 @@ describe('TransactionScanService', () => {
       validation: null,
     });
 
-    const result = await service.scanTransaction(scanParams);
+    const result = await service.scanTransactionSafe(scanParams);
 
     expect(result).toMatchObject({
       status: 'ERROR',
@@ -125,7 +125,7 @@ describe('TransactionScanService', () => {
       },
     });
 
-    const result = await service.scanTransaction({
+    const result = await service.scanTransactionSafe({
       ...scanParams,
       options: [
         TransactionScanOption.Simulation,
@@ -150,7 +150,7 @@ describe('TransactionScanService', () => {
       validation: null,
     });
 
-    const result = await service.scanTransaction(scanParams);
+    const result = await service.scanTransactionSafe(scanParams);
 
     expect(result).toMatchObject({
       status: 'ERROR',
@@ -172,7 +172,7 @@ describe('TransactionScanService', () => {
       },
     });
 
-    const result = await service.scanTransaction({
+    const result = await service.scanTransactionSafe({
       ...scanParams,
       options: [
         TransactionScanOption.Simulation,
@@ -204,7 +204,7 @@ describe('TransactionScanService', () => {
       validation: null,
     });
 
-    const result = await service.scanTransaction(scanParams);
+    const result = await service.scanTransactionSafe(scanParams);
 
     expect(result).toMatchObject({
       status: 'ERROR',
@@ -222,7 +222,7 @@ describe('TransactionScanService', () => {
       new Error('network error'),
     );
 
-    const result = await service.scanTransaction(scanParams);
+    const result = await service.scanTransactionSafe(scanParams);
     expect(result).toBeNull();
   });
 });

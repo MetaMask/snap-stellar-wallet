@@ -4,6 +4,7 @@ import {
   array,
   enums,
   literal,
+  nonempty,
   nullable,
   number,
   optional,
@@ -14,7 +15,7 @@ import {
   unknown,
 } from '@metamask/superstruct';
 
-import { KnownCaip2ChainId } from '../../api';
+import { KnownCaip2ChainId, XdrStruct } from '../../api';
 
 export enum TransactionScanOption {
   Simulation = 'simulation',
@@ -206,3 +207,13 @@ export type SecurityScanRequest = {
   scope: KnownCaip2ChainId;
   transaction: string;
 };
+
+export const ScanTransactionRequestStruct = type({
+  accountAddress: nonempty(string()),
+  origin: string(),
+  scope: enums(Object.values(KnownCaip2ChainId)),
+  transaction: XdrStruct,
+  options: optional(array(enums(Object.values(TransactionScanOption)))),
+});
+
+export type ScanTransactionRequest = Infer<typeof ScanTransactionRequestStruct>;

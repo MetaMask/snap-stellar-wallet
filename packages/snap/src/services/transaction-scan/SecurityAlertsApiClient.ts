@@ -3,20 +3,27 @@ import { assert } from '@metamask/superstruct';
 
 import {
   StellarTransactionScanResponseStruct,
-  type SecurityAlertsMetadata,
-  type StellarTransactionScanRequest,
-  type StellarTransactionScanResponse,
-  type TransactionScanOption,
+  ScanTransactionRequestStruct,
+} from './api';
+import type {
+  ScanTransactionRequest,
+  SecurityAlertsMetadata,
+  StellarTransactionScanRequest,
+  StellarTransactionScanResponse,
 } from './api';
 import { TransactionScanException } from './exceptions';
 import { KnownCaip2ChainId, UrlStruct } from '../../api';
-import type { ILogger } from '../../utils';
+import type { AnyErrorConstructor } from '../../utils';
+import { buildUrl, rethrowIfInstanceElseThrow } from '../../utils';
 import {
-  buildUrl,
-  createPrefixedLogger,
-  logger,
-  rethrowIfInstanceElseThrow,
-} from '../../utils';
+  assertHttpRequestParams,
+  assertHttpResponse,
+  HttpException,
+  HttpResponseException,
+  InvalidHttpRequestParamsException,
+  InvalidHttpResponseException,
+  normalizeHttpException,
+} from '../../utils/http';
 
 const SCOPE_TO_SECURITY_ALERTS_CHAIN: Record<
   KnownCaip2ChainId,
@@ -29,22 +36,15 @@ const SCOPE_TO_SECURITY_ALERTS_CHAIN: Record<
 export class SecurityAlertsApiClient {
   readonly #fetch: typeof globalThis.fetch;
 
-  readonly #logger: ILogger;
-
   readonly #baseUrl: string;
 
   constructor(
     { baseUrl }: { baseUrl: string },
-    _logger: ILogger = logger,
     _fetch: typeof globalThis.fetch = globalThis.fetch,
   ) {
     assert(baseUrl, UrlStruct);
 
     this.#fetch = _fetch;
-    this.#logger = createPrefixedLogger(
-      _logger,
-      '[🛡️ SecurityAlertsApiClient]',
-    );
     this.#baseUrl = baseUrl;
   }
 
@@ -54,14 +54,19 @@ export class SecurityAlertsApiClient {
     scope,
     transaction,
     options,
-  }: {
-    accountAddress: string;
-    origin: string;
-    scope: KnownCaip2ChainId;
-    transaction: string;
-    options: TransactionScanOption[];
-  }): Promise<StellarTransactionScanResponse> {
+  }: ScanTransactionRequest): Promise<StellarTransactionScanResponse> {
     try {
+      assertHttpRequestParams(
+        {
+          accountAddress,
+          origin,
+          scope,
+          transaction,
+          options,
+        },
+        ScanTransactionRequestStruct,
+      );
+
       const url = buildUrl({
         baseUrl: this.#baseUrl,
         path: '/stellar/transaction/scan',
@@ -85,25 +90,19 @@ export class SecurityAlertsApiClient {
       });
 
       if (!response.ok) {
-        throw new TransactionScanException(
-          `HTTP error! status: ${response.status}`,
-        );
+        throw new HttpResponseException(response.status);
       }
 
       const data = await response.json();
-      assert(data, StellarTransactionScanResponseStruct);
+
+      assertHttpResponse(data, StellarTransactionScanResponseStruct);
 
       return data;
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Error scanning Stellar transaction',
+    } catch (error: unknown) {
+      return this.#throwError({
         error,
-      );
-      return rethrowIfInstanceElseThrow(
-        error,
-        [TransactionScanException],
-        new TransactionScanException('Error scanning Stellar transaction'),
-      );
+        fallbackError: 'Error scanning Stellar transaction',
+      });
     }
   }
 
@@ -119,5 +118,34 @@ export class SecurityAlertsApiClient {
         type: 'in_app',
       };
     }
+  }
+
+  #throwError({
+    error,
+    exceptionClasses,
+    fallbackError,
+  }: {
+    error: unknown;
+    exceptionClasses?: readonly AnyErrorConstructor[];
+    fallbackError: string | TransactionScanException;
+  }): never {
+    const normalized = normalizeHttpException(error);
+
+    if (normalized instanceof HttpException) {
+      throw normalized;
+    }
+
+    return rethrowIfInstanceElseThrow(
+      normalized,
+      [
+        TransactionScanException,
+        InvalidHttpRequestParamsException,
+        InvalidHttpResponseException,
+        ...(exceptionClasses ?? []),
+      ],
+      fallbackError instanceof Error
+        ? fallbackError
+        : new TransactionScanException(String(fallbackError), { cause: error }),
+    );
   }
 }
