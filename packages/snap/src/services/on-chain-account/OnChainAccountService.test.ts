@@ -82,6 +82,21 @@ describe('OnChainAccountService', () => {
 
       expect(result).toBe(false);
     });
+
+    it('rethrows errors other than AccountNotActivatedException', async () => {
+      const { getAccountSpy } = getNetworkServiceSpies();
+      const accountAddress = generateStellarAddress();
+      getAccountSpy.mockRejectedValue(new Error('Horizon unavailable'));
+
+      const { onChainAccountService } = mockOnChainAccountService();
+
+      await expect(
+        onChainAccountService.isAccountActivated({
+          accountAddress,
+          scope: KnownCaip2ChainId.Mainnet,
+        }),
+      ).rejects.toThrow('Horizon unavailable');
+    });
   });
 
   describe('resolveOnChainAccount', () => {

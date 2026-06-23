@@ -114,21 +114,21 @@ export class OnChainAccount {
     if (this.#subentryCount !== undefined) {
       return this.#subentryCount;
     }
-    throw new OnChainAccountMetadataNotAvailableException(this.accountId);
+    throw new OnChainAccountMetadataNotAvailableException();
   }
 
   get numSponsoring(): number {
     if (this.#numSponsoring !== undefined) {
       return this.#numSponsoring;
     }
-    throw new OnChainAccountMetadataNotAvailableException(this.accountId);
+    throw new OnChainAccountMetadataNotAvailableException();
   }
 
   get numSponsored(): number {
     if (this.#numSponsored !== undefined) {
       return this.#numSponsored;
     }
-    throw new OnChainAccountMetadataNotAvailableException(this.accountId);
+    throw new OnChainAccountMetadataNotAvailableException();
   }
 
   get requiresMemo(): boolean {
@@ -258,10 +258,7 @@ export class OnChainAccount {
     const nativeId = getSlip44AssetId(this.#scope);
     const entry = this.#balances.get(nativeId);
     if (entry === undefined) {
-      throw new OnChainAccountBalanceNotAvailableException(
-        nativeId,
-        this.accountId,
-      );
+      throw new OnChainAccountBalanceNotAvailableException(nativeId);
     }
     return entry.balance;
   }
@@ -277,10 +274,7 @@ export class OnChainAccount {
   get nativeRawBalance(): BigNumber {
     const nativeId = getSlip44AssetId(this.#scope);
     if (this.#rawNativeBalance === undefined) {
-      throw new OnChainAccountBalanceNotAvailableException(
-        nativeId,
-        this.accountId,
-      );
+      throw new OnChainAccountBalanceNotAvailableException(nativeId);
     }
     return this.#rawNativeBalance;
   }

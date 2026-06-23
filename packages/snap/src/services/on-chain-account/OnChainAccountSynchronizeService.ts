@@ -22,6 +22,7 @@ import {
   isClassicAssetId,
   isSep41Id,
   toDisplayBalance,
+  trackError,
 } from '../../utils';
 import type { StellarAssetMetadata } from '../asset-metadata';
 import type { NetworkService } from '../network';
@@ -125,9 +126,11 @@ export class OnChainAccountSynchronizeService {
             sep41Assets,
           });
         } catch (error: unknown) {
-          this.#logger.logErrorWithDetails(
+          await trackError(error);
+
+          this.#logger.warn(
             'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 asset entries where needed',
-            error,
+            { error },
           );
         }
 
@@ -230,7 +233,7 @@ export class OnChainAccountSynchronizeService {
 
         // 6. Emit keyring events after persistence.
         this.#logger.debug('Emit keyring events');
-        await this.#emitKeyringEvents(balancesPayload, assetsPayload);
+        await this.#emitKeyringEventsSafe(balancesPayload, assetsPayload);
       })
       .finally(() => {
         const endTime = Date.now();
@@ -571,7 +574,7 @@ export class OnChainAccountSynchronizeService {
     return true;
   }
 
-  async #emitKeyringEvents(
+  async #emitKeyringEventsSafe(
     balancesPayload:
       | KeyringEventPayload<KeyringEvent.AccountBalancesUpdated>['balances']
       | null,
@@ -595,10 +598,11 @@ export class OnChainAccountSynchronizeService {
         );
       }
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to emit keyring events after synchronize',
+      await trackError(error);
+
+      this.#logger.warn('Failed to emit keyring events after synchronize', {
         error,
-      );
+      });
     }
   }
 }

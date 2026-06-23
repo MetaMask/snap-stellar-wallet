@@ -19,6 +19,8 @@ import { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import { bufferToUint8Array } from '../../utils/buffer';
+import { logger } from '../../utils/logger';
+import * as snapUtils from '../../utils/snap';
 import type { StellarKeyringAccount } from '../account';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
 import {
@@ -170,6 +172,7 @@ describe('OnChainAccountSynchronizeService', () => {
 
   const setupTest = () => {
     jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
+    jest.spyOn(snapUtils, 'trackError').mockResolvedValue(undefined);
   };
 
   const buildActivatedAccountPair = (
@@ -910,6 +913,20 @@ describe('OnChainAccountSynchronizeService', () => {
       mockSep41Assets,
     );
 
+    expect(snapUtils.trackError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'sep41 fetch temporarily unavailable',
+      }),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[💼 OnChainAccountSynchronizeService]',
+      'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 asset entries where needed',
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'sep41 fetch temporarily unavailable',
+        }),
+      }),
+    );
     expect(setAssetSpy).not.toHaveBeenCalled();
   });
 
@@ -1038,5 +1055,39 @@ describe('OnChainAccountSynchronizeService', () => {
 
     expect(saveManySpy).toHaveBeenCalled();
     expect(emitSnapKeyringEventSpy).not.toHaveBeenCalled();
+  });
+
+  it('tracks and logs emit failures without failing synchronize', async () => {
+    setupTest();
+
+    const { activatedAccountPair: pair } = setupOnChainAccountWithBalance(
+      'entropy-sync-emit-failure',
+    );
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
+    getSep41AssetBalancesSpy.mockResolvedValue({
+      [pair.onChainAccount.accountId]: {
+        [sep41Id]: new BigNumber('1000'),
+      },
+    });
+
+    const emitError = new Error('client handler unavailable');
+    const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
+    emitSnapKeyringEventSpy.mockRejectedValue(emitError);
+
+    const { onChainAccountService, saveManySpy } = setupSynchronizeService();
+
+    await onChainAccountService.synchronize(
+      [pair],
+      KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
+    );
+
+    expect(saveManySpy).toHaveBeenCalled();
+    expect(snapUtils.trackError).toHaveBeenCalledWith(emitError);
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[💼 OnChainAccountSynchronizeService]',
+      'Failed to emit keyring events after synchronize',
+      { error: emitError },
+    );
   });
 });
