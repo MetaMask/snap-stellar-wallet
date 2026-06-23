@@ -5,7 +5,11 @@ import {
   TransactionScanValidationType,
 } from '.';
 import { KnownCaip2ChainId } from '../../api';
-import { HttpResponseException } from '../../utils/http';
+import {
+  HttpResponseException,
+  InvalidHttpRequestParamsException,
+  InvalidHttpResponseException,
+} from '../../utils/http';
 
 jest.mock('../../utils/logger');
 
@@ -15,6 +19,14 @@ describe('SecurityAlertsApiClient', () => {
     'GDPMFLKUGASUTWBN2XGYYKD27QGHCYH4BUFUTER4L23INYQ4JHDWFOIE';
   const transaction =
     'AAAAAgAAAADjngeX0YTNoQ15A0xC83aMm/sDnXrmLF+apmXvdmkUugAAAGQAC3gAAAAAQQAAAAAAAAAAAAAAAQAAAAAAAAABAAAAAOZfkjSFZ31vI/Nx28cC6iAFWLWcPIvJhM2NVoxmfgVTAAAAAAAAAAAAmJaAAAAAAAAAAAA=';
+
+  const defaultScanRequest = {
+    accountAddress,
+    origin: 'metamask',
+    scope: KnownCaip2ChainId.Mainnet,
+    transaction,
+    options: [TransactionScanOption.Validation],
+  };
 
   function setup(response: unknown = { validation: null, simulation: null }) {
     const fetchMock = jest.fn().mockResolvedValue({
@@ -111,5 +123,76 @@ describe('SecurityAlertsApiClient', () => {
         options: [TransactionScanOption.Validation],
       }),
     ).rejects.toThrow(HttpResponseException);
+  });
+
+  describe('request validation', () => {
+    it('throws InvalidHttpRequestParamsException when accountAddress is empty', async () => {
+      const { client, fetchMock } = setup();
+
+      await expect(
+        client.scanTransaction({
+          ...defaultScanRequest,
+          accountAddress: '',
+        }),
+      ).rejects.toThrow(InvalidHttpRequestParamsException);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('throws InvalidHttpRequestParamsException when transaction XDR is invalid', async () => {
+      const { client, fetchMock } = setup();
+
+      await expect(
+        client.scanTransaction({
+          ...defaultScanRequest,
+          transaction: 'not-valid-xdr',
+        }),
+      ).rejects.toThrow(InvalidHttpRequestParamsException);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('rethrows InvalidHttpRequestParamsException without wrapping', async () => {
+      const { client } = setup();
+
+      await expect(
+        client.scanTransaction({
+          ...defaultScanRequest,
+          accountAddress: '',
+        }),
+      ).rejects.toMatchObject({
+        message: 'Invalid API request parameters',
+        name: 'InvalidHttpRequestParamsException',
+      });
+    });
+  });
+
+  describe('response validation', () => {
+    it('throws InvalidHttpResponseException when response body fails schema validation', async () => {
+      const { client } = setup({
+        validation: {
+          status: 'Success',
+        },
+      });
+
+      await expect(client.scanTransaction(defaultScanRequest)).rejects.toThrow(
+        InvalidHttpResponseException,
+      );
+    });
+
+    it('rethrows InvalidHttpResponseException without wrapping', async () => {
+      const { client } = setup({
+        validation: {
+          status: 'Success',
+        },
+      });
+
+      await expect(
+        client.scanTransaction(defaultScanRequest),
+      ).rejects.toMatchObject({
+        message: 'Invalid API response',
+        name: 'InvalidHttpResponseException',
+      });
+    });
   });
 });
