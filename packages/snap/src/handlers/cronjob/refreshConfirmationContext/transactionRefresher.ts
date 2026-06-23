@@ -31,7 +31,12 @@ import {
 } from '../../clientRequest/api';
 
 type TransactionValidationContext = ConfirmationDataContext &
-  ContextWithTransactionValidation;
+  ContextWithTransactionValidation &
+  Partial<ContextWithSecurityScan> & {
+    // origin is always present on the rendered confirmation context
+    // (ConfirmationBaseProps.origin), but isn't part of the validation struct.
+    origin?: string;
+  };
 
 /**
  * Re-validates the pending transaction while the sign confirmation dialog is open.
@@ -158,9 +163,7 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
           throw new Error('Unsupported request method for transaction refresh');
       }
 
-      const { securityScanRequest, origin } =
-        validationCtx as TransactionValidationContext &
-          Partial<ContextWithSecurityScan> & { origin?: string };
+      const { securityScanRequest, origin } = validationCtx;
       const rebuiltTransactionXdr = rebuiltTransaction.getRaw().toXDR();
 
       // Always feed the rebuilt envelope to the scan refresher. The user-facing
@@ -169,7 +172,6 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
       return {
         result: {
           securityScanRequest: {
-            ...securityScanRequest,
             accountAddress:
               securityScanRequest?.accountAddress ?? onChainAccount.accountId,
             origin: securityScanRequest?.origin ?? origin ?? '',
