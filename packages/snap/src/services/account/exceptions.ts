@@ -1,31 +1,19 @@
-export class AccountServiceException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'AccountServiceException';
-  }
-}
+import type { StellarSnapExceptionOptions } from '../../utils';
+import { StellarSnapException } from '../../utils';
+
+export class AccountServiceException extends StellarSnapException {}
 
 export class AccountNotFoundException extends AccountServiceException {
-  constructor(addressOrId: string) {
-    super(`Account not found for address or id: ${addressOrId}`);
-    this.name = 'AccountNotFoundException';
+  constructor(addressOrId: string, options?: StellarSnapExceptionOptions) {
+    super(`Account not found for address or id: ${addressOrId}`, options);
   }
 }
 
 export class DerivedAccountAddressMismatchException extends AccountServiceException {
-  constructor(address: string) {
+  constructor(address: string, options?: StellarSnapExceptionOptions) {
     super(
       `Derived account address does not match the provided address: ${address}`,
+      options,
     );
-    this.name = 'DerivedAccountAddressMismatchException';
-  }
-}
-
-export class AccountRollbackException extends AccountServiceException {
-  constructor(accountId: string, address: string) {
-    super(
-      `Failed to rollback account creation for account ID: ${accountId} and address: ${address}`,
-    );
-    this.name = 'AccountRollbackException';
   }
 }
