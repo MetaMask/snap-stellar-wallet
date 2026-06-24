@@ -5,6 +5,7 @@ import type { AccountState, SimulationState } from './simulation';
 import { KnownCaip2ChainId } from '../../api';
 import { toCaip19ClassicAssetId } from '../../utils';
 import type { AssetMetadataService } from '../asset-metadata';
+import { AssetChangeDirection } from '../transaction-scan';
 
 describe('mapSimulationToEstimatedChanges', () => {
   const scope = KnownCaip2ChainId.Mainnet;
@@ -49,7 +50,7 @@ describe('mapSimulationToEstimatedChanges', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
-      type: 'out',
+      type: AssetChangeDirection.Out,
       value: 10,
       price: null,
       symbol: 'XLM',
@@ -88,7 +89,7 @@ describe('mapSimulationToEstimatedChanges', () => {
 
     expect(result).toStrictEqual([
       {
-        type: 'out',
+        type: AssetChangeDirection.Out,
         value: 0.2,
         price: null,
         symbol: 'USDC',

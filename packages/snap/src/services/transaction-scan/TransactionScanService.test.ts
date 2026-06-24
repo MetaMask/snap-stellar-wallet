@@ -1,4 +1,8 @@
-import { TransactionScanOption, TransactionScanValidationType } from './api';
+import {
+  AssetChangeDirection,
+  TransactionScanOption,
+  TransactionScanValidationType,
+} from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import { TransactionScanService } from './TransactionScanService';
 /* eslint-disable @typescript-eslint/naming-convention */
@@ -72,7 +76,7 @@ describe('TransactionScanService', () => {
       estimatedChanges: {
         assets: [
           {
-            type: 'out',
+            type: AssetChangeDirection.Out,
             symbol: 'XLM',
             name: 'XLM',
             logo: null,

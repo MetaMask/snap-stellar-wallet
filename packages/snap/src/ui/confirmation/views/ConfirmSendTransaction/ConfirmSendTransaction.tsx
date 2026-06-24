@@ -79,13 +79,15 @@ export const ConfirmSendTransaction = ({
           <Box>{null}</Box>
         </Box>
 
-        {preferences.simulateOnChainActions ? (
-          <EstimatedChanges
-            changes={scan?.estimatedChanges ?? null}
-            preferences={preferences}
-            scanFetchStatus={scanFetchStatus}
-          />
-        ) : null}
+        {/* Always shown: the rows are seeded locally from the known send
+            amount, so this is the only place the user sees what they're
+            approving. Unlike sign-transaction (remote simulation, gated by the
+            simulate-on-chain-actions preference), it must not be hidden. */}
+        <EstimatedChanges
+          changes={scan?.estimatedChanges ?? null}
+          preferences={preferences}
+          scanFetchStatus={scanFetchStatus}
+        />
 
         <Section>
           {origin ? (

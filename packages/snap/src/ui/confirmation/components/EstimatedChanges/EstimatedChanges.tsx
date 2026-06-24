@@ -42,6 +42,23 @@ function formatValue(value: number | null): string {
 }
 
 /**
+ * Resolves the text color for an estimated-change row.
+ *
+ * @param isUnknownValue - True when the amount could not be determined.
+ * @param isOut - True for an outflow row.
+ * @returns The SnapText color: neutral for unknown, red for out, green for in.
+ */
+function resolveRowColor(
+  isUnknownValue: boolean,
+  isOut: boolean,
+): 'alternative' | 'error' | 'success' {
+  if (isUnknownValue) {
+    return 'alternative';
+  }
+  return isOut ? 'error' : 'success';
+}
+
+/**
  * Builds a stable list key for an estimated-change row.
  *
  * @param asset - The asset change row.
@@ -106,14 +123,20 @@ const AssetChangeRow = ({
   const iconSrc =
     asset.logo ?? (asset.symbol === NATIVE_ASSET_SYMBOL ? xlmIcon : null);
 
+  // A null value means the amount is unknown (e.g. a contract token Blockaid
+  // cannot quantify); render a neutral placeholder rather than a misleading 0.
+  const isUnknownValue = asset.value === null;
+  const label = isUnknownValue
+    ? `– ${asset.symbol}`
+    : `${isOut ? '-' : '+'}${formatValue(asset.value)} ${asset.symbol}`;
+  const color = resolveRowColor(isUnknownValue, isOut);
+
   return (
     <Box direction="horizontal" alignment="end" center>
       {iconSrc ? (
         <Image src={iconSrc} borderRadius="full" height={16} width={16} />
       ) : null}
-      <SnapText color={isOut ? 'error' : 'success'}>
-        {`${isOut ? '-' : '+'}${formatValue(asset.value)} ${asset.symbol}`}
-      </SnapText>
+      <SnapText color={color}>{label}</SnapText>
     </Box>
   );
 };
@@ -138,12 +161,16 @@ export const EstimatedChanges = ({
   const isFetching = isFetchStatusLoadingOrFetching(scanFetchStatus);
   const isFetched = scanFetchStatus === FetchStatus.Fetched;
   const isFetchError = scanFetchStatus === FetchStatus.Error;
+  // Locally-seeded rows (send flow) are final regardless of the remote scan, so
+  // keep them visible instead of replacing them with the loading/error chrome
+  // that the remote scan status would otherwise drive.
+  const hasSeededRows = (changes?.assets.length ?? 0) > 0;
 
-  if (isFetching) {
+  if (isFetching && !hasSeededRows) {
     return <EstimatedChangesSkeleton preferences={preferences} />;
   }
 
-  if (isFetchError) {
+  if (isFetchError && !hasSeededRows) {
     return (
       <Section direction="vertical">
         <EstimatedChangesHeader preferences={preferences} />

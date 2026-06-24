@@ -47,9 +47,9 @@ describe('EstimatedChanges', () => {
     logo: 'https://example.com/usdc.png',
   };
 
-  it('renders a skeleton while the remote scan is fetching', () => {
+  it('renders a skeleton while the remote scan is fetching and nothing is seeded', () => {
     const component = EstimatedChanges({
-      changes: { assets: [xlmOut] },
+      changes: { assets: [] },
       preferences,
       scanFetchStatus: FetchStatus.Fetching,
     });
@@ -58,9 +58,21 @@ describe('EstimatedChanges', () => {
     expect(JSON.stringify(component)).not.toContain('-10 XLM');
   });
 
-  it('shows not available when the remote scan errors', () => {
+  it('keeps locally-seeded rows visible while the remote scan is fetching', () => {
     const component = EstimatedChanges({
       changes: { assets: [xlmOut] },
+      preferences,
+      scanFetchStatus: FetchStatus.Fetching,
+    });
+
+    const serialized = JSON.stringify(component);
+    expect(serialized).not.toContain('"type":"Skeleton"');
+    expect(serialized).toContain('-10 XLM');
+  });
+
+  it('shows not available when the remote scan errors and nothing is seeded', () => {
+    const component = EstimatedChanges({
+      changes: { assets: [] },
       preferences,
       scanFetchStatus: FetchStatus.Error,
     });
@@ -68,6 +80,32 @@ describe('EstimatedChanges', () => {
     expect(JSON.stringify(component)).toContain(
       'Estimated changes are not available',
     );
+  });
+
+  it('keeps locally-seeded rows visible when the remote scan errors', () => {
+    const component = EstimatedChanges({
+      changes: { assets: [xlmOut] },
+      preferences,
+      scanFetchStatus: FetchStatus.Error,
+    });
+
+    const serialized = JSON.stringify(component);
+    expect(serialized).not.toContain('Estimated changes are not available');
+    expect(serialized).toContain('-10 XLM');
+  });
+
+  it('renders a neutral placeholder for an unknown (null) amount', () => {
+    const component = EstimatedChanges({
+      changes: {
+        assets: [{ ...xlmOut, value: null }],
+      },
+      preferences,
+      scanFetchStatus: FetchStatus.Fetched,
+    });
+
+    const serialized = JSON.stringify(component);
+    expect(serialized).toContain('– XLM');
+    expect(serialized).toContain('"color":"alternative"');
   });
 
   it('shows no changes when fetched with empty assets', () => {

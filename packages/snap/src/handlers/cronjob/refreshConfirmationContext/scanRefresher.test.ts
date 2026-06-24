@@ -4,6 +4,7 @@ import { ConfirmationScanRefresher } from './scanRefresher';
 import { KnownCaip2ChainId } from '../../../api';
 import type { TransactionScanService } from '../../../services/transaction-scan';
 import {
+  AssetChangeDirection,
   TransactionScanOption,
   TransactionScanValidationType,
 } from '../../../services/transaction-scan';
@@ -26,7 +27,7 @@ describe('ConfirmationScanRefresher', () => {
     estimatedChanges: {
       assets: [
         {
-          type: 'out' as const,
+          type: AssetChangeDirection.Out,
           value: 2,
           price: null,
           symbol: 'USDC',
@@ -134,7 +135,7 @@ describe('ConfirmationScanRefresher', () => {
     const localEstimatedChanges = {
       assets: [
         {
-          type: 'out' as const,
+          type: AssetChangeDirection.Out,
           value: 1,
           price: null,
           symbol: 'XLM',
@@ -169,7 +170,7 @@ describe('ConfirmationScanRefresher', () => {
     const localEstimatedChanges = {
       assets: [
         {
-          type: 'out' as const,
+          type: AssetChangeDirection.Out,
           value: 12.5,
           price: null,
           symbol: 'XLM',
@@ -215,7 +216,7 @@ describe('ConfirmationScanRefresher', () => {
     const localEstimatedChanges = {
       assets: [
         {
-          type: 'out' as const,
+          type: AssetChangeDirection.Out,
           value: 1,
           price: null,
           symbol: 'XLM',

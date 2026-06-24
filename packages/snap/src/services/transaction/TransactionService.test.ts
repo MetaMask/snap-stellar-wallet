@@ -39,6 +39,7 @@ import {
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
   horizonSource,
 } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
+import { AssetChangeDirection } from '../transaction-scan';
 import {
   generateStellarAddress,
   getTestWallet,
@@ -329,7 +330,7 @@ describe('TransactionService', () => {
 
       expect(result.assets).toHaveLength(1);
       expect(result.assets[0]).toMatchObject({
-        type: 'out',
+        type: AssetChangeDirection.Out,
         value: 10,
         symbol: 'XLM',
         price: null,

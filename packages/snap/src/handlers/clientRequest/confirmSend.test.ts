@@ -49,6 +49,7 @@ import {
   TransactionValidationException,
 } from '../../services/transaction/exceptions';
 import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
+import { AssetChangeDirection } from '../../services/transaction-scan';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
@@ -306,7 +307,7 @@ describe('ConfirmSendHandler', () => {
         estimatedChanges: {
           assets: [
             {
-              type: 'out',
+              type: AssetChangeDirection.Out,
               value: 1,
               price: null,
               symbol: assetMetadata.symbol,
