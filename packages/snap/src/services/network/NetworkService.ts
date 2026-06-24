@@ -25,7 +25,11 @@ import {
   SIMULATION_ACCOUNT,
   StellarRouterContract,
 } from './MultiCall';
-import { isAccountNotFoundError, multiplyFee, sep41MulticallCellToBalance } from './utils';
+import {
+  isAccountNotFoundError,
+  multiplyFee,
+  sep41MulticallCellToBalance,
+} from './utils';
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Sep41AssetId,
@@ -126,7 +130,10 @@ export class NetworkService {
     try {
       const client = this.#getHorizonClient(scope);
       const baseFee = await client.fetchBaseFee();
-      return multiplyFee(new BigNumber(baseFee), AppConfig.transaction.baseFeeMultiplier);
+      return multiplyFee(
+        new BigNumber(baseFee),
+        AppConfig.transaction.baseFeeMultiplier,
+      );
     } catch (error: unknown) {
       return this.#throwError({
         error,
@@ -677,7 +684,10 @@ export class NetworkService {
       // simulateResponse.transactionData will be used to assemble the transaction.
       // @link https://github.com/stellar/stellar-sdk/blob/main/packages/stellar-base/src/rpc/transaction.ts
       simulateResponse.transactionData.setResourceFee(
-        multiplyFee(resourceFee, AppConfig.transaction.simulationFeeMultiplier).toString(),
+        multiplyFee(
+          resourceFee,
+          AppConfig.transaction.simulationFeeMultiplier,
+        ).toString(),
       );
 
       const simulatedTransaction = rpc.assembleTransaction(
