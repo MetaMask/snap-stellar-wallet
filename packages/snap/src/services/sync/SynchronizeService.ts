@@ -194,7 +194,11 @@ export class SynchronizeService {
           if (!(error instanceof AccountNotActivatedException)) {
             await trackError(error);
 
-            this.#logger.warn('Failed to load account for sync', { error });
+            this.#logger.warn('Failed to load account for sync', {
+              error,
+              accountAddress: account.address,
+              scope,
+            });
           }
           return null;
         }

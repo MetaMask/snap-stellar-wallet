@@ -627,6 +627,8 @@ export class TransactionMapper {
     } catch (error) {
       this.#logger.warn('Failed to get receive operation asset', {
         error,
+        transactionId: transaction.id,
+        operationIndex: index,
       });
       // Best effort to get the receive operation asset,
       // The error is not necessary to track.
@@ -663,6 +665,7 @@ export class TransactionMapper {
       // The error is not necessary to track.
       this.#logger.warn('Failed to parse successful transaction result', {
         error,
+        transactionId: transaction.id,
       });
       return null;
     }
