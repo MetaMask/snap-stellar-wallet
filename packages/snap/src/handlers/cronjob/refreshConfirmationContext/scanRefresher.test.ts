@@ -68,13 +68,16 @@ describe('ConfirmationScanRefresher', () => {
         simulateOnChainActions: true,
       },
       securityScanRequest,
+      // Sign-transaction-like defaults: remote validation + remote simulation.
+      securityScanning: true,
+      remoteSimulation: true,
       scan: null,
       scanFetchStatus: FetchStatus.Fetching,
       ...overrides,
     });
   }
 
-  it('requests simulation and validation for sign transaction when both scan preferences are enabled', async () => {
+  it('requests simulation and validation when both intents and both scan preferences are enabled', async () => {
     const { refresher, transactionScanService } = setup();
 
     const result = await refresher.refresh(createScanContext());
@@ -95,38 +98,30 @@ describe('ConfirmationScanRefresher', () => {
     });
   });
 
-  it.each([
-    ConfirmationInterfaceKey.SignTransaction,
-    ConfirmationInterfaceKey.ConfirmSendTransaction,
-  ])(
-    'requests simulation for %s when estimated changes are enabled',
-    async (interfaceKey) => {
-      const { refresher, transactionScanService } = setup();
-
-      await refresher.refresh(
-        createScanContext({
-          interfaceKey,
-          preferences: {
-            useSecurityAlerts: false,
-            simulateOnChainActions: true,
-          },
-        }),
-      );
-
-      expect(transactionScanService.scanTransactionSafe).toHaveBeenCalledWith({
-        ...securityScanRequest,
-        options: [TransactionScanOption.Simulation],
-      });
-    },
-  );
-
-  it.each([
-    ConfirmationInterfaceKey.ChangeTrustlineOptIn,
-    ConfirmationInterfaceKey.ChangeTrustlineOptOut,
-  ])('does not request simulation for %s', async (interfaceKey) => {
+  it('requests simulation when remote simulation is enabled and on-chain simulation is allowed', async () => {
     const { refresher, transactionScanService } = setup();
 
-    await refresher.refresh(createScanContext({ interfaceKey }));
+    await refresher.refresh(
+      createScanContext({
+        remoteSimulation: true,
+        securityScanning: true,
+        preferences: {
+          useSecurityAlerts: false,
+          simulateOnChainActions: true,
+        },
+      }),
+    );
+
+    expect(transactionScanService.scanTransactionSafe).toHaveBeenCalledWith({
+      ...securityScanRequest,
+      options: [TransactionScanOption.Simulation],
+    });
+  });
+
+  it('requests only validation when remote simulation is disabled (local-simulation flow)', async () => {
+    const { refresher, transactionScanService } = setup();
+
+    await refresher.refresh(createScanContext({ remoteSimulation: false }));
 
     expect(transactionScanService.scanTransactionSafe).toHaveBeenCalledWith({
       ...securityScanRequest,
@@ -259,12 +254,13 @@ describe('ConfirmationScanRefresher', () => {
     });
   });
 
-  it('fetches when only simulateOnChainActions is enabled for sign transaction', () => {
+  it('fetches when only simulateOnChainActions is enabled and remote simulation is requested', () => {
     const { refresher } = setup();
 
     expect(
       refresher.shouldFetch(
         createScanContext({
+          remoteSimulation: true,
           preferences: {
             useSecurityAlerts: false,
             simulateOnChainActions: true,
@@ -274,13 +270,13 @@ describe('ConfirmationScanRefresher', () => {
     ).toBe(true);
   });
 
-  it('does not fetch when only simulateOnChainActions is enabled for change trust', () => {
+  it('does not fetch when simulateOnChainActions is enabled but remote simulation is not requested', () => {
     const { refresher } = setup();
 
     expect(
       refresher.shouldFetch(
         createScanContext({
-          interfaceKey: ConfirmationInterfaceKey.ChangeTrustlineOptIn,
+          remoteSimulation: false,
           preferences: {
             useSecurityAlerts: false,
             simulateOnChainActions: true,

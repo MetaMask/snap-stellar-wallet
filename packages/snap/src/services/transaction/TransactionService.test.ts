@@ -336,7 +336,7 @@ describe('TransactionService', () => {
       });
     });
 
-    it('derives changes when the signer is only the operation source', async () => {
+    it('returns empty assets when the signer is not the transaction or fee source', async () => {
       const { transactionService } = createMockTransactionService();
       const wallet = getTestWallet();
       const txSource = generateStellarAddress();
@@ -349,35 +349,9 @@ describe('TransactionService', () => {
           buildOnChainAccount(destination, 50),
         ]);
 
-      const result = await transactionService.deriveEstimatedChanges({
-        transaction: buildNativePaymentWithTxSource({
-          txSource,
-          operationSource: wallet.address,
-          destination,
-        }),
-        onChainAccount: buildOnChainAccount(wallet.address, 500),
-        signerAddress: wallet.address,
-      });
-
-      expect(result.assets).toHaveLength(1);
-      expect(result.assets[0]).toMatchObject({
-        type: 'out',
-        value: 10,
-        symbol: 'XLM',
-        price: null,
-      });
-    });
-
-    it('returns empty assets when an operation-source transaction cannot load the fee source', async () => {
-      const { transactionService } = createMockTransactionService();
-      const wallet = getTestWallet();
-      const txSource = generateStellarAddress();
-      const destination = generateStellarAddress();
-
-      jest
-        .spyOn(NetworkService.prototype, 'loadOnChainAccountsSafe')
-        .mockResolvedValue([buildOnChainAccount(destination, 50)]);
-
+      // Local simulation (send / change-trust) requires the wallet to be the
+      // transaction or fee source; an operation-source-only signer is rejected
+      // and the estimated-changes section stays hidden.
       const result = await transactionService.deriveEstimatedChanges({
         transaction: buildNativePaymentWithTxSource({
           txSource,

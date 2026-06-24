@@ -13,7 +13,7 @@ describe('ConfirmationUXController', () => {
         interfaceKey: ConfirmationInterfaceKey.SignTransaction,
         fee: '100',
         renderContext: {},
-        renderOptions: { scanTxn: true },
+        renderOptions: { securityScanning: true },
       }),
     ).rejects.toThrow(
       'Cannot scan a transaction confirmation without a security scan request.',

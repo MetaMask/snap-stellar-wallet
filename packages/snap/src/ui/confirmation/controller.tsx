@@ -1,10 +1,7 @@
 import type { DialogResult } from '@metamask/snaps-sdk';
 
-import {
-  ConfirmationInterfaceKey,
-  FetchStatus,
-  type ContextWithPrices,
-} from './api';
+import { FetchStatus } from './api';
+import type { ConfirmationInterfaceKey, ContextWithPrices } from './api';
 import {
   formatFeeData,
   formatOrigin,
@@ -40,9 +37,15 @@ import {
 } from '../../handlers/cronjob/refreshConfirmationContext';
 
 type ConfirmationRenderOptions = {
+  // Fetch external token spot prices.
   loadPrice?: boolean;
-  scanTxn?: boolean;
-  validateTxn?: boolean;
+  // Remote Blockaid validation (security alerts).
+  securityScanning?: boolean;
+  // Local on-chain simulation: estimated changes + per-cycle re-validation
+  // (send / change-trust).
+  localSimulation?: boolean;
+  // Remote Blockaid simulation for estimated changes (sign-transaction).
+  remoteSimulation?: boolean;
 };
 
 /**
@@ -101,8 +104,9 @@ export class ConfirmationUXController {
 
   readonly #defaultRenderOptions: ConfirmationRenderOptions = {
     loadPrice: false,
-    scanTxn: false,
-    validateTxn: false,
+    securityScanning: false,
+    localSimulation: false,
+    remoteSimulation: false,
   };
 
   constructor({ logger }: { logger: ILogger }) {
@@ -141,18 +145,21 @@ export class ConfirmationUXController {
         ...params.renderOptions,
       };
 
-      if (renderOptions.scanTxn && params.securityScanRequest === undefined) {
+      if (
+        (renderOptions.securityScanning || renderOptions.remoteSimulation) &&
+        params.securityScanRequest === undefined
+      ) {
         throw new Error(
           'Cannot scan a transaction confirmation without a security scan request.',
         );
       }
 
       if (
-        renderOptions.validateTxn &&
+        renderOptions.localSimulation &&
         params.transactionValidationRequest === undefined
       ) {
         throw new Error(
-          'Cannot re-validate a transaction confirmation without a transaction validation request.',
+          'Cannot run local simulation on a transaction confirmation without a transaction validation request.',
         );
       }
 
@@ -170,7 +177,7 @@ export class ConfirmationUXController {
       };
 
       /**
-       * Enazble Price Fetching if:
+       * Enable Price Fetching if:
        * - Pricing Loading is enabled
        * - External Pricing Preferences is enabled
        * - Token Prices mapping is provided
@@ -180,17 +187,23 @@ export class ConfirmationUXController {
         preferences.useExternalPricingData &&
         tokenPrices !== undefined;
 
-      const canUseRemoteSimulation =
-        interfaceKey === ConfirmationInterfaceKey.SignTransaction ||
-        interfaceKey === ConfirmationInterfaceKey.ConfirmSendTransaction;
+      // Remote Blockaid scan runs when either remote source is both requested by
+      // the flow and enabled by the user: validation (security alerts) or
+      // simulation (on-chain action simulation).
+      const wantsRemoteValidation =
+        Boolean(renderOptions.securityScanning) &&
+        preferences.useSecurityAlerts;
+      const wantsRemoteSimulation =
+        Boolean(renderOptions.remoteSimulation) &&
+        preferences.simulateOnChainActions;
       const enableSecurityScan =
-        renderOptions.scanTxn &&
-        (preferences.useSecurityAlerts ||
-          (preferences.simulateOnChainActions && canUseRemoteSimulation)) &&
-        params.securityScanRequest !== undefined;
+        params.securityScanRequest !== undefined &&
+        (wantsRemoteValidation || wantsRemoteSimulation);
 
-      const enableTransactionValidation =
-        renderOptions.validateTxn &&
+      // Local simulation (estimated changes + per-cycle submittability
+      // re-validation) is driven by the Transaction refresher.
+      const enableLocalSimulation =
+        renderOptions.localSimulation &&
         params.transactionValidationRequest !== undefined;
 
       const defaultContext = {
@@ -219,12 +232,16 @@ export class ConfirmationUXController {
                 origin,
                 scope,
               },
+              // Persist the flow's scan intents so the refresher picks Blockaid
+              // options without keying off the interface key.
+              securityScanning: Boolean(renderOptions.securityScanning),
+              remoteSimulation: Boolean(renderOptions.remoteSimulation),
             }
           : {}),
         // Optimistic: tx was validated at build time, so keep confirm enabled; the
         // refresher flips to Error if it later drifts (submission rejects invalid txs too).
         // TODO(follow-up): re-validate synchronously right before signing.
-        ...(renderOptions.validateTxn && params.transactionValidationRequest
+        ...(enableLocalSimulation && params.transactionValidationRequest
           ? {
               transactionsFetchStatus: FetchStatus.Fetched,
               accountId: params.transactionValidationRequest.accountId,
@@ -268,7 +285,7 @@ export class ConfirmationUXController {
       if (enableSecurityScan) {
         refresherKeys.push(ConfirmationContextRefresherKey.Scan);
       }
-      if (enableTransactionValidation) {
+      if (enableLocalSimulation) {
         refresherKeys.push(ConfirmationContextRefresherKey.Transaction);
       }
 

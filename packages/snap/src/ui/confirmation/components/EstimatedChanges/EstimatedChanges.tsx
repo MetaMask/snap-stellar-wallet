@@ -14,6 +14,7 @@ import {
 import { BigNumber } from 'bignumber.js';
 
 import { NATIVE_ASSET_SYMBOL } from '../../../../constants';
+import { AssetChangeDirection } from '../../../../services/transaction-scan';
 import type {
   TransactionScanAssetChange,
   TransactionScanEstimatedChanges,
@@ -101,7 +102,7 @@ const AssetChangeRow = ({
 }: {
   asset: TransactionScanAssetChange;
 }): ComponentOrElement => {
-  const isOut = asset.type === 'out';
+  const isOut = asset.type === AssetChangeDirection.Out;
   const iconSrc =
     asset.logo ?? (asset.symbol === NATIVE_ASSET_SYMBOL ? xlmIcon : null);
 
@@ -153,8 +154,13 @@ export const EstimatedChanges = ({
     );
   }
 
-  const send = changes?.assets.filter((asset) => asset.type === 'out') ?? [];
-  const receive = changes?.assets.filter((asset) => asset.type === 'in') ?? [];
+  const send =
+    changes?.assets.filter(
+      (asset) => asset.type === AssetChangeDirection.Out,
+    ) ?? [];
+  const receive =
+    changes?.assets.filter((asset) => asset.type === AssetChangeDirection.In) ??
+    [];
   const hasChanges = send.length > 0 || receive.length > 0;
 
   if (isFetched && !hasChanges) {

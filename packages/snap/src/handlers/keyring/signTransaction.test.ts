@@ -145,7 +145,8 @@ describe('SignTransactionHandler', () => {
       expect.objectContaining({
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
+          securityScanning: true,
+          remoteSimulation: true,
         },
         securityScanRequest: {
           accountAddress: mockAccount.address,

@@ -1,4 +1,5 @@
 import { EstimatedChanges } from './EstimatedChanges';
+import { AssetChangeDirection } from '../../../../services/transaction-scan';
 import { xlmIcon } from '../../../images';
 import {
   defaultPreferences as preferences,
@@ -30,7 +31,7 @@ function collectImageSources(node: unknown): unknown[] {
 
 describe('EstimatedChanges', () => {
   const xlmOut = {
-    type: 'out' as const,
+    type: AssetChangeDirection.Out,
     value: 10,
     price: null,
     symbol: 'XLM',
@@ -38,7 +39,7 @@ describe('EstimatedChanges', () => {
     logo: null,
   };
   const usdcIn = {
-    type: 'in' as const,
+    type: AssetChangeDirection.In,
     value: 5,
     price: null,
     symbol: 'USDC',

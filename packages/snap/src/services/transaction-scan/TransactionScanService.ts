@@ -1,6 +1,6 @@
 import { BigNumber } from 'bignumber.js';
 
-import { TransactionScanOption } from './api';
+import { AssetChangeDirection, TransactionScanOption } from './api';
 import type {
   StellarAssetDiff,
   StellarTransactionScanResponse,
@@ -112,10 +112,10 @@ export class TransactionScanService {
     return assetDiffs.flatMap((assetDiff) => {
       const changes: TransactionScanAssetChange[] = [];
       if (assetDiff.out) {
-        changes.push(this.#mapAssetChange(assetDiff, 'out'));
+        changes.push(this.#mapAssetChange(assetDiff, AssetChangeDirection.Out));
       }
       if (assetDiff.in) {
-        changes.push(this.#mapAssetChange(assetDiff, 'in'));
+        changes.push(this.#mapAssetChange(assetDiff, AssetChangeDirection.In));
       }
       return changes;
     });
@@ -123,7 +123,7 @@ export class TransactionScanService {
 
   #mapAssetChange(
     assetDiff: StellarAssetDiff,
-    type: 'in' | 'out',
+    type: AssetChangeDirection,
   ): TransactionScanAssetChange {
     const transfer = assetDiff[type];
     const symbol =
@@ -170,21 +170,19 @@ export class TransactionScanService {
 
   /**
    * Resolves asset decimals for Blockaid simulation diffs.
-   * Native and classic Stellar assets use 7 decimal places; contract tokens
-   * do not expose decimals in the Blockaid payload today.
+   *
+   * Native and classic Stellar assets use 7 decimal places; contract tokens do
+   * not expose decimals in the Blockaid payload today. We key off the canonical
+   * top-level `asset_type` (`NATIVE` / `ASSET`) — the nested `asset.type` is the
+   * same classification and adds no information.
    *
    * @param assetDiff - The asset diff from Blockaid.
    * @returns The decimals when known.
    */
   #resolveAssetDecimals(assetDiff: StellarAssetDiff): number | undefined {
-    const { asset_type: assetType, asset } = assetDiff;
+    const { asset_type: assetType } = assetDiff;
 
-    if (
-      assetType === 'NATIVE' ||
-      asset.type === 'NATIVE' ||
-      assetType === 'ASSET' ||
-      asset.type === 'ASSET'
-    ) {
+    if (assetType === 'NATIVE' || assetType === 'ASSET') {
       return STELLAR_DECIMAL_PLACES;
     }
 

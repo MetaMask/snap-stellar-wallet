@@ -369,10 +369,13 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
         },
         fee,
         interfaceKey: confirmationInterfaceKey,
+        // localSimulation drives re-validation only; a trustline op moves no
+        // balance, so there are no estimated changes to seed or display (we
+        // intentionally pass no initialScan).
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,

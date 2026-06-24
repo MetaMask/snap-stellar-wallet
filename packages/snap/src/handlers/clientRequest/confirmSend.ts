@@ -47,6 +47,7 @@ import type {
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
 import { AccountNotActivatedException } from '../../services/network';
+import { AssetChangeDirection } from '../../services/transaction-scan';
 import type { TransactionScanEstimatedChanges } from '../../services/transaction-scan';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
@@ -152,6 +153,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           scope,
           fee: transaction.totalFee,
           transaction,
+          onChainAccount,
         }))
       ) {
         await trackTransactionRejected({
@@ -292,11 +294,23 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     scope: KnownCaip2ChainId;
     fee: BigNumber;
     transaction: Transaction;
+    onChainAccount: ResolvedActivatedAccount['onChainAccount'];
   }): Promise<boolean> {
-    const { request, account, assetMetadata, fee, scope, transaction } = params;
+    const {
+      request,
+      account,
+      assetMetadata,
+      fee,
+      scope,
+      transaction,
+      onChainAccount,
+    } = params;
     const { toAddress, amount, assetId } = request.params;
     const xdr = transaction.getRaw().toXDR();
-    const estimatedChanges = this.#buildEstimatedChangesFallback({
+    const estimatedChanges = await this.#deriveEstimatedChanges({
+      transaction,
+      onChainAccount,
+      signerAddress: account.address,
       amount,
       assetMetadata,
     });
@@ -313,8 +327,8 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         interfaceKey: ConfirmationInterfaceKey.ConfirmSendTransaction,
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
@@ -338,6 +352,49 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     );
   }
 
+  /**
+   * Estimated balance changes for the send confirmation, derived from a local
+   * on-chain simulation (send/change-trust never use remote simulation). Falls
+   * back to the known send amount as a single outgoing row when the simulation
+   * yields nothing, so the user always sees what they are sending.
+   *
+   * @param params - The parameters.
+   * @param params.transaction - The built, validated send transaction.
+   * @param params.onChainAccount - The live on-chain sender snapshot.
+   * @param params.signerAddress - The sender's Stellar address.
+   * @param params.amount - The send amount (human-readable units), for the fallback row.
+   * @param params.assetMetadata - The asset metadata, for the fallback row.
+   * @returns The estimated changes to seed the confirmation.
+   */
+  async #deriveEstimatedChanges(params: {
+    transaction: Transaction;
+    onChainAccount: ResolvedActivatedAccount['onChainAccount'];
+    signerAddress: string;
+    amount: string;
+    assetMetadata: StellarAssetMetadata;
+  }): Promise<TransactionScanEstimatedChanges> {
+    const {
+      transaction,
+      onChainAccount,
+      signerAddress,
+      amount,
+      assetMetadata,
+    } = params;
+
+    const estimatedChanges =
+      await this.#transactionService.deriveEstimatedChanges({
+        transaction,
+        onChainAccount,
+        signerAddress,
+      });
+
+    if (estimatedChanges.assets.length > 0) {
+      return estimatedChanges;
+    }
+
+    return this.#buildEstimatedChangesFallback({ amount, assetMetadata });
+  }
+
   #buildEstimatedChangesFallback({
     amount,
     assetMetadata,
@@ -351,7 +408,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     return {
       assets: [
         {
-          type: 'out',
+          type: AssetChangeDirection.Out,
           value: Number(amount),
           price: null,
           symbol,

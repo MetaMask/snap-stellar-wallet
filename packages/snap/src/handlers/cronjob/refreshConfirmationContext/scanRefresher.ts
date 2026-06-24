@@ -14,7 +14,6 @@ import type {
 import { TransactionScanOption } from '../../../services/transaction-scan';
 import type { ContextWithSecurityScan } from '../../../ui/confirmation/api';
 import {
-  ConfirmationInterfaceKey,
   ContextWithSecurityScanStruct,
   FetchStatus,
 } from '../../../ui/confirmation/api';
@@ -86,6 +85,9 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
       SecurityScanContext['securityScanRequest']
     >;
     const options = this.#getScanOptions(scanCtx);
+    // Send / change-trust seed locally-simulated estimated changes here, which
+    // we keep when the validation-only remote scan returns no rows. Sign-txn has
+    // no local seed, so this is `{ assets: [] }` until remote simulation returns.
     const fallbackEstimatedChanges = scanCtx.scan?.estimatedChanges ?? {
       assets: [],
     };
@@ -162,15 +164,13 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
   #getScanOptions(ctx: SecurityScanContext): TransactionScanOption[] {
     const options: TransactionScanOption[] = [];
 
-    if (
-      ctx.preferences.simulateOnChainActions &&
-      (ctx.interfaceKey === ConfirmationInterfaceKey.SignTransaction ||
-        ctx.interfaceKey === ConfirmationInterfaceKey.ConfirmSendTransaction)
-    ) {
+    // Remote simulation is requested only by flows that opted into it (sign
+    // transaction) and only when the user enabled on-chain action simulation.
+    if (ctx.remoteSimulation && ctx.preferences.simulateOnChainActions) {
       options.push(TransactionScanOption.Simulation);
     }
 
-    if (ctx.preferences.useSecurityAlerts) {
+    if (ctx.securityScanning && ctx.preferences.useSecurityAlerts) {
       options.push(TransactionScanOption.Validation);
     }
 

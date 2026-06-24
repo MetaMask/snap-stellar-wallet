@@ -176,8 +176,8 @@ export const ConfirmSignTransaction = ({
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
   const feePrice = tokenPrices?.[feeData.assetId] ?? null;
-  // Sign-transaction has no local re-validation (no validateTxn step), so only
-  // the remote-scan-loading guard applies here.
+  // Sign-transaction has no local simulation/re-validation step, so only the
+  // remote-scan-loading guard applies here.
   const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
   });

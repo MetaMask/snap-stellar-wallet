@@ -5,7 +5,10 @@ import {
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { groupBy } from 'lodash';
 
-import { InsufficientBalanceException } from './exceptions';
+import {
+  InsufficientBalanceException,
+  TransactionValidationException,
+} from './exceptions';
 import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
 import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 import { mapSimulationToEstimatedChanges } from './mapSimulationToEstimatedChanges';
@@ -545,8 +548,9 @@ export class TransactionService {
   /**
    * Derives the signer's estimated balance changes from a local on-chain
    * simulation, mapped into the {@link TransactionScanEstimatedChanges} shape the
-   * confirmation UI renders. Used to seed the `sign-transaction` confirmation
-   * fund-flow breakdown without relying on a remote (Blockaid) simulation.
+   * confirmation UI renders. Seeds the send / change-trust confirmation
+   * fund-flow breakdown locally (these flows never use remote Blockaid
+   * simulation).
    *
    * The network fee is excluded from the per-asset rows (the diff baselines on
    * the post-fee simulation snapshot); it is surfaced separately as the fee row.
@@ -574,11 +578,19 @@ export class TransactionService {
       );
 
       const simulator = new TransactionSimulator();
-      const { initialState, finalState } = simulator.simulateEndpoints(
-        transaction,
-        onChainAccount,
-        { preloadedAccounts, allowOperationSourceAccount: true },
-      );
+      // The simulation stack is the post-fee snapshot first, then one entry per
+      // operation; diffing the endpoints excludes the network fee from per-asset
+      // rows (it is surfaced separately).
+      const states = simulator.simulate(transaction, onChainAccount, {
+        preloadedAccounts,
+      });
+      const initialState = states[0];
+      const finalState = states[states.length - 1];
+      if (initialState === undefined || finalState === undefined) {
+        throw new TransactionValidationException(
+          'Simulation produced no states',
+        );
+      }
 
       const assets = await mapSimulationToEstimatedChanges({
         initialState,

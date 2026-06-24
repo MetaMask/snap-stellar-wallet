@@ -24,7 +24,6 @@ import {
 } from './simulation';
 import type { Transaction } from './Transaction';
 import {
-  assertAccountInvolvesTransaction,
   assertInvokeHostFunctionSoleOperation,
   assertTransactionTimeBound,
   assertTransactionScope,
@@ -65,12 +64,6 @@ export enum SupportedOperations {
  */
 export type TransactionSimulatorOptions = {
   expectedOPTypes?: SupportedOperations[];
-  /**
-   * Allow simulation when the loaded account is only an operation source. Keep
-   * this scoped to sign-transaction estimated changes; normal validation still
-   * requires the wallet account to be the transaction or fee source.
-   */
-  allowOperationSourceAccount?: boolean;
   /**
    * Extra accounts merged into simulation (e.g. payment destinations). Ignored when simulation path does not apply.
    */
@@ -121,36 +114,6 @@ export class TransactionSimulator {
       transaction,
       initialState: this.#buildInitialState(account, options),
     });
-  }
-
-  /**
-   * Runs {@link simulate} and returns only the simulation endpoints used to
-   * derive estimated balance changes for the confirmation UI.
-   *
-   * `initialState` is the post-fee snapshot (fee already deducted from the fee
-   * source) and `finalState` is the snapshot after all operations have been
-   * applied. Diffing these two excludes the network fee from the per-asset
-   * rows (it is surfaced separately as its own fee row), matching the
-   * EVM/Tron confirmation experience.
-   *
-   * @param transaction - Wrapped Stellar transaction.
-   * @param account - Loaded signing account (Horizon-shaped raw for balances).
-   * @param options - Optional `expectedOPTypes` and `preloadedAccounts`.
-   * @returns The post-fee initial state and the final state after all operations.
-   * @throws {TransactionValidationException} When simulation produces no states.
-   */
-  simulateEndpoints(
-    transaction: Transaction,
-    account: OnChainAccount,
-    options?: TransactionSimulatorOptions,
-  ): { initialState: SimulationState; finalState: SimulationState } {
-    const states = this.simulate(transaction, account, options);
-    const initialState = states[0];
-    const finalState = states[states.length - 1];
-    if (initialState === undefined || finalState === undefined) {
-      throw new TransactionValidationException('Simulation produced no states');
-    }
-    return { initialState, finalState };
   }
 
   #run(params: {
@@ -212,19 +175,16 @@ export class TransactionSimulator {
     transaction: Transaction,
     options?: TransactionSimulatorOptions,
   ): asserts ops is SupportedOPType[] {
-    const { expectedOPTypes = [], allowOperationSourceAccount = false } =
-      options ?? {};
+    const { expectedOPTypes = [] } = options ?? {};
 
     // Ensure the transaction is not expired
     assertTransactionTimeBound(transaction);
 
     // Ensure the transaction scope matches the account scope.
     assertTransactionScope(transaction, account.scope);
-    if (allowOperationSourceAccount) {
-      assertAccountInvolvesTransaction(transaction, account.accountId);
-    } else {
-      assertTransactionSourceAccount(transaction, account.accountId);
-    }
+    // The wallet account must be the transaction or fee source for the local
+    // simulation paths (send / change-trust).
+    assertTransactionSourceAccount(transaction, account.accountId);
 
     // Soroban `invokeHostFunction` is only allowed as a single-op tx and is a no-op for state.
     assertInvokeHostFunctionSoleOperation(transaction);

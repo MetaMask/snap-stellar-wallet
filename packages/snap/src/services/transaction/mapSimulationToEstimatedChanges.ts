@@ -12,6 +12,7 @@ import { parseClassicAssetCodeIssuer } from '../../utils';
 import { normalizeAmount } from '../../utils/currency';
 import type { AssetMetadataService } from '../asset-metadata';
 import { getIconUrl, getNativeAssetMetadata } from '../asset-metadata/utils';
+import { AssetChangeDirection } from '../transaction-scan';
 import type { TransactionScanAssetChange } from '../transaction-scan';
 
 /**
@@ -34,7 +35,9 @@ function buildChange(params: {
 }): TransactionScanAssetChange {
   const { delta, decimals, symbol, name, logo } = params;
   return {
-    type: delta.isNegative() ? 'out' : 'in',
+    type: delta.isNegative()
+      ? AssetChangeDirection.Out
+      : AssetChangeDirection.In,
     value: normalizeAmount(delta.abs(), decimals).toNumber(),
     price: null,
     symbol,

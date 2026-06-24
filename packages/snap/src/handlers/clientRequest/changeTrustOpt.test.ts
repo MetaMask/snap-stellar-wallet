@@ -270,8 +270,8 @@ describe('ChangeTrustOptHandler', () => {
         },
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
@@ -464,8 +464,8 @@ describe('ChangeTrustOptHandler', () => {
         interfaceKey: ConfirmationInterfaceKey.ChangeTrustlineOptOut,
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,

@@ -280,7 +280,7 @@ const destinationAddress = generateStellarAddress();
 describe('TransactionSimulator', () => {
   const simulator = new TransactionSimulator();
 
-  describe('simulateEndpoints', () => {
+  describe('simulate endpoints', () => {
     it('returns the post-fee initial state and a final state excluding the fee', () => {
       const wallet = getTestWallet();
       const onChainAccount = onChainFromMockBalances(wallet.address, '1', {
@@ -304,16 +304,16 @@ describe('TransactionSimulator', () => {
         mainnetSimulatorTxOptions(wallet.address, '1'),
       );
 
-      const { initialState, finalState } = simulator.simulateEndpoints(
-        tx,
-        onChainAccount,
-        { preloadedAccounts: [destOnChainAccount(destinationAddress)] },
-      );
+      const states = simulator.simulate(tx, onChainAccount, {
+        preloadedAccounts: [destOnChainAccount(destinationAddress)],
+      });
+      const initialState = states[0];
+      const finalState = states[states.length - 1];
 
-      const initialBalance = initialState.accounts.get(
+      const initialBalance = initialState?.accounts.get(
         wallet.address,
       )?.nativeRawBalance;
-      const finalBalance = finalState.accounts.get(
+      const finalBalance = finalState?.accounts.get(
         wallet.address,
       )?.nativeRawBalance;
 

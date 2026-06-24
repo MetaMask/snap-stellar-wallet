@@ -294,8 +294,8 @@ describe('ConfirmSendHandler', () => {
       },
       renderOptions: {
         loadPrice: true,
-        scanTxn: true,
-        validateTxn: true,
+        securityScanning: true,
+        localSimulation: true,
       },
       securityScanRequest: {
         accountAddress: account.address,
