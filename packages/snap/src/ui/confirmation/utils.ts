@@ -7,7 +7,7 @@ import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
-import { parseOperationAssetReference } from '../../services/transaction/utils';
+import { parseOperationAssetReferenceSafe } from '../../services/transaction/utils';
 import {
   TransactionScanValidationType,
   type TransactionScanResult,
@@ -336,7 +336,7 @@ export function resolveAssetDisplay(
   scope: KnownCaip2ChainId,
   assetReference: string,
 ): ResolvedAssetDisplay | null {
-  const assetId = parseOperationAssetReference(scope, assetReference);
+  const assetId = parseOperationAssetReferenceSafe(scope, assetReference);
   if (assetId === null) {
     return null;
   }
@@ -349,7 +349,7 @@ export function resolveAssetDisplay(
       iconUrl: xlmIcon,
     };
   }
-  // Safe: parseOperationAssetReference returned non-null for a non-native ref,
+  // Safe: parseOperationAssetReferenceSafe returned non-null for a non-native ref,
   // so the reference is a parseable classic CODE-ISSUER pair.
   const { assetCode } = parseClassicAssetCodeIssuer(assetReference);
   // TODO: resolve classic-asset iconUrl via AssetMetadataService once

@@ -9,20 +9,9 @@ import {
   OnAddressInputJsonRpcRequestStruct,
 } from './api';
 import type { IClientRequestHandler } from './base';
-import type { ILogger } from '../../utils';
-import { createPrefixedLogger, validateRequest } from '../../utils';
+import { validateRequest } from '../../utils';
 
 export class OnAddressInputHandler implements IClientRequestHandler {
-  readonly #logger: ILogger;
-
-  constructor({ logger }: { logger: ILogger }) {
-    const prefixedLogger = createPrefixedLogger(
-      logger,
-      '[📮 OnAddressInputHandler]',
-    );
-    this.#logger = prefixedLogger;
-  }
-
   /**
    * Handles the input of an address.
    *
@@ -39,8 +28,9 @@ export class OnAddressInputHandler implements IClientRequestHandler {
         valid: true,
         errors: [],
       };
-    } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Invalid address', error);
+    } catch {
+      // validateRequest will only throw InvalidParamsError,
+      // so we can safely ignore the error.
       return {
         valid: false,
         errors: [{ code: MultiChainSendErrorCodes.Invalid }],

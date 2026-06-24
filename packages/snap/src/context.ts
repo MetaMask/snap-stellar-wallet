@@ -266,9 +266,7 @@ const changeTrustOptHandler = new ChangeTrustOptHandler({
   confirmationUIController,
 });
 
-const onAddressInputHandler = new OnAddressInputHandler({
-  logger,
-});
+const onAddressInputHandler = new OnAddressInputHandler();
 
 const onAmountInputHandler = new OnAmountInputHandler({
   logger,

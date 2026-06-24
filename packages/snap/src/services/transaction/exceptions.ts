@@ -2,30 +2,23 @@ import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
 } from '../../api';
+import type { StellarSnapExceptionOptions } from '../../utils';
+import { StellarSnapException } from '../../utils';
+
+export class TransactionServiceException extends StellarSnapException {}
 
 /** Thrown when building or rebuilding a transaction fails (e.g. invalid asset or SDK error). */
-export class TransactionBuilderException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TransactionBuilderException';
-  }
-}
+export class TransactionBuilderException extends TransactionServiceException {}
 
 /** Thrown when deserializing a transaction fails. */
-export class TransactionDeserializationException extends Error {
-  constructor(message: string = 'Failed to deserialize transaction') {
-    super(message);
-    this.name = 'TransactionDeserializationException';
+export class TransactionDeserializationException extends TransactionServiceException {
+  constructor(options?: StellarSnapExceptionOptions) {
+    super('Failed to deserialize transaction', options);
   }
 }
 
 /** Base for all transaction validation errors (simulation, trustlines, balances). */
-export class TransactionValidationException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TransactionValidationException';
-  }
-}
+export class TransactionValidationException extends TransactionServiceException {}
 
 /**
  * Thrown when a caller-supplied CAIP-2 scope does not match the transaction envelope's network.
@@ -42,7 +35,6 @@ export class TransactionScopeNotMatchException extends TransactionValidationExce
     super(
       `Transaction scope ${transactionScope} does not match expected scope ${expectedScope}`,
     );
-    this.name = 'TransactionScopeNotMatchException';
     this.expectedScope = expectedScope;
     this.transactionScope = transactionScope;
   }
@@ -51,7 +43,6 @@ export class TransactionScopeNotMatchException extends TransactionValidationExce
 export class TransactionExpireException extends TransactionValidationException {
   constructor(expirationTime: number) {
     super(`Transaction expired (maxTime: ${expirationTime})`);
-    this.name = 'TransactionExpireException';
   }
 }
 
@@ -76,8 +67,8 @@ export class InvalidAssetForSep41TransferException extends TransactionValidation
 
 /** Thrown when the account requires a memo. */
 export class RequiresMemoException extends TransactionValidationException {
-  constructor(accountId: string) {
-    super(`Account ${accountId} requires a memo`);
+  constructor(destAccountAddress: string) {
+    super(`Account ${destAccountAddress} requires a memo`);
   }
 }
 
@@ -92,7 +83,6 @@ export class InvalidAmountForCreateAccountException extends TransactionValidatio
   }
 }
 
-/** Thrown when the trustline is not found. */
 /**
  * Thrown when a payment uses a trustline that exists but is not authorized (`is_authorized` false).
  */
@@ -110,6 +100,7 @@ export class TrustlineNotAuthorizedException extends TransactionValidationExcept
   }
 }
 
+/** Thrown when the trustline is not found. */
 export class TrustlineNotFoundException extends TransactionValidationException {
   /** CAIP-19 asset id (or slip44 id for native) for the missing trustline. */
   readonly assetId: KnownCaip19AssetIdOrSlip44Id;
@@ -179,6 +170,7 @@ export class InsufficientBalanceToCoverFeeException extends TransactionValidatio
   }
 }
 
+/** Thrown when the account's native balance is below the required base reserve. */
 export class InsufficientBalanceToCoverBaseReserveException extends TransactionValidationException {
   readonly balance: string;
 
@@ -192,6 +184,7 @@ export class InsufficientBalanceToCoverBaseReserveException extends TransactionV
     this.required = required;
   }
 }
+
 /**
  * Thrown when the account's spendable balance for an asset is below the amount required
  * by the transaction. The asset can be native or non-native, and amounts are in
@@ -214,36 +207,17 @@ export class InsufficientBalanceException extends TransactionValidationException
   }
 }
 
-/**
- * Thrown when the invoke host function transaction has more than one operation.
- */
+/** Thrown when the invoke host function transaction has more than one operation. */
 export class InvalidInvokeContractStructureException extends TransactionValidationException {
   constructor() {
     super(`Invoke host function transaction must have exactly one operation`);
   }
 }
-/**
- * Thrown when the keyring transaction builder fails to create a transaction.
- */
-export class KeyringTransactionBuilderException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'KeyringTransactionBuilderException';
-  }
-}
+/** Thrown when the keyring transaction builder fails to create a transaction. */
+export class KeyringTransactionBuilderException extends TransactionServiceException {}
 
 /** Thrown when transaction mapping cannot proceed (invalid shape, missing metadata, etc.). */
-export class TransactionMapperException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TransactionMapperException';
-  }
-}
+export class TransactionMapperException extends TransactionServiceException {}
 
 /** Thrown when Soroban XDR or ScVal parsing fails. */
-export class XdrParseException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'XdrParseException';
-  }
-}
+export class XdrParseException extends TransactionServiceException {}

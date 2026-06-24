@@ -167,13 +167,13 @@ export function assertTransactionTimeBound(transaction: Transaction): void {
  * Throws when `destRequiresMemo` is true and the envelope has no memo (SEP-29).
  *
  * @param transaction - Wrapped Stellar transaction.
- * @param destAccountId - Payment or path-payment destination.
+ * @param destAccountAddress - Payment or path-payment destination.
  * @param destRequiresMemo - From {@link OnChainAccount.requiresMemo} or simulation state.
  * @throws {RequiresMemoException} When a memo is required but missing or blank.
  */
 export function assertMemoWhenDestinationRequires(
   transaction: Transaction,
-  destAccountId: string,
+  destAccountAddress: string,
   destRequiresMemo: boolean,
 ): void {
   const memo = transaction.getMemo();
@@ -182,7 +182,7 @@ export function assertMemoWhenDestinationRequires(
   if (!destRequiresMemo || (memo !== null && /\S/u.test(memo))) {
     return;
   }
-  throw new RequiresMemoException(destAccountId);
+  throw new RequiresMemoException(destAccountAddress);
 }
 
 /**
@@ -193,7 +193,7 @@ export function assertMemoWhenDestinationRequires(
  * @returns The CAIP-19 id, or `null` when the reference cannot be parsed
  * (e.g. liquidity pool ids that arrive on `setTrustLineFlags` / `revokeSponsorship`).
  */
-export function parseOperationAssetReference(
+export function parseOperationAssetReferenceSafe(
   scope: KnownCaip2ChainId,
   assetReference: string,
 ): KnownCaip19AssetIdOrSlip44Id | null {
@@ -246,7 +246,7 @@ export function collectTransactionAssetCaipIds(
       if (reference === null) {
         continue;
       }
-      const assetId = parseOperationAssetReference(scope, reference);
+      const assetId = parseOperationAssetReferenceSafe(scope, reference);
       if (assetId !== null) {
         ids.add(assetId);
       }

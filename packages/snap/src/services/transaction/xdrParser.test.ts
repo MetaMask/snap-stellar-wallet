@@ -15,7 +15,6 @@ import { XdrParseException } from './exceptions';
 import {
   isSep41TransferInvoke,
   parseSep41TransferInvoke,
-  parseSep41TransferInvokeSafe,
   parseSuccessfulTransactionResult,
   TransactionResultType,
   xdrAssetToCaip19,
@@ -35,10 +34,10 @@ describe('transaction-xdr-decoder', () => {
   const usdcIssuer = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
 
   describe('parseSuccessfulTransactionResult', () => {
-    it('returns null for invalid xdr', () => {
-      expect(
+    it('throws XdrParseException for invalid xdr', () => {
+      expect(() =>
         parseSuccessfulTransactionResult('not-valid-xdr', scope),
-      ).toBeNull();
+      ).toThrow(XdrParseException);
     });
 
     it('parses pathPaymentStrictSendSuccess from single-op swap', () => {
@@ -245,24 +244,6 @@ describe('transaction-xdr-decoder', () => {
       expect(() => parseSep41TransferInvoke(operation, scope)).toThrow(
         'Invalid transfer function arguments',
       );
-    });
-
-    it('returns null from parseSep41TransferInvokeSafe for non-transfer invoke', () => {
-      const operation = buildTransferInvokeOperation('balance', [
-        fromAccountId,
-      ]);
-
-      expect(parseSep41TransferInvokeSafe(operation, scope)).toBeNull();
-    });
-
-    it('returns null from parseSep41TransferInvokeSafe when from address is invalid', () => {
-      const operation = buildTransferInvokeOperation(
-        'transfer',
-        [42, toAccountId, '1'],
-        [{ type: 'u32' }, { type: 'address' }, { type: 'i128' }],
-      );
-
-      expect(parseSep41TransferInvokeSafe(operation, scope)).toBeNull();
     });
   });
 });

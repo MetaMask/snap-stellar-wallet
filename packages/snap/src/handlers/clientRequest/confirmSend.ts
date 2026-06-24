@@ -34,6 +34,7 @@ import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import {
   hasDecimals,
   toSmallestUnit,
+  trackError,
   trackTransactionAdded,
   trackTransactionApproved,
   trackTransactionRejected,
@@ -214,10 +215,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         transactionId,
       };
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to confirm send transaction',
-        error,
-      );
+      // Expected validation failures are user-facing outcomes; return them without tracking.
       if (error instanceof InsufficientBalanceException) {
         return {
           valid: false,
@@ -241,7 +239,24 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           errors: [{ code: MultiChainSendErrorCodes.Invalid }],
         };
       }
-      throw error;
+
+      // User rejection must propagate so MetaMask can dismiss the send flow.
+      if (error instanceof UserRejectedRequestError) {
+        throw error;
+      }
+
+      // Unexpected errors are swallowed into `{ valid: false }`, so track them for debugging.
+      await trackError(error);
+
+      this.#logger.warn(
+        'Failed to confirm send transaction due to unexpected issue',
+        { error },
+      );
+
+      return {
+        valid: false,
+        errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+      };
     }
   }
 
