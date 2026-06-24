@@ -98,14 +98,18 @@ const ConfigStruct = object({
     /**
      * The base fee multiplier for the Stellar network.
      */
-    baseFeeMultiplier: parseFloatStruct(1, 1.5),
+    baseFeeMultiplier: parseFloatStruct(1, 10),
     /**
      * The smart contract transaction fee multiplier for the Stellar network.
      * The multiplier is higher because smart contract transactions have tighter ledger limits than normal transactions.
      *
      * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering#ledger-limits
      */
-    simulationFeeMultiplier: parseFloatStruct(1, 2),
+    simulationFeeMultiplier: parseFloatStruct(1, 10),
+    /**
+     * The maximum fee threshold in XLM for the Stellar network.
+     */
+    maxFeeThresholdInXLM: parseFloatStruct(1, 1),
   }),
   api: object({
     tokenApi: object({
@@ -178,6 +182,7 @@ export const AppConfig = create(
       pollingAttempts: process.env.TRANSACTION_POLLING_ATTEMPTS,
       baseFeeMultiplier: process.env.BASE_FEE_MULTIPLIER,
       simulationFeeMultiplier: process.env.SIMULATION_FEE_MULTIPLIER,
+      maxFeeThresholdInXLM: process.env.MAX_FEE_THRESHOLD_IN_XLM,
       trackTransactionMaxReschedules:
         process.env.TRACK_TRANSACTION_MAX_RESCHEDULES,
     },
