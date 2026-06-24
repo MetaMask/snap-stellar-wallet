@@ -31,6 +31,7 @@ import type {
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { STELLAR_DECIMAL_PLACES } from '../../constants';
+import { toSmallestUnit } from '../../utils';
 import { logger } from '../../utils/logger';
 import { InMemoryCache } from '../cache/InMemoryCache';
 import { createMockAccountWithBalances } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
@@ -190,10 +191,17 @@ describe('NetworkService', () => {
       await Promise.resolve();
       const second = await networkService.getBaseFeeWithCache(scope);
 
-      // It doesn't equal to 55 * 1.5 = 82.5,
-      // because rounded up to 83.
-      expect(first).toStrictEqual(new BigNumber(83));
-      expect(second).toStrictEqual(new BigNumber(83));
+      const expected = BigNumber.min(
+        new BigNumber(55)
+          .multipliedBy(AppConfig.transaction.baseFeeMultiplier)
+          .integerValue(BigNumber.ROUND_CEIL),
+        toSmallestUnit(
+          new BigNumber(AppConfig.transaction.maxFeeThresholdInXLM),
+        ),
+      );
+
+      expect(first).toStrictEqual(expected);
+      expect(second).toStrictEqual(expected);
       expect(fetchBaseFeeSpy).toHaveBeenCalledTimes(1);
     });
 
