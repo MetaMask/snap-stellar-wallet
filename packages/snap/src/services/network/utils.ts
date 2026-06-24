@@ -1,8 +1,10 @@
 import { ensureError } from '@metamask/utils';
 import { Networks, NotFoundError } from '@stellar/stellar-sdk';
-import type { BigNumber } from 'bignumber.js';
+import { BigNumber } from 'bignumber.js';
 
 import { KnownCaip2ChainId } from '../../api';
+import { AppConfig } from '../../config';
+import { toSmallestUnit } from '../../utils';
 import { parseScValToNative } from '../transaction/xdrParser';
 
 const StellarNetwork: Record<KnownCaip2ChainId, Networks> = {
@@ -84,4 +86,22 @@ export function isAccountNotFoundError(
     return true;
   }
   return ensureError(error).message === `Account not found: ${accountAddress}`;
+}
+
+/**
+ * Multiplies the given fee by the given multiplier and caps the result at the maximum fee threshold.
+ *
+ * @param fee - The fee to multiply.
+ * @param multiplier - The multiplier to multiply the fee by.
+ * @returns The multiplied fee, capped at {@link AppConfig.transaction.maxFeeThresholdInXLM}.
+ */
+export function multiplyFee(fee: BigNumber, multiplier: number): BigNumber {
+  const feeMultiplied = fee
+    .multipliedBy(multiplier)
+    .integerValue(BigNumber.ROUND_CEIL);
+
+  return BigNumber.min(
+    feeMultiplied,
+    toSmallestUnit(new BigNumber(AppConfig.transaction.maxFeeThresholdInXLM)),
+  );
 }
