@@ -85,12 +85,17 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
       SecurityScanContext['securityScanRequest']
     >;
     const options = this.#getScanOptions(scanCtx);
-    // Send / change-trust seed locally-simulated estimated changes here, which
-    // we keep when the validation-only remote scan returns no rows. Sign-txn has
-    // no local seed, so this is `{ assets: [] }` until remote simulation returns.
-    const fallbackEstimatedChanges = scanCtx.scan?.estimatedChanges ?? {
+    // Locally-seeded estimated changes (send / change-trust hold the known
+    // outgoing amount here). For those flows we never let the remote scan
+    // override them; sign-txn has no seed (`{ assets: [] }`) and adopts the
+    // remote estimate.
+    const localEstimatedChanges = scanCtx.scan?.estimatedChanges ?? {
       assets: [],
     };
+    // Only sign-transaction opts into remote simulation, so only it may surface
+    // Blockaid's estimated changes. A validation-only scan can still carry
+    // simulation diffs in its payload, which must not replace the local seed.
+    const preferRemoteEstimatedChanges = Boolean(scanCtx.remoteSimulation);
 
     try {
       const scan = await this.#transactionScanService.scanTransactionSafe({
@@ -100,9 +105,10 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
 
       return {
         result: {
-          scan: this.#scanWithEstimatedChangesFallback(
+          scan: this.#resolveEstimatedChanges(
             scan,
-            fallbackEstimatedChanges,
+            localEstimatedChanges,
+            preferRemoteEstimatedChanges,
           ),
           scanFetchStatus: scan ? FetchStatus.Fetched : FetchStatus.Error,
         },
@@ -112,9 +118,10 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
       this.#logger.error('Error refreshing confirmation security scan:', error);
       return {
         result: {
-          scan: this.#scanWithEstimatedChangesFallback(
+          scan: this.#resolveEstimatedChanges(
             null,
-            fallbackEstimatedChanges,
+            localEstimatedChanges,
+            preferRemoteEstimatedChanges,
           ),
           scanFetchStatus: FetchStatus.Error,
         },
@@ -128,28 +135,35 @@ export class ConfirmationScanRefresher implements IConfirmationContextRefresher 
   }
 
   /**
-   * Merges a Blockaid scan result with the locally-seeded estimated changes.
-   * Remote estimated changes are preferred when Blockaid returns displayable
-   * asset rows; otherwise the locally-derived fallback stays on screen.
+   * Resolves which estimated changes a scan result should carry.
+   *
+   * For remote-simulation flows (sign-transaction) Blockaid's estimated changes
+   * win when it returns displayable rows; otherwise the locally-seeded estimate
+   * is kept. For local-simulation flows (send / change-trust) the local seed
+   * always wins — a validation-only scan must never override it.
    *
    * @param scan - The Blockaid scan result, or null when none was returned.
-   * @param fallbackEstimatedChanges - The locally-seeded estimated changes.
-   * @returns A scan result carrying the best available estimated changes.
+   * @param localEstimatedChanges - The locally-seeded estimated changes.
+   * @param preferRemoteEstimatedChanges - Whether the flow opted into remote simulation.
+   * @returns A scan result carrying the resolved estimated changes.
    */
-  #scanWithEstimatedChangesFallback(
+  #resolveEstimatedChanges(
     scan: TransactionScanResult | null,
-    fallbackEstimatedChanges: TransactionScanEstimatedChanges,
+    localEstimatedChanges: TransactionScanEstimatedChanges,
+    preferRemoteEstimatedChanges: boolean,
   ): TransactionScanResult {
     if (scan) {
-      const estimatedChanges = this.#hasEstimatedChanges(scan.estimatedChanges)
-        ? scan.estimatedChanges
-        : fallbackEstimatedChanges;
+      const estimatedChanges =
+        preferRemoteEstimatedChanges &&
+        this.#hasEstimatedChanges(scan.estimatedChanges)
+          ? scan.estimatedChanges
+          : localEstimatedChanges;
 
       return { ...scan, estimatedChanges };
     }
     return {
       status: 'ERROR',
-      estimatedChanges: fallbackEstimatedChanges,
+      estimatedChanges: localEstimatedChanges,
       validation: null,
       error: null,
     };

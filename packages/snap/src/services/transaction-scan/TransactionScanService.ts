@@ -14,8 +14,14 @@ import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import type { KnownCaip2ChainId } from '../../api';
 import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { ILogger } from '../../utils';
-import { createPrefixedLogger, trackError } from '../../utils';
+import {
+  createPrefixedLogger,
+  toCaip19ClassicAssetId,
+  toCaip19Sep41AssetId,
+  trackError,
+} from '../../utils';
 import { normalizeAmount } from '../../utils/currency';
+import { getIconUrl } from '../asset-metadata/utils';
 
 export class TransactionScanService {
   readonly #securityAlertsApiClient: SecurityAlertsApiClient;
@@ -55,7 +61,7 @@ export class TransactionScanService {
         options,
       });
 
-      return this.#mapScan(result, options);
+      return this.#mapScan(result, options, scope);
     } catch (error: unknown) {
       this.#logger.warn('Error scanning Stellar transaction', {
         reason: error,
@@ -70,6 +76,7 @@ export class TransactionScanService {
   #mapScan(
     result: StellarTransactionScanResponse,
     options: TransactionScanOption[],
+    scope: KnownCaip2ChainId,
   ): TransactionScanResult {
     const simulation = result.simulation ?? null;
     const validation = result.validation ?? null;
@@ -95,6 +102,7 @@ export class TransactionScanService {
           simulation?.status === 'Success'
             ? this.#mapAssetChanges(
                 simulation.account_summary.account_assets_diffs ?? [],
+                scope,
               )
             : [],
       },
@@ -108,14 +116,19 @@ export class TransactionScanService {
 
   #mapAssetChanges(
     assetDiffs: StellarAssetDiff[],
+    scope: KnownCaip2ChainId,
   ): TransactionScanAssetChange[] {
     return assetDiffs.flatMap((assetDiff) => {
       const changes: TransactionScanAssetChange[] = [];
       if (assetDiff.out) {
-        changes.push(this.#mapAssetChange(assetDiff, AssetChangeDirection.Out));
+        changes.push(
+          this.#mapAssetChange(assetDiff, AssetChangeDirection.Out, scope),
+        );
       }
       if (assetDiff.in) {
-        changes.push(this.#mapAssetChange(assetDiff, AssetChangeDirection.In));
+        changes.push(
+          this.#mapAssetChange(assetDiff, AssetChangeDirection.In, scope),
+        );
       }
       return changes;
     });
@@ -124,6 +137,7 @@ export class TransactionScanService {
   #mapAssetChange(
     assetDiff: StellarAssetDiff,
     type: AssetChangeDirection,
+    scope: KnownCaip2ChainId,
   ): TransactionScanAssetChange {
     const transfer = assetDiff[type];
     const symbol =
@@ -133,10 +147,39 @@ export class TransactionScanService {
       type,
       symbol,
       name: assetDiff.asset.name ?? symbol,
-      logo: null,
+      logo: this.#resolveLogo(assetDiff, scope),
       value: this.#computeDisplayValue(transfer, assetDiff),
       price: transfer?.usd_price ?? null,
     };
+  }
+
+  /**
+   * Resolves the asset icon URL for a Blockaid diff. Blockaid does not return an
+   * icon, so we derive it from the asset identity (the same static icon source
+   * the rest of the app uses). Native XLM is left to the UI's bundled icon.
+   *
+   * @param assetDiff - The asset diff from Blockaid.
+   * @param scope - The CAIP-2 chain of the transaction.
+   * @returns The icon URL, or null when it cannot be derived.
+   */
+  #resolveLogo(
+    assetDiff: StellarAssetDiff,
+    scope: KnownCaip2ChainId,
+  ): string | null {
+    const { asset, asset_type: assetType } = assetDiff;
+
+    if (assetType === 'NATIVE' || asset.type === 'NATIVE') {
+      return null;
+    }
+    if (asset.code !== undefined && asset.issuer !== undefined) {
+      return getIconUrl(
+        toCaip19ClassicAssetId(scope, asset.code, asset.issuer),
+      );
+    }
+    if (asset.address !== undefined) {
+      return getIconUrl(toCaip19Sep41AssetId(scope, asset.address));
+    }
+    return null;
   }
 
   /**
@@ -172,17 +215,23 @@ export class TransactionScanService {
    * Resolves asset decimals for Blockaid simulation diffs.
    *
    * Native and classic Stellar assets use 7 decimal places; contract tokens do
-   * not expose decimals in the Blockaid payload today. We key off the canonical
-   * top-level `asset_type` (`NATIVE` / `ASSET`) — the nested `asset.type` is the
-   * same classification and adds no information.
+   * not expose decimals in the Blockaid payload today. Blockaid is inconsistent
+   * about where it puts the classification, so we check both the top-level
+   * `asset_type` and the nested `asset.type` (e.g. classic issued assets such as
+   * USDC surface `ASSET` on one but not always the other).
    *
    * @param assetDiff - The asset diff from Blockaid.
    * @returns The decimals when known.
    */
   #resolveAssetDecimals(assetDiff: StellarAssetDiff): number | undefined {
-    const { asset_type: assetType } = assetDiff;
+    const { asset_type: assetType, asset } = assetDiff;
 
-    if (assetType === 'NATIVE' || assetType === 'ASSET') {
+    if (
+      assetType === 'NATIVE' ||
+      asset.type === 'NATIVE' ||
+      assetType === 'ASSET' ||
+      asset.type === 'ASSET'
+    ) {
       return STELLAR_DECIMAL_PLACES;
     }
 

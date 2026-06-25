@@ -210,6 +210,44 @@ describe('ConfirmationScanRefresher', () => {
     });
   });
 
+  it('keeps the locally-seeded estimated changes for local-simulation flows even when the scan returns rows', async () => {
+    const { refresher } = setup();
+    const localEstimatedChanges = {
+      assets: [
+        {
+          type: AssetChangeDirection.Out,
+          value: 7,
+          price: null,
+          symbol: 'XLM',
+          name: 'Stellar Lumens',
+          logo: null,
+        },
+      ],
+    };
+
+    // Send / change-trust never opt into remote simulation; a validation-only
+    // scan can still carry simulation diffs, which must not override the seed.
+    const result = await refresher.refresh(
+      createScanContext({
+        remoteSimulation: false,
+        scan: {
+          status: 'SUCCESS',
+          estimatedChanges: localEstimatedChanges,
+          validation: null,
+          error: null,
+        },
+      }),
+    );
+
+    expect(result).toStrictEqual({
+      result: {
+        scan: { ...scanResult, estimatedChanges: localEstimatedChanges },
+        scanFetchStatus: FetchStatus.Fetched,
+      },
+      reschedule: true,
+    });
+  });
+
   it('returns error status preserving estimated changes when scan returns null', async () => {
     const { refresher, transactionScanService } = setup();
     transactionScanService.scanTransactionSafe.mockResolvedValueOnce(null);

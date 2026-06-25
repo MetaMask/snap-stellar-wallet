@@ -94,6 +94,38 @@ describe('TransactionScanService', () => {
     });
   });
 
+  it('resolves an icon for classic issued assets from their code and issuer', async () => {
+    const { service, securityAlertsApiClient } = setup();
+    const issuer = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+    securityAlertsApiClient.scanTransaction.mockResolvedValue({
+      simulation: {
+        status: 'Success',
+        account_summary: {
+          account_assets_diffs: [
+            {
+              asset: { code: 'USDC', issuer, type: 'ASSET' },
+              asset_type: 'ASSET',
+              out: { raw_value: 1000000, value: 0.1, usd_price: 0.1 },
+            },
+          ],
+        },
+      },
+      validation: null,
+    });
+
+    const result = await service.scanTransactionSafe({
+      ...scanParams,
+      options: [TransactionScanOption.Simulation],
+    });
+
+    const change = result?.estimatedChanges.assets[0];
+    expect(change?.symbol).toBe('USDC');
+    // Icon is derived from the classic asset id (code-issuer), not returned by Blockaid.
+    expect(change?.logo).toContain(`USDC-${issuer}`);
+    // Decimals resolve from the classic classification, so raw_value wins.
+    expect(change?.value).toBe(0.1);
+  });
+
   it('maps API simulation errors', async () => {
     const { service, securityAlertsApiClient } = setup();
     securityAlertsApiClient.scanTransaction.mockResolvedValue({
