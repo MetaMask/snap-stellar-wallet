@@ -6,6 +6,7 @@ import { FetchStatus } from './api';
 import {
   ConfirmationBanner,
   isFetchInProgress,
+  formatOrigin,
   isLocalTransactionValidationFailed,
   isRemoteTransactionScanLoading,
   requiresMaliciousAcknowledgement,
@@ -38,6 +39,49 @@ describe('confirmation utils', () => {
         expect(isFetchInProgress(status)).toBe(false);
       },
     );
+  });
+
+  describe('formatOrigin', () => {
+    it('returns "Unknown" for an undefined origin', () => {
+      expect(formatOrigin(undefined)).toBe('Unknown');
+    });
+
+    it('returns "Unknown" for an empty origin', () => {
+      expect(formatOrigin('')).toBe('Unknown');
+    });
+
+    it('returns "MetaMask" for the internal metamask origin', () => {
+      expect(formatOrigin('metamask')).toBe('MetaMask');
+    });
+
+    it('returns "WalletConnect" for the wallet-connect origin', () => {
+      expect(formatOrigin('wallet-connect')).toBe('WalletConnect');
+    });
+
+    it('matches known origins case-insensitively', () => {
+      expect(formatOrigin('MetaMask')).toBe('MetaMask');
+      expect(formatOrigin('Wallet-Connect')).toBe('WalletConnect');
+    });
+
+    it('returns the hostname for an http(s) URL', () => {
+      expect(formatOrigin('https://example.com')).toBe('example.com');
+      expect(formatOrigin('https://app.example.com/path?q=1')).toBe(
+        'app.example.com',
+      );
+      expect(formatOrigin('http://example.com')).toBe('example.com');
+    });
+
+    it('returns an empty string for a non-URL string (e.g. a WalletConnect channelId)', () => {
+      expect(formatOrigin('1234abcd-channel-id')).toBe('');
+    });
+
+    it('returns an empty string for a non-http URL', () => {
+      expect(formatOrigin('ftp://example.com')).toBe('');
+    });
+
+    it('returns an empty string for an invalid value', () => {
+      expect(formatOrigin('not a url')).toBe('');
+    });
   });
 
   describe('isRemoteTransactionScanLoading', () => {
