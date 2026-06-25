@@ -73,8 +73,11 @@ export class TransactionRetryableException extends TransactionSendException {}
 
 /** Thrown when a transaction is not found. */
 export class TransactionNotFoundException extends NetworkServiceException {
+  readonly transactionHash: string;
+
   constructor(transactionHash: string, options?: StellarSnapExceptionOptions) {
     super(`Transaction ${transactionHash} not found`, options);
+    this.transactionHash = transactionHash;
   }
 }
 

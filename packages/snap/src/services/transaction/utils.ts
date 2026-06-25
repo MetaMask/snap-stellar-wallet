@@ -7,7 +7,7 @@ import type { Operation } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { StellarOperationType } from './api';
+import { StellarOperationType, type StellarKeyringTransaction } from './api';
 import {
   InvalidInvokeContractStructureException,
   RequiresMemoException,
@@ -25,6 +25,7 @@ import type {
   KnownCaip2ChainId,
 } from '../../api';
 import { SwapTransactionXdrStruct } from '../../api';
+import { AppConfig } from '../../config';
 import { DUST_XLM_AMOUNT } from '../../constants';
 import {
   getSlip44AssetId,
@@ -574,5 +575,87 @@ export function isCompletedTransactionStatus(
   return (
     status === `${TransactionStatus.Failed}` ||
     status === `${TransactionStatus.Confirmed}`
+  );
+}
+
+/**
+ * Strips snap-internal reconcile metadata before exposing a transaction via keyring APIs.
+ *
+ * @param transaction - Snap-state transaction that may include `reconcileAttemptCount`.
+ * @returns A pure keyring transaction.
+ */
+export function toKeyringTransaction(
+  transaction: StellarKeyringTransaction,
+): KeyringTransaction {
+  const {
+    reconcileAttemptCount: _reconcileAttemptCount,
+    ...keyringTransaction
+  } = transaction;
+  return keyringTransaction;
+}
+
+/**
+ * Converts a list of Stellar transactions to a list of pure keyring transactions.
+ *
+ * @param transactions - Snap-state transactions that may include `reconcileAttemptCount`.
+ * @returns Pure keyring transactions.
+ */
+export function toKeyringTransactions(
+  transactions: StellarKeyringTransaction[],
+): KeyringTransaction[] {
+  return transactions.map(toKeyringTransaction);
+}
+
+/**
+ * Checks if the pending transaction has exceeded the max reconcile attempts.
+ *
+ * @param reconcileAttemptCount - Number of Horizon not-found reconcile attempts for a pending tx.
+ * @returns Whether the reconcile attempt limit has been reached.
+ */
+export function isReconcileAttemptExceeded(
+  reconcileAttemptCount: number = 0,
+): boolean {
+  return reconcileAttemptCount >= AppConfig.transaction.maxReconcileAttempts;
+}
+
+/**
+ * Checks if the pending transaction has exceeded the max pending transaction age.
+ *
+ * @param timestamp - Transaction creation time in seconds since epoch.
+ * @returns Whether the pending transaction is older than the configured max age.
+ */
+export function isExceedMaxPendingTransactionAge(
+  timestamp?: number | null,
+): boolean {
+  if (timestamp === undefined || timestamp === null) {
+    return false;
+  }
+
+  return (
+    Date.now() - timestamp * 1000 >
+    AppConfig.transaction.maxPendingTransactionAge
+  );
+}
+
+/**
+ * Whether a pending transaction should be evicted from snap state.
+ *
+ * Both reconcile attempts and max age must be exceeded so frequent account-switch
+ * syncs cannot drop a pending tx before it has had enough wall-clock time.
+ *
+ * @param transaction - Pending transaction with optional reconcile metadata.
+ * @param transaction.reconcileAttemptCount - Horizon not-found reconcile attempts for this pending tx.
+ * @param transaction.timestamp - Transaction creation time in seconds since epoch.
+ * @returns Whether the pending tx should be dropped from snap state.
+ */
+export function shouldDropPendingTransaction(
+  transaction: Pick<
+    StellarKeyringTransaction,
+    'reconcileAttemptCount' | 'timestamp'
+  >,
+): boolean {
+  return (
+    isReconcileAttemptExceeded(transaction.reconcileAttemptCount ?? 0) &&
+    isExceedMaxPendingTransactionAge(transaction.timestamp)
   );
 }
