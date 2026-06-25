@@ -690,6 +690,8 @@ export class TransactionSynchronizeService {
     const reconcileAttemptCount = (transaction.reconcileAttemptCount ?? 0) + 1;
     transaction.reconcileAttemptCount = reconcileAttemptCount;
 
+    context.pendingTransactionsById.set(transactionId, transaction);
+
     if (shouldDropPendingTransaction(transaction)) {
       this.#logger.debug(
         'Pending transaction eligible for eviction on save after max reconcile attempts and max age are exceeded',
