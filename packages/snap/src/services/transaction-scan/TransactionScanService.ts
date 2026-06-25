@@ -216,9 +216,11 @@ export class TransactionScanService {
 
   /**
    * Computes the human-readable amount for an asset transfer.
-   * Prefers {@link StellarAssetTransferDetails.raw_value} with known decimals
-   * (Tron parity) because Blockaid's `value` can be imprecise for fractional
-   * native XLM amounts.
+   *
+   * For assets with known decimals (native + classic = 7) we normalize
+   * `raw_value` ourselves, because Blockaid's `value` can be imprecise for
+   * fractional amounts. For contract (SEP-41) tokens we don't know the decimals,
+   * so we fall back to Blockaid's already-normalized `value`.
    *
    * @param transfer - The in/out transfer details from Blockaid.
    * @param assetDiff - The parent asset diff (used to resolve decimals).

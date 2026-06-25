@@ -23,7 +23,7 @@ import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
 import { xlmIcon } from '../../../images';
 import { FetchStatus } from '../../api';
-import { isFetchStatusLoadingOrFetching } from '../../utils';
+import { isFetchInProgress } from '../../utils';
 
 type EstimatedChangesProps = {
   changes: TransactionScanEstimatedChanges | null;
@@ -158,7 +158,7 @@ export const EstimatedChanges = ({
   scanFetchStatus,
 }: EstimatedChangesProps): ComponentOrElement => {
   const t = i18n(preferences.locale as Locale);
-  const isFetching = isFetchStatusLoadingOrFetching(scanFetchStatus);
+  const isFetching = isFetchInProgress(scanFetchStatus);
   const isFetched = scanFetchStatus === FetchStatus.Fetched;
   const isFetchError = scanFetchStatus === FetchStatus.Error;
   // Locally-seeded rows (send flow) are final regardless of the remote scan, so

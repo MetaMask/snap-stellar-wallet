@@ -5,7 +5,7 @@ import {
 import { FetchStatus } from './api';
 import {
   ConfirmationBanner,
-  isFetchStatusLoadingOrFetching,
+  isFetchInProgress,
   isLocalTransactionValidationFailed,
   isRemoteTransactionScanLoading,
   requiresMaliciousAcknowledgement,
@@ -24,18 +24,18 @@ const warningScan = {
 };
 
 describe('confirmation utils', () => {
-  describe('isFetchStatusLoadingOrFetching', () => {
+  describe('isFetchInProgress', () => {
     it.each([FetchStatus.Initial, FetchStatus.Fetching])(
       'returns true for %s',
       (status) => {
-        expect(isFetchStatusLoadingOrFetching(status)).toBe(true);
+        expect(isFetchInProgress(status)).toBe(true);
       },
     );
 
     it.each([FetchStatus.Fetched, FetchStatus.Error])(
       'returns false for %s',
       (status) => {
-        expect(isFetchStatusLoadingOrFetching(status)).toBe(false);
+        expect(isFetchInProgress(status)).toBe(false);
       },
     );
   });

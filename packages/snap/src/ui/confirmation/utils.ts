@@ -169,12 +169,13 @@ export function formatFeeData(
 }
 
 /**
- * Returns true while a fetch is still in flight (initial or actively fetching).
+ * Returns true while a fetch has not settled yet — either it hasn't started
+ * (`Initial`) or it is actively in flight (`Fetching`).
  *
  * @param status - The fetch status to inspect.
  * @returns Whether the status represents an in-progress fetch.
  */
-export function isFetchStatusLoadingOrFetching(status: FetchStatus): boolean {
+export function isFetchInProgress(status: FetchStatus): boolean {
   return status === FetchStatus.Initial || status === FetchStatus.Fetching;
 }
 

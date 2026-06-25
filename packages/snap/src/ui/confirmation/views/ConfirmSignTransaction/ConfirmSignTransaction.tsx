@@ -199,6 +199,14 @@ export const ConfirmSignTransaction = ({
           <Box>{null}</Box>
         </Box>
 
+        {preferences.simulateOnChainActions ? (
+          <EstimatedChanges
+            changes={scan?.estimatedChanges ?? null}
+            preferences={preferences}
+            scanFetchStatus={scanFetchStatus}
+          />
+        ) : null}
+
         <Section>
           {origin ? (
             <Box alignment="space-between" direction="horizontal">
@@ -242,14 +250,6 @@ export const ConfirmSignTransaction = ({
             </Box>
           ))}
         </Section>
-
-        {preferences.simulateOnChainActions ? (
-          <EstimatedChanges
-            changes={scan?.estimatedChanges ?? null}
-            preferences={preferences}
-            scanFetchStatus={scanFetchStatus}
-          />
-        ) : null}
 
         <Section>
           {readableTransaction.operations.map((operationJson, index) => (
