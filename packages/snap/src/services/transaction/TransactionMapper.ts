@@ -23,7 +23,8 @@ import {
 } from './utils';
 import type { SuccessfulTransactionResult } from './xdrParser';
 import {
-  parseSep41TransferInvokeSafe,
+  isSep41TransferInvoke,
+  parseSep41TransferInvoke,
   parseSuccessfulTransactionResult,
   TransactionResultType,
 } from './xdrParser';
@@ -101,8 +102,10 @@ export class TransactionMapper {
 
       return this.#mapTransaction(transaction, keyringAccount, assetMetadata);
     } catch (error) {
+      // Best effort to map a transaction.
+      // The error is not necessary to track.
       // Log and fall back to unknown so batch mapping can continue for other transactions.
-      this.#logger.logErrorWithDetails(
+      this.#logger.warn(
         'Unable to map a transaction, mapping to an unknown transaction',
         {
           error,
@@ -444,58 +447,49 @@ export class TransactionMapper {
     keyringAccount: StellarKeyringAccount,
     assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>,
   ): KeyringTransaction | undefined {
-    try {
-      const { scope } = transaction;
-      const [firstOperation] = transaction.transactionOperations;
+    const { scope } = transaction;
+    const [firstOperation] = transaction.transactionOperations;
 
-      if (!isInvokeHostFunctionOperation(firstOperation)) {
-        return undefined;
-      }
-
-      const parsedSep41TransferInvoke = parseSep41TransferInvokeSafe(
-        firstOperation,
-        scope,
-      );
-
-      if (!parsedSep41TransferInvoke) {
-        return undefined;
-      }
-
-      const { assetId, amount, toAccountId, fromAccountId } =
-        parsedSep41TransferInvoke;
-
-      if (fromAccountId !== keyringAccount.address) {
-        return undefined;
-      }
-
-      // TODO: Fall back to NetworkService token metadata when state is missing (RPC cost per tx).
-      const asset = assetMetadata[assetId];
-      if (!asset) {
-        return undefined;
-      }
-
-      const assetRow = this.#toKeyringAssetRow(
-        asset.symbol,
-        asset.assetId,
-        toDisplayBalance(amount, asset.units[0].decimals),
-      );
-      return this.#keyringTransactionBuilder.createTransaction({
-        type: KeyringTransactionType.Send,
-        request: {
-          ...this.#commonOnChainFields(transaction, keyringAccount),
-          asset: assetRow,
-          toAddress: toAccountId,
-        },
-      });
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Unable to map a SEP-41 send transaction',
-        {
-          error,
-        },
-      );
+    if (!isInvokeHostFunctionOperation(firstOperation)) {
       return undefined;
     }
+
+    if (!isSep41TransferInvoke(firstOperation)) {
+      return undefined;
+    }
+
+    const parsedSep41TransferInvoke = parseSep41TransferInvoke(
+      firstOperation,
+      scope,
+    );
+
+    const { assetId, amount, toAccountId, fromAccountId } =
+      parsedSep41TransferInvoke;
+
+    if (fromAccountId !== keyringAccount.address) {
+      return undefined;
+    }
+
+    // TODO: Fall back to NetworkService token metadata when state is missing (RPC cost per tx).
+    const asset = assetMetadata[assetId];
+    if (!asset) {
+      return undefined;
+    }
+
+    const assetRow = this.#toKeyringAssetRow(
+      asset.symbol,
+      asset.assetId,
+      toDisplayBalance(amount, asset.units[0].decimals),
+    );
+
+    return this.#keyringTransactionBuilder.createTransaction({
+      type: KeyringTransactionType.Send,
+      request: {
+        ...this.#commonOnChainFields(transaction, keyringAccount),
+        asset: assetRow,
+        toAddress: toAccountId,
+      },
+    });
   }
 
   #getCreateTime(transaction: Transaction): number {
@@ -630,9 +624,15 @@ export class TransactionMapper {
           destAmount,
         );
       }
-    } catch {
+    } catch (error) {
+      this.#logger.warn('Failed to get receive operation asset', {
+        error,
+        transactionId: transaction.id,
+        operationIndex: index,
+      });
+      // Best effort to get the receive operation asset,
+      // The error is not necessary to track.
       // Skip unsupported or unparseable operations; keep collecting other receive assets.
-      return null;
     }
 
     return null;
@@ -660,7 +660,13 @@ export class TransactionMapper {
       }
 
       return successfulTransactionResult;
-    } catch {
+    } catch (error) {
+      // Best effort to parse the successful transaction result,
+      // The error is not necessary to track.
+      this.#logger.warn('Failed to parse successful transaction result', {
+        error,
+        transactionId: transaction.id,
+      });
       return null;
     }
   }

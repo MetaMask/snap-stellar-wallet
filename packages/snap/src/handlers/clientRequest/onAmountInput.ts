@@ -11,12 +11,11 @@ import {
 } from './api';
 import { BaseClientRequestHandler } from './base';
 import type { AssetMetadataService } from '../../services/asset-metadata';
-import { AccountNotActivatedException } from '../../services/network/exceptions';
+import type { AccountNotActivatedException } from '../../services/network/exceptions';
 import type { TransactionService } from '../../services/transaction';
 import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
-  TransactionValidationException,
 } from '../../services/transaction/exceptions';
 import { hasDecimals, toSmallestUnit } from '../../utils';
 import type { ILogger } from '../../utils/logger';
@@ -31,8 +30,6 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
   OnAmountInputJsonRpcRequest,
   OnAmountInputJsonRpcResponse
 > {
-  readonly #logger: ILogger;
-
   readonly #assetMetadataService: AssetMetadataService;
 
   readonly #transactionService: TransactionService;
@@ -61,7 +58,6 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
     });
     this.#assetMetadataService = assetMetadataService;
     this.#transactionService = transactionService;
-    this.#logger = prefixedLogger;
   }
 
   /**
@@ -112,10 +108,10 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
         errors: [],
       };
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to validate amount input',
-        error,
-      );
+      // Called on every amount change while the user types. Return structured
+      // validation errors without tracking to reduce Sentry noise — insufficient
+      // balance is expected during entry. Other failures also return invalid
+      // without tracking; confirmSend tracks unexpected errors on submit.
       if (error instanceof InsufficientBalanceException) {
         return {
           valid: false,
@@ -130,16 +126,11 @@ export class OnAmountInputHandler extends BaseClientRequestHandler<
           ],
         };
       }
-      if (
-        error instanceof TransactionValidationException ||
-        error instanceof AccountNotActivatedException
-      ) {
-        return {
-          valid: false,
-          errors: [{ code: MultiChainSendErrorCodes.Invalid }],
-        };
-      }
-      throw error;
+
+      return {
+        valid: false,
+        errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+      };
     }
   }
 

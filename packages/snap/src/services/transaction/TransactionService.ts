@@ -26,7 +26,12 @@ import type {
   KnownCaip19Slip44Id,
   KnownCaip2ChainId,
 } from '../../api';
-import { getSnapProvider, isSep41Id, isSlip44Id } from '../../utils';
+import {
+  getSnapProvider,
+  isSep41Id,
+  isSlip44Id,
+  trackError,
+} from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { AccountService } from '../account';
@@ -486,10 +491,9 @@ export class TransactionService {
     try {
       return await this.savePendingKeyringTransaction(request);
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to save pending transaction',
-        error,
-      );
+      await trackError(error);
+
+      this.#logger.warn('Failed to save pending transaction', { error });
       return null;
     }
   }

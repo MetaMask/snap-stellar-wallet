@@ -40,6 +40,7 @@ import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
   TransactionValidationException,
+  XdrParseException,
 } from '../../services/transaction/exceptions';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
@@ -300,13 +301,28 @@ describe('OnAmountInputHandler', () => {
     });
   });
 
-  it('rethrows unexpected errors from createValidatedSendTransaction', async () => {
+  it('returns invalid when createValidatedSendTransaction throws XdrParseException', async () => {
+    const { handler, createValidatedSendTransaction } = setup();
+    createValidatedSendTransaction.mockRejectedValueOnce(
+      new XdrParseException('Invalid transfer function arguments'),
+    );
+
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+  });
+
+  it('returns invalid for unexpected errors from createValidatedSendTransaction', async () => {
     const { handler, createValidatedSendTransaction } = setup();
     createValidatedSendTransaction.mockRejectedValueOnce(
       new Error('unexpected'),
     );
 
-    await expect(handler.handle(baseRequest())).rejects.toThrow('unexpected');
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
   });
 
   it('throws InvalidParamsError when the request fails struct validation', async () => {

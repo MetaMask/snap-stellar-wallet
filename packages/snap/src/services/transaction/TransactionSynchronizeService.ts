@@ -355,6 +355,7 @@ export class TransactionSynchronizeService {
       transactionIdsToFetch,
     });
 
+    // TODO: adding a max reconcile limit to avoid the sync running forever.
     const fetchResults = await batchesAllSettled(
       transactionIdsToFetch,
       10,
@@ -369,10 +370,9 @@ export class TransactionSynchronizeService {
 
     for (const fetchResult of fetchResults) {
       if (fetchResult.status === 'rejected') {
-        this.#logger.logErrorWithDetails(
-          'Failed to fetch on-chain transaction',
-          fetchResult.reason,
-        );
+        this.#logger.warn('Failed to fetch on-chain transaction', {
+          error: fetchResult.reason,
+        });
         continue;
       }
 
@@ -386,7 +386,7 @@ export class TransactionSynchronizeService {
         );
 
         if (!keyringAccount) {
-          this.#logger.logErrorWithDetails(
+          this.#logger.warn(
             'Failed to find keyring account for pending transaction',
             { transactionId, accountId: pendingFromState.account },
           );
@@ -507,11 +507,10 @@ export class TransactionSynchronizeService {
         mappedReceive,
       );
     } catch (error) {
+      // Best effort to append the SEP-41 receive mapping,
+      // The error is not necessary to track.
       // Not throwing the error to avoid blocking the sync.
-      this.#logger.logErrorWithDetails(
-        'Failed to append SEP-41 receive mapping',
-        { error },
-      );
+      this.#logger.warn('Failed to append SEP-41 receive mapping', { error });
     }
   }
 

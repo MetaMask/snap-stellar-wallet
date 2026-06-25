@@ -1,5 +1,6 @@
 import type { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
+import { trackError } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account';
@@ -75,8 +76,8 @@ export class SynchronizeService {
 
     // Both async loads are fail-safe, so we can use Promise.all.
     const [activatedAccountPairs, sep41Assets] = await Promise.all([
-      this.#loadActivatedPairs(accounts, scope),
-      this.#loadSep41Assets(scope),
+      this.#loadActivatedPairsSafe(accounts, scope),
+      this.#loadSep41AssetsSafe(scope),
     ]);
 
     const tasks: { name: string; task: Promise<void> }[] = [];
@@ -107,14 +108,16 @@ export class SynchronizeService {
       tasks.map(async ({ task }) => task),
     );
 
-    results.forEach((result, index) => {
+    for (const [index, result] of results.entries()) {
       if (result.status === 'rejected') {
+        await trackError(result.reason);
+
         const taskName = tasks[index]?.name ?? 'synchronize';
-        this.#logger.logErrorWithDetails(`Failed to ${taskName}`, {
+        this.#logger.warn(`Failed to ${taskName}`, {
           error: result.reason,
         });
       }
-    });
+    }
   }
 
   /**
@@ -129,7 +132,9 @@ export class SynchronizeService {
     try {
       await this.#assetMetadataService.synchronize(scope);
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to synchronize assets', {
+      await trackError(error);
+
+      this.#logger.warn('Failed to synchronize assets', {
         error,
       });
     }
@@ -141,15 +146,18 @@ export class SynchronizeService {
    * @param scope - CAIP-2 network to load asset metadata for.
    * @returns The full asset catalog.
    */
-  async #loadSep41Assets(
+  async #loadSep41AssetsSafe(
     scope: KnownCaip2ChainId,
   ): Promise<StellarAssetMetadata[]> {
     try {
       return await this.#assetMetadataService.fetchSep41AssetsOrSyncOnce(scope);
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to load SEP-41 assets', {
+      await trackError(error);
+
+      this.#logger.warn('Failed to load SEP-41 assets', {
         error,
       });
+
       return [];
     }
   }
@@ -161,7 +169,7 @@ export class SynchronizeService {
    * @param scope - CAIP-2 network to query.
    * @returns Pairs keyed for SEP-41 sync and persistence.
    */
-  async #loadActivatedPairs(
+  async #loadActivatedPairsSafe(
     accounts: StellarKeyringAccount[],
     scope: KnownCaip2ChainId,
   ): Promise<ActivatedAccountPair[]> {
@@ -169,31 +177,37 @@ export class SynchronizeService {
       noOfAccounts: accounts.length,
     });
 
-    const pairs: ActivatedAccountPair[] = [];
+    const results = await Promise.all(
+      accounts.map(async (account): Promise<ActivatedAccountPair | null> => {
+        try {
+          return {
+            keyringAccount: account,
+            onChainAccount:
+              await this.#onChainAccountService.resolveOnChainAccount(
+                account.address,
+                scope,
+              ),
+          };
+        } catch (error: unknown) {
+          // Only capture the error if it is unexpected.
+          // AccountNotActivatedException is expected when the account is not activated yet.
+          if (!(error instanceof AccountNotActivatedException)) {
+            await trackError(error);
 
-    const results = await Promise.allSettled(
-      accounts.map(async (account) => ({
-        keyringAccount: account,
-        onChainAccount: await this.#onChainAccountService.resolveOnChainAccount(
-          account.address,
-          scope,
-        ),
-      })),
+            this.#logger.warn('Failed to load account for sync', {
+              error,
+              accountAddress: account.address,
+              scope,
+            });
+          }
+          return null;
+        }
+      }),
     );
 
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        pairs.push(result.value);
-        return;
-      }
-      if (result.reason instanceof AccountNotActivatedException) {
-        return;
-      }
-      this.#logger.logErrorWithDetails('Failed to load account for sync', {
-        accountId: accounts[index]?.id,
-        error: result.reason,
-      });
-    });
+    const pairs: ActivatedAccountPair[] = results.filter(
+      (result): result is ActivatedAccountPair => result !== null,
+    );
 
     this.#logger.debug('number of activated account pairs', {
       noOfAccounts: pairs.length,

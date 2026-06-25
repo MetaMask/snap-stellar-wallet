@@ -47,6 +47,7 @@ import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
   TransactionValidationException,
+  XdrParseException,
 } from '../../services/transaction/exceptions';
 import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
 import { WalletService } from '../../services/wallet';
@@ -522,13 +523,52 @@ describe('ConfirmSendHandler', () => {
     });
   });
 
-  it('rethrows unexpected errors from createValidatedSendTransaction', async () => {
+  it('returns invalid and tracks when createValidatedSendTransaction throws XdrParseException', async () => {
+    const { handler, createValidatedSendTransaction } = setup();
+    const xdrParseError = new XdrParseException(
+      'Invalid transfer function arguments',
+    );
+    createValidatedSendTransaction.mockRejectedValueOnce(xdrParseError);
+    const trackErrorSpy = jest
+      .spyOn(snapUtils, 'trackError')
+      .mockResolvedValue(undefined);
+
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(trackErrorSpy).toHaveBeenCalledWith(xdrParseError);
+  });
+
+  it('returns invalid for unexpected errors from createValidatedSendTransaction', async () => {
+    const { handler, createValidatedSendTransaction } = setup();
+    const unexpectedError = new Error('unexpected');
+    createValidatedSendTransaction.mockRejectedValueOnce(unexpectedError);
+    const trackErrorSpy = jest
+      .spyOn(snapUtils, 'trackError')
+      .mockResolvedValue(undefined);
+
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(trackErrorSpy).toHaveBeenCalledWith(unexpectedError);
+  });
+
+  it('does not track expected validation errors from createValidatedSendTransaction', async () => {
     const { handler, createValidatedSendTransaction } = setup();
     createValidatedSendTransaction.mockRejectedValueOnce(
-      new Error('unexpected'),
+      new TransactionValidationException('x'),
     );
+    const trackErrorSpy = jest
+      .spyOn(snapUtils, 'trackError')
+      .mockResolvedValue(undefined);
 
-    await expect(handler.handle(baseRequest())).rejects.toThrow('unexpected');
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(trackErrorSpy).not.toHaveBeenCalled();
   });
 
   it('continues successfully when saving pending transaction fails', async () => {

@@ -18,6 +18,7 @@ import {
 } from '../../api';
 import {
   getSlip44AssetId,
+  rethrowIfInstanceElseThrow,
   toCaip19ClassicAssetId,
   toCaip19Sep41AssetId,
   toDisplayBalance,
@@ -97,7 +98,8 @@ export type ParsedSep41TransferInvoke = {
  *
  * @param xdrString - Base64-encoded `TransactionResult` XDR from Horizon.
  * @param scope - CAIP-2 chain used to encode parsed asset ids.
- * @returns Parsed fee and per-operation path payment results, or `null` when parsing fails.
+ * @returns Parsed fee and per-operation path payment results, or `null` when the result is not `txSuccess`.
+ * @throws {XdrParseException} When the XDR envelope cannot be parsed.
  */
 export function parseSuccessfulTransactionResult(
   xdrString: string,
@@ -164,8 +166,11 @@ export function parseSuccessfulTransactionResult(
       operationResults,
       feeCharged,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    throw new XdrParseException(
+      'Failed to parse successful transaction result',
+      { cause: error },
+    );
   }
 }
 
@@ -201,69 +206,58 @@ export function parseSep41TransferInvoke(
   op: Operation.InvokeHostFunction,
   scope: KnownCaip2ChainId,
 ): ParsedSep41TransferInvoke {
-  const { func } = op;
-  if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
-    throw new XdrParseException('Not an invoke contract operation');
-  }
-  const ic = func.invokeContract();
-  if (ic.functionName().toString() !== 'transfer') {
-    throw new XdrParseException('Contract is not a transfer function');
-  }
-
-  const args = ic.args();
-  if (
-    args.length !== 3 ||
-    args[0] === undefined ||
-    args[1] === undefined ||
-    args[2] === undefined
-  ) {
-    throw new XdrParseException('Invalid transfer function arguments');
-  }
-
-  const contractAddr = Address.fromScAddress(ic.contractAddress()).toString();
-
-  const fromNative = scValToNative(args[0]);
-  const toNative = scValToNative(args[1]);
-  const amountNative = scValToNative(args[2]);
-  if (
-    typeof fromNative !== 'string' ||
-    !StellarAddressOrContractStruct.is(fromNative)
-  ) {
-    throw new XdrParseException('Invalid from address');
-  }
-  if (
-    typeof toNative !== 'string' ||
-    !StellarAddressOrContractStruct.is(toNative)
-  ) {
-    throw new XdrParseException('Invalid to address');
-  }
-
-  return {
-    assetId: toCaip19Sep41AssetId(scope, contractAddr),
-    fromAccountId: fromNative,
-    toAccountId: toNative,
-    amount: parseScValToNative(amountNative),
-  };
-}
-
-/**
- * Parses a SEP-41 transfer invoke without throwing.
- *
- * @param op - Parsed `invokeHostFunction` operation.
- * @param scope - CAIP-2 chain id (must match the envelope network when matching preload keys).
- * @returns Parsed transfer metadata, or `null` if the shape does not match.
- */
-export function parseSep41TransferInvokeSafe(
-  op: Operation.InvokeHostFunction,
-  scope: KnownCaip2ChainId,
-): ParsedSep41TransferInvoke | null {
-  if (!isSep41TransferInvoke(op)) {
-    return null;
-  }
   try {
-    return parseSep41TransferInvoke(op, scope);
-  } catch {
-    return null;
+    const { func } = op;
+    if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
+      throw new XdrParseException('Not an invoke contract operation');
+    }
+    const ic = func.invokeContract();
+    if (ic.functionName().toString() !== 'transfer') {
+      throw new XdrParseException('Contract is not a transfer function');
+    }
+
+    const args = ic.args();
+    if (
+      args.length !== 3 ||
+      args[0] === undefined ||
+      args[1] === undefined ||
+      args[2] === undefined
+    ) {
+      throw new XdrParseException('Invalid transfer function arguments');
+    }
+
+    const contractAddr = Address.fromScAddress(ic.contractAddress()).toString();
+
+    const fromNative = scValToNative(args[0]);
+    const toNative = scValToNative(args[1]);
+    const amountNative = scValToNative(args[2]);
+    if (
+      typeof fromNative !== 'string' ||
+      !StellarAddressOrContractStruct.is(fromNative)
+    ) {
+      throw new XdrParseException('Invalid from address');
+    }
+    if (
+      typeof toNative !== 'string' ||
+      !StellarAddressOrContractStruct.is(toNative)
+    ) {
+      throw new XdrParseException('Invalid to address');
+    }
+
+    return {
+      assetId: toCaip19Sep41AssetId(scope, contractAddr),
+      fromAccountId: fromNative,
+      toAccountId: toNative,
+      amount: parseScValToNative(amountNative),
+    };
+  } catch (error) {
+    return rethrowIfInstanceElseThrow(
+      error,
+      [XdrParseException],
+      new XdrParseException('Failed to parse SEP-41 transfer invoke', {
+        cause: error,
+      }),
+    );
   }
 }
 
@@ -409,11 +403,13 @@ export function extractAssetDataFromContractData(
 
     return assetData;
   } catch (error) {
-    if (error instanceof XdrParseException) {
-      throw error;
-    }
-    throw new XdrParseException(
-      `Error extracting asset data from contract ${contractAddress}`,
+    return rethrowIfInstanceElseThrow(
+      error,
+      [XdrParseException],
+      new XdrParseException(
+        `Error extracting asset data from contract ${contractAddress}`,
+        { cause: error },
+      ),
     );
   }
 }

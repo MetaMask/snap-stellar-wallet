@@ -89,12 +89,9 @@ export class TransactionBuilder {
         fee: baseFee,
       });
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to build change trust transaction',
-        error,
-      );
       throw new TransactionBuilderException(
         'Failed to build change trust transaction',
+        { cause: error },
       );
     }
   }
@@ -147,12 +144,9 @@ export class TransactionBuilder {
         fee: BASE_FEE.toString(),
       });
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to build sep41 transfer transaction',
-        error,
-      );
       throw new TransactionBuilderException(
         'Failed to build sep41 transfer transaction',
+        { cause: error },
       );
     }
   }
