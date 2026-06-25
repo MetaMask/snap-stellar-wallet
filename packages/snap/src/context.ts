@@ -114,7 +114,6 @@ const transactionService = new TransactionService({
   networkService,
   transactionBuilder,
   accountService,
-  assetMetadataService,
 });
 
 const priceService = new PriceService({

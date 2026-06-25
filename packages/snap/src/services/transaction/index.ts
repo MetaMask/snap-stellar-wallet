@@ -6,5 +6,4 @@ export * from './TransactionRepository';
 export * from './TransactionService';
 export * from './TransactionSimulator';
 export * from './KeyringTransactionBuilder';
-export * from './mapSimulationToEstimatedChanges';
 export * from './api';

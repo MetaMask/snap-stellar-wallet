@@ -39,11 +39,7 @@ import {
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
   horizonSource,
 } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
-import { AssetChangeDirection } from '../transaction-scan';
-import {
-  generateStellarAddress,
-  getTestWallet,
-} from '../wallet/__mocks__/wallet.fixtures';
+import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
 import type { Wallet } from '../wallet/Wallet';
 
 jest.mock('../../utils/logger');
@@ -253,136 +249,6 @@ describe('TransactionService', () => {
       );
       expect(simulatedScope).toBe(scope);
       expect(loadOnChainAccountsSpy).toHaveBeenCalledWith([], scope);
-    });
-  });
-
-  describe('deriveEstimatedChanges', () => {
-    const mainnet = KnownCaip2ChainId.Mainnet;
-
-    const buildOnChainAccount = (accountId: string, nativeBalance: number) => {
-      const account = createMockAccountWithBalances(accountId, '1', {
-        nativeBalance,
-        subentryCount: 0,
-        assets: [],
-      });
-      return new OnChainAccount(
-        account,
-        mainnet,
-        horizonSource(account, mainnet),
-      );
-    };
-
-    const buildNativePayment = (source: string, destination: string) =>
-      buildMockClassicTransaction(
-        [
-          {
-            type: 'payment',
-            params: { source, destination, asset: 'native', amount: '10' },
-          },
-        ],
-        {
-          networkPassphrase: Networks.PUBLIC,
-          source: { accountId: source, sequence: '1' },
-          baseFeePerOperation: '100',
-          timeout: 30,
-        },
-      );
-
-    const buildNativePaymentWithTxSource = (params: {
-      txSource: string;
-      operationSource: string;
-      destination: string;
-    }) =>
-      buildMockClassicTransaction(
-        [
-          {
-            type: 'payment',
-            params: {
-              source: params.operationSource,
-              destination: params.destination,
-              asset: 'native',
-              amount: '10',
-            },
-          },
-        ],
-        {
-          networkPassphrase: Networks.PUBLIC,
-          source: { accountId: params.txSource, sequence: '1' },
-          baseFeePerOperation: '100',
-          timeout: 30,
-        },
-      );
-
-    it('derives the signer XLM outflow from local simulation', async () => {
-      const { transactionService } = createMockTransactionService();
-      const wallet = getTestWallet();
-      const destination = generateStellarAddress();
-
-      jest
-        .spyOn(NetworkService.prototype, 'loadOnChainAccountsSafe')
-        .mockResolvedValue([buildOnChainAccount(destination, 50)]);
-
-      const result = await transactionService.deriveEstimatedChanges({
-        transaction: buildNativePayment(wallet.address, destination),
-        onChainAccount: buildOnChainAccount(wallet.address, 500),
-        signerAddress: wallet.address,
-      });
-
-      expect(result.assets).toHaveLength(1);
-      expect(result.assets[0]).toMatchObject({
-        type: AssetChangeDirection.Out,
-        value: 10,
-        symbol: 'XLM',
-        price: null,
-      });
-    });
-
-    it('returns empty assets when the signer is not the transaction or fee source', async () => {
-      const { transactionService } = createMockTransactionService();
-      const wallet = getTestWallet();
-      const txSource = generateStellarAddress();
-      const destination = generateStellarAddress();
-
-      jest
-        .spyOn(NetworkService.prototype, 'loadOnChainAccountsSafe')
-        .mockResolvedValue([
-          buildOnChainAccount(txSource, 500),
-          buildOnChainAccount(destination, 50),
-        ]);
-
-      // Local simulation (send / change-trust) requires the wallet to be the
-      // transaction or fee source; an operation-source-only signer is rejected
-      // and the estimated-changes section stays hidden.
-      const result = await transactionService.deriveEstimatedChanges({
-        transaction: buildNativePaymentWithTxSource({
-          txSource,
-          operationSource: wallet.address,
-          destination,
-        }),
-        onChainAccount: buildOnChainAccount(wallet.address, 500),
-        signerAddress: wallet.address,
-      });
-
-      expect(result).toStrictEqual({ assets: [] });
-    });
-
-    it('returns empty assets when the local simulation fails', async () => {
-      const { transactionService } = createMockTransactionService();
-      const wallet = getTestWallet();
-      const destination = generateStellarAddress();
-
-      // Destination is not loaded, so simulation throws and the section hides.
-      jest
-        .spyOn(NetworkService.prototype, 'loadOnChainAccountsSafe')
-        .mockResolvedValue([]);
-
-      const result = await transactionService.deriveEstimatedChanges({
-        transaction: buildNativePayment(wallet.address, destination),
-        onChainAccount: buildOnChainAccount(wallet.address, 500),
-        signerAddress: wallet.address,
-      });
-
-      expect(result).toStrictEqual({ assets: [] });
     });
   });
 
