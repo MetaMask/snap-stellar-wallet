@@ -246,7 +246,7 @@ export class TransactionSynchronizeService {
     > = new Map();
 
     // Pending txs are unique and belong to the submitting account only.
-    // Hence we dont need to group by account id.
+    // Hence we don't need to group by account ID..
     for (const transaction of transactions) {
       if (isPendingTransactionStatus(transaction.status)) {
         pendingTransactionsById.set(transaction.id, transaction);

@@ -624,7 +624,7 @@ export function isReconcileAttemptExceeded(
  * @param timestamp - Transaction creation time in seconds since epoch.
  * @returns Whether the pending transaction is older than the configured max age.
  */
-export function isExceedMaxPendingTransactionAge(
+export function isMaxPendingTransactionAgeExceeded(
   timestamp?: number | null,
 ): boolean {
   if (timestamp === undefined || timestamp === null) {
@@ -656,6 +656,6 @@ export function shouldDropPendingTransaction(
 ): boolean {
   return (
     isReconcileAttemptExceeded(transaction.reconcileAttemptCount ?? 0) &&
-    isExceedMaxPendingTransactionAge(transaction.timestamp)
+    isMaxPendingTransactionAgeExceeded(transaction.timestamp)
   );
 }
