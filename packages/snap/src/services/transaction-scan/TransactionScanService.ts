@@ -61,7 +61,7 @@ export class TransactionScanService {
         options,
       });
 
-      return this.#mapScan(result, options, scope);
+      return this.#mapScan(result, options, scope, accountAddress);
     } catch (error: unknown) {
       this.#logger.warn('Error scanning Stellar transaction', {
         reason: error,
@@ -77,6 +77,7 @@ export class TransactionScanService {
     result: StellarTransactionScanResponse,
     options: TransactionScanOption[],
     scope: KnownCaip2ChainId,
+    accountAddress: string,
   ): TransactionScanResult {
     const simulation = result.simulation ?? null;
     const validation = result.validation ?? null;
@@ -93,7 +94,12 @@ export class TransactionScanService {
       validation,
       options,
     });
-    const error = validationError ?? simulationError ?? missingResultError;
+    // Prefer the simulation revert: it carries the actionable reason (e.g.
+    // "insufficient balance"). A validation `Error` only means Blockaid could
+    // not produce a verdict — never that the transaction is malicious (that
+    // comes from a validation `Success` with a malicious/warning result_type) —
+    // so it should not mask why the transaction would actually fail.
+    const error = simulationError ?? validationError ?? missingResultError;
 
     return {
       status: error ? 'ERROR' : 'SUCCESS',
@@ -101,7 +107,7 @@ export class TransactionScanService {
         assets:
           simulation?.status === 'Success'
             ? this.#mapAssetChanges(
-                simulation.account_summary.account_assets_diffs ?? [],
+                this.#getSignerAssetDiffs(simulation, accountAddress),
                 scope,
               )
             : [],
@@ -112,6 +118,32 @@ export class TransactionScanService {
           : null,
       error,
     };
+  }
+
+  /**
+   * Returns the signer's asset diffs from a successful simulation.
+   *
+   * Blockaid reports per-account diffs under `assets_diffs`, keyed by address.
+   * The aggregated `account_summary.account_assets_diffs` is frequently empty
+   * (e.g. for tiny/zero-USD amounts), so we read the signer's own entry first
+   * and only fall back to the summary.
+   *
+   * @param simulation - The successful Blockaid simulation result.
+   * @param accountAddress - The signer (scanned) account address.
+   * @returns The signer's asset diffs.
+   */
+  #getSignerAssetDiffs(
+    simulation: Extract<
+      NonNullable<StellarTransactionScanResponse['simulation']>,
+      { status: 'Success' }
+    >,
+    accountAddress: string,
+  ): StellarAssetDiff[] {
+    return (
+      simulation.assets_diffs?.[accountAddress] ??
+      simulation.account_summary.account_assets_diffs ??
+      []
+    );
   }
 
   #mapAssetChanges(

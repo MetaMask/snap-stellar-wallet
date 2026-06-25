@@ -94,6 +94,39 @@ describe('TransactionScanService', () => {
     });
   });
 
+  it('reads the signer asset diffs from assets_diffs when account_summary is empty', async () => {
+    const { service, securityAlertsApiClient } = setup();
+    securityAlertsApiClient.scanTransaction.mockResolvedValue({
+      simulation: {
+        status: 'Success',
+        // Blockaid leaves the aggregate empty but populates per-account diffs.
+        account_summary: { account_assets_diffs: [] },
+        assets_diffs: {
+          [accountAddress]: [
+            {
+              asset: { type: 'NATIVE', code: 'XLM' },
+              asset_type: 'NATIVE',
+              in: null,
+              out: { raw_value: 5000000, value: 0, summary: 'Sent 0.5 XLM' },
+            },
+          ],
+        },
+      },
+      validation: null,
+    });
+
+    const result = await service.scanTransactionSafe({
+      ...scanParams,
+      options: [TransactionScanOption.Simulation],
+    });
+
+    const change = result?.estimatedChanges.assets[0];
+    expect(change?.symbol).toBe('XLM');
+    expect(change?.type).toBe(AssetChangeDirection.Out);
+    // raw_value wins over the rounded `value: 0`.
+    expect(change?.value).toBe(0.5);
+  });
+
   it('resolves an icon for classic issued assets from their code and issuer', async () => {
     const { service, securityAlertsApiClient } = setup();
     const issuer = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
@@ -148,7 +181,7 @@ describe('TransactionScanService', () => {
     });
   });
 
-  it('prioritizes validation errors over simulation errors', async () => {
+  it('prioritizes the simulation revert over a validation error', async () => {
     const { service, securityAlertsApiClient } = setup();
     securityAlertsApiClient.scanTransaction.mockResolvedValue({
       simulation: {
@@ -169,12 +202,15 @@ describe('TransactionScanService', () => {
       ],
     });
 
+    // A validation `Error` only means no verdict was produced (malicious comes
+    // from a validation `Success`), so the actionable simulation revert reason
+    // is surfaced instead of masking it behind a security failure.
     expect(result).toMatchObject({
       status: 'ERROR',
       error: {
-        type: 'validation',
-        code: 'known_attacker',
-        message: 'known_attacker',
+        type: 'simulation',
+        code: 'insufficient_balance',
+        message: 'insufficient_balance',
       },
     });
   });

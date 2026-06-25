@@ -63,7 +63,7 @@ describe('TransactionAlert', () => {
     expect(getType(component)).toBe('Banner');
     expect(getProps(component)).toMatchObject({
       severity: 'warning',
-      title: 'Security validation failed',
+      title: 'Security check unavailable',
     });
   });
 
