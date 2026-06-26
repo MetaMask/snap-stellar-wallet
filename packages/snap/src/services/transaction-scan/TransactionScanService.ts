@@ -63,10 +63,11 @@ export class TransactionScanService {
     options: TransactionScanOption[];
   }): Promise<TransactionScanResult | null> {
     try {
-      const preflightValidationErrorResult = this.#preflightValidation(
-        transaction,
-        scope,
-      );
+      const preflightValidationErrorResult = options.includes(
+        TransactionScanOption.Simulation,
+      )
+        ? this.#preflightValidation(transaction, scope)
+        : null;
 
       const result = await this.#securityAlertsApiClient.scanTransaction({
         accountAddress,
@@ -167,14 +168,14 @@ export class TransactionScanService {
       options,
     });
     // Prefer the simulation revert: it carries the actionable reason (e.g.
-    // "insufficient balance"). A validation `Error` only means Blockaid could
-    // not produce a verdict — never that the transaction is malicious (that
-    // comes from a validation `Success` with a malicious/warning result_type) —
-    // so it should not mask why the transaction would actually fail.
+    // "insufficient balance"). Preflight expiration is next — a local time-bound
+    // failure the user can act on. A validation `Error` only means Blockaid
+    // could not produce a verdict, so it must not mask simulation or preflight
+    // failures.
     const error =
       simulationError ??
-      validationError ??
       preflightValidationError ??
+      validationError ??
       missingResultError;
 
     return {
@@ -222,14 +223,22 @@ export class TransactionScanService {
     scope: KnownCaip2ChainId,
   ): TransactionScanAssetChange[] {
     return assetDiffs
-      .filter((assetDiff) => assetDiff.out ?? assetDiff.in)
-      .map((assetDiff) =>
-        this.#mapAssetChange(
-          assetDiff,
-          assetDiff.out ? AssetChangeDirection.Out : AssetChangeDirection.In,
-          scope,
-        ),
-      )
+      .flatMap((assetDiff) => {
+        const changes: (TransactionScanAssetChange | null)[] = [];
+
+        if (assetDiff.out) {
+          changes.push(
+            this.#mapAssetChange(assetDiff, AssetChangeDirection.Out, scope),
+          );
+        }
+        if (assetDiff.in) {
+          changes.push(
+            this.#mapAssetChange(assetDiff, AssetChangeDirection.In, scope),
+          );
+        }
+
+        return changes;
+      })
       .filter(
         (change): change is TransactionScanAssetChange => change !== null,
       );
@@ -304,7 +313,7 @@ export class TransactionScanService {
     }
 
     // If the asset is unknown, return null.
-    // We dont support unknown assets yet.
+    // We don't support unknown assets yet.
     return null;
   }
 

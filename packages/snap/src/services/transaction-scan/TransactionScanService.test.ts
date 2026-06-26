@@ -365,58 +365,65 @@ describe('TransactionScanService', () => {
   });
 
   describe('preflight validation', () => {
-    it('returns a transaction expired error when the time bound has passed', async () => {
-      const { service, securityAlertsApiClient } = setup();
-      const mockNow = 1_700_000_000_000;
+    const mockNow = 1_700_000_000_000;
+
+    beforeEach(() => {
       jest.useFakeTimers();
       jest.setSystemTime(mockNow);
+    });
 
-      try {
-        const expiredTransaction = buildMockClassicTransaction(
-          [
-            {
-              type: 'payment',
-              params: {
-                destination: FIXTURE_ACCOUNT_ADDRESS,
-                asset: 'native',
-                amount: '1',
-              },
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    function buildExpiredTransactionXdr(): string {
+      const expiredTransaction = buildMockClassicTransaction(
+        [
+          {
+            type: 'payment',
+            params: {
+              destination: FIXTURE_ACCOUNT_ADDRESS,
+              asset: 'native',
+              amount: '1',
             },
-          ],
-          { networkPassphrase: Networks.PUBLIC, timeout: 1 },
-        );
-        jest.advanceTimersByTime(2000);
-
-        securityAlertsApiClient.scanTransaction.mockResolvedValue({
-          simulation: {
-            status: 'Success',
-            account_summary: {
-              account_assets_diffs: [],
-            },
-            assets_diffs: {},
           },
-          validation: {
-            status: 'Success',
-            result_type: TransactionScanValidationType.Benign,
-          },
-        });
+        ],
+        { networkPassphrase: Networks.PUBLIC, timeout: 1 },
+      );
+      jest.advanceTimersByTime(2000);
 
-        const result = await service.scanTransactionSafe({
-          ...scanParams,
-          transaction: expiredTransaction.getRaw().toXDR(),
-        });
+      return expiredTransaction.getRaw().toXDR();
+    }
 
-        expect(result).toMatchObject({
-          status: 'ERROR',
-          error: {
-            type: 'simulation',
-            code: TransactionScanErrorId.TransactionExpired,
-            message: 'Transaction expired',
+    it('returns a transaction expired error when the time bound has passed', async () => {
+      const { service, securityAlertsApiClient } = setup();
+      securityAlertsApiClient.scanTransaction.mockResolvedValue({
+        simulation: {
+          status: 'Success',
+          account_summary: {
+            account_assets_diffs: [],
           },
-        });
-      } finally {
-        jest.useRealTimers();
-      }
+          assets_diffs: {},
+        },
+        validation: {
+          status: 'Success',
+          result_type: TransactionScanValidationType.Benign,
+        },
+      });
+
+      const result = await service.scanTransactionSafe({
+        ...scanParams,
+        transaction: buildExpiredTransactionXdr(),
+      });
+
+      expect(result).toMatchObject({
+        status: 'ERROR',
+        error: {
+          type: 'simulation',
+          code: TransactionScanErrorId.TransactionExpired,
+          message: 'Transaction expired',
+        },
+      });
     });
 
     it('does not block scan when XDR cannot be parsed locally', async () => {
@@ -446,95 +453,99 @@ describe('TransactionScanService', () => {
       });
     });
 
+    it('skips preflight when simulation is not requested', async () => {
+      const { service, securityAlertsApiClient } = setup();
+      securityAlertsApiClient.scanTransaction.mockResolvedValue({
+        simulation: null,
+        validation: {
+          status: 'Success',
+          result_type: TransactionScanValidationType.Benign,
+        },
+      });
+
+      const result = await service.scanTransactionSafe({
+        ...scanParams,
+        transaction: buildExpiredTransactionXdr(),
+        options: [TransactionScanOption.Validation],
+      });
+
+      expect(result).toMatchObject({
+        status: 'SUCCESS',
+        error: null,
+      });
+    });
+
     it('prioritizes simulation revert over preflight expiration error', async () => {
       const { service, securityAlertsApiClient } = setup();
-      const mockNow = 1_700_000_000_000;
-      jest.useFakeTimers();
-      jest.setSystemTime(mockNow);
+      securityAlertsApiClient.scanTransaction.mockResolvedValue(
+        insufficientBalanceResponse as StellarTransactionScanResponse,
+      );
 
-      try {
-        const expiredTransaction = buildMockClassicTransaction(
-          [
-            {
-              type: 'payment',
-              params: {
-                destination: FIXTURE_ACCOUNT_ADDRESS,
-                asset: 'native',
-                amount: '1',
-              },
-            },
-          ],
-          { networkPassphrase: Networks.PUBLIC, timeout: 1 },
-        );
-        jest.advanceTimersByTime(2000);
+      const result = await service.scanTransactionSafe({
+        ...scanParams,
+        transaction: buildExpiredTransactionXdr(),
+      });
 
-        securityAlertsApiClient.scanTransaction.mockResolvedValue(
-          insufficientBalanceResponse as StellarTransactionScanResponse,
-        );
+      expect(result?.error).toMatchObject({
+        type: 'simulation',
+        code: TransactionScanErrorId.InsufficientBalance,
+      });
+    });
 
-        const result = await service.scanTransactionSafe({
-          ...scanParams,
-          transaction: expiredTransaction.getRaw().toXDR(),
-        });
+    it('prioritizes preflight expiration over validation error', async () => {
+      const { service, securityAlertsApiClient } = setup();
+      securityAlertsApiClient.scanTransaction.mockResolvedValue({
+        simulation: {
+          status: 'Success',
+          account_summary: {
+            account_assets_diffs: [],
+          },
+          assets_diffs: {},
+        },
+        validation: {
+          status: 'Error',
+          error: 'Simulation failed',
+        },
+      });
 
-        expect(result?.error).toMatchObject({
-          type: 'simulation',
-          code: TransactionScanErrorId.InsufficientBalance,
-        });
-      } finally {
-        jest.useRealTimers();
-      }
+      const result = await service.scanTransactionSafe({
+        ...scanParams,
+        transaction: buildExpiredTransactionXdr(),
+      });
+
+      expect(result?.error).toMatchObject({
+        type: 'simulation',
+        code: TransactionScanErrorId.TransactionExpired,
+        message: 'Transaction expired',
+      });
     });
 
     it('returns estimated changes when preflight reports expiration but simulation succeeds', async () => {
       const { service, securityAlertsApiClient } = setup();
-      const mockNow = 1_700_000_000_000;
-      jest.useFakeTimers();
-      jest.setSystemTime(mockNow);
+      securityAlertsApiClient.scanTransaction.mockResolvedValue(
+        successPaymentXLMResponse as StellarTransactionScanResponse,
+      );
 
-      try {
-        const expiredTransaction = buildMockClassicTransaction(
-          [
+      const result = await service.scanTransactionSafe({
+        ...scanParams,
+        transaction: buildExpiredTransactionXdr(),
+      });
+
+      expect(result).toMatchObject({
+        status: 'ERROR',
+        error: {
+          code: TransactionScanErrorId.TransactionExpired,
+        },
+        estimatedChanges: {
+          assets: [
             {
-              type: 'payment',
-              params: {
-                destination: FIXTURE_ACCOUNT_ADDRESS,
-                asset: 'native',
-                amount: '1',
-              },
+              type: AssetChangeDirection.Out,
+              symbol: 'XLM',
+              value: '1',
             },
           ],
-          { networkPassphrase: Networks.PUBLIC, timeout: 1 },
-        );
-        jest.advanceTimersByTime(2000);
-
-        securityAlertsApiClient.scanTransaction.mockResolvedValue(
-          successPaymentXLMResponse as StellarTransactionScanResponse,
-        );
-
-        const result = await service.scanTransactionSafe({
-          ...scanParams,
-          transaction: expiredTransaction.getRaw().toXDR(),
-        });
-
-        expect(result).toMatchObject({
-          status: 'ERROR',
-          error: {
-            code: TransactionScanErrorId.TransactionExpired,
-          },
-          estimatedChanges: {
-            assets: [
-              {
-                type: AssetChangeDirection.Out,
-                symbol: 'XLM',
-                value: '1',
-              },
-            ],
-          },
-        });
-      } finally {
-        jest.useRealTimers();
-      }
+        },
+      });
     });
   });
 
@@ -690,6 +701,67 @@ describe('TransactionScanService', () => {
         status: 'SUCCESS',
         estimatedChanges: {
           assets: [],
+        },
+      });
+    });
+
+    it('maps both in and out when present on the same asset diff entry', async () => {
+      const { service, securityAlertsApiClient } = setup();
+      securityAlertsApiClient.scanTransaction.mockResolvedValue({
+        simulation: {
+          status: 'Success',
+          account_summary: {
+            account_assets_diffs: [],
+          },
+          assets_diffs: {
+            [FIXTURE_ACCOUNT_ADDRESS]: [
+              {
+                asset: {
+                  type: 'NATIVE',
+                  code: 'XLM',
+                },
+                asset_type: 'NATIVE',
+                in: {
+                  usd_price: 0.18,
+                  summary: 'Received 1 XLM',
+                  value: 1,
+                  raw_value: 10000000,
+                },
+                out: {
+                  usd_price: 0.36,
+                  summary: 'Sent 2 XLM',
+                  value: 2,
+                  raw_value: 20000000,
+                },
+              },
+            ],
+          },
+        },
+        validation: {
+          status: 'Success',
+          result_type: TransactionScanValidationType.Benign,
+        },
+      } as StellarTransactionScanResponse);
+
+      const result = await service.scanTransactionSafe(scanParams);
+
+      expect(result).toMatchObject({
+        status: 'SUCCESS',
+        estimatedChanges: {
+          assets: [
+            {
+              type: AssetChangeDirection.Out,
+              symbol: 'XLM',
+              value: '2',
+              price: 0.36,
+            },
+            {
+              type: AssetChangeDirection.In,
+              symbol: 'XLM',
+              value: '1',
+              price: 0.18,
+            },
+          ],
         },
       });
     });
