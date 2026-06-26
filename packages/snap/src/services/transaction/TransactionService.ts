@@ -396,14 +396,16 @@ export class TransactionService {
       scope,
     });
 
-    const transactionWithFee = await this.computingFee(transaction);
+    // Bridge API swap transaction already include the fee — we trust it and do not recalculate.
+    // For Soroban invokes, computingFee simulates the transaction to validate it.
+    await this.computingFee(transaction);
 
     const preloadedAccounts = await this.#getPreloadedAccounts(
-      transactionWithFee,
+      transaction,
       onChainAccount,
     );
 
-    this.validateTransaction(transactionWithFee, onChainAccount, {
+    this.validateTransaction(transaction, onChainAccount, {
       expectedOPTypes: [
         SupportedOperations.Payment,
         SupportedOperations.PathPayment,
@@ -413,7 +415,7 @@ export class TransactionService {
       preloadedAccounts,
     });
 
-    return transactionWithFee;
+    return transaction;
   }
 
   async #getPreloadedAccounts(

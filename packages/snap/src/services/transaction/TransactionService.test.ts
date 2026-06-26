@@ -243,10 +243,8 @@ describe('TransactionService', () => {
       const [simulatedTransaction, simulatedScope] = simulateTransactionSpy.mock
         .calls[0] as [Transaction, KnownCaip2ChainId];
 
-      expect(result).toBe(transaction);
-      expect(simulatedTransaction.getRaw().toXDR()).toBe(
-        transaction.getRaw().toXDR(),
-      );
+      expect(result.getRaw().toXDR()).toBe(transaction.getRaw().toXDR());
+      expect(simulatedTransaction).toBe(result);
       expect(simulatedScope).toBe(scope);
       expect(loadOnChainAccountsSpy).toHaveBeenCalledWith([], scope);
     });
