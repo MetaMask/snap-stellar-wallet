@@ -365,7 +365,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
       assets: [
         {
           type: AssetChangeDirection.Out,
-          value: Number(amount),
+          value: amount,
           price: null,
           symbol,
           name: name ?? symbol,

@@ -151,7 +151,6 @@ const accountResolver = new AccountResolver({
 const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountResolver,
-  transactionService,
   confirmationUIController,
 });
 

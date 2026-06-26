@@ -9,7 +9,6 @@ import type { AccountResolver } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
-import type { TransactionService } from '../../services/transaction';
 import { OperationMapper, Transaction } from '../../services/transaction';
 import {
   assertTransactionScope,
@@ -35,19 +34,15 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
   SignTransactionRequest,
   SignTransactionResponse
 > {
-  readonly #transactionService: TransactionService;
-
   readonly #confirmationUIController: ConfirmationUXController;
 
   constructor({
     logger,
     accountResolver,
-    transactionService,
     confirmationUIController,
   }: {
     logger: ILogger;
     accountResolver: AccountResolver;
-    transactionService: TransactionService;
     confirmationUIController: ConfirmationUXController;
   }) {
     super({
@@ -57,7 +52,6 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       requestStruct: SignTransactionRequestStruct,
       responseStruct: SignTransactionResponseStruct,
     });
-    this.#transactionService = transactionService;
     this.#confirmationUIController = confirmationUIController;
   }
 
@@ -77,16 +71,14 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
     // verify the transaction scope matches the requested scope
     assertTransactionScope(transaction, scope);
 
-    // Computing fee will inject the fee into the transaction
-    const transactionWithFee =
-      await this.#transactionService.computingFee(transaction);
-
-    if (!(await this.#confirmation(request, transactionWithFee, account))) {
+    // We do not process RPC simulation here, we trust the fee that provided by the dapp.
+    // If the transaction is invalid, the security scan will output the error.
+    if (!(await this.#confirmation(request, transaction, account))) {
       throw new UserRejectedRequestError() as unknown as Error;
     }
 
-    wallet.signTransaction(transactionWithFee);
-    const signedTxXdr = transactionWithFee.getRaw().toXDR();
+    wallet.signTransaction(transaction);
+    const signedTxXdr = transaction.getRaw().toXDR();
 
     return {
       signedTxXdr,

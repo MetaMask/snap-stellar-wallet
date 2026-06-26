@@ -308,7 +308,7 @@ describe('ConfirmSendHandler', () => {
           assets: [
             {
               type: AssetChangeDirection.Out,
-              value: 1,
+              value: '1',
               price: null,
               symbol: assetMetadata.symbol,
               name: assetMetadata.name,
