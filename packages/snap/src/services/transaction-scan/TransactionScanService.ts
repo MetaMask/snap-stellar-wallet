@@ -1,6 +1,13 @@
 import { BigNumber } from 'bignumber.js';
 
-import { AssetChangeDirection, TransactionScanOption } from './api';
+import {
+  AssetChangeDirection,
+  StellarClassicAssetDetailsStruct,
+  StellarNativeAssetDetailsStruct,
+  StellarSep41AssetDetailsStruct,
+  TransactionScanErrorId,
+  TransactionScanOption,
+} from './api';
 import type {
   StellarAssetDiff,
   StellarTransactionScanResponse,
@@ -12,7 +19,7 @@ import type {
 } from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import type { KnownCaip2ChainId } from '../../api';
-import { STELLAR_DECIMAL_PLACES } from '../../constants';
+import { xlmIcon } from '../../ui/images';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
@@ -20,8 +27,11 @@ import {
   toCaip19Sep41AssetId,
   trackError,
 } from '../../utils';
-import { normalizeAmount } from '../../utils/currency';
+import { toDisplayBalance } from '../../utils/currency';
 import { getIconUrl } from '../asset-metadata/utils';
+import { TransactionExpireException } from '../transaction/exceptions';
+import { Transaction } from '../transaction/Transaction';
+import { assertTransactionTimeBound } from '../transaction/utils';
 
 export class TransactionScanService {
   readonly #securityAlertsApiClient: SecurityAlertsApiClient;
@@ -53,6 +63,12 @@ export class TransactionScanService {
     options: TransactionScanOption[];
   }): Promise<TransactionScanResult | null> {
     try {
+      const preflightValidationErrorResult = options.includes(
+        TransactionScanOption.Simulation,
+      )
+        ? this.#preflightValidation(transaction, scope)
+        : null;
+
       const result = await this.#securityAlertsApiClient.scanTransaction({
         accountAddress,
         origin,
@@ -61,7 +77,13 @@ export class TransactionScanService {
         options,
       });
 
-      return this.#mapScan(result, options, scope, accountAddress);
+      return this.#mapScan(
+        result,
+        preflightValidationErrorResult,
+        options,
+        scope,
+        accountAddress,
+      );
     } catch (error: unknown) {
       this.#logger.warn('Error scanning Stellar transaction', {
         reason: error,
@@ -73,8 +95,56 @@ export class TransactionScanService {
     }
   }
 
+  /**
+   * Local checks Blockaid does not perform before calling the Security Alerts API.
+   *
+   * Currently verifies the transaction time bound has not passed. When the XDR
+   * cannot be parsed locally, returns `null` so Blockaid remains the source of
+   * truth for malformed envelopes.
+   *
+   * @param xdr - The transaction XDR.
+   * @param scope - The CAIP-2 chain of the transaction.
+   * @returns A preflight validation error, or `null` when no local issue applies.
+   */
+  #preflightValidation(
+    xdr: string,
+    scope: KnownCaip2ChainId,
+  ): TransactionScanError | null {
+    try {
+      const transaction = Transaction.fromXdr({
+        xdr,
+        scope,
+      });
+
+      assertTransactionTimeBound(transaction);
+
+      return null;
+    } catch (error) {
+      if (error instanceof TransactionExpireException) {
+        return {
+          type: TransactionScanOption.Simulation,
+          code: TransactionScanErrorId.TransactionExpired,
+          message: 'Transaction expired',
+        };
+      }
+
+      return null;
+    }
+  }
+
+  /**
+   * Maps a raw Security Alerts API response to the snap's scan result shape.
+   *
+   * @param result - Raw scan response from the Security Alerts API.
+   * @param preflightValidationErrorResult - Local preflight error, if any.
+   * @param options - Scan options that were requested.
+   * @param scope - CAIP-2 chain of the transaction.
+   * @param accountAddress - Signer address used to read per-account asset diffs.
+   * @returns Normalized scan result for confirmation UI and handlers.
+   */
   #mapScan(
     result: StellarTransactionScanResponse,
+    preflightValidationErrorResult: TransactionScanError | null,
     options: TransactionScanOption[],
     scope: KnownCaip2ChainId,
     accountAddress: string,
@@ -83,11 +153,14 @@ export class TransactionScanService {
     const validation = result.validation ?? null;
     const simulationError =
       simulation?.status === 'Error'
-        ? this.#mapError('simulation', simulation.error)
+        ? this.#mapError(TransactionScanOption.Simulation, simulation.error)
         : null;
+
+    const preflightValidationError = preflightValidationErrorResult ?? null;
+
     const validationError =
       validation?.status === 'Error'
-        ? this.#mapError('validation', validation.error)
+        ? this.#mapError(TransactionScanOption.Validation, validation.error)
         : null;
     const missingResultError = this.#getMissingResultError({
       simulation,
@@ -95,11 +168,15 @@ export class TransactionScanService {
       options,
     });
     // Prefer the simulation revert: it carries the actionable reason (e.g.
-    // "insufficient balance"). A validation `Error` only means Blockaid could
-    // not produce a verdict — never that the transaction is malicious (that
-    // comes from a validation `Success` with a malicious/warning result_type) —
-    // so it should not mask why the transaction would actually fail.
-    const error = simulationError ?? validationError ?? missingResultError;
+    // "insufficient balance"). Preflight expiration is next — a local time-bound
+    // failure the user can act on. A validation `Error` only means Blockaid
+    // could not produce a verdict, so it must not mask simulation or preflight
+    // failures.
+    const error =
+      simulationError ??
+      preflightValidationError ??
+      validationError ??
+      missingResultError;
 
     return {
       status: error ? 'ERROR' : 'SUCCESS',
@@ -125,8 +202,7 @@ export class TransactionScanService {
    *
    * Blockaid reports per-account diffs under `assets_diffs`, keyed by address.
    * The aggregated `account_summary.account_assets_diffs` is frequently empty
-   * (e.g. for tiny/zero-USD amounts), so we read the signer's own entry first
-   * and only fall back to the summary.
+   * (e.g. for tiny/zero-USD amounts), so we read the signer's own entry.
    *
    * @param simulation - The successful Blockaid simulation result.
    * @param accountAddress - The signer (scanned) account address.
@@ -139,137 +215,106 @@ export class TransactionScanService {
     >,
     accountAddress: string,
   ): StellarAssetDiff[] {
-    return (
-      simulation.assets_diffs?.[accountAddress] ??
-      simulation.account_summary.account_assets_diffs ??
-      []
-    );
+    return simulation.assets_diffs?.[accountAddress] ?? [];
   }
 
   #mapAssetChanges(
     assetDiffs: StellarAssetDiff[],
     scope: KnownCaip2ChainId,
   ): TransactionScanAssetChange[] {
-    return assetDiffs.flatMap((assetDiff) => {
-      const changes: TransactionScanAssetChange[] = [];
-      if (assetDiff.out) {
-        changes.push(
-          this.#mapAssetChange(assetDiff, AssetChangeDirection.Out, scope),
-        );
-      }
-      if (assetDiff.in) {
-        changes.push(
-          this.#mapAssetChange(assetDiff, AssetChangeDirection.In, scope),
-        );
-      }
-      return changes;
-    });
+    return assetDiffs
+      .flatMap((assetDiff) => {
+        const changes: (TransactionScanAssetChange | null)[] = [];
+
+        if (assetDiff.out) {
+          changes.push(
+            this.#mapAssetChange(assetDiff, AssetChangeDirection.Out, scope),
+          );
+        }
+        if (assetDiff.in) {
+          changes.push(
+            this.#mapAssetChange(assetDiff, AssetChangeDirection.In, scope),
+          );
+        }
+
+        return changes;
+      })
+      .filter(
+        (change): change is TransactionScanAssetChange => change !== null,
+      );
   }
 
+  /**
+   * Maps a single asset diff to our internal asset change format.
+   *
+   * Returns `null` for asset types the confirmation UI cannot render yet (for
+   * example pool shares or other Blockaid classifications outside native,
+   * classic, and SEP-41).
+   *
+   * @param assetDiff - The asset diff to map.
+   * @param type - The direction of the asset change.
+   * @param scope - The CAIP-2 chain of the transaction.
+   * @returns The mapped asset change, or `null` when unsupported.
+   */
   #mapAssetChange(
     assetDiff: StellarAssetDiff,
     type: AssetChangeDirection,
     scope: KnownCaip2ChainId,
-  ): TransactionScanAssetChange {
+  ): TransactionScanAssetChange | null {
+    const { asset } = assetDiff;
     const transfer = assetDiff[type];
-    const symbol =
-      assetDiff.asset.symbol ?? assetDiff.asset.code ?? assetDiff.asset_type;
+    const hasTransfer = transfer !== undefined && transfer !== null;
+    const hasRawValue =
+      hasTransfer &&
+      transfer.raw_value !== undefined &&
+      transfer.raw_value !== null;
+    const usdPrice =
+      hasTransfer && transfer.usd_price !== undefined
+        ? transfer.usd_price
+        : null;
 
-    return {
-      type,
-      symbol,
-      name: assetDiff.asset.name ?? symbol,
-      logo: this.#resolveLogo(assetDiff, scope),
-      value: this.#computeDisplayValue(transfer, assetDiff),
-      price: transfer?.usd_price ?? null,
-    };
-  }
+    if (StellarNativeAssetDetailsStruct.is(asset)) {
+      return {
+        type,
+        symbol: asset.code,
+        name: asset.code,
+        logo: xlmIcon,
+        value: hasRawValue
+          ? toDisplayBalance(new BigNumber(transfer.raw_value))
+          : null,
+        price: usdPrice,
+      };
+    }
+    if (StellarClassicAssetDetailsStruct.is(asset)) {
+      return {
+        type,
+        symbol: asset.code,
+        name: asset.code,
+        logo: getIconUrl(
+          toCaip19ClassicAssetId(scope, asset.code, asset.issuer),
+        ),
+        value: hasRawValue
+          ? toDisplayBalance(new BigNumber(transfer.raw_value))
+          : null,
+        price: usdPrice,
+      };
+    }
+    if (StellarSep41AssetDetailsStruct.is(asset)) {
+      return {
+        type,
+        symbol: asset.symbol,
+        name: asset.name,
+        logo: getIconUrl(toCaip19Sep41AssetId(scope, asset.address)),
+        value: hasRawValue
+          ? toDisplayBalance(new BigNumber(transfer.raw_value), asset.decimals)
+          : null,
+        price: usdPrice,
+      };
+    }
 
-  /**
-   * Resolves the asset icon URL for a Blockaid diff. Blockaid does not return an
-   * icon, so we derive it from the asset identity (the same static icon source
-   * the rest of the app uses). Native XLM is left to the UI's bundled icon.
-   *
-   * @param assetDiff - The asset diff from Blockaid.
-   * @param scope - The CAIP-2 chain of the transaction.
-   * @returns The icon URL, or null when it cannot be derived.
-   */
-  #resolveLogo(
-    assetDiff: StellarAssetDiff,
-    scope: KnownCaip2ChainId,
-  ): string | null {
-    const { asset, asset_type: assetType } = assetDiff;
-
-    if (assetType === 'NATIVE' || asset.type === 'NATIVE') {
-      return null;
-    }
-    if (asset.code !== undefined && asset.issuer !== undefined) {
-      return getIconUrl(
-        toCaip19ClassicAssetId(scope, asset.code, asset.issuer),
-      );
-    }
-    if (asset.address !== undefined) {
-      return getIconUrl(toCaip19Sep41AssetId(scope, asset.address));
-    }
+    // If the asset is unknown, return null.
+    // We don't support unknown assets yet.
     return null;
-  }
-
-  /**
-   * Computes the human-readable amount for an asset transfer.
-   *
-   * For assets with known decimals (native + classic = 7) we normalize
-   * `raw_value` ourselves, because Blockaid's `value` can be imprecise for
-   * fractional amounts. For contract (SEP-41) tokens we don't know the decimals,
-   * so we fall back to Blockaid's already-normalized `value`.
-   *
-   * @param transfer - The in/out transfer details from Blockaid.
-   * @param assetDiff - The parent asset diff (used to resolve decimals).
-   * @returns The display amount, or null when unavailable.
-   */
-  #computeDisplayValue(
-    transfer: StellarAssetDiff['in'] | StellarAssetDiff['out'],
-    assetDiff: StellarAssetDiff,
-  ): number | null {
-    if (transfer === undefined || transfer === null) {
-      return null;
-    }
-
-    const decimals = this.#resolveAssetDecimals(assetDiff);
-    if (decimals !== undefined && transfer.raw_value !== undefined) {
-      return normalizeAmount(
-        new BigNumber(transfer.raw_value),
-        decimals,
-      ).toNumber();
-    }
-
-    return transfer.value ?? null;
-  }
-
-  /**
-   * Resolves asset decimals for Blockaid simulation diffs.
-   *
-   * Native and classic Stellar assets use 7 decimal places; contract tokens do
-   * not expose decimals in the Blockaid payload today. Blockaid is inconsistent
-   * about where it puts the classification, so we check both the top-level
-   * `asset_type` and the nested `asset.type` (e.g. classic issued assets such as
-   * USDC surface `ASSET` on one but not always the other).
-   *
-   * @param assetDiff - The asset diff from Blockaid.
-   * @returns The decimals when known.
-   */
-  #resolveAssetDecimals(assetDiff: StellarAssetDiff): number | undefined {
-    const { asset_type: assetType, asset } = assetDiff;
-
-    if (
-      assetType === 'NATIVE' ||
-      asset.type === 'NATIVE' ||
-      assetType === 'ASSET' ||
-      asset.type === 'ASSET'
-    ) {
-      return STELLAR_DECIMAL_PLACES;
-    }
-
-    return undefined;
   }
 
   #mapValidation(
@@ -288,9 +333,36 @@ export class TransactionScanService {
   #mapError(type: string, message: string): TransactionScanError {
     return {
       type,
-      code: this.#getErrorCode(message),
+      code: this.#mapErrorCode(message),
       message,
     };
+  }
+
+  /**
+   * Maps a Blockaid error message to a stable error code for localization.
+   *
+   * Blockaid may return either free-text revert messages (e.g. "insufficient
+   * balance") or machine-readable codes (e.g. `insufficient_balance`). Known
+   * free-text patterns are matched first; otherwise {@link #getErrorCode} is
+   * used to pass through compact API codes unchanged.
+   *
+   * @param message - Raw error string from the simulation or validation payload.
+   * @returns A normalized code aligned with {@link TransactionScanErrorId}.
+   */
+  #mapErrorCode(message: string): string {
+    // Blockaid error message contains some keywords about the error.
+    // Map them to a known error id.
+    // - "insufficient balance" to "insufficientbalance".
+    // - "no trustline" to "notrustline".
+    if (message.toLowerCase().includes('insufficient balance')) {
+      return TransactionScanErrorId.InsufficientBalance;
+    }
+    if (message.toLowerCase().includes('no trustline')) {
+      return TransactionScanErrorId.NoTrustline;
+    }
+    return (
+      this.#getErrorCode(message) ?? TransactionScanErrorId.InvalidTransaction
+    );
   }
 
   #getMissingResultError({

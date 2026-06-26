@@ -32,7 +32,7 @@ function collectImageSources(node: unknown): unknown[] {
 describe('EstimatedChanges', () => {
   const xlmOut = {
     type: AssetChangeDirection.Out,
-    value: 10,
+    value: '10',
     price: null,
     symbol: 'XLM',
     name: 'XLM',
@@ -40,7 +40,7 @@ describe('EstimatedChanges', () => {
   };
   const usdcIn = {
     type: AssetChangeDirection.In,
-    value: 5,
+    value: '5',
     price: null,
     symbol: 'USDC',
     name: 'USDC',

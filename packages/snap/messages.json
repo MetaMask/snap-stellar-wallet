@@ -138,7 +138,7 @@
     "message": "{reason}. Only continue if you trust every address involved."
   },
   "confirmation.simulationErrorTitle": {
-    "message": "This transaction was reverted during simulation."
+    "message": "This transaction is expected to fail."
   },
   "confirmation.simulationErrorSubtitle": {
     "message": "{reason}"
@@ -451,6 +451,12 @@
   },
   "transactionScan.errors.insufficientFunds": {
     "message": "Insufficient funds"
+  },
+  "transactionScan.errors.noTrustline": {
+    "message": "Trustline not found"
+  },
+  "transactionScan.errors.transactionExpired": {
+    "message": "Transaction expired"
   },
   "transactionScan.errors.invalidAddress": {
     "message": "Invalid address"

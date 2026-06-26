@@ -8,7 +8,7 @@ import {
 import type {
   ScanTransactionRequest,
   SecurityAlertsMetadata,
-  StellarTransactionScanRequest,
+  SecurityAlertsApiRequest,
   StellarTransactionScanResponse,
 } from './api';
 import { TransactionScanException } from './exceptions';
@@ -27,7 +27,7 @@ import {
 
 const SCOPE_TO_SECURITY_ALERTS_CHAIN: Record<
   KnownCaip2ChainId,
-  StellarTransactionScanRequest['chain']
+  SecurityAlertsApiRequest['chain']
 > = {
   [KnownCaip2ChainId.Mainnet]: 'pubnet',
   [KnownCaip2ChainId.Testnet]: 'testnet',
@@ -72,7 +72,7 @@ export class SecurityAlertsApiClient {
         path: '/stellar/transaction/scan',
       });
 
-      const requestBody: StellarTransactionScanRequest = {
+      const requestBody: SecurityAlertsApiRequest = {
         account_address: accountAddress,
         chain: SCOPE_TO_SECURITY_ALERTS_CHAIN[scope],
         metadata: this.#getMetadata(origin),

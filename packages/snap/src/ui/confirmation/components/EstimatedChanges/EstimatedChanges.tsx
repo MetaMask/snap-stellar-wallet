@@ -11,7 +11,6 @@ import {
   Text as SnapText,
   Tooltip,
 } from '@metamask/snaps-sdk/jsx';
-import { BigNumber } from 'bignumber.js';
 
 import { NATIVE_ASSET_SYMBOL } from '../../../../constants';
 import { AssetChangeDirection } from '../../../../services/transaction-scan';
@@ -30,16 +29,6 @@ type EstimatedChangesProps = {
   preferences: GetPreferencesResult;
   scanFetchStatus: FetchStatus;
 };
-
-/**
- * Formats an estimated-change value without scientific notation.
- *
- * @param value - The human-readable asset amount, or null.
- * @returns The amount as a plain decimal string.
- */
-function formatValue(value: number | null): string {
-  return new BigNumber(value ?? 0).toFixed();
-}
 
 /**
  * Resolves the text color for an estimated-change row.
@@ -128,7 +117,7 @@ const AssetChangeRow = ({
   const isUnknownValue = asset.value === null;
   const label = isUnknownValue
     ? `– ${asset.symbol}`
-    : `${isOut ? '-' : '+'}${formatValue(asset.value)} ${asset.symbol}`;
+    : `${isOut ? '-' : '+'}${asset.value} ${asset.symbol}`;
   const color = resolveRowColor(isUnknownValue, isOut);
 
   return (

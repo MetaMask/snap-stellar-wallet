@@ -6,17 +6,10 @@ import { SignTransactionHandler } from './signTransaction';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
-import { SimulationException } from '../../services/network/exceptions';
 import { mockOnChainAccountService } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import type { Transaction } from '../../services/transaction';
-import {
-  TransactionService,
-  Transaction as WrappedTransaction,
-} from '../../services/transaction';
-import {
-  buildMockClassicTransaction,
-  createMockTransactionService,
-} from '../../services/transaction/__mocks__/transaction.fixtures';
+import { Transaction as WrappedTransaction } from '../../services/transaction';
+import { buildMockClassicTransaction } from '../../services/transaction/__mocks__/transaction.fixtures';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
@@ -41,7 +34,6 @@ describe('SignTransactionHandler', () => {
       0,
     );
 
-    const { transactionService } = createMockTransactionService();
     const { accountService, onChainAccountService, walletService } =
       mockOnChainAccountService();
     const accountResolver = new AccountResolver({
@@ -58,11 +50,6 @@ describe('SignTransactionHandler', () => {
       .spyOn(WalletService.prototype, 'resolveWallet')
       .mockResolvedValue(wallet);
 
-    // Default: pass-through fee (no Soroban simulation needed for classic tx).
-    jest
-      .spyOn(TransactionService.prototype, 'computingFee')
-      .mockImplementation(async (tx) => tx);
-
     const renderConfirmationDialog = jest.fn();
     const confirmationUIController = {
       renderConfirmationDialog,
@@ -74,7 +61,6 @@ describe('SignTransactionHandler', () => {
     const handler = new SignTransactionHandler({
       logger,
       accountResolver,
-      transactionService,
       confirmationUIController,
     });
 
@@ -82,7 +68,6 @@ describe('SignTransactionHandler', () => {
       handler,
       mockAccount,
       wallet,
-      transactionService,
       renderConfirmationDialog,
     };
   }
@@ -268,33 +253,6 @@ describe('SignTransactionHandler', () => {
 
     expect(result).toMatchObject({
       error: { code: Sep43ErrorCode.InvalidRequest },
-    });
-    expect(renderConfirmationDialog).not.toHaveBeenCalled();
-  });
-
-  it('returns error -2 when fee simulation fails', async () => {
-    const {
-      handler,
-      mockAccount,
-      wallet,
-      transactionService,
-      renderConfirmationDialog,
-    } = setupHandler();
-
-    const transaction = buildMainnetPaymentFromWallet(wallet.address);
-    jest
-      .spyOn(transactionService, 'computingFee')
-      .mockRejectedValueOnce(new SimulationException('contract not found'));
-
-    const result = await handler.handle(
-      buildRequest(mockAccount.id, transaction.getRaw().toXDR()),
-    );
-
-    expect(result).toMatchObject({
-      error: {
-        code: Sep43ErrorCode.ExternalService,
-        ext: [expect.stringContaining('Failed to simulate transaction')],
-      },
     });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });

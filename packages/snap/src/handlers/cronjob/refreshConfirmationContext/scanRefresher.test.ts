@@ -28,7 +28,7 @@ describe('ConfirmationScanRefresher', () => {
       assets: [
         {
           type: AssetChangeDirection.Out,
-          value: 2,
+          value: '2',
           price: null,
           symbol: 'USDC',
           name: 'USD Coin',
@@ -136,7 +136,7 @@ describe('ConfirmationScanRefresher', () => {
       assets: [
         {
           type: AssetChangeDirection.Out,
-          value: 1,
+          value: '1',
           price: null,
           symbol: 'XLM',
           name: 'Stellar Lumens',
@@ -171,7 +171,7 @@ describe('ConfirmationScanRefresher', () => {
       assets: [
         {
           type: AssetChangeDirection.Out,
-          value: 12.5,
+          value: '12.5',
           price: null,
           symbol: 'XLM',
           name: 'Stellar Lumens',
@@ -216,7 +216,7 @@ describe('ConfirmationScanRefresher', () => {
       assets: [
         {
           type: AssetChangeDirection.Out,
-          value: 7,
+          value: '7',
           price: null,
           symbol: 'XLM',
           name: 'Stellar Lumens',
@@ -255,7 +255,7 @@ describe('ConfirmationScanRefresher', () => {
       assets: [
         {
           type: AssetChangeDirection.Out,
-          value: 1,
+          value: '1',
           price: null,
           symbol: 'XLM',
           name: 'Stellar Lumens',

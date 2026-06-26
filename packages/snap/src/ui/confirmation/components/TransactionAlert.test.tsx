@@ -41,7 +41,7 @@ describe('TransactionAlert', () => {
     expect(getType(component)).toBe('Banner');
     expect(getProps(component)).toMatchObject({
       severity: 'warning',
-      title: 'This transaction was reverted during simulation.',
+      title: 'This transaction is expected to fail.',
     });
   });
 
@@ -181,6 +181,24 @@ describe('TransactionAlert', () => {
     expect(component).toBeNull();
   });
 
+  it('renders a localized message for transaction expired simulation errors', () => {
+    const component = TransactionAlert({
+      preferences: {
+        ...preferences,
+        useSecurityAlerts: false,
+      },
+      validation: null,
+      error: {
+        type: 'simulation',
+        code: 'transactionexpired',
+        message: 'Transaction expired',
+      },
+      scanFetchStatus: FetchStatus.Fetched,
+    });
+
+    expect(JSON.stringify(component)).toContain('Transaction expired');
+  });
+
   it('renders scan errors before validation severity findings', () => {
     const component = TransactionAlert({
       preferences,
@@ -200,7 +218,7 @@ describe('TransactionAlert', () => {
     expect(getType(component)).toBe('Banner');
     expect(getProps(component)).toMatchObject({
       severity: 'warning',
-      title: 'This transaction was reverted during simulation.',
+      title: 'This transaction is expected to fail.',
     });
   });
 });
