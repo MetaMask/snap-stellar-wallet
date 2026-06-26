@@ -50,6 +50,7 @@ import {
   XdrParseException,
 } from '../../services/transaction/exceptions';
 import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
+import { AssetChangeDirection } from '../../services/transaction-scan';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
@@ -291,18 +292,33 @@ describe('ConfirmSendHandler', () => {
       origin: METAMASK_ORIGIN,
       renderContext: {
         account,
-        assetMetadata,
         toAddress: destinationAddress,
-        amount: '1',
       },
       renderOptions: {
         loadPrice: true,
-        scanTxn: true,
-        validateTxn: true,
+        securityScanning: true,
+        localSimulation: true,
       },
       securityScanRequest: {
         accountAddress: account.address,
         transaction: unsignedScanXdr,
+      },
+      initialScan: {
+        status: 'SUCCESS',
+        estimatedChanges: {
+          assets: [
+            {
+              type: AssetChangeDirection.Out,
+              value: 1,
+              price: null,
+              symbol: assetMetadata.symbol,
+              name: assetMetadata.name,
+              logo: assetMetadata.iconUrl,
+            },
+          ],
+        },
+        validation: null,
+        error: null,
       },
       transactionValidationRequest: {
         accountId: account.id,

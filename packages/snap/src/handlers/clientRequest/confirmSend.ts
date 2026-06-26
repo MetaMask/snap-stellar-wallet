@@ -33,6 +33,7 @@ import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import {
   hasDecimals,
+  isSlip44Id,
   toSmallestUnit,
   trackError,
   trackTransactionAdded,
@@ -47,6 +48,8 @@ import type {
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
 import { AccountNotActivatedException } from '../../services/network';
+import { AssetChangeDirection } from '../../services/transaction-scan';
+import type { TransactionScanEstimatedChanges } from '../../services/transaction-scan';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
@@ -309,6 +312,12 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     const { request, account, assetMetadata, fee, scope, transaction } = params;
     const { toAddress, amount, assetId } = request.params;
     const xdr = transaction.getRaw().toXDR();
+    // The send asset and amount are known from the request, so the estimated
+    // changes are just a single outgoing row — no local simulation needed.
+    const estimatedChanges = this.#buildEstimatedChanges({
+      amount,
+      assetMetadata,
+    });
 
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
@@ -316,20 +325,24 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         origin: METAMASK_ORIGIN,
         renderContext: {
           account,
-          assetMetadata,
           toAddress,
-          amount,
         },
         fee: fee.toString(),
         interfaceKey: ConfirmationInterfaceKey.ConfirmSendTransaction,
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
           transaction: xdr,
+        },
+        initialScan: {
+          status: 'SUCCESS',
+          estimatedChanges,
+          validation: null,
+          error: null,
         },
         transactionValidationRequest: {
           accountId: account.id,
@@ -341,6 +354,40 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         } as ContextWithPrices['tokenPrices'],
       })) === true
     );
+  }
+
+  /**
+   * Builds the estimated balance changes for the send confirmation: a single
+   * outgoing row for the known send asset and amount. The network fee is
+   * surfaced separately, so it is excluded here.
+   *
+   * @param params - The parameters.
+   * @param params.amount - The send amount in human-readable units.
+   * @param params.assetMetadata - The asset metadata for the row.
+   * @returns The estimated changes to seed the confirmation.
+   */
+  #buildEstimatedChanges({
+    amount,
+    assetMetadata,
+  }: {
+    amount: string;
+    assetMetadata: StellarAssetMetadata;
+  }): TransactionScanEstimatedChanges {
+    const { assetId, symbol, iconUrl, name } = assetMetadata;
+    const logo = isSlip44Id(assetId) ? null : (iconUrl ?? null);
+
+    return {
+      assets: [
+        {
+          type: AssetChangeDirection.Out,
+          value: Number(amount),
+          price: null,
+          symbol,
+          name: name ?? symbol,
+          logo,
+        },
+      ],
+    };
   }
 
   /**

@@ -169,6 +169,17 @@ export function formatFeeData(
 }
 
 /**
+ * Returns true while a fetch has not settled yet — either it hasn't started
+ * (`Initial`) or it is actively in flight (`Fetching`).
+ *
+ * @param status - The fetch status to inspect.
+ * @returns Whether the status represents an in-progress fetch.
+ */
+export function isFetchInProgress(status: FetchStatus): boolean {
+  return status === FetchStatus.Initial || status === FetchStatus.Fetching;
+}
+
+/**
  * Determines whether the remote (Blockaid) transaction scan is still loading.
  *
  * @param params - Scan state.

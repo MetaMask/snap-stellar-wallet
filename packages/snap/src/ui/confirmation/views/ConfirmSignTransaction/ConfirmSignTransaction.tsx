@@ -23,6 +23,7 @@ import type { ConfirmationBaseProps, FeeData } from '../../api';
 import { FetchStatus } from '../../api';
 import { Asset } from '../../components/Asset';
 import { ConfirmationFooter } from '../../components/ConfirmationFooter';
+import { EstimatedChanges } from '../../components/EstimatedChanges/EstimatedChanges';
 import { FeeRow } from '../../components/Fee';
 import { NetworkRow } from '../../components/Network';
 import { TransactionAlert } from '../../components/TransactionAlert';
@@ -175,8 +176,8 @@ export const ConfirmSignTransaction = ({
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
   const feePrice = tokenPrices?.[feeData.assetId] ?? null;
-  // Sign-transaction has no local re-validation (no validateTxn step), so only
-  // the remote-scan-loading guard applies here.
+  // Sign-transaction has no local simulation/re-validation step, so only the
+  // remote-scan-loading guard applies here.
   const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
   });
@@ -197,6 +198,14 @@ export const ConfirmSignTransaction = ({
           <Heading size="lg">{t('confirmation.signTransaction.title')}</Heading>
           <Box>{null}</Box>
         </Box>
+
+        {preferences.simulateOnChainActions ? (
+          <EstimatedChanges
+            changes={scan?.estimatedChanges ?? null}
+            preferences={preferences}
+            scanFetchStatus={scanFetchStatus}
+          />
+        ) : null}
 
         <Section>
           {origin ? (

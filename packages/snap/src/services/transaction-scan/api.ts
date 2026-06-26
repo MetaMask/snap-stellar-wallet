@@ -132,8 +132,14 @@ export type StellarTransactionScanResponse = Infer<
 
 export type TransactionScanStatus = 'SUCCESS' | 'ERROR';
 
+/** Direction of an estimated balance change relative to the signer. */
+export enum AssetChangeDirection {
+  In = 'in',
+  Out = 'out',
+}
+
 export type TransactionScanAssetChange = {
-  type: 'in' | 'out';
+  type: AssetChangeDirection;
   value: number | null;
   price: number | null;
   symbol: string;
@@ -158,7 +164,7 @@ export type TransactionScanError = {
 };
 
 const TransactionScanAssetChangeStruct = type({
-  type: enums(['in', 'out']),
+  type: enums(Object.values(AssetChangeDirection)),
   value: nullable(number()),
   price: nullable(number()),
   symbol: string(),

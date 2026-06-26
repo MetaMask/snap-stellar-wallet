@@ -152,7 +152,7 @@
       "message": "It may have expired or your account balance changed. Close this request and try again."
     },
     "confirmation.validationScanErrorTitle": {
-      "message": "Security validation failed"
+      "message": "Security check unavailable"
     },
     "confirmation.validationScanErrorSubtitle": {
       "message": "{reason}"

@@ -77,6 +77,12 @@ export const ContextWithSecurityScanStruct = type({
   scan: optional(nullable(TransactionScanResultStruct)),
   scanFetchStatus: enums(Object.values(FetchStatus)),
   securityScanRequest: optional(SecurityScanRequestStruct),
+  // Render-time intents the scan refresher uses to pick Blockaid options,
+  // decoupled from the interface key:
+  // - securityScanning: request remote validation (gated by useSecurityAlerts)
+  // - remoteSimulation: request remote simulation (gated by simulateOnChainActions)
+  securityScanning: boolean(),
+  remoteSimulation: boolean(),
 });
 
 export type ContextWithSecurityScan = Infer<

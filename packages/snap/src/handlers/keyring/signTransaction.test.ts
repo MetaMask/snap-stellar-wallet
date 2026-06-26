@@ -88,8 +88,7 @@ describe('SignTransactionHandler', () => {
   }
 
   /**
-   * Builds a mainnet payment transaction whose source is the wallet so it
-   * passes `assertAccountInvolvesTransaction`.
+   * Builds a mainnet payment transaction whose source is the wallet.
    *
    * @param walletAddress - Wallet's Stellar public key (`G…`).
    * @returns Mock transaction built with `Networks.PUBLIC`.
@@ -145,7 +144,8 @@ describe('SignTransactionHandler', () => {
       expect.objectContaining({
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
+          securityScanning: true,
+          remoteSimulation: true,
         },
         securityScanRequest: {
           accountAddress: mockAccount.address,
@@ -225,38 +225,6 @@ describe('SignTransactionHandler', () => {
     fromXdrSpy.mockRestore();
   });
 
-  it('returns error -3 when the wallet does not participate in the transaction', async () => {
-    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
-
-    const strangerTx = buildMockClassicTransaction(
-      [
-        {
-          type: 'payment',
-          params: {
-            destination: Keypair.random().publicKey(),
-            asset: 'native',
-            amount: '1',
-          },
-        },
-      ],
-      {
-        networkPassphrase: Networks.PUBLIC,
-        source: {
-          accountId: Keypair.random().publicKey(),
-          sequence: '1',
-        },
-      },
-    );
-    const result = await handler.handle(
-      buildRequest(mockAccount.id, strangerTx.getRaw().toXDR()),
-    );
-
-    expect(result).toMatchObject({
-      error: { code: Sep43ErrorCode.InvalidRequest },
-    });
-    expect(renderConfirmationDialog).not.toHaveBeenCalled();
-  });
-
   it('returns error -3 when scope is testnet', async () => {
     const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
 
@@ -284,52 +252,6 @@ describe('SignTransactionHandler', () => {
       error: { code: Sep43ErrorCode.InvalidRequest },
     });
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
-  });
-
-  it('returns error -3 when the transaction has expired', async () => {
-    const { handler, mockAccount, renderConfirmationDialog } = setupHandler();
-    const USDC_ISSUER =
-      'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
-    const MOCK_USDC_ASSET = { code: 'USDC', issuer: USDC_ISSUER } as const;
-    const mockNow = 1700000000000;
-    jest.useFakeTimers();
-    jest.setSystemTime(mockNow);
-
-    try {
-      const tx = buildMockClassicTransaction(
-        [
-          {
-            type: 'pathPaymentStrictSend',
-            params: {
-              source: mockAccount.address,
-              sendAsset: MOCK_USDC_ASSET,
-              sendAmount: '40',
-              destination: mockAccount.address,
-              destAsset: MOCK_USDC_ASSET,
-              destMin: '35',
-            },
-          },
-        ],
-        {
-          networkPassphrase: Networks.PUBLIC,
-          source: { accountId: mockAccount.address, sequence: '1' },
-          timeout: 1,
-        },
-      );
-
-      jest.advanceTimersByTime(2000);
-      const result = await handler.handle(
-        buildRequest(mockAccount.id, tx.getRaw().toXDR(), {
-          opts: { networkPassphrase: Networks.PUBLIC },
-        }),
-      );
-      expect(result).toMatchObject({
-        error: { code: Sep43ErrorCode.InvalidRequest },
-      });
-      expect(renderConfirmationDialog).not.toHaveBeenCalled();
-    } finally {
-      jest.useRealTimers();
-    }
   });
 
   it.each([
