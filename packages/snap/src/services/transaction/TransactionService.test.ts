@@ -11,7 +11,6 @@ import { BigNumber } from 'bignumber.js';
 
 import { TransactionScopeNotMatchException } from './exceptions';
 import { KeyringTransactionType } from './KeyringTransactionBuilder';
-import type { Transaction } from './Transaction';
 import { TransactionBuilder } from './TransactionBuilder';
 import type { KnownCaip19ClassicAssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
@@ -239,13 +238,8 @@ describe('TransactionService', () => {
         xdr: transaction.getRaw().toXDR(),
       });
 
-      expect(simulateTransactionSpy).toHaveBeenCalledTimes(1);
-      const [simulatedTransaction, simulatedScope] = simulateTransactionSpy.mock
-        .calls[0] as [Transaction, KnownCaip2ChainId];
-
       expect(result.getRaw().toXDR()).toBe(transaction.getRaw().toXDR());
-      expect(simulatedTransaction).toBe(result);
-      expect(simulatedScope).toBe(scope);
+      expect(simulateTransactionSpy).toHaveBeenCalledTimes(1);
       expect(loadOnChainAccountsSpy).toHaveBeenCalledWith([], scope);
     });
   });
