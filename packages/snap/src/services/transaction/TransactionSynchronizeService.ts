@@ -29,20 +29,19 @@ import type {
   KeyringAccountId,
   StellarKeyringAccount,
 } from '../account';
+import type { StellarKeyringTransaction } from './api';
 import { TransactionOrder } from './api';
 import type { Transaction } from './Transaction';
 import type { TransactionMapper } from './TransactionMapper';
 import type { TransactionRepository } from './TransactionRepository';
 import type { StellarAssetMetadata } from '../asset-metadata';
-import type { NetworkService } from '../network';
-import { isPendingTransactionStatus } from './utils';
+import { TransactionNotFoundException, type NetworkService } from '../network';
+import {
+  isPendingTransactionStatus,
+  shouldDropPendingTransaction,
+  toKeyringTransactions,
+} from './utils';
 import type { ActivatedAccountPair } from '../sync/api';
-
-/** Pending snap-state txs keyed by account, then by on-chain transaction hash. */
-type PendingTransactionsByAccount = Map<
-  KeyringAccountId,
-  Map<TransactionId, KeyringTransaction>
->;
 
 /**
  * Mutable state shared across fetch, map, and persist steps within one sync run.
@@ -53,10 +52,10 @@ type SyncContext = {
   keyringAccountsById: Map<KeyringAccountId, StellarKeyringAccount>;
   /** All snap-managed accounts on `scope`, keyed by address for SEP-41 receive mapping. */
   allAccountsByAddress: Map<StellarAddress, StellarKeyringAccount>;
-  pendingByAccount: PendingTransactionsByAccount;
+  pendingTransactionsById: Map<TransactionId, StellarKeyringTransaction>;
   lastScanTokenByAccountId: Record<KeyringAccountId, string | null>;
   /** Mapped keyring txs collected during steps 2–3; persisted and emitted in step 4. */
-  transactionsToSave: Record<KeyringAccountId, KeyringTransaction[]>;
+  transactionsToSave: Record<KeyringAccountId, StellarKeyringTransaction[]>;
   sep41AssetsMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>;
 };
 
@@ -151,6 +150,7 @@ export class TransactionSynchronizeService {
       });
   }
 
+  // #region -------------------- Context Creation --------------------
   async #createSyncContext(
     activatedAccountPairs: ActivatedAccountPair[],
     scope: KnownCaip2ChainId,
@@ -169,12 +169,15 @@ export class TransactionSynchronizeService {
     }
 
     // Use Promise.all (not allSettled): if state cannot be loaded, sync cannot continue.
-    const [pendingByAccount, lastScanTokenByAccountId, allAccountsByAddress] =
-      await Promise.all([
-        this.#loadPendingTransactionsFromState(keyringAccountIds, scope),
-        this.#fetchLastScanTokens(keyringAccountIds, scope),
-        this.#loadAllAccountsByAddress(scope),
-      ]);
+    const [
+      pendingTransactionsById,
+      lastScanTokenByAccountId,
+      allAccountsByAddress,
+    ] = await Promise.all([
+      this.#loadPendingTransactionsFromState(keyringAccountIds, scope),
+      this.#fetchLastScanTokens(keyringAccountIds, scope),
+      this.#loadAllAccountsByAddress(scope),
+    ]);
     const sep41AssetsMetadata = this.#toSep41AssetsMetadata(sep41Assets);
 
     return {
@@ -182,7 +185,7 @@ export class TransactionSynchronizeService {
       keyringAccounts,
       keyringAccountsById,
       allAccountsByAddress,
-      pendingByAccount,
+      pendingTransactionsById,
       lastScanTokenByAccountId,
       transactionsToSave: {},
       sep41AssetsMetadata,
@@ -230,31 +233,37 @@ export class TransactionSynchronizeService {
   async #loadPendingTransactionsFromState(
     keyringAccountIds: KeyringAccountId[],
     scope: KnownCaip2ChainId,
-  ): Promise<PendingTransactionsByAccount> {
-    const transactions = await this.#transactionRepository.findByAccountIds(
-      keyringAccountIds,
-      scope,
-    );
+  ): Promise<Map<TransactionId, StellarKeyringTransaction>> {
+    const transactions =
+      await this.#transactionRepository.findStellarTransactionsByAccountIds(
+        keyringAccountIds,
+        scope,
+      );
 
-    const pendingByAccount: PendingTransactionsByAccount = new Map();
+    const pendingTransactionsById: Map<
+      TransactionId,
+      StellarKeyringTransaction
+    > = new Map();
 
-    // Transaction ids can be shared across accounts (send vs receive), so index by account first.
+    // Pending txs are unique and belong to the submitting account only.
+    // Hence we don't need to group by account ID..
     for (const transaction of transactions) {
       if (isPendingTransactionStatus(transaction.status)) {
-        this.#setPendingInState(pendingByAccount, transaction);
+        pendingTransactionsById.set(transaction.id, transaction);
       }
     }
 
     this.#logger.debug('Pending transactions loaded from snap state', {
       noOfAccounts: keyringAccountIds.length,
       noOfStoredTransactions: transactions.length,
-      noOfPendingTransactions:
-        this.#getPendingTransactionCount(pendingByAccount),
+      noOfPendingTransactions: pendingTransactionsById.size,
     });
 
-    return pendingByAccount;
+    return pendingTransactionsById;
   }
+  // #endregion
 
+  // #region -------------------- Main Step to scan transactions --------------------
   async #scanAccountTransactionsAndMap(context: SyncContext): Promise<void> {
     // We use promise.allSettled here because we want to continue the sync even if some accounts fail to fetch.
     const fetchResults = await batchesAllSettled(
@@ -288,26 +297,23 @@ export class TransactionSynchronizeService {
       let noOfResolved = 0;
 
       for (const transaction of transactions) {
-        const pendingFromState = this.#getPendingFromState(
-          context.pendingByAccount,
-          keyringAccount.id,
+        const pendingTransaction = context.pendingTransactionsById.get(
           transaction.id,
         );
+        const pendingForAccount =
+          pendingTransaction?.account === keyringAccount.id
+            ? pendingTransaction
+            : undefined;
 
-        // Pending tx seen in this scan — skip the reconcile pass below.
-        if (pendingFromState) {
-          this.#deletePendingFromState(
-            context.pendingByAccount,
-            keyringAccount.id,
-            transaction.id,
-          );
+        if (pendingForAccount) {
+          context.pendingTransactionsById.delete(transaction.id);
           noOfResolved += 1;
         }
 
         this.#appendMappedTransaction(context, {
           keyringAccount,
           onChainTransaction: transaction,
-          pendingFromState,
+          pendingTransaction: pendingForAccount,
         });
       }
 
@@ -327,110 +333,105 @@ export class TransactionSynchronizeService {
   async #reconcilePendingTransactionsAndMap(
     context: SyncContext,
   ): Promise<void> {
-    const pendingCountBeforeReconcile = this.#getPendingTransactionCount(
-      context.pendingByAccount,
-    );
+    const pendingCountBeforeReconcile = context.pendingTransactionsById.size;
 
     if (pendingCountBeforeReconcile === 0) {
       return;
     }
 
-    const pendingByTransactionId: Record<TransactionId, KeyringTransaction[]> =
-      {};
-
-    // Group by transaction id so each on-chain hash is fetched once when shared across accounts.
-    for (const pendingById of context.pendingByAccount.values()) {
-      for (const pendingFromState of pendingById.values()) {
-        pushToRecordArray(
-          pendingByTransactionId,
-          pendingFromState.id,
-          pendingFromState,
-        );
-      }
-    }
-
-    const transactionIdsToFetch = Object.keys(pendingByTransactionId);
+    const transactionIdsToFetch = Array.from(
+      context.pendingTransactionsById.keys(),
+    );
 
     this.#logger.debug('Reconciling pending transactions', {
       transactionIdsToFetch,
     });
 
-    // TODO: adding a max reconcile limit to avoid the sync running forever.
     const fetchResults = await batchesAllSettled(
       transactionIdsToFetch,
       10,
-      async (transactionId) => ({
-        transactionId,
-        onChainTransaction: await this.#fetchOnChainTransaction(
-          transactionId,
-          context.scope,
-        ),
-      }),
+      async (transactionId) =>
+        this.#fetchOnChainTransaction(transactionId, context.scope),
     );
 
     for (const fetchResult of fetchResults) {
       if (fetchResult.status === 'rejected') {
+        const error = fetchResult.reason;
+        // if the error is a TransactionNotFoundException,
+        // increment the reconcile attempt and continue.
+        if (error instanceof TransactionNotFoundException) {
+          this.#incrementReconcileAttempt(context, error.transactionHash);
+          continue;
+        }
+        // for other errors, log and continue.
         this.#logger.warn('Failed to fetch on-chain transaction', {
           error: fetchResult.reason,
         });
         continue;
       }
 
-      const { transactionId, onChainTransaction } = fetchResult.value;
+      const onChainTransaction = fetchResult.value;
 
-      // Map the on-chain transaction for every account that still has it pending.
-      for (const pendingFromState of pendingByTransactionId[transactionId] ??
-        []) {
-        const keyringAccount = context.keyringAccountsById.get(
-          pendingFromState.account,
-        );
-
-        if (!keyringAccount) {
-          this.#logger.warn(
-            'Failed to find keyring account for pending transaction',
-            { transactionId, accountId: pendingFromState.account },
-          );
-          continue;
-        }
-
-        this.#appendMappedTransaction(context, {
-          keyringAccount,
-          onChainTransaction,
-          pendingFromState,
+      // Get the pending transaction from the sync context.
+      // OnChain Transaction Id should be the same as the Pending Transaction Id.
+      const pendingTransaction = context.pendingTransactionsById.get(
+        onChainTransaction.id,
+      );
+      if (!pendingTransaction) {
+        this.#logger.warn('Pending transaction not found after fetch', {
+          transactionId: onChainTransaction.id,
         });
-
-        this.#deletePendingFromState(
-          context.pendingByAccount,
-          pendingFromState.account,
-          transactionId,
-        );
+        continue;
       }
+
+      // Find the keyring account that the pending transaction belongs to.
+      // The pending transaction should only belong to one single account.
+      const keyringAccount = context.keyringAccountsById.get(
+        pendingTransaction.account,
+      );
+      if (!keyringAccount) {
+        this.#logger.warn(
+          'Failed to find keyring account for pending transaction',
+          {
+            transactionId: pendingTransaction.id,
+            accountId: pendingTransaction.account,
+          },
+        );
+        continue;
+      }
+
+      this.#appendMappedTransaction(context, {
+        keyringAccount,
+        onChainTransaction,
+        pendingTransaction,
+      });
+
+      context.pendingTransactionsById.delete(pendingTransaction.id);
     }
 
-    const remainingPendingCount = this.#getPendingTransactionCount(
-      context.pendingByAccount,
-    );
+    const remainingPendingCount = context.pendingTransactionsById.size;
 
     this.#logger.debug('Pending transactions reconciled', {
       noOfResolved: pendingCountBeforeReconcile - remainingPendingCount,
       noOfRemaining: remainingPendingCount,
     });
   }
+  // #endregion
 
   #appendMappedTransaction(
     context: SyncContext,
     params: {
       keyringAccount: StellarKeyringAccount;
       onChainTransaction: Transaction;
-      pendingFromState?: KeyringTransaction;
+      pendingTransaction?: KeyringTransaction;
     },
   ): void {
-    const { keyringAccount, onChainTransaction, pendingFromState } = params;
+    const { keyringAccount, onChainTransaction, pendingTransaction } = params;
 
     const mappedTransaction = this.#transactionMapper.mapTransactionSafe({
       transaction: onChainTransaction,
       keyringAccount,
-      transactionFromState: pendingFromState,
+      transactionFromState: pendingTransaction,
       assetMetadata: context.sep41AssetsMetadata,
     });
 
@@ -583,6 +584,9 @@ export class TransactionSynchronizeService {
   async #saveTransactions(context: SyncContext): Promise<void> {
     this.#logger.debug('Saving transactions');
     const transactions = Object.values(context.transactionsToSave).flat();
+    const pendingTransactions = Array.from(
+      context.pendingTransactionsById.values(),
+    );
 
     const lastScanTokensByAccountIdWithScope: Record<
       KeyringAccountId,
@@ -598,7 +602,7 @@ export class TransactionSynchronizeService {
     }
 
     await this.#transactionRepository.saveMany(
-      transactions,
+      transactions.concat(pendingTransactions),
       lastScanTokensByAccountIdWithScope,
     );
     this.#logger.debug('Transactions saved');
@@ -612,58 +616,18 @@ export class TransactionSynchronizeService {
       getSnapProvider(),
       KeyringEvent.AccountTransactionsUpdated,
       {
-        transactions: context.transactionsToSave,
+        // Strip snap-internal reconcile metadata before keyring emit.
+        transactions: Object.fromEntries(
+          Object.entries(context.transactionsToSave).map(
+            ([accountId, transactions]) => [
+              accountId,
+              toKeyringTransactions(transactions),
+            ],
+          ),
+        ),
       },
     );
     this.#logger.debug('Transactions updated event emitted');
-  }
-
-  #getPendingTransactionCount(
-    pendingByAccount: PendingTransactionsByAccount,
-  ): number {
-    let count = 0;
-    for (const pendingById of pendingByAccount.values()) {
-      count += pendingById.size;
-    }
-    return count;
-  }
-
-  #getPendingFromState(
-    pendingByAccount: PendingTransactionsByAccount,
-    accountId: KeyringAccountId,
-    transactionId: TransactionId,
-  ): KeyringTransaction | undefined {
-    return pendingByAccount.get(accountId)?.get(transactionId);
-  }
-
-  #deletePendingFromState(
-    pendingByAccount: PendingTransactionsByAccount,
-    accountId: KeyringAccountId,
-    transactionId: TransactionId,
-  ): void {
-    const pendingById = pendingByAccount.get(accountId);
-    if (!pendingById) {
-      return;
-    }
-
-    pendingById.delete(transactionId);
-
-    if (pendingById.size === 0) {
-      pendingByAccount.delete(accountId);
-    }
-  }
-
-  #setPendingInState(
-    pendingByAccount: PendingTransactionsByAccount,
-    transaction: KeyringTransaction,
-  ): void {
-    let pendingById = pendingByAccount.get(transaction.account);
-    if (!pendingById) {
-      pendingById = new Map();
-      pendingByAccount.set(transaction.account, pendingById);
-    }
-
-    pendingById.set(transaction.id, transaction);
   }
 
   /**
@@ -704,5 +668,39 @@ export class TransactionSynchronizeService {
     }
 
     return to.address;
+  }
+
+  /**
+   * Records a Horizon not-found reconcile attempt on a pending transaction.
+   * Eviction is deferred to {@link TransactionRepository.saveMany} when both
+   * `maxReconcileAttempts` and `maxPendingTransactionAge` are exceeded.
+   *
+   * @param context - Mutable sync run state including pending transactions.
+   * @param transactionId - Pending transaction hash that Horizon did not return.
+   */
+  #incrementReconcileAttempt(
+    context: SyncContext,
+    transactionId: TransactionId,
+  ): void {
+    const transaction = context.pendingTransactionsById.get(transactionId);
+    if (!transaction) {
+      return;
+    }
+
+    const reconcileAttemptCount = (transaction.reconcileAttemptCount ?? 0) + 1;
+    transaction.reconcileAttemptCount = reconcileAttemptCount;
+
+    context.pendingTransactionsById.set(transactionId, transaction);
+
+    if (shouldDropPendingTransaction(transaction)) {
+      this.#logger.debug(
+        'Pending transaction eligible for eviction on save after max reconcile attempts and max age are exceeded',
+        {
+          transactionId,
+          accountId: transaction.account,
+          reconcileAttemptCount,
+        },
+      );
+    }
   }
 }

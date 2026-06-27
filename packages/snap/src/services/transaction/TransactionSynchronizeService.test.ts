@@ -14,6 +14,7 @@ import {
   buildMockClassicTransaction,
   generateMockTransactions,
 } from './__mocks__/transaction.fixtures';
+import type { StellarKeyringTransaction } from './api';
 import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 import { Transaction } from './Transaction';
 import { TransactionMapper } from './TransactionMapper';
@@ -27,7 +28,7 @@ import type { AccountService } from '../account/AccountService';
 import type { StellarAssetMetadata } from '../asset-metadata/api';
 import { toStellarAssetMetadata } from '../asset-metadata/utils';
 import { createMemoryCache } from '../cache/__mocks__/cache.fixtures';
-import { NetworkService } from '../network';
+import { NetworkService, TransactionNotFoundException } from '../network';
 import {
   createMockAccountWithBalances,
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
@@ -140,9 +141,9 @@ describe('TransactionSynchronizeService', () => {
       accountService,
       getTransactionsSpy: jest.spyOn(networkService, 'getTransactions'),
       getTransactionSpy: jest.spyOn(networkService, 'getTransaction'),
-      findByAccountIdsSpy: jest.spyOn(
+      findStellarTransactionsByAccountIdsSpy: jest.spyOn(
         transactionRepository,
-        'findByAccountIds',
+        'findStellarTransactionsByAccountIds',
       ),
       findLastScanTokenSpy: jest.spyOn(
         transactionRepository,
@@ -204,7 +205,7 @@ describe('TransactionSynchronizeService', () => {
     const {
       service,
       getTransactionsSpy,
-      findByAccountIdsSpy,
+      findStellarTransactionsByAccountIdsSpy,
       findLastScanTokenSpy,
       saveManySpy,
       emitSnapKeyringEventSpy,
@@ -219,7 +220,7 @@ describe('TransactionSynchronizeService', () => {
       amount: '3',
     });
 
-    findByAccountIdsSpy.mockResolvedValue([]);
+    findStellarTransactionsByAccountIdsSpy.mockResolvedValue([]);
     findLastScanTokenSpy.mockResolvedValue({
       [keyringAccount.id]: null,
     });
@@ -270,7 +271,7 @@ describe('TransactionSynchronizeService', () => {
       service,
       getTransactionsSpy,
       getTransactionSpy,
-      findByAccountIdsSpy,
+      findStellarTransactionsByAccountIdsSpy,
       findLastScanTokenSpy,
       saveManySpy,
     } = setup();
@@ -290,7 +291,7 @@ describe('TransactionSynchronizeService', () => {
       status: TransactionStatus.Unconfirmed,
     });
 
-    findByAccountIdsSpy.mockResolvedValue([
+    findStellarTransactionsByAccountIdsSpy.mockResolvedValue([
       pendingTransaction as KeyringTransaction,
     ]);
     findLastScanTokenSpy.mockResolvedValue({
@@ -343,7 +344,7 @@ describe('TransactionSynchronizeService', () => {
     const {
       service,
       getTransactionsSpy,
-      findByAccountIdsSpy,
+      findStellarTransactionsByAccountIdsSpy,
       findLastScanTokenSpy,
       saveManySpy,
       emitSnapKeyringEventSpy,
@@ -359,7 +360,7 @@ describe('TransactionSynchronizeService', () => {
       scope,
     });
 
-    findByAccountIdsSpy.mockResolvedValue([]);
+    findStellarTransactionsByAccountIdsSpy.mockResolvedValue([]);
     findLastScanTokenSpy.mockResolvedValue({
       [senderAccount.id]: null,
     });
@@ -438,7 +439,7 @@ describe('TransactionSynchronizeService', () => {
     const {
       service,
       getTransactionsSpy,
-      findByAccountIdsSpy,
+      findStellarTransactionsByAccountIdsSpy,
       findLastScanTokenSpy,
       emitSnapKeyringEventSpy,
     } = setup({
@@ -456,7 +457,7 @@ describe('TransactionSynchronizeService', () => {
       scope,
     });
 
-    findByAccountIdsSpy.mockResolvedValue([]);
+    findStellarTransactionsByAccountIdsSpy.mockResolvedValue([]);
     findLastScanTokenSpy.mockResolvedValue({
       [senderAccount.id]: null,
     });
@@ -483,6 +484,109 @@ describe('TransactionSynchronizeService', () => {
     );
     expect(emitSnapKeyringEventSpy.mock.calls[0]?.[2]).not.toHaveProperty(
       `transactions.${recipientAccount.id}`,
+    );
+  });
+
+  it('increments reconcile attempt when pending transaction is not found on Horizon', async () => {
+    const {
+      service,
+      getTransactionsSpy,
+      getTransactionSpy,
+      findStellarTransactionsByAccountIdsSpy,
+      findLastScanTokenSpy,
+      saveManySpy,
+    } = setup();
+    const { keyringAccount, activatedAccountPair } = buildActivatedPair(
+      'account-sync-attempt',
+      'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+    );
+    const [pendingTransaction] = generateMockTransactions(1, {
+      id: 'missing-tx-hash',
+      account: keyringAccount.id,
+      scope,
+      status: TransactionStatus.Unconfirmed,
+    });
+
+    findStellarTransactionsByAccountIdsSpy.mockResolvedValue([
+      {
+        ...pendingTransaction,
+        reconcileAttemptCount: 1,
+      } as StellarKeyringTransaction,
+    ]);
+    findLastScanTokenSpy.mockResolvedValue({
+      [keyringAccount.id]: 'existing-token',
+    });
+    getTransactionsSpy.mockResolvedValue([]);
+    getTransactionSpy.mockRejectedValue(
+      new TransactionNotFoundException('missing-tx-hash'),
+    );
+
+    await service.synchronize([activatedAccountPair], scope, []);
+
+    expect(getTransactionSpy).toHaveBeenCalledWith('missing-tx-hash', scope);
+    expect(saveManySpy).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: 'missing-tx-hash',
+          reconcileAttemptCount: 2,
+        }),
+      ],
+      {
+        [keyringAccount.id]: {
+          [scope]: 'existing-token',
+        },
+      },
+    );
+  });
+
+  it('increments reconcile attempt to max when one below limit', async () => {
+    const {
+      service,
+      getTransactionsSpy,
+      getTransactionSpy,
+      findStellarTransactionsByAccountIdsSpy,
+      findLastScanTokenSpy,
+      saveManySpy,
+    } = setup();
+    const { keyringAccount, activatedAccountPair } = buildActivatedPair(
+      'account-sync-drop',
+      'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+    );
+    const [pendingTransaction] = generateMockTransactions(1, {
+      id: 'missing-tx-hash-drop',
+      account: keyringAccount.id,
+      scope,
+      status: TransactionStatus.Unconfirmed,
+    });
+
+    findStellarTransactionsByAccountIdsSpy.mockResolvedValue([
+      {
+        ...pendingTransaction,
+        reconcileAttemptCount: 4,
+      } as StellarKeyringTransaction,
+    ]);
+    findLastScanTokenSpy.mockResolvedValue({
+      [keyringAccount.id]: 'existing-token',
+    });
+    getTransactionsSpy.mockResolvedValue([]);
+    getTransactionSpy.mockRejectedValue(
+      new TransactionNotFoundException('missing-tx-hash-drop'),
+    );
+
+    await service.synchronize([activatedAccountPair], scope, []);
+
+    expect(saveManySpy).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: 'missing-tx-hash-drop',
+          reconcileAttemptCount: 5,
+        }),
+      ],
+      {
+        [keyringAccount.id]: {
+          [scope]: 'existing-token',
+        },
+      },
     );
   });
 });

@@ -110,6 +110,20 @@ const ConfigStruct = object({
      * The maximum fee threshold in XLM for the Stellar network.
      */
     maxFeeThresholdInXLM: parseFloatStruct(1, 1),
+    /**
+     * The maximum number of Horizon not-found reconcile attempts for a pending transaction.
+     * Used with `maxPendingTransactionAge` to evict stale pending txs from snap state;
+     * both limits must be exceeded before a pending tx is dropped.
+     * Minimum value is 2 to avoid dropping the pending transaction too early.
+     */
+    maxReconcileAttempts: parseIntegerStruct(2, 5),
+    /**
+     * The maximum age of a pending transaction in milliseconds.
+     * Used with `maxReconcileAttempts` to evict stale pending txs from snap state;
+     * both limits must be exceeded before a pending tx is dropped.
+     * Minimum value is 15000 to avoid dropping the pending transaction too early.
+     */
+    maxPendingTransactionAge: parseIntegerStruct(15000, 30000),
   }),
   api: object({
     tokenApi: object({
@@ -185,6 +199,8 @@ export const AppConfig = create(
       maxFeeThresholdInXLM: process.env.MAX_FEE_THRESHOLD_IN_XLM,
       trackTransactionMaxReschedules:
         process.env.TRACK_TRANSACTION_MAX_RESCHEDULES,
+      maxReconcileAttempts: process.env.MAX_RECONCILE_ATTEMPTS,
+      maxPendingTransactionAge: process.env.MAX_PENDING_TRANSACTION_AGE,
     },
     api: {
       tokenApi: {

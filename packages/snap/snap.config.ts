@@ -44,6 +44,8 @@ const config: SnapConfig = {
     BASE_FEE_MULTIPLIER: process.env.BASE_FEE_MULTIPLIER ?? '',
     SIMULATION_FEE_MULTIPLIER: process.env.SIMULATION_FEE_MULTIPLIER ?? '',
     MAX_FEE_THRESHOLD_IN_XLM: process.env.MAX_FEE_THRESHOLD_IN_XLM ?? '',
+    MAX_RECONCILE_ATTEMPTS: process.env.MAX_RECONCILE_ATTEMPTS ?? '',
+    MAX_PENDING_TRANSACTION_AGE: process.env.MAX_PENDING_TRANSACTION_AGE ?? '',
   },
   polyfills: true,
 };
