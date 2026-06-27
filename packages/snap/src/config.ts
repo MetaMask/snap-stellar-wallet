@@ -96,16 +96,13 @@ const ConfigStruct = object({
      */
     trackTransactionMaxReschedules: parseIntegerStruct(0, 10),
     /**
-     * The base fee multiplier for the Stellar network.
+     * Multiplier applied to the Stellar network base fee to set the per-operation inclusion fee on
+     * submitted transactions. Inclusion fee determines ledger ordering; it is separate from
+     * the Soroban resource fee returned by simulation.
+     *
+     * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering
      */
     baseFeeMultiplier: parseFloatStruct(1, 10),
-    /**
-     * The smart contract transaction fee multiplier for the Stellar network.
-     * The multiplier is higher because smart contract transactions have tighter ledger limits than normal transactions.
-     *
-     * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering#ledger-limits
-     */
-    simulationFeeMultiplier: parseFloatStruct(1, 10),
     /**
      * The maximum fee threshold in XLM for the Stellar network.
      */
@@ -181,7 +178,6 @@ export const AppConfig = create(
       timeout: process.env.TRANSACTION_TIMEOUT,
       pollingAttempts: process.env.TRANSACTION_POLLING_ATTEMPTS,
       baseFeeMultiplier: process.env.BASE_FEE_MULTIPLIER,
-      simulationFeeMultiplier: process.env.SIMULATION_FEE_MULTIPLIER,
       maxFeeThresholdInXLM: process.env.MAX_FEE_THRESHOLD_IN_XLM,
       trackTransactionMaxReschedules:
         process.env.TRACK_TRANSACTION_MAX_RESCHEDULES,

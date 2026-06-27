@@ -7,7 +7,6 @@ import {
   nativeToScVal,
   NotFoundError,
   rpc as StellarRpc,
-  SorobanDataBuilder,
   TransactionBuilder as StellarTransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
@@ -1203,36 +1202,6 @@ describe('NetworkService', () => {
       });
 
       isSimErrorSpy.mockRestore();
-    });
-
-    it('applies simulationFeeMultiplier to minResourceFee before assembling', async () => {
-      const { simulateTransactionSpy } = getRpcServerSpies();
-      const mockInvoke = createMockInvokeHostFunctionTransaction();
-      const minResourceFee = '1000';
-      const transactionData = new SorobanDataBuilder();
-      const setResourceFeeSpy = jest.spyOn(transactionData, 'setResourceFee');
-      simulateTransactionSpy.mockResolvedValue({
-        // eslint-disable-next-line @typescript-eslint/naming-convention
-        _parsed: true,
-        id: '1',
-        latestLedger: 1,
-        events: [],
-        minResourceFee,
-        transactionData,
-        result: { auth: [] },
-      } as never);
-
-      const result = await networkService.simulateTransaction(
-        mockInvoke,
-        scope,
-      );
-
-      expect(result).toBeInstanceOf(Transaction);
-      expect(setResourceFeeSpy).toHaveBeenCalledWith(
-        new BigNumber(minResourceFee)
-          .multipliedBy(AppConfig.transaction.simulationFeeMultiplier)
-          .toString(),
-      );
     });
 
     it('calls RPC simulateTransaction with the wrapped envelope getRaw()', async () => {

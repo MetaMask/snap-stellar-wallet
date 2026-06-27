@@ -4,6 +4,7 @@ import { BigNumber } from 'bignumber.js';
 
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
+import { BASE_FEE } from '../../constants';
 import { toSmallestUnit } from '../../utils';
 import { parseScValToNative } from '../transaction/xdrParser';
 
@@ -103,5 +104,21 @@ export function multiplyFee(fee: BigNumber, multiplier: number): BigNumber {
   return BigNumber.min(
     feeMultiplied,
     toSmallestUnit(new BigNumber(AppConfig.transaction.maxFeeThresholdInXLM)),
+  );
+}
+
+/**
+ * Computes the per-operation inclusion fee from the Stellar network base fee (or protocol minimum).
+ *
+ * @param baseFee - Stellar network base fee in stroops; defaults to {@link BASE_FEE}.
+ * @returns Inclusion fee in stroops, scaled by {@link AppConfig.transaction.baseFeeMultiplier}
+ * and capped at {@link AppConfig.transaction.maxFeeThresholdInXLM}.
+ */
+export function baseInclusionFee(
+  baseFee: BigNumber | number = BASE_FEE,
+): BigNumber {
+  return multiplyFee(
+    new BigNumber(baseFee),
+    AppConfig.transaction.baseFeeMultiplier,
   );
 }

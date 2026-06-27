@@ -42,7 +42,6 @@ const config: SnapConfig = {
     SEP41_ASSET_BALANCE_TTL_MILLISECONDS:
       process.env.SEP41_ASSET_BALANCE_TTL_MILLISECONDS ?? '',
     BASE_FEE_MULTIPLIER: process.env.BASE_FEE_MULTIPLIER ?? '',
-    SIMULATION_FEE_MULTIPLIER: process.env.SIMULATION_FEE_MULTIPLIER ?? '',
     MAX_FEE_THRESHOLD_IN_XLM: process.env.MAX_FEE_THRESHOLD_IN_XLM ?? '',
   },
   polyfills: true,
