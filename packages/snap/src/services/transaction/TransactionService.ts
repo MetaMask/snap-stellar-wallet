@@ -291,7 +291,7 @@ export class TransactionService {
       );
     }
 
-    // Simulate to attach the Soroban resource fee and footprint; inclusion fee is already set above.
+    // Simulate to attach the Soroban resource fee and footprint..
     transaction = await this.#networkService.simulateSep41TransferWithCache({
       transaction,
       scope,
@@ -399,7 +399,7 @@ export class TransactionService {
       scope,
     });
 
-    // Bridge API swap transaction already include the fee — we trust it and do not recalculate.
+    // Bridge API swap transaction already includes the fee — we trust it and do not recalculate.
     // For Soroban invokes, computingFee simulates the transaction to validate it.
     await this.computingFee(transaction);
 
