@@ -152,7 +152,7 @@ export const createMockAccountWithBalances = (
  * @returns On-chain service plus the account and wallet services wired to the same state.
  */
 export function mockOnChainAccountService() {
-  const walletService = new WalletService({ logger });
+  const walletService = new WalletService();
   const state = new State({
     encrypted: false,
     defaultState: {

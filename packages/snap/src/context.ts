@@ -92,7 +92,7 @@ const assetMetadataService = new AssetMetadataService({
 const transactionBuilder = new TransactionBuilder({
   logger,
 });
-const walletService = new WalletService({ logger });
+const walletService = new WalletService();
 
 const accountService = new AccountService({
   logger,

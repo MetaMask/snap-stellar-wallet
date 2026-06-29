@@ -2,17 +2,18 @@ import { SLIP10Node } from '@metamask/key-tree';
 import { hexToBytes } from '@metamask/utils';
 import { Keypair } from '@stellar/stellar-sdk';
 
-import { getTestWallet } from './__mocks__/wallet.fixtures';
-import { WalletServiceException } from './exceptions';
+import {
+  getTestWallet,
+  generateStellarAddress,
+} from './__mocks__/wallet.fixtures';
 import { WalletService } from './WalletService';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { bufferToUint8Array } from '../../utils/buffer';
-import { logger } from '../../utils/logger';
+import { StellarSnapException } from '../../utils/errors';
 import { getBip32Entropy } from '../../utils/snap';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
 import { DerivedAccountAddressMismatchException } from '../account/exceptions';
 
-jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
 
 describe('WalletService', () => {
@@ -29,7 +30,7 @@ describe('WalletService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(getBip32Entropy).mockResolvedValue(mockBip32Node);
-    walletService = new WalletService({ logger });
+    walletService = new WalletService();
   });
 
   describe('deriveAddress', () => {
@@ -43,7 +44,7 @@ describe('WalletService', () => {
       expect(address).toStrictEqual(wallet.address);
     });
 
-    it('throws a WalletServiceException if the keypair derivation fails', async () => {
+    it('throws a KeyDerivationException if the keypair derivation fails', async () => {
       jest
         .mocked(getBip32Entropy)
         .mockRejectedValue(new Error('something went wrong'));
@@ -53,7 +54,42 @@ describe('WalletService', () => {
           index: 0,
           entropySource: 'entropy-source-1',
         }),
-      ).rejects.toThrow(WalletServiceException);
+      ).rejects.toThrow(
+        'Key derivation failed. Unable to derive keypair from entropy',
+      );
+    });
+
+    it('throws a KeyDerivationException when getBip32Entropy rejects with StellarSnapException', async () => {
+      jest
+        .mocked(getBip32Entropy)
+        .mockRejectedValue(
+          new StellarSnapException('Failed to get BIP32 entropy from Snap'),
+        );
+
+      await expect(
+        walletService.deriveAddress({
+          index: 0,
+          entropySource: 'entropy-source-1',
+        }),
+      ).rejects.toThrow(
+        'Key derivation failed. Unable to derive keypair from entropy',
+      );
+    });
+
+    it('throws a KeyDerivationException when derived node is missing key material', async () => {
+      jest.mocked(getBip32Entropy).mockResolvedValue({
+        ...mockBip32Node,
+        privateKey: undefined,
+      });
+
+      await expect(
+        walletService.deriveAddress({
+          index: 0,
+          entropySource: 'entropy-source-1',
+        }),
+      ).rejects.toThrow(
+        'Key derivation failed. Derived node is missing key material',
+      );
     });
   });
 
@@ -103,6 +139,31 @@ describe('WalletService', () => {
       expect(fromJSONSpy).toHaveBeenCalledTimes(1);
     });
 
+    it('throws a KeyDerivationException when loading the coin-type derivation node fails', async () => {
+      jest
+        .mocked(getBip32Entropy)
+        .mockRejectedValue(new Error('something went wrong'));
+
+      await expect(
+        walletService.getWalletResolver('entropy-source-1'),
+      ).rejects.toThrow(
+        'Key derivation failed. Unable to load coin-type derivation node',
+      );
+    });
+
+    it('throws a KeyDerivationException when deriving keypair at account index fails', async () => {
+      jest.spyOn(SLIP10Node, 'fromJSON').mockResolvedValue({
+        derive: jest.fn().mockRejectedValue(new Error('derive failed')),
+      } as unknown as SLIP10Node);
+
+      const resolver =
+        await walletService.getWalletResolver('entropy-source-1');
+
+      await expect(resolver(0)).rejects.toThrow(
+        'Key derivation failed. Unable to derive keypair at account index',
+      );
+    });
+
     it('loads the SLIP10 coin-type node once per resolver', async () => {
       const fromJSONSpy = jest.spyOn(SLIP10Node, 'fromJSON').mockResolvedValue({
         derive: jest.fn().mockResolvedValue({
@@ -139,7 +200,7 @@ describe('WalletService', () => {
     it('throws DerivedAccountAddressMismatchException when derivation does not match stored address', async () => {
       const account = generateStellarKeyringAccount(
         globalThis.crypto.randomUUID(),
-        Keypair.random().publicKey(),
+        generateStellarAddress(),
         'entropy-source-1',
         0,
       );
@@ -149,7 +210,7 @@ describe('WalletService', () => {
       );
     });
 
-    it('throws a WalletServiceException if the keypair derivation fails', async () => {
+    it('throws a KeyDerivationException if the keypair derivation fails', async () => {
       jest
         .mocked(getBip32Entropy)
         .mockRejectedValue(new Error('something went wrong'));
@@ -162,7 +223,7 @@ describe('WalletService', () => {
       );
 
       await expect(walletService.resolveWallet(account)).rejects.toThrow(
-        WalletServiceException,
+        'Key derivation failed. Unable to derive keypair from entropy',
       );
     });
   });
