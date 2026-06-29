@@ -2,10 +2,9 @@
 
 ## Project Structure
 
-This project is a **monorepo** consisting of two packages:
+This project is a **monorepo** with a single package:
 
 - **`packages/snap`** — The Stellar Wallet Snap. Handles all Stellar-specific blockchain logic: account derivation, transaction signing, fee calculation, staking, etc.
-- **`packages/site`** — A test dapp for development and testing. Provides a UI to interact with the Snap's functionality.
 
 ## Snaps Technology
 
