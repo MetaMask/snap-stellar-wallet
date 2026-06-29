@@ -60,7 +60,7 @@ describe('WalletService', () => {
       );
     });
 
-    it('throws a KeyDerivationException when getBip32Entropy rejects with StellarSnapException', async () => {
+    it('throws a StellarSnapException when getBip32Entropy rejects', async () => {
       jest
         .mocked(getBip32Entropy)
         .mockRejectedValue(
