@@ -159,6 +159,7 @@ export class MultiCall {
       new Account(sourceAccount, '0'),
       {
         networkPassphrase: caip2ChainIdToNetwork(scope),
+        // Read-only simulation is never submitted; protocol minimum fee is sufficient.
         fee: BASE_FEE.toString(),
       },
     )

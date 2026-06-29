@@ -51,7 +51,9 @@ export const NATIVE_ASSET_SYMBOL = 'XLM';
 export const NATIVE_ASSET_NAME = 'XLM';
 
 /**
- * The minimum base fee in stroops for the Stellar network.
+ * Protocol minimum base fee in stroops (100 stroops per operation).
+ * Used as a fallback when the network base fee cannot be fetched and for read-only RPC simulations
+ * that are never submitted.
  *
  * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering
  */
