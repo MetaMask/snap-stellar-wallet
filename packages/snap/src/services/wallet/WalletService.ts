@@ -12,6 +12,7 @@ import {
   bufferToUint8Array,
   getBip32Entropy,
   rethrowIfInstanceElseThrow,
+  StellarSnapException,
 } from '../../utils';
 import { assertSameAddress } from '../account/utils';
 
@@ -96,7 +97,7 @@ export class WalletService {
     } catch (error: unknown) {
       return rethrowIfInstanceElseThrow(
         error,
-        [KeyDerivationException],
+        [StellarSnapException, KeyDerivationException],
         new KeyDerivationException('Unable to derive keypair from entropy'),
       );
     }
@@ -110,7 +111,7 @@ export class WalletService {
     } catch (error: unknown) {
       return rethrowIfInstanceElseThrow(
         error,
-        [KeyDerivationException],
+        [StellarSnapException, KeyDerivationException],
         new KeyDerivationException('Unable to load coin-type derivation node'),
       );
     }

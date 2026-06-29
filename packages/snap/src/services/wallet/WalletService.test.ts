@@ -6,6 +6,7 @@ import {
   getTestWallet,
   generateStellarAddress,
 } from './__mocks__/wallet.fixtures';
+import { KeyDerivationException } from './exceptions';
 import { WalletService } from './WalletService';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { bufferToUint8Array } from '../../utils/buffer';
@@ -55,7 +56,7 @@ describe('WalletService', () => {
           entropySource: 'entropy-source-1',
         }),
       ).rejects.toThrow(
-        'Key derivation failed. Unable to derive keypair from entropy',
+        new KeyDerivationException('Unable to derive keypair from entropy'),
       );
     });
 
@@ -72,7 +73,7 @@ describe('WalletService', () => {
           entropySource: 'entropy-source-1',
         }),
       ).rejects.toThrow(
-        'Key derivation failed. Unable to derive keypair from entropy',
+        new StellarSnapException('Failed to get BIP32 entropy from Snap'),
       );
     });
 
@@ -88,7 +89,7 @@ describe('WalletService', () => {
           entropySource: 'entropy-source-1',
         }),
       ).rejects.toThrow(
-        'Key derivation failed. Derived node is missing key material',
+        new KeyDerivationException('Derived node is missing key material'),
       );
     });
   });
@@ -147,7 +148,7 @@ describe('WalletService', () => {
       await expect(
         walletService.getWalletResolver('entropy-source-1'),
       ).rejects.toThrow(
-        'Key derivation failed. Unable to load coin-type derivation node',
+        new KeyDerivationException('Unable to load coin-type derivation node'),
       );
     });
 
@@ -160,7 +161,7 @@ describe('WalletService', () => {
         await walletService.getWalletResolver('entropy-source-1');
 
       await expect(resolver(0)).rejects.toThrow(
-        'Key derivation failed. Unable to derive keypair at account index',
+        new KeyDerivationException('Unable to derive keypair at account index'),
       );
     });
 
@@ -223,7 +224,7 @@ describe('WalletService', () => {
       );
 
       await expect(walletService.resolveWallet(account)).rejects.toThrow(
-        'Key derivation failed. Unable to derive keypair from entropy',
+        new KeyDerivationException('Unable to derive keypair from entropy'),
       );
     });
   });
