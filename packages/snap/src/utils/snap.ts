@@ -14,6 +14,7 @@ import {
 } from '@metamask/snaps-sdk';
 import { ensureError } from '@metamask/utils';
 
+import { StellarSnapException } from './errors';
 import { logger } from './logger';
 import { type Serializable, serialize, deserialize } from './serialization';
 
@@ -69,6 +70,7 @@ export function getSnapProvider(): SnapsProvider {
  * @param params.path - The BIP32 derivation path for which to retrieve a `SLIP10NodeInterface`.
  * @param params.curve - The elliptic curve to use for key derivation.
  * @returns A Promise that resolves to a `SLIP10NodeInterface` object.
+ * @throws {StellarSnapException} If the Snap RPC call fails (message is intentionally generic).
  */
 export async function getBip32Entropy({
   entropySource,
@@ -79,14 +81,19 @@ export async function getBip32Entropy({
   path: string[];
   curve: 'secp256k1' | 'ed25519';
 }): Promise<JsonSLIP10Node> {
-  return getSnapProvider().request({
-    method: 'snap_getBip32Entropy',
-    params: {
-      path,
-      curve,
-      ...(entropySource ? { source: entropySource } : {}),
-    },
-  });
+  try {
+    return await getSnapProvider().request({
+      method: 'snap_getBip32Entropy',
+      params: {
+        path,
+        curve,
+        ...(entropySource ? { source: entropySource } : {}),
+      },
+    });
+  } catch {
+    // For security reasons, we do not want to expose the error message to the user
+    throw new StellarSnapException('Failed to get BIP32 entropy from Snap');
+  }
 }
 
 /**

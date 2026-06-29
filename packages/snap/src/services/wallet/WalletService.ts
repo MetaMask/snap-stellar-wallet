@@ -1,32 +1,31 @@
+import type { JsonSLIP10Node } from '@metamask/key-tree';
 import { SLIP10Node } from '@metamask/key-tree';
 import { hexToBytes } from '@metamask/utils';
 import { Keypair as StellarKeypair } from '@stellar/stellar-sdk';
 
 import type { StellarKeyringAccount } from '../account';
-import { WalletServiceException } from './exceptions';
+import { KeyDerivationException } from './exceptions';
 import { getDerivationPath } from './utils';
 import { Wallet } from './Wallet';
 import { STELLAR_CURVE } from '../../constants';
 import {
-  createPrefixedLogger,
   bufferToUint8Array,
   getBip32Entropy,
-  sanitizeSensitiveError,
+  rethrowIfInstanceElseThrow,
+  StellarSnapException,
 } from '../../utils';
-import type { ILogger } from '../../utils';
 import { assertSameAddress } from '../account/utils';
+
+type Slip10KeyMaterial = {
+  privateKey?: string;
+  publicKey?: string;
+};
 
 /**
  * Derives Stellar signing material from keyring entropy.
  * Network / on-chain account access lives in {@link OnChainAccountService} and {@link NetworkService}.
  */
 export class WalletService {
-  readonly #logger: ILogger;
-
-  constructor({ logger }: { logger: ILogger }) {
-    this.#logger = createPrefixedLogger(logger, '[💼 WalletService]');
-  }
-
   /**
    * Derives a Stellar address (public key) from the given entropy source and derivation index.
    *
@@ -34,7 +33,7 @@ export class WalletService {
    * @param params.index - The derivation index for the account.
    * @param params.entropySource - Entropy source ID (e.g. from keyring).
    * @returns A Promise that resolves to the derived address (public key string).
-   * @throws {WalletServiceException} If keypair derivation fails.
+   * @throws {KeyDerivationException} If keypair derivation fails.
    */
   async deriveAddress(params: {
     index: number;
@@ -50,7 +49,7 @@ export class WalletService {
    *
    * @param account - Keyring account (entropy source + index + expected address).
    * @returns A promise that resolves to the signing wallet.
-   * @throws {WalletServiceException} If keypair derivation fails.
+   * @throws {KeyDerivationException} If keypair derivation fails.
    * @throws When derived public key does not match the keyring address (`DerivedAccountAddressMismatchException`).
    */
   async resolveWallet(account: StellarKeyringAccount): Promise<Wallet> {
@@ -67,13 +66,17 @@ export class WalletService {
    *
    * @param entropySource - The entropy source to use for derivation.
    * @returns A function that resolves to a Wallet for the given index.
+   * @throws {KeyDerivationException} If keypair derivation fails.
    */
   async getWalletResolver(
     entropySource: string,
   ): Promise<(index: number) => Promise<Wallet>> {
     const coinTypeNode = await this.#getRootNode(entropySource);
     return async (index: number) => {
-      const keypair = await this.#deriveKeypairByNode(coinTypeNode, index);
+      const keypair = await this.#deriveKeypairBySlip10Node(
+        coinTypeNode,
+        index,
+      );
       return new Wallet(keypair);
     };
   }
@@ -86,69 +89,90 @@ export class WalletService {
     entropySource: string;
   }): Promise<StellarKeypair> {
     try {
-      const seed = await this.#getSeed(index, entropySource);
-      return StellarKeypair.fromRawEd25519Seed(bufferToUint8Array(seed));
+      const jsonNode = await this.#getJsonNodeByEntropy(entropySource, index);
+
+      this.#assertNodeHasPrivateAndPublicKey(jsonNode);
+
+      return this.#stellarFromRawEd25519Seed(jsonNode.privateKey);
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Error deriving keypair', error);
-      throw new WalletServiceException('Failed to derive keypair');
-    }
-  }
-
-  async #getSeed(index: number, entropySource: string): Promise<Uint8Array> {
-    try {
-      const derivationPath = getDerivationPath(index);
-      const path = derivationPath.split('/');
-      const node = await getBip32Entropy({
-        entropySource,
-        path,
-        curve: STELLAR_CURVE,
-      });
-      if (!node.privateKey || !node.publicKey) {
-        throw new Error('Unable to derive private key or public key');
-      }
-      const privateKeyBytes = hexToBytes(node.privateKey);
-      return privateKeyBytes;
-    } catch (error) {
-      this.#logger.logErrorWithDetails('Error getting seed', error);
-
-      throw sanitizeSensitiveError(error as Error);
+      return rethrowIfInstanceElseThrow(
+        error,
+        [StellarSnapException, KeyDerivationException],
+        new KeyDerivationException('Unable to derive keypair from entropy'),
+      );
     }
   }
 
   async #getRootNode(entropySource: string): Promise<SLIP10Node> {
     try {
-      const derivationPath = getDerivationPath();
-      const path = derivationPath.split('/');
-      const jsonNode = await getBip32Entropy({
-        entropySource,
-        path,
-        curve: STELLAR_CURVE,
-      });
+      const jsonNode = await this.#getJsonNodeByEntropy(entropySource);
       const coinTypeNode = await SLIP10Node.fromJSON(jsonNode);
       return coinTypeNode;
-    } catch (error) {
-      this.#logger.logErrorWithDetails('Error getting root node', error);
-
-      throw sanitizeSensitiveError(error as Error);
+    } catch (error: unknown) {
+      return rethrowIfInstanceElseThrow(
+        error,
+        [StellarSnapException, KeyDerivationException],
+        new KeyDerivationException('Unable to load coin-type derivation node'),
+      );
     }
   }
 
-  async #deriveKeypairByNode(
+  async #deriveKeypairBySlip10Node(
     node: SLIP10Node,
     index: number,
   ): Promise<StellarKeypair> {
     try {
-      const derived = await node.derive([`slip10:${index}'`]);
-      if (!derived.privateKey || !derived.publicKey) {
-        throw new Error('Unable to derive private key or public key');
-      }
-      const privateKeyBytes = hexToBytes(derived.privateKey);
+      const derivedNode = await node.derive([`slip10:${index}'`]);
+
+      this.#assertNodeHasPrivateAndPublicKey(derivedNode);
+
+      return this.#stellarFromRawEd25519Seed(derivedNode.privateKey);
+    } catch (error: unknown) {
+      return rethrowIfInstanceElseThrow(
+        error,
+        [KeyDerivationException],
+        new KeyDerivationException('Unable to derive keypair at account index'),
+      );
+    }
+  }
+
+  async #getJsonNodeByEntropy(
+    entropySource: string,
+    index?: number,
+  ): Promise<JsonSLIP10Node> {
+    // getBip32Entropy already wrapped in a StellarSnapException
+    return getBip32Entropy({
+      entropySource,
+      path: this.#getDerivationPath(index),
+      curve: STELLAR_CURVE,
+    });
+  }
+
+  #getDerivationPath(index?: number): string[] {
+    return getDerivationPath(index).split('/');
+  }
+
+  #assertNodeHasPrivateAndPublicKey(
+    node: Slip10KeyMaterial,
+  ): asserts node is Slip10KeyMaterial & {
+    privateKey: string;
+    publicKey: string;
+  } {
+    if (!node.privateKey || !node.publicKey) {
+      throw new KeyDerivationException('Derived node is missing key material');
+    }
+  }
+
+  #stellarFromRawEd25519Seed(privateKeyHex: string): StellarKeypair {
+    try {
+      const privateKeyBytes = hexToBytes(privateKeyHex);
       return StellarKeypair.fromRawEd25519Seed(
         bufferToUint8Array(privateKeyBytes),
       );
-    } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Error deriving keypair', error);
-      throw new WalletServiceException('Failed to derive keypair');
+    } catch {
+      throw new KeyDerivationException(
+        'Unable to build Stellar keypair from derived material',
+      );
     }
   }
 }
