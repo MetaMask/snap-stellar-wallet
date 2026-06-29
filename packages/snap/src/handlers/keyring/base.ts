@@ -3,10 +3,10 @@ import type { Json } from '@metamask/utils';
 
 import type { Sep43ErrorEnvelope, Sep43Opts } from './api';
 import type { Sep43Error } from './exceptions';
-import { toSep43Error } from './exceptions';
+import { Sep43ErrorCode, toSep43Error } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';
 import type { ILogger } from '../../utils';
-import { createPrefixedLogger } from '../../utils';
+import { createPrefixedLogger, trackErrorIfNeeded } from '../../utils';
 import { validateRequest, validateResponse } from '../../utils/requestResponse';
 import type {
   AccountResolver,
@@ -100,9 +100,22 @@ export abstract class BaseSep43KeyringHandler<
       validateResponse(result, this.responseStruct);
       return result;
     } catch (error: unknown) {
-      const sep43 = toSep43Error(error);
-      this.logger.logErrorWithDetails('SEP-43 request failed', sep43);
-      return this.toErrorResponse(signerAddress, sep43);
+      const sep43Error = toSep43Error(error);
+      await this.#trackErrorIfNeeded(error, sep43Error);
+      return this.toErrorResponse(signerAddress, sep43Error);
+    }
+  }
+
+  async #trackErrorIfNeeded(
+    error: unknown,
+    sep43Error: Sep43Error,
+  ): Promise<void> {
+    // Only unexpected internal failures are sent to Sentry. Expected outcomes
+    // (user rejection, invalid request, external service errors) are returned
+    // in the SEP-43 envelope without tracking.
+    if (sep43Error.code === Sep43ErrorCode.Internal) {
+      // Send the raw error to Sentry to be tracked
+      await trackErrorIfNeeded(error);
     }
   }
 

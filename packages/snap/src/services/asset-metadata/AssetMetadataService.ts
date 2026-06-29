@@ -1,5 +1,5 @@
 import type { NonEmptyArray } from '@metamask/utils';
-import { ensureError, parseCaipAssetType } from '@metamask/utils';
+import { parseCaipAssetType } from '@metamask/utils';
 
 import type {
   KnownCaip19AssetId,
@@ -361,10 +361,9 @@ export class AssetMetadataService {
 
     for (const entry of settled) {
       if (entry.status === 'rejected') {
-        this.#logger.logErrorWithDetails(
-          'Error fetching assets',
-          ensureError(entry.reason).message,
-        );
+        this.#logger.warn('Failed to fetch assets metadata', {
+          error: entry.reason,
+        });
         continue;
       }
 

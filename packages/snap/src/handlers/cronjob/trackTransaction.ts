@@ -124,15 +124,12 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
         return;
       }
       // For other errors, stop here; the synchronize cron job can recover later.
-      this.logger.logErrorWithDetails(
-        'Unexpected error when tracking transaction',
-        {
-          error,
-          txId,
-          scope,
-          attempt,
-        },
-      );
+      this.logger.warn('Unexpected error when tracking transaction', {
+        error,
+        txId,
+        scope,
+        attempt,
+      });
     }
   }
 

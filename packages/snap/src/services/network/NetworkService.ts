@@ -919,10 +919,7 @@ export class NetworkService {
     try {
       return rpcError.errorResult?.result().switch().name ?? 'unknown';
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to parse send error code',
-        error,
-      );
+      this.#logger.warn('Failed to parse send error code', { error });
       return 'unknown';
     }
   }

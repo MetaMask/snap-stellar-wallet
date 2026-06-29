@@ -23,7 +23,7 @@ import {
   InvalidHttpRequestParamsException,
   InvalidHttpResponseException,
   normalizeHttpException,
-} from '../../utils/http';
+} from '../../utils/errors';
 
 const SCOPE_TO_SECURITY_ALERTS_CHAIN: Record<
   KnownCaip2ChainId,

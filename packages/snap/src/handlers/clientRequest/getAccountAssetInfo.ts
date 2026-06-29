@@ -125,18 +125,13 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
       // zero-limit rows that getAsset filters out for spendable-balance flows.
       const assetData = onChainAccount.getRawAsset(assetId);
 
+      // This should never happen, we already validate if the asset is a classic asset in the request.
       if (assetData?.limit === undefined) {
         // TODO: re-fetch from horizon when classic asset row is missing or has no limit.
-        this.#logger.logErrorWithDetails(
-          'Data error: classic asset missing trust-line limit in on-chain snapshot',
+        this.#logger.warn(
+          'Classic asset missing trust-line limit in on-chain snapshot',
           {
             assetId,
-            reason:
-              assetData === undefined
-                ? 'No stored row for this classic asset id (not synced or never trusted)'
-                : 'Stored row exists but limit field is undefined',
-            remark:
-              'Returning empty trust-line entry; portfolio may treat asset as untrusted',
           },
         );
         result[assetId] = {};
@@ -174,11 +169,8 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
           STELLAR_DECIMAL_PLACES,
         ),
       };
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Data error: unable to compute native XLM base reserve',
-        { error: String(error) },
-      );
+    } catch (error: unknown) {
+      this.#logger.warn('Unable to compute native XLM base reserve', { error });
       return {};
     }
   }

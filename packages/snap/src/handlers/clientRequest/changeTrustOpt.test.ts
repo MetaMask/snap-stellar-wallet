@@ -181,7 +181,7 @@ describe('ChangeTrustOptHandler', () => {
     const renderConfirmationDialog = jest
       .spyOn(ConfirmationUXController.prototype, 'renderConfirmationDialog')
       .mockResolvedValue(true);
-    const confirmationUIController = new ConfirmationUXController({ logger });
+    const confirmationUIController = new ConfirmationUXController();
 
     const handler = new ChangeTrustOptHandler({
       logger,

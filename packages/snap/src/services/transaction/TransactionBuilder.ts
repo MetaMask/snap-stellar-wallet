@@ -72,9 +72,9 @@ export class TransactionBuilder {
     onChainAccount: OnChainAccount;
     limit?: string;
   }): Transaction {
-    try {
-      assertAssetScopeMatch(assetId, scope);
+    assertAssetScopeMatch(assetId, scope);
 
+    try {
       const operationOpt: OperationOptions.ChangeTrust = {
         asset: caip19ToStellarAsset(assetId),
       };
@@ -117,11 +117,12 @@ export class TransactionBuilder {
     amount: BigNumber;
     baseFee: BigNumber;
   }): Transaction {
-    try {
-      const { scope, onChainAccount, assetId, destination, amount, baseFee } =
-        params;
-      assertAssetScopeMatch(assetId, scope);
+    const { scope, onChainAccount, assetId, destination, amount, baseFee } =
+      params;
 
+    assertAssetScopeMatch(assetId, scope);
+
+    try {
       // If it is a SEP-41 asset, the asset reference is the token address
       const { assetReference: tokenAddress } = parseCaipAssetType(assetId);
 
@@ -234,9 +235,9 @@ export class TransactionBuilder {
       params;
     const { address: toAddress, isActivated } = destination;
 
-    try {
-      assertAssetScopeMatch(assetId, scope);
+    assertAssetScopeMatch(assetId, scope);
 
+    try {
       if (isSep41Id(assetId)) {
         return this.sep41Transfer({
           scope,
@@ -275,17 +276,17 @@ export class TransactionBuilder {
         destination: toAddress,
       });
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to build transfer transaction',
-        error,
-      );
-
       if (error instanceof InvalidAssetForCreateAccountException) {
         throw error;
       }
 
-      throw new TransactionBuilderException(
-        'Failed to build transfer transaction',
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TransactionBuilderException],
+        new TransactionBuilderException(
+          'Failed to build transfer transaction',
+          { cause: error },
+        ),
       );
     }
   }
@@ -359,11 +360,12 @@ export class TransactionBuilder {
 
       return new Transaction(builder.build());
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to rebuild transaction', error);
       return rethrowIfInstanceElseThrow(
         error,
         [TransactionBuilderException],
-        new TransactionBuilderException('Failed to rebuild transaction'),
+        new TransactionBuilderException('Failed to rebuild transaction', {
+          cause: error,
+        }),
       );
     }
   }

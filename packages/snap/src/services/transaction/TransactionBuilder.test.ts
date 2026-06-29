@@ -10,6 +10,7 @@ import { BigNumber } from 'bignumber.js';
 import {
   InvalidAssetForCreateAccountException,
   TransactionBuilderException,
+  TransactionValidationException,
 } from './exceptions';
 import { Transaction } from './Transaction';
 import { TransactionBuilder } from './TransactionBuilder';
@@ -90,7 +91,7 @@ describe('TransactionBuilder', () => {
       }).toThrow(TransactionBuilderException);
     });
 
-    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+    it('throws a TransactionValidationException when assetId scope does not match request scope', () => {
       expect(() =>
         transactionBuilder.changeTrust({
           baseFee: '100',
@@ -98,7 +99,7 @@ describe('TransactionBuilder', () => {
           assetId: testAsset,
           onChainAccount: testOnChainAccount,
         }),
-      ).toThrow(TransactionBuilderException);
+      ).toThrow(TransactionValidationException);
     });
   });
 
@@ -252,7 +253,7 @@ describe('TransactionBuilder', () => {
       }).toThrow(InvalidAssetForCreateAccountException);
     });
 
-    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+    it('throws a TransactionValidationException when assetId scope does not match request scope', () => {
       const testDestination = getTestWallet();
       expect(() =>
         transactionBuilder.transfer({
@@ -266,7 +267,7 @@ describe('TransactionBuilder', () => {
           },
           baseFee: new BigNumber(100),
         }),
-      ).toThrow(TransactionBuilderException);
+      ).toThrow(TransactionValidationException);
     });
   });
 
@@ -312,7 +313,7 @@ describe('TransactionBuilder', () => {
       }).toThrow(TransactionBuilderException);
     });
 
-    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+    it('throws a TransactionValidationException when assetId scope does not match request scope', () => {
       const testDestination = getTestWallet();
       expect(() =>
         transactionBuilder.sep41Transfer({
@@ -323,7 +324,7 @@ describe('TransactionBuilder', () => {
           amount: new BigNumber(100000000),
           baseFee,
         }),
-      ).toThrow(TransactionBuilderException);
+      ).toThrow(TransactionValidationException);
     });
   });
 });

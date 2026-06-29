@@ -136,9 +136,7 @@ const synchronizeService = new SynchronizeService({
 });
 
 /** UX Controller */
-const confirmationUIController = new ConfirmationUXController({
-  logger,
-});
+const confirmationUIController = new ConfirmationUXController();
 
 /** ------------------------------ Account Resolver ------------------------------ */
 const accountResolver = new AccountResolver({

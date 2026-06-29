@@ -286,7 +286,7 @@ export class TransactionSynchronizeService {
 
     for (const fetchResult of fetchResults) {
       if (fetchResult.status === 'rejected') {
-        this.#logger.logErrorWithDetails(
+        this.#logger.warn(
           'Failed to fetch on-chain transactions',
           fetchResult.reason,
         );
