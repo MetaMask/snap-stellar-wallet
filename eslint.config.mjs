@@ -1,5 +1,4 @@
 import base, { createConfig } from '@metamask/eslint-config';
-import browser from '@metamask/eslint-config-browser';
 import jest from '@metamask/eslint-config-jest';
 import typescript from '@metamask/eslint-config-typescript';
 import prettierConfig from 'eslint-config-prettier';
@@ -9,8 +8,6 @@ export default createConfig([
   {
     ignores: [
       'packages/snap/dist/',
-      'packages/site/.cache/',
-      'packages/site/public/',
     ],
   },
   {
@@ -22,18 +19,6 @@ export default createConfig([
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
       'id-length': ['warn', { exceptions: ['t'] }], // Used for the localized translator helper.
-      'prettier/prettier': 'error',
-    },
-  },
-  {
-    files: ['packages/site/**/*.{ts,tsx}'],
-    extends: [base, typescript, browser, prettierConfig],
-    plugins: {
-      prettier,
-    },
-    rules: {
-      '@typescript-eslint/explicit-function-return-type': 'off', // this rule should be removed eventually for non tests files,
-      '@typescript-eslint/no-misused-promises': 'off',
       'prettier/prettier': 'error',
     },
   },
