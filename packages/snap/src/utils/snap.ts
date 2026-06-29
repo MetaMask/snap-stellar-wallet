@@ -82,7 +82,7 @@ export async function getBip32Entropy({
   curve: 'secp256k1' | 'ed25519';
 }): Promise<JsonSLIP10Node> {
   try {
-    return getSnapProvider().request({
+    return await getSnapProvider().request({
       method: 'snap_getBip32Entropy',
       params: {
         path,

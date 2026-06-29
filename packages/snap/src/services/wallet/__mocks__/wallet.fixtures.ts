@@ -5,7 +5,8 @@ import { Wallet } from '../Wallet';
 
 export const generateStellarAddress = () => Keypair.random().publicKey();
 
-export const generateStellarAccountInstance = (seq: string = '1') => new Account(generateStellarAddress(), seq);
+export const generateStellarAccountInstance = (seq: string = '1') =>
+  new Account(generateStellarAddress(), seq);
 
 export const getTestWallet = ({
   seed,
