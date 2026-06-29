@@ -53,7 +53,7 @@ export const generateMockStellarKeyringAccounts = (
  * @returns Account service and wallet service wired to the same state.
  */
 export const mockAccountService = () => {
-  const walletService = new WalletService({ logger });
+  const walletService = new WalletService();
   const state = new State({
     encrypted: false,
     defaultState: {

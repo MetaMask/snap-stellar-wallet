@@ -335,8 +335,6 @@ export class AccountService {
       'getAllSelected:',
       'selectedAccountIds',
       selectedAccountIds,
-      'allAccounts',
-      allAccounts.map((account) => account.id),
     );
 
     const selectedAccountIdsSet = new Set(selectedAccountIds);
