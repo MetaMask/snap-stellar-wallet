@@ -19,8 +19,6 @@ import {
 } from '@metamask/snaps-sdk';
 
 import {
-  HttpException,
-  HttpResponseException,
   InvalidHttpRequestParamsException,
   isSnapRpcError,
   rethrowIfInstanceElseThrow,
@@ -325,27 +323,6 @@ describe('errors', () => {
 
     afterEach(() => {
       trackErrorSpy.mockRestore();
-    });
-
-    it('does not call trackError for HttpException', async () => {
-      await trackErrorIfNeeded(new HttpException('network down'));
-
-      expect(trackErrorSpy).not.toHaveBeenCalled();
-    });
-
-    it('does not call trackError for HttpResponseException', async () => {
-      await trackErrorIfNeeded(new HttpResponseException(503));
-
-      expect(trackErrorSpy).not.toHaveBeenCalled();
-    });
-
-    it('does not call trackError for fetch transport errors', async () => {
-      const fetchError = new Error('fetch failed');
-      Object.assign(fetchError, { cause: { code: 'ECONNREFUSED' } });
-
-      await trackErrorIfNeeded(fetchError);
-
-      expect(trackErrorSpy).not.toHaveBeenCalled();
     });
 
     it('does not call trackError for UserRejectedRequestError', async () => {

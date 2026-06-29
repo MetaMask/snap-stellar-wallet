@@ -360,18 +360,12 @@ export const withCatchAndThrowSnapError = async <ResponseT>(
 /**
  * Sends `error` to Sentry when it represents an unexpected failure.
  *
- * Skips tracking for transient HTTP failures and explicit user rejections.
- * Callers should prefer this over {@link trackError} in swallow paths; entry
- * points use it via {@link withCatchAndThrowSnapError}. Sensitive-field scrubbing
- * is handled by MetaMask after `snap_trackError` receives the payload.
+ * Skips tracking for explicit user rejections.
+ * Callers should prefer this over {@link trackError} in swallow paths;
  *
  * @param error - Value from a `catch` clause.
  */
 export async function trackErrorIfNeeded(error: unknown): Promise<void> {
-  if (isHttpException(error)) {
-    return;
-  }
-
   if (error instanceof UserRejectedRequestError) {
     return;
   }
