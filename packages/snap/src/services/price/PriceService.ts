@@ -12,7 +12,7 @@ import {
   createPrefixedLogger,
   getFiatTicker,
   isFiat,
-  trackError,
+  trackErrorIfNeeded,
   type ILogger,
   type Serializable,
 } from '../../utils';
@@ -127,8 +127,7 @@ export class PriceService {
         : await this.#cache.mget(uniqueAssetTypes.map(toCacheKey));
     } catch (error) {
       this.#logger.warn('Error fetching cached spot prices', error);
-
-      await trackError(error);
+      await trackErrorIfNeeded(error);
     }
 
     const cachedSpotPricesByAssetId: Partial<SpotPricesResponse> = {};
@@ -174,7 +173,7 @@ export class PriceService {
       );
     } catch (error) {
       this.#logger.warn('Error caching spot prices', error);
-      await trackError(error);
+      await trackErrorIfNeeded(error);
     }
 
     return {
@@ -287,7 +286,7 @@ export class PriceService {
           response,
         };
       } catch (error) {
-        await trackError(error);
+        await trackErrorIfNeeded(error);
         // Gracefully handle individual errors to avoid breaking the entire operation
         this.#logger.warn(
           `Error fetching historical prices for ${from} to ${to} with time period ${timePeriod}. Returning null object.`,

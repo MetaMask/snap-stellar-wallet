@@ -22,7 +22,7 @@ import {
   isClassicAssetId,
   isSep41Id,
   toDisplayBalance,
-  trackError,
+  trackErrorIfNeeded,
 } from '../../utils';
 import type { StellarAssetMetadata } from '../asset-metadata';
 import type { NetworkService } from '../network';
@@ -126,8 +126,7 @@ export class OnChainAccountSynchronizeService {
             sep41Assets,
           });
         } catch (error: unknown) {
-          await trackError(error);
-
+          await trackErrorIfNeeded(error);
           this.#logger.warn(
             'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 asset entries where needed',
             { error },
@@ -598,7 +597,7 @@ export class OnChainAccountSynchronizeService {
         );
       }
     } catch (error: unknown) {
-      await trackError(error);
+      await trackErrorIfNeeded(error);
 
       this.#logger.warn('Failed to emit keyring events after synchronize', {
         error,

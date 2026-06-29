@@ -9,7 +9,7 @@ import {
   HttpResponseException,
   InvalidHttpRequestParamsException,
   InvalidHttpResponseException,
-} from '../../utils/http';
+} from '../../utils/errors';
 
 jest.mock('../../utils/logger');
 

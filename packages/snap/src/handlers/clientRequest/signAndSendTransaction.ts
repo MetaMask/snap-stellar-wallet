@@ -39,10 +39,11 @@ import {
   isSlip44Id,
   parseClassicAssetCodeIssuer,
   removeTrailingZeros,
+  trackErrorIfNeeded,
 } from '../../utils';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
-import { trackError, trackTransactionSubmitted } from '../../utils/snap';
+import { trackTransactionSubmitted } from '../../utils/snap';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
 type SwapAssetIds = {
@@ -253,7 +254,7 @@ export class SignAndSendTransactionHandler extends BaseClientRequestHandler<
         });
       }
     } catch (error) {
-      await trackError(error);
+      await trackErrorIfNeeded(error);
       this.logger.warn('Failed to map a transaction for swap and bridge send', {
         error,
       });

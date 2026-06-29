@@ -633,7 +633,7 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
 
     // Let XdrParseException propagate as-is: it signals an internal XDR/ScVal
     // parsing failure, not a user-facing validation outcome like insufficient
-    // balance. confirmSend tracks these via trackError; onAmountInput returns
+    // balance. confirmSend tracks these via trackErrorIfNeeded; onAmountInput returns
     // invalid without tracking to reduce Sentry noise during amount entry.
     const parsed = parseSep41TransferInvoke(op, scope);
 

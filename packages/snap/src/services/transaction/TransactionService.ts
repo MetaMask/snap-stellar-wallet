@@ -30,7 +30,7 @@ import {
   getSnapProvider,
   isSep41Id,
   isSlip44Id,
-  trackError,
+  trackErrorIfNeeded,
 } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
@@ -496,7 +496,7 @@ export class TransactionService {
     try {
       return await this.savePendingKeyringTransaction(request);
     } catch (error: unknown) {
-      await trackError(error);
+      await trackErrorIfNeeded(error);
 
       this.#logger.warn('Failed to save pending transaction', { error });
       return null;

@@ -19,14 +19,19 @@ import {
 } from '@metamask/snaps-sdk';
 
 import {
+  HttpException,
+  HttpResponseException,
+  InvalidHttpRequestParamsException,
   isSnapRpcError,
   rethrowIfInstanceElseThrow,
-  sanitizeSensitiveError,
+  trackErrorIfNeeded,
   withCatchAndThrowSnapError,
 } from './errors';
 import { logger } from './logger';
+import * as snapUtils from './snap';
 
 jest.mock('./logger');
+jest.mock('./snap');
 
 describe('errors', () => {
   const mockLogger = logger as jest.Mocked<typeof logger>;
@@ -309,68 +314,60 @@ describe('errors', () => {
     });
   });
 
-  describe('sanitizeSensitiveError', () => {
-    describe('when the error message contains sensitive information', () => {
-      it('masks sensitive information in the error message', () => {
-        const error = new Error(
-          'Test error with private key 0x1234567890abcdef',
-        );
-        const sanitizedError = sanitizeSensitiveError(error);
+  describe('trackErrorIfNeeded', () => {
+    let trackErrorSpy: jest.SpiedFunction<typeof snapUtils.trackError>;
 
-        expect(sanitizedError.message).toBe(
-          'Key derivation failed. Please check your connection and try again.',
-        );
-        expect(sanitizedError.name).toStrictEqual(error.name);
-        expect(sanitizedError.cause).toStrictEqual(error.cause);
-        expect(sanitizeSensitiveError(error)).toBeInstanceOf(Error);
-      });
-
-      it('masks sensitive information in the error message and preserves the original error type if it is a Snap error', () => {
-        const error = new SnapError(
-          'Test error with private key 0x1234567890abcdef',
-          { code: 1234567890 },
-        );
-        const sanitizedError = sanitizeSensitiveError(error);
-
-        expect(sanitizedError.message).toBe(
-          'Key derivation failed. Please check your connection and try again.',
-        );
-        expect(sanitizedError.name).toStrictEqual(error.name);
-        expect(sanitizedError.cause).toStrictEqual(error.cause);
-        expect(sanitizeSensitiveError(error)).toBeInstanceOf(SnapError);
-      });
-
-      it('returns generic Error when Snap error has no constructor (e.g. exotic or cross-realm object)', () => {
-        // SnapError with constructor removed so we hit the fallback branch
-        const error = new SnapError('secret key leaked', { code: 1234567890 });
-        Object.defineProperty(error, 'constructor', {
-          value: undefined,
-          configurable: true,
-        });
-
-        expect(isSnapRpcError(error)).toBe(true);
-        expect(error.constructor).toBeUndefined();
-
-        const sanitizedError = sanitizeSensitiveError(error);
-
-        expect(sanitizedError.message).toBe(
-          'Key derivation failed. Please check your connection and try again.',
-        );
-        expect(sanitizedError).toBeInstanceOf(Error);
-        expect(sanitizedError).not.toBeInstanceOf(SnapError);
-      });
+    beforeEach(() => {
+      trackErrorSpy = jest
+        .spyOn(snapUtils, 'trackError')
+        .mockResolvedValue(undefined);
     });
 
-    describe('when the error message does not contain sensitive information', () => {
-      it('does not mask sensitive information in the error message', () => {
-        const error = new Error('Test error');
-        const sanitizedError = sanitizeSensitiveError(error);
+    afterEach(() => {
+      trackErrorSpy.mockRestore();
+    });
 
-        expect(sanitizedError.message).toBe('Test error');
-        expect(sanitizedError.name).toStrictEqual(error.name);
-        expect(sanitizedError.cause).toStrictEqual(error.cause);
-        expect(sanitizeSensitiveError(error)).toBeInstanceOf(Error);
-      });
+    it('does not call trackError for HttpException', async () => {
+      await trackErrorIfNeeded(new HttpException('network down'));
+
+      expect(trackErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not call trackError for HttpResponseException', async () => {
+      await trackErrorIfNeeded(new HttpResponseException(503));
+
+      expect(trackErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not call trackError for fetch transport errors', async () => {
+      const fetchError = new Error('fetch failed');
+      Object.assign(fetchError, { cause: { code: 'ECONNREFUSED' } });
+
+      await trackErrorIfNeeded(fetchError);
+
+      expect(trackErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not call trackError for UserRejectedRequestError', async () => {
+      await trackErrorIfNeeded(new UserRejectedRequestError());
+
+      expect(trackErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it('calls trackError for unexpected errors', async () => {
+      const error = new Error('unexpected');
+
+      await trackErrorIfNeeded(error);
+
+      expect(trackErrorSpy).toHaveBeenCalledWith(error);
+    });
+
+    it('calls trackError for InvalidHttpRequestParamsException', async () => {
+      const error = new InvalidHttpRequestParamsException('bad params');
+
+      await trackErrorIfNeeded(error);
+
+      expect(trackErrorSpy).toHaveBeenCalledWith(error);
     });
   });
 });
