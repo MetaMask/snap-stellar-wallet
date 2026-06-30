@@ -121,8 +121,10 @@ export class HorizonClient {
       >(url);
     const nextUrl = response._links?.next?.href;
 
+    const records = response.records ?? response._embedded?.records ?? [];
+
     return {
-      records: response.records ?? [],
+      records,
       next: async (): Promise<HorizonTransactionPage> => {
         if (nextUrl === undefined || nextUrl.length === 0) {
           return emptyTransactionPage();
