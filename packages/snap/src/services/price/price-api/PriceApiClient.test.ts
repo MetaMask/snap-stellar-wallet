@@ -5,7 +5,7 @@ import {
   HttpException,
   HttpResponseException,
   InvalidHttpResponseException,
-} from '../../../utils/http';
+} from '../../../utils/errors';
 
 jest.mock('../../../utils/logger');
 

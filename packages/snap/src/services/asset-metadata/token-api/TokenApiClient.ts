@@ -25,7 +25,7 @@ import {
   InvalidHttpRequestParamsException,
   InvalidHttpResponseException,
   normalizeHttpException,
-} from '../../../utils/http';
+} from '../../../utils/errors';
 
 export class TokenApiClient {
   readonly #fetch: typeof globalThis.fetch;

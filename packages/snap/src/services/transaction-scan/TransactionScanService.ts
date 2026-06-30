@@ -25,7 +25,7 @@ import {
   createPrefixedLogger,
   toCaip19ClassicAssetId,
   toCaip19Sep41AssetId,
-  trackError,
+  trackErrorIfNeeded,
 } from '../../utils';
 import { toDisplayBalance } from '../../utils/currency';
 import { getIconUrl } from '../asset-metadata/utils';
@@ -89,7 +89,7 @@ export class TransactionScanService {
         reason: error,
       });
 
-      await trackError(error);
+      await trackErrorIfNeeded(error);
 
       return null;
     }

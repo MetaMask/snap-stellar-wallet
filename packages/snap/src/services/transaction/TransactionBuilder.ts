@@ -9,6 +9,7 @@ import {
   ScInt,
   TransactionBuilder as StellarSdkTransactionBuilder,
 } from '@stellar/stellar-sdk';
+import { BigNumber } from 'bignumber.js';
 
 import {
   InvalidAssetForCreateAccountException,
@@ -24,7 +25,6 @@ import type {
   KnownCaip19Slip44Id,
 } from '../../api';
 import { AppConfig } from '../../config';
-import { BASE_FEE } from '../../constants';
 import {
   createPrefixedLogger,
   type ILogger,
@@ -33,7 +33,7 @@ import {
   normalizeAmount,
   rethrowIfInstanceElseThrow,
 } from '../../utils';
-import { caip2ChainIdToNetwork } from '../network/utils';
+import { baseInclusionFee, caip2ChainIdToNetwork } from '../network/utils';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 
 /**
@@ -72,9 +72,9 @@ export class TransactionBuilder {
     onChainAccount: OnChainAccount;
     limit?: string;
   }): Transaction {
-    try {
-      assertAssetScopeMatch(assetId, scope);
+    assertAssetScopeMatch(assetId, scope);
 
+    try {
       const operationOpt: OperationOptions.ChangeTrust = {
         asset: caip19ToStellarAsset(assetId),
       };
@@ -106,6 +106,7 @@ export class TransactionBuilder {
    * @param params.assetId - SEP-41 CAIP-19 asset id (contract reference in CAIP form).
    * @param params.destination - Recipient Stellar account id (`G…`).
    * @param params.amount - Amount in the token's smallest units (i128).
+   * @param params.baseFee - Per-operation inclusion fee in stroops.
    * @returns Wrapped unsigned transaction with one `invokeHostFunction` op.
    */
   sep41Transfer(params: {
@@ -114,11 +115,14 @@ export class TransactionBuilder {
     assetId: KnownCaip19Sep41AssetId;
     destination: string;
     amount: BigNumber;
+    baseFee: BigNumber;
   }): Transaction {
-    try {
-      const { scope, onChainAccount, assetId, destination, amount } = params;
-      assertAssetScopeMatch(assetId, scope);
+    const { scope, onChainAccount, assetId, destination, amount, baseFee } =
+      params;
 
+    assertAssetScopeMatch(assetId, scope);
+
+    try {
       // If it is a SEP-41 asset, the asset reference is the token address
       const { assetReference: tokenAddress } = parseCaipAssetType(assetId);
 
@@ -140,8 +144,7 @@ export class TransactionBuilder {
         operations: [op],
         timeout: this.#getTimeout(),
         scope,
-        // Base fee is a placeholder until RPC simulation.
-        fee: BASE_FEE.toString(),
+        fee: baseFee.toString(),
       });
     } catch (error: unknown) {
       throw new TransactionBuilderException(
@@ -212,7 +215,7 @@ export class TransactionBuilder {
    * @param params.destination - Recipient address and on-chain activation flag.
    * @param params.destination.address - Recipient Stellar account id (`G…`).
    * @param params.destination.isActivated - Whether the destination account exists and is funded on-chain.
-   * @param params.baseFee - Base fee per operation in stroops.
+   * @param params.baseFee - Per-operation inclusion fee in stroops.
    * @returns An unsigned transaction ready for signing.
    * @throws {InvalidAssetForCreateAccountException} When the destination is unfunded and the asset is not native.
    * @throws {TransactionBuilderException} If building fails.
@@ -232,9 +235,9 @@ export class TransactionBuilder {
       params;
     const { address: toAddress, isActivated } = destination;
 
-    try {
-      assertAssetScopeMatch(assetId, scope);
+    assertAssetScopeMatch(assetId, scope);
 
+    try {
       if (isSep41Id(assetId)) {
         return this.sep41Transfer({
           scope,
@@ -242,6 +245,7 @@ export class TransactionBuilder {
           assetId,
           destination: toAddress,
           amount,
+          baseFee,
         });
       }
 
@@ -272,17 +276,17 @@ export class TransactionBuilder {
         destination: toAddress,
       });
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to build transfer transaction',
-        error,
-      );
-
       if (error instanceof InvalidAssetForCreateAccountException) {
         throw error;
       }
 
-      throw new TransactionBuilderException(
-        'Failed to build transfer transaction',
+      return rethrowIfInstanceElseThrow(
+        error,
+        [TransactionBuilderException],
+        new TransactionBuilderException(
+          'Failed to build transfer transaction',
+          { cause: error },
+        ),
       );
     }
   }
@@ -316,15 +320,15 @@ export class TransactionBuilder {
 
       // the initial fee passed to the builder gets scaled up based on the number
       // of operations at the end, so we have to down-scale first
-      let fee = Math.floor(
-        parseInt(rawTransaction.fee, 10) / rawTransaction.operations.length,
-      );
+      let fee = new BigNumber(rawTransaction.fee)
+        .dividedBy(rawTransaction.operations.length)
+        .integerValue(BigNumber.ROUND_FLOOR);
 
-      if (!Number.isFinite(fee) || fee <= 0) {
+      if (!fee.isFinite() || fee.isLessThanOrEqualTo(0)) {
         this.#logger.warn(
-          `Invalid fee amount, fallback to use fixed base fee value ${BASE_FEE}`,
+          'Invalid fee amount, falling back to configured inclusion fee',
         );
-        fee = BASE_FEE;
+        fee = baseInclusionFee();
       }
 
       // Minimal clone of the transaction
@@ -356,11 +360,12 @@ export class TransactionBuilder {
 
       return new Transaction(builder.build());
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to rebuild transaction', error);
       return rethrowIfInstanceElseThrow(
         error,
         [TransactionBuilderException],
-        new TransactionBuilderException('Failed to rebuild transaction'),
+        new TransactionBuilderException('Failed to rebuild transaction', {
+          cause: error,
+        }),
       );
     }
   }

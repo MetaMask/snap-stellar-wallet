@@ -7,7 +7,6 @@
 The Stellar Snap allows MetaMask and dapps to support all Stellar-related networks and address types.
 
 - [@metamask/stellar-wallet-snap](packages/snap/README.md)
-- [@metamask/stellar-wallet-test-dapp](packages/site/README.md)
 
 ### Prerequisites
 
@@ -24,7 +23,7 @@ yarn install
 
 ## Configuration
 
-Please see `./src/packages/.env.example` for reference
+Please see [`packages/snap/.env.example`](packages/snap/.env.example) for reference
 
 ## Running
 
@@ -35,11 +34,10 @@ yarn start
 ```
 
 - Snap server and debug page: http://localhost:8080/
-- Example UI dapp: http://localhost:3000/
 
 ### Snap
 
-⚠️ When snap updates you will need to still reconnect from the dapp to see changes
+⚠️ When the snap updates you may need to reconnect it in MetaMask to see changes
 
 ```bash
 # Running Snap via watch mode
@@ -64,7 +62,7 @@ The `snap.manifest.json` contains a `shasum` that differs between local and prod
 
 ### Local Development
 
-`yarn start` builds with local settings (adds `localhost` origins and dev permissions). These are automatically converted to production settings when you commit.
+`yarn start` builds with local settings (adds `localhost` origins for local dapp development). These are automatically converted to production settings when you commit.
 
 ## Token lists
 

@@ -30,7 +30,7 @@ import {
   getSnapProvider,
   isSep41Id,
   isSlip44Id,
-  trackError,
+  trackErrorIfNeeded,
 } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
@@ -99,10 +99,10 @@ export class TransactionService {
   }
 
   /**
-   * Gets the base fee for a transaction.
+   * Gets the per-operation inclusion fee for a transaction.
    *
    * @param scope - The CAIP-2 chain ID.
-   * @returns A promise that resolves to the base fee.
+   * @returns A promise that resolves to the inclusion fee in stroops.
    */
   async getBaseFee(scope: KnownCaip2ChainId): Promise<BigNumber> {
     return this.#networkService.getBaseFeeWithCache(scope);
@@ -252,12 +252,15 @@ export class TransactionService {
       useCache,
     } = params;
 
+    const baseFee = await this.getBaseFee(scope);
+
     let transaction = this.#transactionBuilder.sep41Transfer({
       onChainAccount,
       scope,
       assetId,
       amount,
       destination,
+      baseFee,
     });
 
     // Use getRawAsset so we only fetch when the asset is absent from the State.
@@ -288,7 +291,7 @@ export class TransactionService {
       );
     }
 
-    // Simulate the transaction to estimate the network fee for contract call
+    // Simulate to attach the Soroban resource fee and footprint..
     transaction = await this.#networkService.simulateSep41TransferWithCache({
       transaction,
       scope,
@@ -396,14 +399,16 @@ export class TransactionService {
       scope,
     });
 
-    const transactionWithFee = await this.computingFee(transaction);
+    // Bridge API swap transaction already includes the fee — we trust it and do not recalculate.
+    // For Soroban invokes, computingFee simulates the transaction to validate it.
+    await this.computingFee(transaction);
 
     const preloadedAccounts = await this.#getPreloadedAccounts(
-      transactionWithFee,
+      transaction,
       onChainAccount,
     );
 
-    this.validateTransaction(transactionWithFee, onChainAccount, {
+    this.validateTransaction(transaction, onChainAccount, {
       expectedOPTypes: [
         SupportedOperations.Payment,
         SupportedOperations.PathPayment,
@@ -413,7 +418,7 @@ export class TransactionService {
       preloadedAccounts,
     });
 
-    return transactionWithFee;
+    return transaction;
   }
 
   async #getPreloadedAccounts(
@@ -491,7 +496,7 @@ export class TransactionService {
     try {
       return await this.savePendingKeyringTransaction(request);
     } catch (error: unknown) {
-      await trackError(error);
+      await trackErrorIfNeeded(error);
 
       this.#logger.warn('Failed to save pending transaction', { error });
       return null;

@@ -35,7 +35,7 @@ import {
   hasDecimals,
   isSlip44Id,
   toSmallestUnit,
-  trackError,
+  trackErrorIfNeeded,
   trackTransactionAdded,
   trackTransactionApproved,
   trackTransactionRejected,
@@ -249,7 +249,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
       }
 
       // Unexpected errors are swallowed into `{ valid: false }`, so track them for debugging.
-      await trackError(error);
+      await trackErrorIfNeeded(error);
 
       this.#logger.warn(
         'Failed to confirm send transaction due to unexpected issue',

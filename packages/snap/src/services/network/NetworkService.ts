@@ -6,7 +6,6 @@ import {
   NotFoundError,
   rpc,
 } from '@stellar/stellar-sdk';
-import { BigNumber } from 'bignumber.js';
 
 import type { AssetDataResponse } from './api';
 import { KnownRpcError } from './api';
@@ -26,8 +25,8 @@ import {
   StellarRouterContract,
 } from './MultiCall';
 import {
+  baseInclusionFee,
   isAccountNotFoundError,
-  multiplyFee,
   sep41MulticallCellToBalance,
 } from './utils';
 import type {
@@ -120,20 +119,18 @@ export class NetworkService {
   }
 
   /**
-   * Fetches the current base fee per operation from the Stellar network.
+   * Fetches the current Stellar network base fee and applies
+   * {@link AppConfig.transaction.baseFeeMultiplier} to produce the per-operation inclusion fee.
    *
    * @param scope - The CAIP-2 chain ID.
-   * @returns A Promise that resolves to the base fee as BigNumber.
+   * @returns A Promise that resolves to the inclusion fee in stroops.
    * @throws {NetworkServiceException} If the fee cannot be fetched.
    */
   async getBaseFee(scope: KnownCaip2ChainId): Promise<BigNumber> {
     try {
       const client = this.#getHorizonClient(scope);
       const baseFee = await client.fetchBaseFee();
-      return multiplyFee(
-        new BigNumber(baseFee),
-        AppConfig.transaction.baseFeeMultiplier,
-      );
+      return baseInclusionFee(baseFee);
     } catch (error: unknown) {
       return this.#throwError({
         error,
@@ -143,11 +140,11 @@ export class NetworkService {
   }
 
   /**
-   * Fetches the current base fee per operation from the Stellar network with cache.
+   * Fetches the current per-operation inclusion fee with cache.
    *
    * @param scope - The CAIP-2 chain ID.
    * @param refreshCache - Whether to refresh the cache.
-   * @returns A promise that resolves to the base fee as BigNumber.
+   * @returns A promise that resolves to the inclusion fee in stroops.
    */
   async getBaseFeeWithCache(
     scope: KnownCaip2ChainId,
@@ -635,8 +632,10 @@ export class NetworkService {
   }
 
   /**
-   * Simulates a Soroban transaction via RPC and returns a new {@link Transaction} with updated fee
-   * and footprint (assembled envelope).
+   * Simulates a Soroban transaction via RPC and returns a new {@link Transaction} with an
+   * assembled envelope. Simulation supplies the Soroban resource fee; the per-operation inclusion
+   * fee on the input envelope is preserved unchanged. {@link rpc.assembleTransaction} applies
+   * `minResourceFee` from the RPC response as-is — it is not validated or scaled locally.
    *
    * @param transaction - Exactly one `invokeHostFunction` operation.
    * @param scope - The CAIP-2 chain ID.
@@ -669,27 +668,6 @@ export class NetworkService {
         );
       }
 
-      // Get the min resource fee from the simulation response.
-      const resourceFee = new BigNumber(simulateResponse.minResourceFee);
-
-      if (
-        resourceFee.isNaN() ||
-        !resourceFee.isFinite() ||
-        resourceFee.isNegative()
-      ) {
-        throw new SimulationException('Invalid resource fee');
-      }
-
-      // Set the resource fee to the multiplied value.
-      // simulateResponse.transactionData will be used to assemble the transaction.
-      // @link https://github.com/stellar/stellar-sdk/blob/main/packages/stellar-base/src/rpc/transaction.ts
-      simulateResponse.transactionData.setResourceFee(
-        multiplyFee(
-          resourceFee,
-          AppConfig.transaction.simulationFeeMultiplier,
-        ).toString(),
-      );
-
       const simulatedTransaction = rpc.assembleTransaction(
         rawTransaction,
         simulateResponse,
@@ -709,7 +687,8 @@ export class NetworkService {
   }
 
   /**
-   * Simulates a SEP-41 transfer via RPC and returns an assembled {@link Transaction} with fee and footprint.
+   * Simulates a SEP-41 transfer via RPC and returns an assembled {@link Transaction} with Soroban
+   * resource fee and footprint. The per-operation inclusion fee on the input envelope is unchanged.
    *
    * Results are cached by `assetId`, `fromAccountId`, `toAccountId`, and `scope` so repeated simulations
    * for the same transfer context (e.g. different amounts during fee estimation) avoid extra RPC calls.
@@ -940,10 +919,7 @@ export class NetworkService {
     try {
       return rpcError.errorResult?.result().switch().name ?? 'unknown';
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to parse send error code',
-        error,
-      );
+      this.#logger.warn('Failed to parse send error code', { error });
       return 'unknown';
     }
   }

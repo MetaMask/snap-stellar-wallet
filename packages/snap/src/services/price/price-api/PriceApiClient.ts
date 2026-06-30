@@ -27,7 +27,7 @@ import {
   InvalidHttpRequestParamsException,
   InvalidHttpResponseException,
   normalizeHttpException,
-} from '../../../utils/http';
+} from '../../../utils/errors';
 
 export class PriceApiClient {
   readonly #fetch: typeof globalThis.fetch;

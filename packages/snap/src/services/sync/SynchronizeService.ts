@@ -1,6 +1,6 @@
 import type { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
-import { trackError } from '../../utils';
+import { trackErrorIfNeeded } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account';
@@ -110,7 +110,7 @@ export class SynchronizeService {
 
     for (const [index, result] of results.entries()) {
       if (result.status === 'rejected') {
-        await trackError(result.reason);
+        await trackErrorIfNeeded(result.reason);
 
         const taskName = tasks[index]?.name ?? 'synchronize';
         this.#logger.warn(`Failed to ${taskName}`, {
@@ -132,7 +132,7 @@ export class SynchronizeService {
     try {
       await this.#assetMetadataService.synchronize(scope);
     } catch (error: unknown) {
-      await trackError(error);
+      await trackErrorIfNeeded(error);
 
       this.#logger.warn('Failed to synchronize assets', {
         error,
@@ -152,7 +152,7 @@ export class SynchronizeService {
     try {
       return await this.#assetMetadataService.fetchSep41AssetsOrSyncOnce(scope);
     } catch (error: unknown) {
-      await trackError(error);
+      await trackErrorIfNeeded(error);
 
       this.#logger.warn('Failed to load SEP-41 assets', {
         error,
@@ -192,7 +192,7 @@ export class SynchronizeService {
           // Only capture the error if it is unexpected.
           // AccountNotActivatedException is expected when the account is not activated yet.
           if (!(error instanceof AccountNotActivatedException)) {
-            await trackError(error);
+            await trackErrorIfNeeded(error);
 
             this.#logger.warn('Failed to load account for sync', {
               error,

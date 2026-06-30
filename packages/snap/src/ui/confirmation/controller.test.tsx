@@ -1,11 +1,10 @@
 import { ConfirmationInterfaceKey } from './api';
 import { ConfirmationUXController } from './controller';
 import { KnownCaip2ChainId } from '../../api';
-import { noOpLogger } from '../../utils/logger';
 
 describe('ConfirmationUXController', () => {
   it('throws when transaction scanning is enabled without a security scan request', async () => {
-    const controller = new ConfirmationUXController({ logger: noOpLogger });
+    const controller = new ConfirmationUXController();
 
     await expect(
       controller.renderConfirmationDialog({
