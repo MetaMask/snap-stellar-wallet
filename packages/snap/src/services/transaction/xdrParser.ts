@@ -1,4 +1,3 @@
-import type { Operation } from '@stellar/stellar-sdk';
 import {
   Asset,
   StrKey,
@@ -6,6 +5,7 @@ import {
   scValToNative,
   Address,
 } from '@stellar/stellar-sdk';
+import type { Operation } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
 import { XdrParseException } from './exceptions';
@@ -279,11 +279,11 @@ export function xdrAssetToCaip19(
     case 'assetTypeCreditAlphanum12': {
       try {
         const stellarAsset = Asset.fromOperation(asset);
-        return toCaip19ClassicAssetId(
-          scope,
-          stellarAsset.getCode(),
-          stellarAsset.getIssuer(),
-        );
+        const issuer = stellarAsset.getIssuer();
+        if (issuer === undefined) {
+          return undefined;
+        }
+        return toCaip19ClassicAssetId(scope, stellarAsset.getCode(), issuer);
       } catch {
         return undefined;
       }

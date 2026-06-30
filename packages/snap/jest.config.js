@@ -42,8 +42,18 @@ const config = {
 
   preset: '@metamask/snaps-jest',
   transform: {
-    '^.+\\.(t|j)sx?$': 'ts-jest',
+    '^.+\\.(t|j)sx?$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          allowJs: true,
+        },
+      },
+    ],
   },
+  transformIgnorePatterns: [
+    '/node_modules/(?!(@noble/ed25519|@noble/hashes|@stellar/stellar-sdk|uint8array-extras)/)',
+  ],
   moduleNameMapper: {
     '\\.svg$': 'jest-transform-stub',
   },

@@ -1,11 +1,10 @@
 import { TransactionStatus } from '@metamask/keyring-api';
+import type { Horizon } from '@stellar/stellar-sdk';
 import {
   Account,
   Contract,
-  Horizon as StellarHorizon,
   Networks,
   nativeToScVal,
-  NotFoundError,
   rpc as StellarRpc,
   TransactionBuilder as StellarTransactionBuilder,
 } from '@stellar/stellar-sdk';
@@ -21,8 +20,10 @@ import {
   TransactionRetryableException,
   TransactionSendException,
 } from './exceptions';
+import { HorizonClient, HorizonNotFoundError } from './HorizonClient';
 import { MultiCall } from './MultiCall';
 import { NetworkService } from './NetworkService';
+import { SorobanRpcClient } from './SorobanRpcClient';
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Sep41AssetId,
@@ -64,29 +65,29 @@ describe('NetworkService', () => {
   });
 
   const getHorizonClientSpies = () => ({
-    fetchBaseFeeSpy: jest.spyOn(
-      StellarHorizon.Server.prototype,
-      'fetchBaseFee',
-    ),
-    loadAccountSpy: jest.spyOn(StellarHorizon.Server.prototype, 'loadAccount'),
+    fetchBaseFeeSpy: jest.spyOn(HorizonClient.prototype, 'fetchBaseFee'),
+    loadAccountSpy: jest.spyOn(HorizonClient.prototype, 'loadAccount'),
+    getAssetRecordsSpy: jest.spyOn(HorizonClient.prototype, 'getAssetRecords'),
+    getTransactionSpy: jest.spyOn(HorizonClient.prototype, 'getTransaction'),
+    getTransactionsSpy: jest.spyOn(HorizonClient.prototype, 'getTransactions'),
   });
 
   const getRpcServerSpies = () => ({
     pollTransactionSpy: jest.spyOn(
-      StellarRpc.Server.prototype,
+      SorobanRpcClient.prototype,
       'pollTransaction',
     ),
     sendTransactionSpy: jest.spyOn(
-      StellarRpc.Server.prototype,
+      SorobanRpcClient.prototype,
       'sendTransaction',
     ),
-    getAccountSpy: jest.spyOn(StellarRpc.Server.prototype, 'getAccount'),
+    getAccountSpy: jest.spyOn(SorobanRpcClient.prototype, 'getAccount'),
     getLedgerEntriesSpy: jest.spyOn(
-      StellarRpc.Server.prototype,
+      SorobanRpcClient.prototype,
       'getLedgerEntries',
     ),
     simulateTransactionSpy: jest.spyOn(
-      StellarRpc.Server.prototype,
+      SorobanRpcClient.prototype,
       'simulateTransaction',
     ),
   });
@@ -116,18 +117,8 @@ describe('NetworkService', () => {
     call: jest.Mock,
   ): jest.SpyInstance => {
     return jest
-      .spyOn(StellarHorizon.Server.prototype, 'transactions')
-      .mockReturnValue({
-        forAccount: jest.fn().mockReturnValue({
-          order: jest.fn().mockReturnValue({
-            cursor: jest.fn().mockReturnValue({
-              limit: jest.fn().mockReturnValue({
-                includeFailed: jest.fn().mockReturnValue({ call }),
-              }),
-            }),
-          }),
-        }),
-      } as never);
+      .spyOn(HorizonClient.prototype, 'getTransactions')
+      .mockImplementation(async () => call());
   };
 
   const createMockInvokeHostFunctionTransaction = (accountId?: string) => {
@@ -235,7 +226,7 @@ describe('NetworkService', () => {
       });
 
       loadAccountSpy.mockResolvedValue(
-        account as unknown as StellarHorizon.AccountResponse,
+        account as unknown as Horizon.AccountResponse,
       );
 
       const result = await networkService.loadOnChainAccount(
@@ -251,7 +242,7 @@ describe('NetworkService', () => {
 
     it('throws AccountNotActivatedException when account is not found', async () => {
       const { loadAccountSpy } = getHorizonClientSpies();
-      loadAccountSpy.mockRejectedValue(new NotFoundError('not found', {}));
+      loadAccountSpy.mockRejectedValue(new HorizonNotFoundError('not found'));
 
       await expect(
         networkService.loadOnChainAccount(testAddress, scope),
@@ -279,7 +270,7 @@ describe('NetworkService', () => {
         assets: [],
       });
       loadAccountSpy.mockResolvedValue(
-        account as unknown as StellarHorizon.AccountResponse,
+        account as unknown as Horizon.AccountResponse,
       );
 
       const first = await networkService.loadOnChainAccountWithCache(
@@ -311,12 +302,8 @@ describe('NetworkService', () => {
         assets: [],
       });
       loadAccountSpy
-        .mockResolvedValueOnce(
-          accountV1 as unknown as StellarHorizon.AccountResponse,
-        )
-        .mockResolvedValueOnce(
-          accountV2 as unknown as StellarHorizon.AccountResponse,
-        );
+        .mockResolvedValueOnce(accountV1 as unknown as Horizon.AccountResponse)
+        .mockResolvedValueOnce(accountV2 as unknown as Horizon.AccountResponse);
 
       await networkService.loadOnChainAccountWithCache(testAddress, scope);
       await Promise.resolve();
@@ -352,13 +339,13 @@ describe('NetworkService', () => {
           createMockAccountWithBalances(addrA, '10', {
             nativeBalance: 1,
             assets: [],
-          }) as unknown as StellarHorizon.AccountResponse,
+          }) as unknown as Horizon.AccountResponse,
         )
         .mockResolvedValueOnce(
           createMockAccountWithBalances(addrB, '20', {
             nativeBalance: 1,
             assets: [],
-          }) as unknown as StellarHorizon.AccountResponse,
+          }) as unknown as Horizon.AccountResponse,
         );
 
       const result = await networkService.loadOnChainAccountsSafe(
@@ -379,12 +366,12 @@ describe('NetworkService', () => {
     it('maps failures to null, preserves order, and logs a warning', async () => {
       const { loadAccountSpy } = getHorizonClientSpies();
       loadAccountSpy
-        .mockRejectedValueOnce(new NotFoundError('not found', {}))
+        .mockRejectedValueOnce(new HorizonNotFoundError('not found'))
         .mockResolvedValueOnce(
           createMockAccountWithBalances(addrA, '1', {
             nativeBalance: 1,
             assets: [],
-          }) as unknown as StellarHorizon.AccountResponse,
+          }) as unknown as Horizon.AccountResponse,
         );
 
       const result = await networkService.loadOnChainAccountsSafe(
@@ -490,12 +477,8 @@ describe('NetworkService', () => {
         ],
       });
       const assetsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'assets')
-        .mockReturnValue({
-          forCode: jest.fn().mockReturnValue({
-            forIssuer: jest.fn().mockReturnValue({ call }),
-          }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getAssetRecords')
+        .mockImplementation(async () => call());
 
       const result = await networkService.getClassicAssetData(
         classicAssetId,
@@ -515,12 +498,8 @@ describe('NetworkService', () => {
     it('throws NetworkServiceException when Horizon returns no rows', async () => {
       const call = jest.fn().mockResolvedValue({ records: [] });
       const assetsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'assets')
-        .mockReturnValue({
-          forCode: jest.fn().mockReturnValue({
-            forIssuer: jest.fn().mockReturnValue({ call }),
-          }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getAssetRecords')
+        .mockImplementation(async () => call());
 
       await expect(
         networkService.getClassicAssetData(classicAssetId, scope),
@@ -540,12 +519,8 @@ describe('NetworkService', () => {
         ],
       });
       const assetsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'assets')
-        .mockReturnValue({
-          forCode: jest.fn().mockReturnValue({
-            forIssuer: jest.fn().mockReturnValue({ call }),
-          }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getAssetRecords')
+        .mockImplementation(async () => call());
 
       await expect(
         networkService.getClassicAssetData(classicAssetId, scope),
@@ -557,12 +532,8 @@ describe('NetworkService', () => {
     it('wraps unexpected Horizon errors in NetworkServiceException', async () => {
       const call = jest.fn().mockRejectedValue(new Error('Horizon outage'));
       const assetsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'assets')
-        .mockReturnValue({
-          forCode: jest.fn().mockReturnValue({
-            forIssuer: jest.fn().mockReturnValue({ call }),
-          }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getAssetRecords')
+        .mockImplementation(async () => call());
 
       await expect(
         networkService.getClassicAssetData(classicAssetId, scope),
@@ -635,14 +606,8 @@ describe('NetworkService', () => {
   describe('getHorizonTransactionInclusionStatus', () => {
     it('returns pending when Horizon returns NotFoundError', async () => {
       const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          transaction: jest.fn().mockReturnValue({
-            call: jest
-              .fn()
-              .mockRejectedValue(new NotFoundError('not found', {})),
-          }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getTransaction')
+        .mockRejectedValue(new HorizonNotFoundError('not found'));
 
       const result = await networkService.getHorizonTransactionInclusionStatus(
         testTransactionHash,
@@ -656,10 +621,8 @@ describe('NetworkService', () => {
     it('returns success when Horizon record is successful', async () => {
       const call = jest.fn().mockResolvedValue({ successful: true });
       const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          transaction: jest.fn().mockReturnValue({ call }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getTransaction')
+        .mockImplementation(async () => call());
 
       const result = await networkService.getHorizonTransactionInclusionStatus(
         testTransactionHash,
@@ -674,10 +637,8 @@ describe('NetworkService', () => {
     it('returns failed when Horizon record is not successful', async () => {
       const call = jest.fn().mockResolvedValue({ successful: false });
       const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          transaction: jest.fn().mockReturnValue({ call }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getTransaction')
+        .mockImplementation(async () => call());
 
       const result = await networkService.getHorizonTransactionInclusionStatus(
         testTransactionHash,
@@ -691,10 +652,8 @@ describe('NetworkService', () => {
     it('throws NetworkServiceException when Horizon responds with a non-404 error', async () => {
       const call = jest.fn().mockRejectedValue(new Error('timeout'));
       const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          transaction: jest.fn().mockReturnValue({ call }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getTransaction')
+        .mockImplementation(async () => call());
 
       await expect(
         networkService.getHorizonTransactionInclusionStatus(
@@ -716,10 +675,8 @@ describe('NetworkService', () => {
       });
       const call = jest.fn().mockResolvedValue(horizonRecord);
       const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          transaction: jest.fn().mockReturnValue({ call }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getTransaction')
+        .mockImplementation(async () => call());
 
       const result = await networkService.getTransaction(tx.id, scope);
 
@@ -733,12 +690,10 @@ describe('NetworkService', () => {
     it('throws TransactionNotFoundException when record is not found', async () => {
       const call = jest
         .fn()
-        .mockRejectedValue(new NotFoundError('not found', {}));
+        .mockRejectedValue(new HorizonNotFoundError('not found'));
       const transactionsSpy = jest
-        .spyOn(StellarHorizon.Server.prototype, 'transactions')
-        .mockReturnValue({
-          transaction: jest.fn().mockReturnValue({ call }),
-        } as never);
+        .spyOn(HorizonClient.prototype, 'getTransaction')
+        .mockImplementation(async () => call());
 
       await expect(
         networkService.getTransaction(testTransactionHash, scope),

@@ -38,10 +38,13 @@ import { assertMemoWhenDestinationRequires } from '../utils';
 import { isSep41TransferInvoke, parseSep41TransferInvoke } from '../xdrParser';
 
 type ClassicAssetId = KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
-
-type PathPaymentOP =
+type PaymentOperation = Operation.Payment;
+type PathPaymentOperation =
   | Operation.PathPaymentStrictReceive
   | Operation.PathPaymentStrictSend;
+type CreateAccountOperation = Operation.CreateAccount;
+type ChangeTrustOperation = Operation.ChangeTrust;
+type InvokeHostFunctionOperation = Operation.InvokeHostFunction;
 
 /**
  * Converts a Stellar SDK native or classic asset to this Snap's CAIP asset id form.
@@ -212,7 +215,7 @@ function applyCredit(params: {
 }
 
 export class PaymentOPSimulator implements OperationSimulator {
-  validate(ctx: ValidateContext, op: Operation.Payment): void {
+  validate(ctx: ValidateContext, op: PaymentOperation): void {
     const payment = op;
     const { opIndex } = ctx;
     const { assetId, payAmt, source, dest, sourceId, destId } =
@@ -262,7 +265,7 @@ export class PaymentOPSimulator implements OperationSimulator {
     });
   }
 
-  apply(ctx: ApplyContext, op: Operation.Payment): void {
+  apply(ctx: ApplyContext, op: PaymentOperation): void {
     const { assetId, payAmt, source, dest } = this.#getContextData(ctx, op);
 
     applyDebit({ account: source, assetId, amount: payAmt });
@@ -271,7 +274,7 @@ export class PaymentOPSimulator implements OperationSimulator {
 
   #getContextData(
     ctx: ApplyContext,
-    op: Operation.Payment,
+    op: PaymentOperation,
   ): {
     sourceId: string;
     destId: string;
@@ -291,7 +294,7 @@ export class PaymentOPSimulator implements OperationSimulator {
     return { sourceId, destId, payAmt, assetId, source, dest };
   }
 
-  #paymentDestinationAccountId(op: Operation.Payment): string {
+  #paymentDestinationAccountId(op: PaymentOperation): string {
     const { destination } = op;
     if (typeof destination === 'string') {
       return destination;
@@ -303,7 +306,7 @@ export class PaymentOPSimulator implements OperationSimulator {
 }
 
 export class PathPaymentOPSimulator implements OperationSimulator {
-  validate(ctx: ValidateContext, op: PathPaymentOP): void {
+  validate(ctx: ValidateContext, op: PathPaymentOperation): void {
     const { source, sourceId, sendAssetId, sendAmount } = this.#sourceData(
       ctx,
       op,
@@ -351,7 +354,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
     });
   }
 
-  apply(ctx: ApplyContext, op: PathPaymentOP): void {
+  apply(ctx: ApplyContext, op: PathPaymentOperation): void {
     const { source, sendAssetId, sendAmount } = this.#sourceData(ctx, op);
     const { dest, destAssetId, destAmount } = this.#destinationData(ctx, op);
 
@@ -369,7 +372,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
 
   #sourceData(
     ctx: ApplyContext,
-    op: PathPaymentOP,
+    op: PathPaymentOperation,
   ): {
     source: AccountState;
     sourceId: string;
@@ -395,7 +398,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
 
   #destinationData(
     ctx: ApplyContext,
-    op: PathPaymentOP,
+    op: PathPaymentOperation,
   ): {
     dest: AccountState;
     destId: string;
@@ -421,7 +424,7 @@ export class PathPaymentOPSimulator implements OperationSimulator {
 }
 
 export class CreateAccountOPSimulator implements OperationSimulator {
-  validate(ctx: ValidateContext, op: Operation.CreateAccount): void {
+  validate(ctx: ValidateContext, op: CreateAccountOperation): void {
     const { state, opIndex, scope } = ctx;
     if (typeof op.destination !== 'string' || op.destination.length === 0) {
       throw new TransactionValidationException(
@@ -456,7 +459,7 @@ export class CreateAccountOPSimulator implements OperationSimulator {
     }
   }
 
-  apply(ctx: ApplyContext, op: Operation.CreateAccount): void {
+  apply(ctx: ApplyContext, op: CreateAccountOperation): void {
     const { state } = ctx;
     const { source, destId, startingBalance } = this.#getContextData(ctx, op);
 
@@ -475,7 +478,7 @@ export class CreateAccountOPSimulator implements OperationSimulator {
 
   #getContextData(
     ctx: ApplyContext,
-    op: Operation.CreateAccount,
+    op: CreateAccountOperation,
   ): { source: AccountState; destId: string; startingBalance: BigNumber } {
     const { txSource, state } = ctx;
     const funderId = effectiveSource(op, txSource);
@@ -487,7 +490,7 @@ export class CreateAccountOPSimulator implements OperationSimulator {
 }
 
 export class ChangeTrustOPSimulator implements OperationSimulator {
-  validate(ctx: ValidateContext, op: Operation.ChangeTrust): void {
+  validate(ctx: ValidateContext, op: ChangeTrustOperation): void {
     const { opIndex } = ctx;
     if (
       op.limit === undefined ||
@@ -542,7 +545,7 @@ export class ChangeTrustOPSimulator implements OperationSimulator {
     }
   }
 
-  apply(ctx: ApplyContext, op: Operation.ChangeTrust): void {
+  apply(ctx: ApplyContext, op: ChangeTrustOperation): void {
     const { source, assetId, trustlineLimit } = this.#getContextData(ctx, op);
 
     const sourceTrustline = source.trustlines.get(assetId);
@@ -583,7 +586,7 @@ export class ChangeTrustOPSimulator implements OperationSimulator {
 
   #getContextData(
     ctx: ApplyContext,
-    op: Operation.ChangeTrust,
+    op: ChangeTrustOperation,
   ): {
     source: AccountState;
     sourceId: string;
@@ -599,12 +602,14 @@ export class ChangeTrustOPSimulator implements OperationSimulator {
         `ChangeTrust line must be Stellar SAC Asset or Stellar Classic Asset, ${asset.constructor.name} is not supported`,
       );
     }
+    const issuer = asset.getIssuer();
+    if (issuer === undefined) {
+      throw new InvalidTrustlineException(
+        `ChangeTrust line must be Stellar Classic Asset with an issuer`,
+      );
+    }
 
-    const assetId = toCaip19ClassicAssetId(
-      scope,
-      asset.getCode(),
-      asset.getIssuer(),
-    );
+    const assetId = toCaip19ClassicAssetId(scope, asset.getCode(), issuer);
 
     // Operation limit is in human-readable form; convert to stroops like Horizon balances.
     const limit = new BigNumber(op.limit);
@@ -617,7 +622,7 @@ export class ChangeTrustOPSimulator implements OperationSimulator {
 }
 
 export class InvokeHostFunctionOPSimulator implements OperationSimulator {
-  validate(ctx: ValidateContext, op: Operation.InvokeHostFunction): void {
+  validate(ctx: ValidateContext, op: InvokeHostFunctionOperation): void {
     const { txSource, state, scope } = ctx;
     const sourceId = effectiveSource(op, txSource);
     // Contract transaction should always be sourced from the user wallet account
@@ -662,7 +667,7 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
     }
   }
 
-  apply(_ctx: ApplyContext, _op: Operation.InvokeHostFunction): void {
+  apply(_ctx: ApplyContext, _op: InvokeHostFunctionOperation): void {
     // InvokeHostFunction is a single operation transaction,
     // hence we don't need to apply any balance or trustline effects for Soroban invoke during simulation.
   }

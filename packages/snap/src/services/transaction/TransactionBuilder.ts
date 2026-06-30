@@ -1,5 +1,5 @@
 import { parseCaipAssetType } from '@metamask/utils';
-import type { xdr, OperationOptions } from '@stellar/stellar-sdk';
+import type { xdr } from '@stellar/stellar-sdk';
 import {
   Account,
   Address,
@@ -75,7 +75,7 @@ export class TransactionBuilder {
     assertAssetScopeMatch(assetId, scope);
 
     try {
-      const operationOpt: OperationOptions.ChangeTrust = {
+      const operationOpt: Parameters<typeof Operation.changeTrust>[0] = {
         asset: caip19ToStellarAsset(assetId),
       };
       if (limit !== undefined) {

@@ -1,11 +1,6 @@
 import { parseCaipAssetType } from '@metamask/utils';
-import {
-  Address,
-  Contract,
-  Horizon as StellarHorizon,
-  NotFoundError,
-  rpc,
-} from '@stellar/stellar-sdk';
+import type { Horizon } from '@stellar/stellar-sdk';
+import { Address, Contract, rpc } from '@stellar/stellar-sdk';
 
 import type { AssetDataResponse } from './api';
 import { KnownRpcError } from './api';
@@ -18,12 +13,14 @@ import {
   TransactionRetryableException,
   TransactionSendException,
 } from './exceptions';
+import { HorizonClient, HorizonNotFoundError } from './HorizonClient';
 import {
   InvocationV1,
   MultiCall,
   SIMULATION_ACCOUNT,
   StellarRouterContract,
 } from './MultiCall';
+import { SorobanRpcClient } from './SorobanRpcClient';
 import {
   baseInclusionFee,
   isAccountNotFoundError,
@@ -70,12 +67,9 @@ export class NetworkService {
 
   readonly #cache: ICache<Serializable>;
 
-  readonly #horizonClientMap = new Map<
-    KnownCaip2ChainId,
-    StellarHorizon.Server
-  >();
+  readonly #horizonClientMap = new Map<KnownCaip2ChainId, HorizonClient>();
 
-  readonly #rpcClientMap = new Map<KnownCaip2ChainId, rpc.Server>();
+  readonly #rpcClientMap = new Map<KnownCaip2ChainId, SorobanRpcClient>();
 
   constructor({
     logger,
@@ -88,21 +82,19 @@ export class NetworkService {
     this.#cache = cache;
   }
 
-  #getHorizonClient(scope: KnownCaip2ChainId): StellarHorizon.Server {
+  #getHorizonClient(scope: KnownCaip2ChainId): HorizonClient {
     let client = this.#horizonClientMap.get(scope);
     if (!client) {
-      client = new StellarHorizon.Server(
-        this.#getNetworkConfig(scope).horizonUrl,
-      );
+      client = new HorizonClient(this.#getNetworkConfig(scope).horizonUrl);
       this.#horizonClientMap.set(scope, client);
     }
     return client;
   }
 
-  #getRpcClient(scope: KnownCaip2ChainId): rpc.Server {
+  #getRpcClient(scope: KnownCaip2ChainId): SorobanRpcClient {
     let client = this.#rpcClientMap.get(scope);
     if (!client) {
-      client = new rpc.Server(this.#getNetworkConfig(scope).rpcUrl);
+      client = new SorobanRpcClient(this.#getNetworkConfig(scope).rpcUrl);
       this.#rpcClientMap.set(scope, client);
     }
     return client;
@@ -171,13 +163,10 @@ export class NetworkService {
   ): Promise<'pending' | 'success' | 'failed'> {
     try {
       const client = this.#getHorizonClient(scope);
-      const record = await client
-        .transactions()
-        .transaction(transactionHash)
-        .call();
+      const record = await client.getTransaction(transactionHash);
       return record.successful ? 'success' : 'failed';
     } catch (error: unknown) {
-      if (error instanceof NotFoundError) {
+      if (error instanceof HorizonNotFoundError) {
         return 'pending';
       }
       return this.#throwError({
@@ -439,11 +428,10 @@ export class NetworkService {
       const { assetCode, assetIssuer } = parseClassicAssetCodeIssuer(
         parseCaipAssetType(assetId).assetReference,
       );
-      const assetData = await client
-        .assets()
-        .forCode(assetCode)
-        .forIssuer(assetIssuer)
-        .call();
+      const assetData = await client.getAssetRecords({
+        assetCode,
+        assetIssuer,
+      });
 
       if (
         !assetData ||
@@ -762,13 +750,10 @@ export class NetworkService {
   ): Promise<Transaction> {
     try {
       const client = this.#getHorizonClient(scope);
-      const result = await client
-        .transactions()
-        .transaction(transactionHash)
-        .call();
+      const result = await client.getTransaction(transactionHash);
       return this.#toTransaction(result, scope);
     } catch (error: unknown) {
-      if (error instanceof NotFoundError) {
+      if (error instanceof HorizonNotFoundError) {
         throw new TransactionNotFoundException(transactionHash, {
           cause: error,
         });
@@ -832,14 +817,13 @@ export class NetworkService {
     try {
       const client = this.#getHorizonClient(scope);
 
-      const initialTransactionsResponse = await client
-        .transactions()
-        .forAccount(accountAddress)
-        .order(order)
-        .cursor(lastScanToken ?? '')
-        .limit(pageSize)
-        .includeFailed(includeFailed)
-        .call();
+      const initialTransactionsResponse = await client.getTransactions({
+        accountAddress,
+        order,
+        cursor: lastScanToken ?? '',
+        limit: pageSize,
+        includeFailed,
+      });
 
       let transactions = this.#toTransactions(
         initialTransactionsResponse.records,
@@ -885,7 +869,7 @@ export class NetworkService {
   }
 
   #toTransactions(
-    transactions: StellarHorizon.ServerApi.TransactionRecord[],
+    transactions: Horizon.ServerApi.TransactionRecord[],
     scope: KnownCaip2ChainId,
     accountAddress: string,
     includeSelfTransactionsOnly: boolean,
@@ -906,7 +890,7 @@ export class NetworkService {
   }
 
   #toTransaction(
-    horizonTransaction: StellarHorizon.ServerApi.TransactionRecord,
+    horizonTransaction: Horizon.ServerApi.TransactionRecord,
     scope: KnownCaip2ChainId,
   ): Transaction {
     return Transaction.fromHorizon({

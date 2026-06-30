@@ -182,5 +182,9 @@ export function stellarAssetToCaip19(
   if (asset.isNative()) {
     return getSlip44AssetId(scope);
   }
-  return toCaip19ClassicAssetId(scope, asset.getCode(), asset.getIssuer());
+  const issuer = asset.getIssuer();
+  if (issuer === undefined) {
+    throw new Error(`Invalid classic asset without issuer`);
+  }
+  return toCaip19ClassicAssetId(scope, asset.getCode(), issuer);
 }

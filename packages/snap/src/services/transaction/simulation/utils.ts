@@ -1,4 +1,4 @@
-import type { Operation } from '@stellar/stellar-sdk';
+import type { OperationRecord } from '@stellar/stellar-sdk';
 
 import { TransactionValidationException } from '../exceptions';
 import type { AccountState, SimulationState } from './api';
@@ -12,7 +12,7 @@ import { calculateSpendableBalance } from '../../on-chain-account/utils';
  * @param txSource - The transaction source.
  * @returns Effective source account public key.
  */
-export function effectiveSource(op: Operation, txSource: string): string {
+export function effectiveSource(op: OperationRecord, txSource: string): string {
   return op.source ?? txSource;
 }
 
