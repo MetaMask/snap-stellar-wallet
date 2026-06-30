@@ -1,4 +1,3 @@
-import type { Operation } from '@stellar/stellar-sdk';
 import {
   Account,
   Asset,
@@ -7,6 +6,7 @@ import {
   nativeToScVal,
   Networks,
   Operation as StellarOperation,
+  type OperationRecord,
   TransactionBuilder,
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
@@ -36,16 +36,16 @@ import { KnownCaip2ChainId } from '../../api';
 import { ACCOUNT_REQUIRES_MEMO, MEMO_REQUIRED_KEY } from '../../constants';
 import { caip2ChainIdToNetwork } from '../network/utils';
 import {
+  buildMockClassicTransaction,
+  buildMockInvokeHostFunctionTransaction,
+  type BuildMockTransactionOptions,
+} from './__mocks__/transaction.fixtures';
+import {
   createMockAccountWithBalances,
   horizonSource,
   type MockAccountWithBalancesData,
 } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
-import {
-  buildMockClassicTransaction,
-  buildMockInvokeHostFunctionTransaction,
-  type BuildMockTransactionOptions,
-} from './__mocks__/transaction.fixtures';
 import {
   generateStellarAddress,
   getTestWallet,
@@ -1512,7 +1512,9 @@ describe('TransactionSimulator', () => {
       const [invokeOp] = sorobanTx.transactionOperations;
       jest
         .spyOn(sorobanTx, 'transactionOperations', 'get')
-        .mockReturnValue([{ ...invokeOp, source: otherSource } as Operation]);
+        .mockReturnValue([
+          { ...invokeOp, source: otherSource } as OperationRecord,
+        ]);
 
       expect(() => simulator.simulate(sorobanTx, loaded)).toThrow(
         TransactionValidationException,

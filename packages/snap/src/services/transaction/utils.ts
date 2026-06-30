@@ -3,7 +3,7 @@ import {
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
 import { parseCaipAssetType } from '@metamask/utils';
-import type { Operation } from '@stellar/stellar-sdk';
+import type { Operation, OperationRecord } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -282,7 +282,7 @@ export function parseExpirationMaxTime(
  * @returns Whether the operation is an invoke host function operation.
  */
 export function isInvokeHostFunctionOperation(
-  operation: Operation | undefined,
+  operation: OperationRecord | undefined,
 ): operation is Operation.InvokeHostFunction {
   return (
     operation !== undefined &&
@@ -297,7 +297,7 @@ export function isInvokeHostFunctionOperation(
  * @returns Whether the operation is a payment operation.
  */
 export function isPaymentOperation(
-  operation: Operation,
+  operation: OperationRecord,
 ): operation is Operation.Payment {
   return operation.type === StellarOperationType.Payment;
 }
@@ -309,7 +309,7 @@ export function isPaymentOperation(
  * @returns Whether the operation is a path payment operation.
  */
 export function isPathPaymentOperation(
-  operation: Operation,
+  operation: OperationRecord,
 ): operation is
   | Operation.PathPaymentStrictSend
   | Operation.PathPaymentStrictReceive {
@@ -503,7 +503,7 @@ export function isDustPaymentTransaction(
  * @returns Whether the operation credits `accountAddress`.
  */
 export function isReceiveOperation(
-  operation: Operation,
+  operation: OperationRecord,
   accountAddress: string,
 ): operation is
   | Operation.Payment

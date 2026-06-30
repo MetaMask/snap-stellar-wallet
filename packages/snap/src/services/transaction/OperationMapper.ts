@@ -1,5 +1,5 @@
 import type { Json } from '@metamask/utils';
-import type { Asset, Operation } from '@stellar/stellar-sdk';
+import type { Asset, OperationRecord } from '@stellar/stellar-sdk';
 import { LiquidityPoolAsset, LiquidityPoolId, xdr } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -109,7 +109,17 @@ function accountAuthFlagsMaskToText(flags: number): string[] {
 /* eslint-enable no-bitwise */
 
 /**
- * Maps Stellar {@link Operation} values to plain JSON-friendly objects for signing UX.
+ * Checks whether an SDK-decoded optional field is set.
+ *
+ * @param value - Optional decoded field value.
+ * @returns Whether the value is neither null nor undefined.
+ */
+function isPresent<Value>(value: Value | null | undefined): value is Value {
+  return value !== undefined && value !== null;
+}
+
+/**
+ * Maps Stellar operation records to plain JSON-friendly objects for signing UX.
  */
 export class OperationMapper {
   /**
@@ -145,7 +155,7 @@ export class OperationMapper {
    * @returns Serializable operation summary.
    */
   mapOperation(
-    operation: Operation,
+    operation: OperationRecord,
     index: number,
     transactionSource: string,
   ): ReadableOperationJson {
@@ -166,7 +176,7 @@ export class OperationMapper {
     };
   }
 
-  #mapSorobanPlaceholder(operation: Operation): ReadableOperationField[] {
+  #mapSorobanPlaceholder(operation: OperationRecord): ReadableOperationField[] {
     if (operation.type === StellarOperationType.InvokeHostFunction) {
       const hostOp = operation;
       const rows: ReadableOperationField[] = [];
@@ -227,7 +237,7 @@ export class OperationMapper {
     ];
   }
 
-  #mapClassicParams(operation: Operation): ReadableOperationField[] {
+  #mapClassicParams(operation: OperationRecord): ReadableOperationField[] {
     /* eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- enum cases mirror SDK `operation.type` literals */
     switch (operation.type) {
       case StellarOperationType.Payment: {
@@ -352,12 +362,12 @@ export class OperationMapper {
       case StellarOperationType.SetOptions: {
         const setOptions = operation;
         const rows: ReadableOperationField[] = [];
-        if (setOptions.inflationDest !== undefined) {
+        if (isPresent(setOptions.inflationDest)) {
           rows.push(
             this.#field('inflationDest', setOptions.inflationDest, 'address'),
           );
         }
-        if (setOptions.clearFlags !== undefined) {
+        if (isPresent(setOptions.clearFlags)) {
           rows.push(
             this.#field(
               'clearFlags',
@@ -366,7 +376,7 @@ export class OperationMapper {
             ),
           );
         }
-        if (setOptions.setFlags !== undefined) {
+        if (isPresent(setOptions.setFlags)) {
           rows.push(
             this.#field(
               'setFlags',
@@ -375,30 +385,30 @@ export class OperationMapper {
             ),
           );
         }
-        if (setOptions.masterWeight !== undefined) {
+        if (isPresent(setOptions.masterWeight)) {
           rows.push(
             this.#field('masterWeight', setOptions.masterWeight, 'number'),
           );
         }
-        if (setOptions.lowThreshold !== undefined) {
+        if (isPresent(setOptions.lowThreshold)) {
           rows.push(
             this.#field('lowThreshold', setOptions.lowThreshold, 'number'),
           );
         }
-        if (setOptions.medThreshold !== undefined) {
+        if (isPresent(setOptions.medThreshold)) {
           rows.push(
             this.#field('medThreshold', setOptions.medThreshold, 'number'),
           );
         }
-        if (setOptions.highThreshold !== undefined) {
+        if (isPresent(setOptions.highThreshold)) {
           rows.push(
             this.#field('highThreshold', setOptions.highThreshold, 'number'),
           );
         }
-        if (setOptions.homeDomain !== undefined) {
+        if (isPresent(setOptions.homeDomain)) {
           rows.push(this.#field('homeDomain', setOptions.homeDomain, 'text'));
         }
-        if ('signer' in setOptions && setOptions.signer !== undefined) {
+        if ('signer' in setOptions && isPresent(setOptions.signer)) {
           // SDK Signer is a union of disjoint interfaces; cast to Record for key-based branching.
           const signer = setOptions.signer as unknown as Record<
             string,
@@ -510,7 +520,13 @@ export class OperationMapper {
       }
       case StellarOperationType.EndSponsoringFutureReserves:
         return [];
-      case StellarOperationType.RevokeSponsorship:
+      case StellarOperationType.RevokeAccountSponsorship:
+      case StellarOperationType.RevokeTrustlineSponsorship:
+      case StellarOperationType.RevokeOfferSponsorship:
+      case StellarOperationType.RevokeDataSponsorship:
+      case StellarOperationType.RevokeClaimableBalanceSponsorship:
+      case StellarOperationType.RevokeLiquidityPoolSponsorship:
+      case StellarOperationType.RevokeSignerSponsorship:
         return this.#mapRevokeSponsorship(operation);
       case StellarOperationType.Clawback: {
         const clawback = operation;
@@ -600,7 +616,7 @@ export class OperationMapper {
     }
   }
 
-  #mapRevokeSponsorship(operation: Operation): ReadableOperationField[] {
+  #mapRevokeSponsorship(operation: OperationRecord): ReadableOperationField[] {
     if ('seller' in operation && 'offerId' in operation) {
       const revokeOffer = operation as {
         seller: string;

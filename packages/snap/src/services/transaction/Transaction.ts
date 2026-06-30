@@ -1,7 +1,7 @@
 import { TransactionStatus } from '@metamask/keyring-api';
 import type {
   Transaction as StellarTransaction,
-  Operation,
+  OperationRecord,
   Horizon,
 } from '@stellar/stellar-sdk';
 import {
@@ -336,7 +336,7 @@ export class Transaction {
    *
    * @returns The operations.
    */
-  get transactionOperations(): Operation[] {
+  get transactionOperations(): OperationRecord[] {
     const raw = this.getRaw();
     if (raw instanceof FeeBumpTransaction) {
       return raw.innerTransaction.operations;
