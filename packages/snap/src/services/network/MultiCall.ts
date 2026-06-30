@@ -3,7 +3,7 @@ import {
   Address,
   Contract,
   type Operation,
-  rpc,
+  type rpc,
   scValToNative,
   type Transaction,
   TransactionBuilder,
@@ -36,8 +36,14 @@ export enum StellarRouterContract {
 }
 
 export type StellarRouterParams = {
-  rpcClient: rpc.Server;
+  rpcClient: SimulateTransactionClient;
   simulationAccount: string;
+};
+
+export type SimulateTransactionClient = {
+  simulateTransaction: (
+    tx: Transaction,
+  ) => Promise<rpc.Api.SimulateTransactionResponse>;
 };
 
 export class InvocationV0 {
@@ -76,7 +82,7 @@ export class InvocationV1 {
 }
 
 export class MultiCall {
-  readonly #rpcClient: rpc.Server;
+  readonly #rpcClient: SimulateTransactionClient;
 
   readonly #simulationAccount: string;
 
@@ -87,7 +93,7 @@ export class MultiCall {
     simulationAccount = SIMULATION_ACCOUNT,
     routerContract = StellarRouterContract.V0,
   }: {
-    rpcClient: rpc.Server;
+    rpcClient: SimulateTransactionClient;
     simulationAccount?: string;
     routerContract?: StellarRouterContract;
   }) {
@@ -169,7 +175,7 @@ export class MultiCall {
 
     const sim = await this.#rpcClient.simulateTransaction(tx);
 
-    if (rpc.Api.isSimulationError(sim)) {
+    if ('error' in sim) {
       throw new Error(String(sim.error));
     }
 

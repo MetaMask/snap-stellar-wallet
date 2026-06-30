@@ -1,5 +1,4 @@
 import type { SnapConfig } from '@metamask/snaps-cli';
-import { merge } from '@metamask/snaps-cli';
 import { config as dotenv } from 'dotenv';
 import { resolve } from 'path';
 
@@ -48,14 +47,6 @@ const config: SnapConfig = {
     MAX_PENDING_TRANSACTION_AGE: process.env.MAX_PENDING_TRANSACTION_AGE ?? '',
   },
   polyfills: true,
-  customizeWebpackConfig: (webpackConfig) =>
-    merge(webpackConfig, {
-      resolve: {
-        alias: {
-          eventsource: resolve(__dirname, 'src/shims/eventsource.ts'),
-        },
-      },
-    }),
 };
 
 export default config;

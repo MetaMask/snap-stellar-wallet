@@ -1,7 +1,8 @@
 import { ensureError } from '@metamask/utils';
-import { Networks, NotFoundError } from '@stellar/stellar-sdk';
+import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { HorizonNotFoundError } from './HorizonClient';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { BASE_FEE } from '../../constants';
@@ -83,7 +84,7 @@ export function isAccountNotFoundError(
   error: unknown,
   accountAddress: string,
 ): boolean {
-  if (error instanceof NotFoundError) {
+  if (error instanceof HorizonNotFoundError) {
     return true;
   }
   return ensureError(error).message === `Account not found: ${accountAddress}`;
