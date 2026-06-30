@@ -9,6 +9,7 @@ type HorizonAccountJson = Horizon.AccountResponse & {
 
 type HorizonCollectionResponse<TRecord> = {
   records?: TRecord[];
+  _embedded?: { records?: TRecord[] };
   _links?: {
     next?: {
       href?: string;
