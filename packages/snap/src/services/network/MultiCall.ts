@@ -175,8 +175,11 @@ export class MultiCall {
 
     const sim = await this.#rpcClient.simulateTransaction(tx);
 
-    if ('error' in sim) {
-      throw new Error(String(sim.error));
+    const simError = (sim as { error?: unknown }).error;
+    if (simError !== undefined) {
+      throw new Error(
+        typeof simError === 'string' ? simError : JSON.stringify(simError),
+      );
     }
 
     const retval = sim.result?.retval;
