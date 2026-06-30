@@ -14,6 +14,7 @@ import type { AccountService } from '../../services/account';
 import {
   TransactionNotFoundException,
   type NetworkService,
+  NetworkServiceException,
 } from '../../services/network';
 import type { SynchronizeService } from '../../services/sync/SynchronizeService';
 import { isCompletedTransactionStatus } from '../../services/transaction/utils';
@@ -110,8 +111,11 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
         );
       }
     } catch (error: unknown) {
-      // Reschedule only when the transaction is not found.
-      if (error instanceof TransactionNotFoundException) {
+      // Reschedule only when the transaction is not found or the network request fails.
+      if (
+        error instanceof TransactionNotFoundException ||
+        error instanceof NetworkServiceException
+      ) {
         await this.#rescheduleWhenHorizonNotIndexed({
           txId,
           scope,
