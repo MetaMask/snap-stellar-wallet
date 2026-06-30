@@ -42,45 +42,69 @@ describe('confirmation utils', () => {
   });
 
   describe('formatOrigin', () => {
-    it('returns "Unknown" for an undefined origin', () => {
-      expect(formatOrigin(undefined)).toBe('Unknown');
-    });
-
-    it('returns "Unknown" for an empty origin', () => {
-      expect(formatOrigin('')).toBe('Unknown');
-    });
-
-    it('returns "MetaMask" for the internal metamask origin', () => {
-      expect(formatOrigin('metamask')).toBe('MetaMask');
-    });
-
-    it('returns "WalletConnect" for the wallet-connect origin', () => {
-      expect(formatOrigin('wallet-connect')).toBe('WalletConnect');
-    });
-
-    it('matches known origins case-insensitively', () => {
-      expect(formatOrigin('MetaMask')).toBe('MetaMask');
-      expect(formatOrigin('Wallet-Connect')).toBe('WalletConnect');
-    });
-
-    it('returns the hostname for an http(s) URL', () => {
-      expect(formatOrigin('https://example.com')).toBe('example.com');
-      expect(formatOrigin('https://app.example.com/path?q=1')).toBe(
-        'app.example.com',
-      );
-      expect(formatOrigin('http://example.com')).toBe('example.com');
-    });
-
-    it('returns an empty string for a non-URL string (e.g. a WalletConnect channelId)', () => {
-      expect(formatOrigin('1234abcd-channel-id')).toBe('');
-    });
-
-    it('returns an empty string for a non-http URL', () => {
-      expect(formatOrigin('ftp://example.com')).toBe('');
-    });
-
-    it('returns an empty string for an invalid value', () => {
-      expect(formatOrigin('not a url')).toBe('');
+    it.each([
+      {
+        testcase: '"Unknown" for an undefined origin',
+        input: undefined,
+        expected: 'Unknown',
+      },
+      {
+        testcase: '"Unknown" for an empty origin',
+        input: '',
+        expected: 'Unknown',
+      },
+      {
+        testcase: '"MetaMask" for the internal metamask origin',
+        input: 'metamask',
+        expected: 'MetaMask',
+      },
+      {
+        testcase: '"WalletConnect" for the wallet-connect origin',
+        input: 'wallet-connect',
+        expected: 'WalletConnect',
+      },
+      {
+        testcase: 'known origins case-insensitively for metamask',
+        input: 'MetaMask',
+        expected: 'MetaMask',
+      },
+      {
+        testcase: 'known origins case-insensitively for wallet-connect',
+        input: 'Wallet-Connect',
+        expected: 'WalletConnect',
+      },
+      {
+        testcase: 'the hostname for an https URL',
+        input: 'https://example.com',
+        expected: 'example.com',
+      },
+      {
+        testcase: 'the hostname for an https URL with path and query',
+        input: 'https://app.example.com/path?q=1',
+        expected: 'app.example.com',
+      },
+      {
+        testcase: 'the hostname for an http URL',
+        input: 'http://example.com',
+        expected: 'example.com',
+      },
+      {
+        testcase: 'an empty string for a non-URL string',
+        input: '1234abcd-channel-id',
+        expected: '',
+      },
+      {
+        testcase: 'an empty string for a non-http URL',
+        input: 'ftp://example.com',
+        expected: '',
+      },
+      {
+        testcase: 'an empty string for an invalid value',
+        input: 'not a url',
+        expected: '',
+      },
+    ])('returns $expected for $testcase', ({ input, expected }) => {
+      expect(formatOrigin(input)).toStrictEqual(expected);
     });
   });
 
