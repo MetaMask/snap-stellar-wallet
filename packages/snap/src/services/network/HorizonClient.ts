@@ -72,12 +72,18 @@ export class HorizonClient {
     assetIssuer: string;
   }): Promise<HorizonAssetRecordsResponse> {
     const { assetCode, assetIssuer } = params;
-    return this.#requestJson(
+    const response = await this.#requestJson<
+      HorizonCollectionResponse<HorizonAssetRecord>
+    >(
       `/assets?${encodeQuery({
         asset_code: assetCode,
         asset_issuer: assetIssuer,
       })}`,
     );
+
+    return {
+      records: response.records ?? response._embedded?.records ?? [],
+    };
   }
 
   async getTransaction(
