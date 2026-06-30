@@ -12,12 +12,12 @@ import { AppConfig } from '../../config';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { AccountService } from '../../services/account';
 import {
-  NetworkServiceException,
   TransactionNotFoundException,
   type NetworkService,
 } from '../../services/network';
 import type { SynchronizeService } from '../../services/sync/SynchronizeService';
 import { isCompletedTransactionStatus } from '../../services/transaction/utils';
+import { trackErrorIfNeeded } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import {
@@ -110,11 +110,8 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
         );
       }
     } catch (error: unknown) {
-      // Reschedule only when the transaction is not found or the network request fails.
-      if (
-        error instanceof TransactionNotFoundException ||
-        error instanceof NetworkServiceException
-      ) {
+      // Reschedule only when the transaction is not found.
+      if (error instanceof TransactionNotFoundException) {
         await this.#rescheduleWhenHorizonNotIndexed({
           txId,
           scope,
@@ -130,6 +127,8 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
         scope,
         attempt,
       });
+
+      await trackErrorIfNeeded(error);
     }
   }
 

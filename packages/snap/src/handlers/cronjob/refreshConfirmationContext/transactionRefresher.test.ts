@@ -17,6 +17,8 @@ import {
   ClientRequestMethod,
 } from '../../clientRequest/api';
 
+jest.mock('../../../utils/logger');
+
 describe('ConfirmationTransactionRefresher', () => {
   const scope = KnownCaip2ChainId.Testnet;
   const accountId = '11111111-1111-4111-8111-111111111111';

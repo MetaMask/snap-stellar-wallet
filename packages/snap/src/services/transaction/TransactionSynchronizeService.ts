@@ -23,6 +23,7 @@ import {
   isSameStr,
   isSep41Id,
   pushToRecordArray,
+  trackErrorIfNeeded,
 } from '../../utils';
 import type {
   AccountService,
@@ -290,6 +291,8 @@ export class TransactionSynchronizeService {
           'Failed to fetch on-chain transactions',
           fetchResult.reason,
         );
+
+        await trackErrorIfNeeded(fetchResult.reason);
         continue;
       }
 
@@ -367,6 +370,8 @@ export class TransactionSynchronizeService {
         this.#logger.warn('Failed to fetch on-chain transaction', {
           error: fetchResult.reason,
         });
+
+        await trackErrorIfNeeded(fetchResult.reason);
         continue;
       }
 

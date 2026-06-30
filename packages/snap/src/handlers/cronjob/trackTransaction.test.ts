@@ -311,7 +311,7 @@ describe('TrackTransactionHandler', () => {
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
-  it('reschedules when network service throws NetworkServiceException', async () => {
+  it('does not reschedules when network service throws NetworkServiceException', async () => {
     const { handler, getTransaction, synchronize } = setup();
     getTransaction.mockRejectedValue(
       new NetworkServiceException('Failed to fetch transaction'),
@@ -329,7 +329,7 @@ describe('TrackTransactionHandler', () => {
     });
 
     expect(synchronize).not.toHaveBeenCalled();
-    expect(scheduleBackgroundEvent).toHaveBeenCalledTimes(1);
+    expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
   });
 
   it('syncs sender from accountIdsOrAddresses via findById', async () => {
