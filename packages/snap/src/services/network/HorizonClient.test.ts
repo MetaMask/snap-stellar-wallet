@@ -53,6 +53,60 @@ describe('HorizonClient', () => {
     expect(result.sequenceNumber()).toBe('42');
   });
 
+  it('reads asset records from Horizon embedded collection responses', async () => {
+    const assetRecord = {
+      asset_code: 'USDC',
+      asset_issuer: 'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG',
+    };
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        _embedded: {
+          records: [assetRecord],
+        },
+      }),
+    );
+    const client = new HorizonClient('https://horizon.example');
+
+    const result = await client.getAssetRecords({
+      assetCode: 'USDC',
+      assetIssuer: 'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG',
+    });
+
+    expect(result.records).toStrictEqual([assetRecord]);
+  });
+
+  it('reads transaction records from Horizon embedded collection responses', async () => {
+    const transactionRecord = {
+      hash: 'transaction-hash',
+      source_account:
+        'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG',
+    };
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        _links: {
+          next: {
+            href: '',
+          },
+        },
+        _embedded: {
+          records: [transactionRecord],
+        },
+      }),
+    );
+    const client = new HorizonClient('https://horizon.example');
+
+    const result = await client.getTransactions({
+      accountAddress:
+        'GB5QOHJZ6RACA26NFDIEHD7I7SLROLC5P4NATSG43OJV2C5WUR4VEUKG',
+      cursor: '',
+      includeFailed: false,
+      limit: 10,
+      order: 'desc',
+    });
+
+    expect(result.records).toStrictEqual([transactionRecord]);
+  });
+
   it('throws HorizonNotFoundError for 404 responses', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ title: 'Not Found' }, 404));
     const client = new HorizonClient('https://horizon.example');

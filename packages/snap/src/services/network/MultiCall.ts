@@ -3,7 +3,7 @@ import {
   Address,
   Contract,
   type Operation,
-  type rpc,
+  rpc,
   scValToNative,
   type Transaction,
   TransactionBuilder,
@@ -175,11 +175,8 @@ export class MultiCall {
 
     const sim = await this.#rpcClient.simulateTransaction(tx);
 
-    const simError = (sim as { error?: unknown }).error;
-    if (simError !== undefined) {
-      throw new Error(
-        typeof simError === 'string' ? simError : JSON.stringify(simError),
-      );
+    if (rpc.Api.isSimulationError(sim)) {
+      throw new Error(sim.error);
     }
 
     const retval = sim.result?.retval;
