@@ -37,29 +37,51 @@ export function getNetworkName(scope: KnownCaip2ChainId): string {
 }
 
 /**
+ * Display labels for known, non-URL origins, keyed by their lowercased raw value.
+ * Lets us show a friendly name for the internal MetaMask origin and WalletConnect
+ * channels instead of an empty/hidden origin row.
+ */
+const KNOWN_ORIGIN_LABELS: Record<string, string> = {
+  metamask: 'MetaMask',
+  'wallet-connect': 'WalletConnect',
+};
+
+/**
  * Formats an origin for display purposes.
  *
  * @param origin - The origin string to format (e.g., 'metamask', 'https://example.com').
- * @returns The formatted origin string (e.g., 'MetaMask', 'example.com').
+ * @returns The formatted origin string. `'Unknown'` for undefined/empty origins, a
+ * friendly label for known origins (e.g. `'MetaMask'`, `'WalletConnect'`), the
+ * hostname for http(s) URLs, or an empty string for any other value (e.g. a
+ * WalletConnect channelId or a non-http URL) so the UI hides the origin row.
  */
 export function formatOrigin(origin: string | undefined): string {
   if (!origin) {
     return 'Unknown';
   }
 
-  // Special case: format 'metamask' as 'MetaMask' (case-insensitive)
-  if (origin.toLowerCase() === 'metamask') {
-    return 'MetaMask';
+  const knownLabel = KNOWN_ORIGIN_LABELS[origin.toLowerCase()];
+  if (knownLabel) {
+    return knownLabel;
   }
 
   // Try to extract hostname from URL
   try {
-    return new URL(origin).hostname;
+    const url = new URL(origin);
+    return isHttpOrHttpsUrl(url) ? url.hostname : '';
   } catch {
-    // If not a valid URL, return the original value
-    // This shouldn't happen if validation is working correctly
-    return origin;
+    return '';
   }
+}
+
+/**
+ * Checks whether a parsed URL uses an HTTP(S) protocol.
+ *
+ * @param url - The parsed URL to check.
+ * @returns Whether the URL uses HTTP or HTTPS.
+ */
+function isHttpOrHttpsUrl(url: URL): boolean {
+  return url.protocol === 'http:' || url.protocol === 'https:';
 }
 
 /**
