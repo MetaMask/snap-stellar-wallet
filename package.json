@@ -61,7 +61,8 @@
   },
   "resolutions": {
     "@metamask/snaps-sdk": "^11.1.0",
-    "axios@npm:1.14.0": "1.16.0"
+    "axios@npm:1.14.0": "1.16.0",
+    "form-data@npm:^4.0.5": "^4.0.6"
   },
   "packageManager": "yarn@4.17.0",
   "engines": {
