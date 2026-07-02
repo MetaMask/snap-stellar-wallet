@@ -1,4 +1,5 @@
 import { KeyringRequestStruct } from '@metamask/keyring-api';
+import { ExportAccountOptionsStruct } from '@metamask/keyring-api/v2';
 import {
   object,
   min,
@@ -15,6 +16,7 @@ import {
   nullable,
   enums,
   refine,
+  define,
 } from '@metamask/superstruct';
 import type { Infer } from '@metamask/superstruct';
 import { base64 } from '@metamask/utils';
@@ -319,6 +321,23 @@ export const GetAccountRequestStruct = UuidStruct;
  * Validation struct for the deleteAccount request.
  */
 export const DeleteAccountRequestStruct = UuidStruct;
+
+/**
+ * Base58 string (Bitcoin alphabet). Used as a boolean `is` guard on the
+ * exported private key — NEVER as an asserting validator (a StructError would
+ * embed the key value in its message).
+ */
+export const Base58Struct = define<string>(
+  'Base58',
+  (value) =>
+    typeof value === 'string' && /^[1-9A-HJ-NP-Za-km-z]+$/u.test(value),
+);
+
+/** Request shape for `exportAccount`. */
+export const ExportAccountRequestStruct = object({
+  accountId: UuidStruct,
+  options: optional(ExportAccountOptionsStruct),
+});
 
 /**
  * Validation struct for the listAccountAssets request.
