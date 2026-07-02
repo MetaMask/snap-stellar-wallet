@@ -5,11 +5,12 @@ import {
   KeyringEvent,
   KeyringRpcMethod,
 } from '@metamask/keyring-api';
+import { KeyringRpcMethod as KeyringRpcMethodV2 } from '@metamask/keyring-api/v2';
 import {
   emitSnapKeyringEvent,
-  handleKeyringRequest,
   MethodNotSupportedError,
 } from '@metamask/keyring-snap-sdk';
+import { handleKeyringRequest } from '@metamask/keyring-snap-sdk/v2';
 import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
 import { create } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
@@ -51,6 +52,8 @@ import {
   createMockTransactionService,
   generateMockTransactions,
 } from '../../services/transaction/__mocks__/transaction.fixtures';
+import { WalletService } from '../../services/wallet';
+import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import {
   getSlip44AssetId,
   getDefaultEntropySource,
@@ -59,6 +62,7 @@ import {
 } from '../../utils';
 import { bufferToUint8Array } from '../../utils/buffer';
 import { logger } from '../../utils/logger';
+import { AccountResolver } from '../accountResolver';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
 
 jest.mock('../../utils/logger');
@@ -68,12 +72,17 @@ jest.mock('../../utils/requestResponse', () => ({
   validateOrigin: jest.fn(),
 }));
 jest.mock('@metamask/keyring-snap-sdk', () => ({
-  handleKeyringRequest: jest.fn(),
   emitSnapKeyringEvent: jest.fn(),
+  MethodNotSupportedError: jest.requireActual('@metamask/keyring-snap-sdk')
+    .MethodNotSupportedError,
+}));
+jest.mock('@metamask/keyring-snap-sdk/v2', () => ({
+  handleKeyringRequest: jest.fn(),
 }));
 
 describe('KeyringHandler', () => {
   const entropySourceId = 'entropy-source-1';
+  const NON_EXISTENT_ID = '00000000-0000-4000-8000-000000000000';
   let keyringHandler: KeyringHandler;
   let mockAccount: StellarKeyringAccount;
   let mockAccountId: string;
@@ -128,14 +137,20 @@ describe('KeyringHandler', () => {
     mockSignTransactionHandler = { handle: jest.fn() };
     mockSignAuthEntryHandler = { handle: jest.fn() };
 
-    const { accountService, onChainAccountService } =
+    const { accountService, onChainAccountService, walletService } =
       mockOnChainAccountService();
     const { transactionService } = createMockTransactionService();
+    const accountResolver = new AccountResolver({
+      accountService,
+      onChainAccountService,
+      walletService,
+    });
     keyringHandler = new KeyringHandler({
       logger,
       accountService,
       onChainAccountService,
       transactionService,
+      accountResolver,
       handlers: {
         [MultichainMethod.SignMessage]: mockSignMessageHandler,
         [MultichainMethod.SignTransaction]: mockSignTransactionHandler,
@@ -182,6 +197,40 @@ describe('KeyringHandler', () => {
       );
       expect(result).toBeNull();
     });
+
+    it('redacts the exportAccount result before debug-logging it', async () => {
+      const exportedAccount = {
+        type: 'private-key',
+        encoding: 'hexadecimal',
+        privateKey: `0x${'a'.repeat(64)}`,
+      };
+      const exportRequest = {
+        method: KeyringRpcMethodV2.ExportAccount,
+        id: '1',
+        jsonrpc: '2.0',
+      } as JsonRpcRequest;
+      jest
+        .mocked(handleKeyringRequest)
+        .mockResolvedValue(exportedAccount as unknown as Json);
+
+      const result = await keyringHandler.handle(
+        METAMASK_ORIGIN,
+        exportRequest,
+      );
+
+      expect(result).toStrictEqual(exportedAccount);
+      expect(jest.mocked(logger.debug)).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          result: expect.objectContaining({ privateKey: expect.anything() }),
+        }),
+      );
+      expect(jest.mocked(logger.debug)).toHaveBeenCalledWith(
+        expect.anything(),
+        'Keyring request handled',
+        expect.objectContaining({ result: '[redacted]' }),
+      );
+    });
   });
 
   describe('listAccounts', () => {
@@ -214,28 +263,22 @@ describe('KeyringHandler', () => {
 
   describe('getAccount', () => {
     it('gets an account by its ID', async () => {
-      jest
-        .spyOn(AccountService.prototype, 'findById')
-        .mockResolvedValue(mockAccount);
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
 
       const result = await keyringHandler.getAccount(mockAccountId);
+
+      expect(resolveAccountSpy).toHaveBeenCalledWith({
+        accountId: mockAccountId,
+      });
       expect(result).toStrictEqual(toKeyringAccount(mockAccount));
     });
 
-    it('returns undefined if the account is not found', async () => {
-      jest
-        .spyOn(AccountService.prototype, 'findById')
-        .mockResolvedValue(undefined);
-
-      const result = await keyringHandler.getAccount(mockAccountId);
-
-      expect(result).toBeUndefined();
-    });
-
     it('propagates errors when account retrieval fails', async () => {
-      jest
-        .spyOn(AccountService.prototype, 'findById')
-        .mockRejectedValue(new Error('Account retrieval failed'));
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockRejectedValue(
+        new Error('Account retrieval failed'),
+      );
 
       await expect(keyringHandler.getAccount(mockAccountId)).rejects.toThrow(
         'Account retrieval failed',
@@ -246,6 +289,77 @@ describe('KeyringHandler', () => {
       await expect(keyringHandler.getAccount('not-uuid')).rejects.toThrow(
         InvalidParamsError,
       );
+    });
+  });
+
+  describe('getAccount (v2 semantics)', () => {
+    it('throws for an unknown account id instead of returning undefined', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockRejectedValue(
+        new AccountNotFoundException(NON_EXISTENT_ID),
+      );
+
+      await expect(keyringHandler.getAccount(NON_EXISTENT_ID)).rejects.toThrow(
+        AccountNotFoundException,
+      );
+    });
+  });
+
+  describe('getAccounts', () => {
+    it('returns the same result as listAccounts', async () => {
+      const { listAccountsSpy } = getAccountServiceSpies();
+      listAccountsSpy.mockResolvedValue([mockAccount]);
+
+      expect(await keyringHandler.getAccounts()).toStrictEqual(
+        await keyringHandler.listAccounts(),
+      );
+    });
+  });
+
+  describe('exportAccount', () => {
+    const setupExportWallet = () => {
+      const wallet = getTestWallet();
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockResolvedValue({ account: mockAccount });
+      const resolveWalletSpy = jest
+        .spyOn(WalletService.prototype, 'resolveWallet')
+        .mockResolvedValue(wallet);
+
+      return { wallet, resolveAccountSpy, resolveWalletSpy };
+    };
+
+    it('returns the hex-encoded raw seed by default', async () => {
+      setupExportWallet();
+
+      const result = await keyringHandler.exportAccount(mockAccountId);
+
+      expect(result).toStrictEqual({
+        type: 'private-key',
+        encoding: 'hexadecimal',
+        privateKey: expect.stringMatching(/^0x[0-9a-f]{64}$/u),
+      });
+    });
+
+    it('respects the requested base58 encoding', async () => {
+      setupExportWallet();
+
+      const result = await keyringHandler.exportAccount(mockAccountId, {
+        type: 'private-key',
+        encoding: 'base58',
+      });
+
+      expect(result.encoding).toBe('base58');
+    });
+
+    it('throws for an unknown account id', async () => {
+      const { resolveAccountSpy } = getAccountServiceSpies();
+      resolveAccountSpy.mockRejectedValue(
+        new AccountNotFoundException(NON_EXISTENT_ID),
+      );
+
+      await expect(
+        keyringHandler.exportAccount(NON_EXISTENT_ID),
+      ).rejects.toThrow(AccountNotFoundException);
     });
   });
 
