@@ -1,6 +1,10 @@
+import { PrivateKeyEncoding } from '@metamask/keyring-api/v2';
+import { bytesToHex } from '@metamask/utils';
+import { base58 } from '@scure/base';
 import { hash, type Keypair } from '@stellar/stellar-sdk';
 
 import {
+  ExportKeyException,
   SignAuthEntryException,
   SignMessageException,
   SignTransactionException,
@@ -66,6 +70,28 @@ export class Wallet {
       return signature;
     } catch {
       throw new SignMessageException();
+    }
+  }
+
+  /**
+   * Exports the raw ed25519 secret seed for this wallet's signer.
+   *
+   * Returns raw key bytes, not the Stellar StrKey `S…` seed — the keyring V2
+   * export contract only supports hex/base58 over raw bytes. `hexadecimal`
+   * yields a `0x`-prefixed string; `base58` yields a base58 string.
+   *
+   * @param encoding - The private-key encoding (hexadecimal or base58).
+   * @returns The encoded raw secret seed.
+   * @throws {ExportKeyException} If the key cannot be exported (details are not exposed).
+   */
+  exportKey(encoding: PrivateKeyEncoding): string {
+    try {
+      const rawSeed = bufferToUint8Array(this.#signer.rawSecretKey());
+      return encoding === PrivateKeyEncoding.Base58
+        ? base58.encode(rawSeed)
+        : bytesToHex(rawSeed);
+    } catch {
+      throw new ExportKeyException();
     }
   }
 

@@ -1,6 +1,7 @@
-import { assert, StructError } from '@metamask/superstruct';
+import { assert, is, StructError } from '@metamask/superstruct';
 
 import {
+  Base58Struct,
   CreateAccountOptionsStruct,
   ResolveAccountAddressRequestStruct,
   DiscoverAccountsStruct,
@@ -627,4 +628,28 @@ describe('ListAccountTransactionsRequestStruct', () => {
       StructError,
     );
   });
+});
+
+describe('Base58Struct', () => {
+  it('accepts a valid base58 string', () => {
+    expect(is('StV1DL6CwTryKyV', Base58Struct)).toBe(true);
+  });
+
+  it.each(['0', 'O', 'I', 'l'])(
+    'rejects a string containing the excluded character %s',
+    (excluded) => {
+      expect(is(`StV1DL6CwTryKyV${excluded}`, Base58Struct)).toBe(false);
+    },
+  );
+
+  it('rejects an empty string', () => {
+    expect(is('', Base58Struct)).toBe(false);
+  });
+
+  it.each([123, null, undefined, {}, []])(
+    'rejects a non-string value',
+    (value) => {
+      expect(is(value, Base58Struct)).toBe(false);
+    },
+  );
 });

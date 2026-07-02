@@ -61,6 +61,7 @@
   },
   "resolutions": {
     "@metamask/snaps-sdk": "^11.1.0",
+    "@metamask/snaps-utils": "12.2.0",
     "axios@npm:1.14.0": "1.16.0"
   },
   "packageManager": "yarn@4.17.0",
