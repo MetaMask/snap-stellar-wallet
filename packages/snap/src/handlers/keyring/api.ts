@@ -335,9 +335,10 @@ export const Base58Struct = define<string>(
 
 /**
  * Handler-level request shape for `exportAccount`, distinct from the
- * wire-level `ExportAccountRequestStruct` exported by
- * `@metamask/keyring-api/v2` (which validates the outer JSON-RPC envelope:
- * `{ jsonrpc, id, method, params: { id, options } }`).
+ * wire-level `ExportAccountRequestStruct` exported by both
+ * `@metamask/keyring-api` (root barrel, via `rpc.mjs`) and its `/v2`
+ * subpath (via `keyring-rpc.mjs`), which validates the outer JSON-RPC
+ * envelope: `{ jsonrpc, id, method, params: { id, options } }`.
  */
 export const ExportAccountHandlerRequestStruct = object({
   accountId: UuidStruct,
