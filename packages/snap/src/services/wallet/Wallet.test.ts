@@ -1,4 +1,6 @@
+import { PrivateKeyEncoding } from '@metamask/keyring-api/v2';
 import { hexToBytes } from '@metamask/utils';
+import { base58 } from '@scure/base';
 import { hash, Keypair } from '@stellar/stellar-sdk';
 
 import { getTestWallet } from './__mocks__/wallet.fixtures';
@@ -195,6 +197,33 @@ describe('Wallet', () => {
       ]);
 
       expect(() => wallet.signTransaction(tx)).not.toThrow();
+    });
+  });
+
+  describe('exportKey', () => {
+    const keypair = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
+    const wallet = new Wallet(keypair);
+    const rawSeed = bufferToUint8Array(keypair.rawSecretKey());
+
+    it('exports the raw 32-byte seed as 0x-prefixed hex', () => {
+      const exported = wallet.exportKey(PrivateKeyEncoding.Hexadecimal);
+      expect(exported).toBe(`0x${rawSeed.toString('hex')}`);
+      // Round-trips back to the same keypair.
+      expect(
+        Keypair.fromRawEd25519Seed(
+          bufferToUint8Array(exported.slice(2), 'hex'),
+        ).publicKey(),
+      ).toBe(keypair.publicKey());
+    });
+
+    it('exports the raw seed as base58', () => {
+      const exported = wallet.exportKey(PrivateKeyEncoding.Base58);
+      expect(exported).toBe(base58.encode(rawSeed));
+      expect(
+        Keypair.fromRawEd25519Seed(
+          bufferToUint8Array(base58.decode(exported)),
+        ).publicKey(),
+      ).toBe(keypair.publicKey());
     });
   });
 });

@@ -7,7 +7,6 @@ import {
   type CreateAccountOptions as KeyringApiCreateAccountOptions,
   type DiscoveredAccount,
   type EntropySourceId,
-  type Keyring,
   type KeyringAccount,
   type KeyringRequest,
   type KeyringResponse,
@@ -15,17 +14,27 @@ import {
   type ResolvedAccountAddress,
   type Transaction,
 } from '@metamask/keyring-api';
+import type {
+  ExportAccountOptions,
+  ExportedAccount,
+  KeyringRpc,
+} from '@metamask/keyring-api/v2';
+import {
+  KeyringRpcMethod as KeyringRpcMethodV2,
+  PrivateKeyEncoding,
+} from '@metamask/keyring-api/v2';
 import {
   emitSnapKeyringEvent,
-  handleKeyringRequest,
   MethodNotSupportedError,
 } from '@metamask/keyring-snap-sdk';
+import { handleKeyringRequest } from '@metamask/keyring-snap-sdk/v2';
 import {
   InvalidParamsError,
   type Json,
   type JsonRpcRequest,
 } from '@metamask/snaps-sdk';
-import { type CaipAssetTypeOrId } from '@metamask/utils';
+import { is, union } from '@metamask/superstruct';
+import { type CaipAssetTypeOrId, HexStruct } from '@metamask/utils';
 
 import type {
   CreateAccountOptions,
@@ -34,9 +43,11 @@ import type {
   MultichainMethod,
 } from './api';
 import {
+  Base58Struct,
   CreateAccountOptionsStruct,
   DeleteAccountRequestStruct,
   DiscoverAccountsStruct,
+  ExportAccountHandlerRequestStruct,
   GetAccountRequestStruct,
   ListAccountTransactionsRequestStruct,
   MultichainMethodStruct,
@@ -79,9 +90,11 @@ import {
   validateRequest,
   withCatchAndThrowSnapError,
 } from '../../utils';
+import { RESOLVE_ACCOUNT_KEYRING_AND_WALLET } from '../accountResolver';
+import type { AccountResolver } from '../accountResolver';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
 
-export class KeyringHandler implements Keyring {
+export class KeyringHandler implements KeyringRpc {
   readonly #logger: ILogger;
 
   readonly #accountService: AccountService;
@@ -90,6 +103,8 @@ export class KeyringHandler implements Keyring {
 
   readonly #transactionService: TransactionService;
 
+  readonly #accountResolver: AccountResolver;
+
   readonly #handlers: Record<MultichainMethod, IKeyringRequestHandler>;
 
   constructor({
@@ -97,18 +112,21 @@ export class KeyringHandler implements Keyring {
     accountService,
     onChainAccountService,
     transactionService,
+    accountResolver,
     handlers,
   }: {
     logger: ILogger;
     accountService: AccountService;
     onChainAccountService: OnChainAccountService;
     transactionService: TransactionService;
+    accountResolver: AccountResolver;
     handlers: Record<MultichainMethod, IKeyringRequestHandler>;
   }) {
     this.#logger = createPrefixedLogger(logger, '[🔑 KeyringHandler]');
     this.#accountService = accountService;
     this.#onChainAccountService = onChainAccountService;
     this.#transactionService = transactionService;
+    this.#accountResolver = accountResolver;
     this.#handlers = handlers;
   }
 
@@ -124,7 +142,12 @@ export class KeyringHandler implements Keyring {
         this.#logger.debug('Keyring request handled', {
           origin,
           method: request.method,
-          result: keyringRequestResult,
+          // SECURITY: never debug-log the exportAccount result — it carries the
+          // raw private key. Every other method's result is safe to log as-is.
+          result:
+            request.method === KeyringRpcMethodV2.ExportAccount
+              ? '[redacted]'
+              : keyringRequestResult,
         });
         return keyringRequestResult;
       }, this.#logger)) ?? null;
@@ -137,12 +160,53 @@ export class KeyringHandler implements Keyring {
     return accounts.map((account) => this.#toKeyringAccount(account));
   }
 
-  async getAccount(
-    accountId: GetAccountRequest,
-  ): Promise<KeyringAccount | undefined> {
+  async getAccount(accountId: GetAccountRequest): Promise<KeyringAccount> {
     validateRequest(accountId, GetAccountRequestStruct);
-    const account = await this.#accountService.findById(accountId);
-    return account ? this.#toKeyringAccount(account) : undefined;
+    const { account } = await this.#accountService.resolveAccount({
+      accountId,
+    });
+    return this.#toKeyringAccount(account);
+  }
+
+  async getAccounts(): Promise<KeyringAccount[]> {
+    return this.listAccounts();
+  }
+
+  /**
+   * Exports the private key (raw ed25519 seed) for the specified account.
+   *
+   * @param accountId - ID of the account to export.
+   * @param options - Optional export options (defaults to hexadecimal encoding).
+   * @returns The exported private key data.
+   */
+  async exportAccount(
+    accountId: string,
+    options?: ExportAccountOptions,
+  ): Promise<ExportedAccount> {
+    validateRequest({ accountId, options }, ExportAccountHandlerRequestStruct);
+
+    const { wallet } = await this.#accountResolver.resolveAccount({
+      accountId,
+      options: RESOLVE_ACCOUNT_KEYRING_AND_WALLET,
+    });
+
+    // `options.encoding` is the plain string-literal union from the v2 API
+    // (`'hexadecimal' | 'base58'`), not the `PrivateKeyEncoding` enum type
+    // `Wallet.exportKey` expects — even though the literal values match.
+    const encoding =
+      options?.encoding === PrivateKeyEncoding.Base58
+        ? PrivateKeyEncoding.Base58
+        : PrivateKeyEncoding.Hexadecimal;
+    const privateKey = wallet.exportKey(encoding);
+
+    // SECURITY: boolean `is` check only. An asserting validator's StructError
+    // embeds the offending value — the private key — in its message, leaking it
+    // to logs and the caller. On failure throw a value-free message.
+    if (!is(privateKey, union([Base58Struct, HexStruct]))) {
+      throw new Error('Derived private key failed encoding validation');
+    }
+
+    return { type: 'private-key', encoding, privateKey };
   }
 
   async createAccount(options?: CreateAccountOptions): Promise<KeyringAccount> {

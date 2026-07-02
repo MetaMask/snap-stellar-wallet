@@ -1,4 +1,5 @@
 import { KeyringRpcMethod } from '@metamask/keyring-api';
+import { KeyringRpcMethod as KeyringRpcMethodV2 } from '@metamask/keyring-api/v2';
 
 import { Environment } from './api';
 import { AppConfig } from './config';
@@ -13,32 +14,35 @@ const dappPermissions = isDev
   ? new Set<string>([
       // Keyring methods
       KeyringRpcMethod.ListAccounts,
-      KeyringRpcMethod.GetAccount,
+      KeyringRpcMethodV2.GetAccount,
       KeyringRpcMethod.CreateAccount,
-      KeyringRpcMethod.CreateAccounts,
-      KeyringRpcMethod.DeleteAccount,
+      KeyringRpcMethodV2.CreateAccounts,
+      KeyringRpcMethodV2.DeleteAccount,
       KeyringRpcMethod.DiscoverAccounts,
       KeyringRpcMethod.GetAccountBalances,
-      KeyringRpcMethod.SubmitRequest,
+      KeyringRpcMethodV2.SubmitRequest,
       KeyringRpcMethod.ListAccountTransactions,
       KeyringRpcMethod.ListAccountAssets,
+      KeyringRpcMethodV2.GetAccounts,
     ])
   : new Set<string>([]);
 
 const metamaskPermissions = new Set([
   // Keyring methods
   KeyringRpcMethod.ListAccounts,
-  KeyringRpcMethod.GetAccount,
+  KeyringRpcMethodV2.GetAccount,
   KeyringRpcMethod.CreateAccount,
-  KeyringRpcMethod.CreateAccounts,
-  KeyringRpcMethod.DeleteAccount,
+  KeyringRpcMethodV2.CreateAccounts,
+  KeyringRpcMethodV2.DeleteAccount,
   KeyringRpcMethod.DiscoverAccounts,
   KeyringRpcMethod.GetAccountBalances,
-  KeyringRpcMethod.SubmitRequest,
+  KeyringRpcMethodV2.SubmitRequest,
   KeyringRpcMethod.ListAccountTransactions,
   KeyringRpcMethod.ListAccountAssets,
   KeyringRpcMethod.ResolveAccountAddress,
   KeyringRpcMethod.SetSelectedAccounts,
+  KeyringRpcMethodV2.GetAccounts,
+  KeyringRpcMethodV2.ExportAccount,
 ]);
 
 const metamask = METAMASK_ORIGIN;
