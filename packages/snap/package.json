@@ -51,7 +51,7 @@
     "@metamask/snaps-sdk": "^11.1.0",
     "@metamask/superstruct": "^3.2.1",
     "@metamask/utils": "^11.11.0",
-    "@scure/base": "^1.1.9",
+    "@scure/base": "~1.1.6",
     "@stellar/stellar-sdk": "^15.0.1",
     "@types/jest": "^30.0.0",
     "async-mutex": "^0.5.0",
