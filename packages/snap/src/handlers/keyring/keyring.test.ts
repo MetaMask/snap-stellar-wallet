@@ -349,6 +349,9 @@ describe('KeyringHandler', () => {
       });
 
       expect(result.encoding).toBe('base58');
+      // Same alphabet used by `Base58Struct` in ./api.ts.
+      expect(result.privateKey).toMatch(/^[1-9A-HJ-NP-Za-km-z]+$/u);
+      expect(result.privateKey).not.toMatch(/^0x[0-9a-f]{64}$/u);
     });
 
     it('throws for an unknown account id', async () => {
@@ -360,6 +363,22 @@ describe('KeyringHandler', () => {
       await expect(
         keyringHandler.exportAccount(NON_EXISTENT_ID),
       ).rejects.toThrow(AccountNotFoundException);
+    });
+
+    it('throws without leaking the derived key when it fails the encoding guard', async () => {
+      const { wallet } = setupExportWallet();
+      const garbageKey = 'not-a-valid-encoded-key!!!';
+      jest.spyOn(wallet, 'exportKey').mockReturnValue(garbageKey);
+
+      let caughtError: unknown;
+      try {
+        await keyringHandler.exportAccount(mockAccountId);
+      } catch (error) {
+        caughtError = error;
+      }
+
+      expect(caughtError).toBeInstanceOf(Error);
+      expect((caughtError as Error).message).not.toContain(garbageKey);
     });
   });
 
