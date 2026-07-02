@@ -7,8 +7,7 @@
     "exactOptionalPropertyTypes": false,
     "types": ["jest"],
     "module": "preserve",
-    "moduleResolution": "bundler",
-    "isolatedModules": true
+    "moduleResolution": "bundler"
   },
   "include": ["**/*.ts", "**/*.tsx", "locales/*.json"]
 }
