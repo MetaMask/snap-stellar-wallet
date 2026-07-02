@@ -333,8 +333,13 @@ export const Base58Struct = define<string>(
     typeof value === 'string' && /^[1-9A-HJ-NP-Za-km-z]+$/u.test(value),
 );
 
-/** Request shape for `exportAccount`. */
-export const ExportAccountRequestStruct = object({
+/**
+ * Handler-level request shape for `exportAccount`, distinct from the
+ * wire-level `ExportAccountRequestStruct` exported by
+ * `@metamask/keyring-api/v2` (which validates the outer JSON-RPC envelope:
+ * `{ jsonrpc, id, method, params: { id, options } }`).
+ */
+export const ExportAccountHandlerRequestStruct = object({
   accountId: UuidStruct,
   options: optional(ExportAccountOptionsStruct),
 });
