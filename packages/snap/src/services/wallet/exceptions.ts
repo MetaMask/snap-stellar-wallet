@@ -1,6 +1,6 @@
 import { StellarSnapException } from '../../utils/errors';
 
-/** Base for wallet-layer errors (derivation, signing, verification). */
+/** Base for wallet-layer errors (derivation, signing, verification, export). */
 export class WalletServiceException extends StellarSnapException {}
 
 /**
@@ -46,5 +46,14 @@ export class SignAuthEntryException extends WalletServiceException {
 export class VerifyMessageException extends WalletServiceException {
   constructor() {
     super('Failed to verify message');
+  }
+}
+
+/**
+ * Thrown when the private key cannot be exported.
+ */
+export class ExportKeyException extends WalletServiceException {
+  constructor() {
+    super('Failed to export key');
   }
 }
