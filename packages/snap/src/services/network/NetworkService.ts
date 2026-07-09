@@ -448,9 +448,8 @@ export class NetworkService {
       if (
         !assetData ||
         assetData.records.length === 0 ||
-        assetData.records[0] === undefined ||
-        assetData.records[0].asset_code !== assetCode ||
-        assetData.records[0].asset_issuer !== assetIssuer
+        assetData.records[0]?.asset_code !== assetCode ||
+        assetData.records[0]?.asset_issuer !== assetIssuer
       ) {
         throw new NetworkServiceException(
           `Failed to get assets data from Horizon for asset id: ${assetId}`,

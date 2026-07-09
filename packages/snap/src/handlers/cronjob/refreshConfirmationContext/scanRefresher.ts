@@ -1,10 +1,10 @@
 import type { Json } from '@metamask/utils';
 
-import {
-  ConfirmationContextRefresherKey,
-  type ConfirmationContextRefreshResult,
-  type ConfirmationDataContext,
-  type IConfirmationContextRefresher,
+import { ConfirmationContextRefresherKey } from './api';
+import type {
+  ConfirmationContextRefreshResult,
+  ConfirmationDataContext,
+  IConfirmationContextRefresher,
 } from './api';
 import type {
   TransactionScanEstimatedChanges,

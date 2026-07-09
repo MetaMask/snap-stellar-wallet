@@ -1,8 +1,5 @@
-import {
-  KeyringEvent,
-  TransactionStatus,
-  type Transaction as KeyringTransaction,
-} from '@metamask/keyring-api';
+import { KeyringEvent, TransactionStatus } from '@metamask/keyring-api';
+import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { parseCaipAssetType } from '@metamask/utils';
 import type { Operation } from '@stellar/stellar-sdk';
@@ -10,7 +7,8 @@ import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 import { groupBy } from 'lodash';
 
-import { StellarOperationType, type StellarKeyringTransaction } from './api';
+import { StellarOperationType } from './api';
+import type { StellarKeyringTransaction } from './api';
 import {
   InvalidInvokeContractStructureException,
   RequiresMemoException,
@@ -288,10 +286,7 @@ export function parseExpirationMaxTime(
 export function isInvokeHostFunctionOperation(
   operation: Operation | undefined,
 ): operation is Operation.InvokeHostFunction {
-  return (
-    operation !== undefined &&
-    operation.type === StellarOperationType.InvokeHostFunction
-  );
+  return operation?.type === StellarOperationType.InvokeHostFunction;
 }
 
 /**

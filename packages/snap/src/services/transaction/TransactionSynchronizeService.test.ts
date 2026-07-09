@@ -72,14 +72,14 @@ function buildOnChainPaymentTransaction(params: {
     horizonTransaction: {
       id: inner.hash().toString('hex'),
       hash: inner.hash().toString('hex'),
-      // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
       envelope_xdr: inner.toXDR(),
-      // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
       fee_charged: inner.fee,
       successful: true,
-      // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
       created_at: '2026-01-15T00:00:00.000Z',
-      // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
       paging_token: 'scan-token-1',
     } as Horizon.ServerApi.TransactionRecord,
     scope: KnownCaip2ChainId.Mainnet,

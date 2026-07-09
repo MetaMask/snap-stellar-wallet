@@ -3,13 +3,11 @@ import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import {
-  ClientRequestMethod,
-  ChangeTrustOptAction,
-  type ChangeTrustOptJsonRpcRequest,
-} from './api';
+import { ClientRequestMethod, ChangeTrustOptAction } from './api';
+import type { ChangeTrustOptJsonRpcRequest } from './api';
 import { ChangeTrustOptHandler } from './changeTrustOpt';
-import { KnownCaip2ChainId, type KnownCaip19ClassicAssetId } from '../../api';
+import { KnownCaip2ChainId } from '../../api';
+import type { KnownCaip19ClassicAssetId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';

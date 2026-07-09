@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 /* eslint-disable jest/prefer-strict-equal */
 import { BigNumber } from 'bignumber.js';
 
@@ -195,5 +194,5 @@ describe('deserialize', () => {
     expect(result).toStrictEqual(new Uint8Array([1, 2, 3]));
   });
 });
-/* eslint-enable @typescript-eslint/naming-convention */
+
 /* eslint-enable jest/prefer-strict-equal */

@@ -7,15 +7,15 @@ import {
   TrackTransactionJsonRpcRequestStruct,
 } from './api';
 import { CronjobBaseHandler } from './base';
-import { type KnownCaip2ChainId } from '../../api';
+import type { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { AccountService } from '../../services/account';
 import {
   TransactionNotFoundException,
-  type NetworkService,
   NetworkServiceException,
 } from '../../services/network';
+import type { NetworkService } from '../../services/network';
 import type { SynchronizeService } from '../../services/sync/SynchronizeService';
 import { isCompletedTransactionStatus } from '../../services/transaction/utils';
 import { trackErrorIfNeeded } from '../../utils';

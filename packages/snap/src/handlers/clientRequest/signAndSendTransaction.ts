@@ -10,13 +10,13 @@ import {
   SignAndSendTransactionJsonRpcRequestStruct,
   SignAndSendTransactionJsonRpcResponseStruct,
 } from './api';
-import {
-  type KnownCaip19AssetIdOrSlip44Id,
-  type KnownCaip2ChainId,
+import type {
+  KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip2ChainId,
 } from '../../api';
-import {
-  type AccountResolver,
-  type ResolvedActivatedAccount,
+import type {
+  AccountResolver,
+  ResolvedActivatedAccount,
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
 import { METAMASK_ORIGIN, STELLAR_DECIMAL_PLACES } from '../../constants';

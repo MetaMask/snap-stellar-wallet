@@ -20,6 +20,7 @@ export default createConfig([
       '@typescript-eslint/no-explicit-any': 'error',
       'id-length': ['warn', { exceptions: ['t'] }], // Used for the localized translator helper.
       'prettier/prettier': 'error',
+      'jsdoc/require-jsdoc': 'off',
     },
   },
   {
@@ -36,6 +37,7 @@ export default createConfig([
       'jsdoc/require-jsdoc': 'off',
       'jsdoc/require-returns': 'off',
       'jsdoc/require-param-description': 'off',
+      'jest/unbound-method': 'off',
     },
   },
   {

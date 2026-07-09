@@ -250,10 +250,7 @@ export class TransactionMapper {
     const { scope } = transaction;
     const [firstOperation] = transaction.transactionOperations;
 
-    if (
-      firstOperation &&
-      firstOperation.type === StellarOperationType.Payment
-    ) {
+    if (firstOperation?.type === StellarOperationType.Payment) {
       const { destination: toAddress, asset, amount } = firstOperation;
 
       return {
@@ -262,10 +259,7 @@ export class TransactionMapper {
       };
     }
 
-    if (
-      firstOperation &&
-      firstOperation.type === StellarOperationType.CreateAccount
-    ) {
+    if (firstOperation?.type === StellarOperationType.CreateAccount) {
       return {
         toAddress: firstOperation.destination,
         asset: this.#assetToKeyringAssetRow(
@@ -378,10 +372,7 @@ export class TransactionMapper {
     const { scope } = transaction;
     // Multi-op change-trust only exposes the first operation.
     const [firstOperation] = operationTypes;
-    if (
-      firstOperation &&
-      firstOperation.type === StellarOperationType.ChangeTrust
-    ) {
+    if (firstOperation?.type === StellarOperationType.ChangeTrust) {
       const asset = firstOperation.line;
       if (!(asset instanceof Asset)) {
         throw new TransactionMapperException(

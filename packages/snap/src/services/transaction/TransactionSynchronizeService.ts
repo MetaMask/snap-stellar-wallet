@@ -2,8 +2,8 @@ import {
   FungibleAssetStruct,
   TransactionStatus,
   TransactionType,
-  type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
+import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { cloneDeep } from 'lodash';
 
 import type {
@@ -32,7 +32,8 @@ import type { Transaction } from './Transaction';
 import type { TransactionMapper } from './TransactionMapper';
 import type { TransactionRepository } from './TransactionRepository';
 import type { StellarAssetMetadata } from '../asset-metadata';
-import { TransactionNotFoundException, type NetworkService } from '../network';
+import { TransactionNotFoundException } from '../network';
+import type { NetworkService } from '../network';
 import {
   emitAccountTransactionsUpdated,
   isPendingTransactionStatus,

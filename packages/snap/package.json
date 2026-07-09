@@ -42,7 +42,7 @@
     "test:integration": "./integration-test/run-integration.sh"
   },
   "devDependencies": {
-    "@metamask/auto-changelog": "^3.4.4",
+    "@metamask/auto-changelog": "^6.1.0",
     "@metamask/key-tree": "^10.1.1",
     "@metamask/keyring-api": "^23.3.0",
     "@metamask/keyring-snap-sdk": "^9.0.2",

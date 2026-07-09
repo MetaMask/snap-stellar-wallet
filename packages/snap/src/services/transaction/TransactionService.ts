@@ -10,8 +10,8 @@ import type { TransactionRepository } from './TransactionRepository';
 import {
   SupportedOperations,
   TransactionSimulator,
-  type TransactionSimulatorOptions,
 } from './TransactionSimulator';
+import type { TransactionSimulatorOptions } from './TransactionSimulator';
 import { TransactionSynchronizeService } from './TransactionSynchronizeService';
 import {
   assertTransactionScope,

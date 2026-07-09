@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 import type { Json } from '@metamask/snaps-sdk';
 import { BigNumber } from 'bignumber.js';
 import { cloneDeepWith } from 'lodash';
@@ -119,4 +118,3 @@ export const serializeToString = ({
   replacer?: (number | string)[] | null;
   indent?: number;
 }): string => JSON.stringify(serialize(value), replacer, indent);
-/* eslint-enable @typescript-eslint/naming-convention */

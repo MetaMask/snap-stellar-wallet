@@ -1,7 +1,5 @@
-import {
-  type Transaction,
-  TransactionValidationException,
-} from '../../services/transaction';
+import { TransactionValidationException } from '../../services/transaction';
+import type { Transaction } from '../../services/transaction';
 
 /**
  * Guards the user-approved fee during submit-time transaction refresh.

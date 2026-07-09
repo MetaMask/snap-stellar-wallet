@@ -11,9 +11,9 @@ import {
   ChangeTrustOptJsonRpcResponseStruct,
 } from './api';
 import { assertRefreshedTransactionFeeNotHigher } from './utils';
-import {
-  type AccountResolver,
-  type ResolvedActivatedAccount,
+import type {
+  AccountResolver,
+  ResolvedActivatedAccount,
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
 import { METAMASK_ORIGIN } from '../../constants';
@@ -36,7 +36,8 @@ import type {
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
-import { createPrefixedLogger, type ILogger } from '../../utils/logger';
+import { createPrefixedLogger } from '../../utils/logger';
+import type { ILogger } from '../../utils/logger';
 import {
   trackTransactionAdded,
   trackTransactionApproved,

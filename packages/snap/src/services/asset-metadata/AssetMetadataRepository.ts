@@ -86,8 +86,7 @@ export class AssetMetadataRepository {
       (await this.#state.getKey<AssetMetadataByAssetId>(this.#stateKey)) ?? {};
 
     return Object.values(assets).filter(
-      (asset): asset is StellarAssetMetadata =>
-        asset !== undefined && asset.chainId === scope,
+      (asset): asset is StellarAssetMetadata => asset?.chainId === scope,
     );
   }
 
@@ -107,9 +106,7 @@ export class AssetMetadataRepository {
 
     return Object.values(assets).filter(
       (asset): asset is StellarAssetMetadata =>
-        asset !== undefined &&
-        asset.assetType === assetType &&
-        asset.chainId === scope,
+        asset?.assetType === assetType && asset?.chainId === scope,
     );
   }
 

@@ -549,7 +549,7 @@ describe('OnChainAccountSynchronizeService', () => {
     const saveManyInner = OnChainAccountRepository.prototype.saveMany.bind(
       onChainAccountRepository,
     );
-    /* eslint-disable jest/no-conditional-in-test -- mock tracks last snapshot for findByKeyringAccountIds */
+
     saveManySpy.mockImplementation(async (accounts) => {
       const next = accounts[keyringAccount.id];
       if (next) {
@@ -559,7 +559,6 @@ describe('OnChainAccountSynchronizeService', () => {
       }
       await saveManyInner(accounts);
     });
-    /* eslint-enable jest/no-conditional-in-test */
 
     await onChainAccountService.synchronize(
       [sync1Pair],

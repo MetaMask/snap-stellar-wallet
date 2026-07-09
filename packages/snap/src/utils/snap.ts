@@ -1,22 +1,23 @@
 import type { JsonSLIP10Node } from '@metamask/key-tree';
 import type { EntropySourceId } from '@metamask/keyring-api';
-import {
-  getJsonError,
-  type ComponentOrElement,
-  type DialogResult,
-  type EntropySource,
-  type GetClientStatusResult,
-  type GetPreferencesResult,
-  type Json,
-  type ResolveInterfaceResult,
-  type SnapsProvider,
-  type UpdateInterfaceResult,
+import { getJsonError } from '@metamask/snaps-sdk';
+import type {
+  ComponentOrElement,
+  DialogResult,
+  EntropySource,
+  GetClientStatusResult,
+  GetPreferencesResult,
+  Json,
+  ResolveInterfaceResult,
+  SnapsProvider,
+  UpdateInterfaceResult,
 } from '@metamask/snaps-sdk';
 import { ensureError } from '@metamask/utils';
 
 import { StellarSnapException } from './errors';
 import { logger } from './logger';
-import { type Serializable, serialize, deserialize } from './serialization';
+import { serialize, deserialize } from './serialization';
+import type { Serializable } from './serialization';
 
 export enum Duration {
   OneSecond = 'PT1S',
@@ -57,7 +58,7 @@ export enum SecurityEventType {
  */
 export function getSnapProvider(): SnapsProvider {
   // snap is a global variable provided by the Snap SDK
-  return snap as unknown as SnapsProvider;
+  return snap;
 }
 
 /**
@@ -461,7 +462,6 @@ export async function trackEvent(
   }
 }
 
-/* eslint-disable @typescript-eslint/naming-convention */
 /**
  * Track a "Transaction Added" event when a transaction confirmation is shown.
  *
@@ -652,4 +652,3 @@ export async function trackError(
     return undefined;
   }
 }
-/* eslint-enable @typescript-eslint/naming-convention */

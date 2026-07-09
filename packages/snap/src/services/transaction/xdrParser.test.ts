@@ -7,10 +7,8 @@ import {
   swapTransactionWithFeeCollectResponse,
   swapTransactionWithoutFeeCollectResponse,
 } from './__mocks__/horizon-transaction-responses.fixtures';
-import {
-  buildMockInvokeHostFunctionTransaction,
-  type MockInvokeHostFunctionArgNativeToScValOptions,
-} from './__mocks__/transaction.fixtures';
+import { buildMockInvokeHostFunctionTransaction } from './__mocks__/transaction.fixtures';
+import type { MockInvokeHostFunctionArgNativeToScValOptions } from './__mocks__/transaction.fixtures';
 import { XdrParseException } from './exceptions';
 import {
   isSep41TransferInvoke,

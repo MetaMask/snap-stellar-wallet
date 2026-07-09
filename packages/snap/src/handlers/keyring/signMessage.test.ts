@@ -1,6 +1,7 @@
 import { Keypair, Networks } from '@stellar/stellar-sdk';
 
-import { MultichainMethod, type SignMessageRequest } from './api';
+import { MultichainMethod } from './api';
+import type { SignMessageRequest } from './api';
 import { Sep43ErrorCode } from './exceptions';
 import { SignMessageHandler } from './signMessage';
 import { KnownCaip2ChainId } from '../../api';

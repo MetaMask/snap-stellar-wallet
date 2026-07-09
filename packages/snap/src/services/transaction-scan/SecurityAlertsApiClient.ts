@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 import { assert } from '@metamask/superstruct';
 
 import {

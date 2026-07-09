@@ -11,7 +11,6 @@ import {
 } from '@metamask/snaps-sdk/jsx';
 
 import { MaliciousAcknowledgementFormNames } from './constants';
-import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
 import type { ConfirmationBaseProps } from '../../api';
 
@@ -35,7 +34,7 @@ export const MaliciousAcknowledgementScreen = ({
   locale,
   acknowledged = false,
 }: MaliciousAcknowledgementScreenProps): ComponentOrElement => {
-  const t = i18n(locale as Locale);
+  const t = i18n(locale);
 
   return (
     <Container>

@@ -1,7 +1,6 @@
 import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import { Button, Footer } from '@metamask/snaps-sdk/jsx';
 
-import type { Locale } from '../../../utils';
 import { i18n } from '../../../utils';
 import { MaliciousAcknowledgementFormNames } from '../views/MaliciousAcknowledgement/constants';
 
@@ -42,7 +41,7 @@ export const ConfirmationFooter = ({
   confirmDisabled = false,
   requiresAcknowledgement = false,
 }: ConfirmationFooterProps): ComponentOrElement => {
-  const t = i18n(locale as Locale);
+  const t = i18n(locale);
 
   return (
     <Footer>

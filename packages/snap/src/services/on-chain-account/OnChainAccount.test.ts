@@ -52,7 +52,6 @@ function mockHorizonAccountResponse(
   dataAttr: Record<string, string>,
 ): Horizon.AccountResponse {
   return Object.assign(mockAccount, {
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field
     data_attr: dataAttr,
   }) as unknown as Horizon.AccountResponse;
 }

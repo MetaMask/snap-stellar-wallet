@@ -18,8 +18,8 @@ import {
   isClassicAssetId,
   isSlip44Id,
   toDisplayBalance,
-  type ILogger,
 } from '../../utils';
+import type { ILogger } from '../../utils';
 import type {
   AccountResolver,
   ResolvedActivatedAccount,

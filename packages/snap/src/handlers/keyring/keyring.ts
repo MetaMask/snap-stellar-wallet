@@ -3,29 +3,28 @@ import {
   assertCreateAccountOptionIsSupported,
   DiscoveredAccountType,
   KeyringEvent,
-  type Balance,
-  type CreateAccountOptions as KeyringApiCreateAccountOptions,
-  type DiscoveredAccount,
-  type EntropySourceId,
-  type Keyring,
-  type KeyringAccount,
-  type KeyringRequest,
-  type KeyringResponse,
-  type Pagination,
-  type ResolvedAccountAddress,
-  type Transaction,
+} from '@metamask/keyring-api';
+import type {
+  Balance,
+  CreateAccountOptions as KeyringApiCreateAccountOptions,
+  DiscoveredAccount,
+  EntropySourceId,
+  Keyring,
+  KeyringAccount,
+  KeyringRequest,
+  KeyringResponse,
+  Pagination,
+  ResolvedAccountAddress,
+  Transaction,
 } from '@metamask/keyring-api';
 import {
   emitSnapKeyringEvent,
   handleKeyringRequest,
   MethodNotSupportedError,
 } from '@metamask/keyring-snap-sdk';
-import {
-  InvalidParamsError,
-  type Json,
-  type JsonRpcRequest,
-} from '@metamask/snaps-sdk';
-import { type CaipAssetTypeOrId } from '@metamask/utils';
+import { InvalidParamsError } from '@metamask/snaps-sdk';
+import type { Json, JsonRpcRequest } from '@metamask/snaps-sdk';
+import type { CaipAssetTypeOrId } from '@metamask/utils';
 
 import type {
   CreateAccountOptions,

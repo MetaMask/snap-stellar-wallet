@@ -18,7 +18,8 @@ import {
   getLowestIndex,
   getSnapProvider,
 } from '../../utils';
-import { getDerivationPath, type WalletService } from '../wallet';
+import { getDerivationPath } from '../wallet';
+import type { WalletService } from '../wallet';
 
 /**
  * Manages Stellar keyring accounts: creation, resolution from state, derivation checks, and persistence.

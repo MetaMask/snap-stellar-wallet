@@ -8,11 +8,8 @@ import { createEventHandlers as createSignChangeTrustOptOutEvents } from '../../
 import { createEventHandlers as createSignMessageEvents } from '../../ui/confirmation/views/ConfirmSignMessage/events';
 import { createEventHandlers as createSignTransactionEvents } from '../../ui/confirmation/views/ConfirmSignTransaction/events';
 import { createEventHandlers as createMaliciousAcknowledgementEvents } from '../../ui/confirmation/views/MaliciousAcknowledgement/events';
-import {
-  withCatchAndThrowSnapError,
-  createPrefixedLogger,
-  type ILogger,
-} from '../../utils';
+import { withCatchAndThrowSnapError, createPrefixedLogger } from '../../utils';
+import type { ILogger } from '../../utils';
 
 export class UserInputHandler {
   readonly #logger: ILogger;
