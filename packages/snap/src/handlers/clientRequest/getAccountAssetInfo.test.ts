@@ -170,7 +170,7 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     })) as GetAccountAssetInfoJsonRpcResponse;
 
-    expect(result[USDC_CLASSIC]).toStrictEqual({});
+    expect(result[USDC_CLASSIC]).toStrictEqual({ limit: '0' });
   });
 
   it('tolerates unactivated accounts with null on-chain state', async () => {
@@ -188,7 +188,7 @@ describe('GetAccountAssetInfoHandler', () => {
       },
     })) as GetAccountAssetInfoJsonRpcResponse;
 
-    expect(result[USDC_CLASSIC]).toStrictEqual({});
+    expect(result[USDC_CLASSIC]).toStrictEqual({ limit: '0' });
   });
 
   it('returns baseReserve extra for native XLM', async () => {

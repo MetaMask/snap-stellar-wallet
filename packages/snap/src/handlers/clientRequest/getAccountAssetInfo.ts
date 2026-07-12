@@ -96,7 +96,7 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
       if (!isClassicAssetId(assetId) && !isSlip44Id(assetId)) {
         continue;
       }
-      result[assetId] = {};
+      result[assetId] = { limit: '0' };
     }
 
     return result;
@@ -134,7 +134,7 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
             assetId,
           },
         );
-        result[assetId] = {};
+        result[assetId] = { limit: '0' };
         continue;
       }
 
