@@ -47,12 +47,15 @@ import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
   TransactionValidationException,
+  XdrParseException,
 } from '../../services/transaction/exceptions';
 import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
+import { AssetChangeDirection } from '../../services/transaction-scan';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { ConfirmationUXController } from '../../ui/confirmation/controller';
+import * as errorUtils from '../../utils/errors';
 import { logger } from '../../utils/logger';
 import * as snapUtils from '../../utils/snap';
 import { AccountResolver } from '../accountResolver';
@@ -163,7 +166,7 @@ describe('ConfirmSendHandler', () => {
     const renderConfirmationDialog = jest
       .spyOn(ConfirmationUXController.prototype, 'renderConfirmationDialog')
       .mockResolvedValue(true);
-    const confirmationUIController = new ConfirmationUXController({ logger });
+    const confirmationUIController = new ConfirmationUXController();
 
     const handler = new ConfirmSendHandler({
       logger,
@@ -290,18 +293,33 @@ describe('ConfirmSendHandler', () => {
       origin: METAMASK_ORIGIN,
       renderContext: {
         account,
-        assetMetadata,
         toAddress: destinationAddress,
-        amount: '1',
       },
       renderOptions: {
         loadPrice: true,
-        scanTxn: true,
-        validateTxn: true,
+        securityScanning: true,
+        localSimulation: true,
       },
       securityScanRequest: {
         accountAddress: account.address,
         transaction: unsignedScanXdr,
+      },
+      initialScan: {
+        status: 'SUCCESS',
+        estimatedChanges: {
+          assets: [
+            {
+              type: AssetChangeDirection.Out,
+              value: '1',
+              price: null,
+              symbol: assetMetadata.symbol,
+              name: assetMetadata.name,
+              logo: assetMetadata.iconUrl,
+            },
+          ],
+        },
+        validation: null,
+        error: null,
       },
       transactionValidationRequest: {
         accountId: account.id,
@@ -363,6 +381,101 @@ describe('ConfirmSendHandler', () => {
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
     expect(scheduleBackgroundEvent).not.toHaveBeenCalled();
+  });
+
+  it('rebuilds the transaction after confirmation before signing', async () => {
+    const {
+      handler,
+      onChainAccount,
+      wallet,
+      transaction,
+      createValidatedSendTransaction,
+      signTransactionSpy,
+      sendTransaction,
+    } = setup();
+    const refreshedTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: destinationAddress,
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            amount: '1',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '2',
+        },
+      },
+    );
+    createValidatedSendTransaction
+      .mockResolvedValueOnce(transaction)
+      .mockResolvedValueOnce(refreshedTransaction);
+
+    await handler.handle(baseRequest());
+
+    expect(createValidatedSendTransaction).toHaveBeenCalledTimes(2);
+    expect(signTransactionSpy).toHaveBeenCalledWith(refreshedTransaction);
+    expect(sendTransaction).toHaveBeenCalledWith({
+      wallet,
+      onChainAccount,
+      scope,
+      transaction: refreshedTransaction,
+      pollTransaction: false,
+    });
+  });
+
+  it('returns invalid when refreshed transaction fee is higher than confirmed fee', async () => {
+    const {
+      handler,
+      wallet,
+      transaction,
+      createValidatedSendTransaction,
+      signTransactionSpy,
+      sendTransaction,
+    } = setup();
+    const higherFeeTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'payment',
+          params: {
+            destination: destinationAddress,
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            amount: '1',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '2',
+        },
+        baseFeePerOperation: '300',
+      },
+    );
+    createValidatedSendTransaction
+      .mockResolvedValueOnce(transaction)
+      .mockResolvedValueOnce(higherFeeTransaction);
+
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(signTransactionSpy).not.toHaveBeenCalled();
+    expect(sendTransaction).not.toHaveBeenCalled();
   });
 
   it('returns insufficient balance when createValidatedSendTransaction throws InsufficientBalanceException', async () => {
@@ -427,13 +540,52 @@ describe('ConfirmSendHandler', () => {
     });
   });
 
-  it('rethrows unexpected errors from createValidatedSendTransaction', async () => {
+  it('returns invalid and tracks when createValidatedSendTransaction throws XdrParseException', async () => {
+    const { handler, createValidatedSendTransaction } = setup();
+    const xdrParseError = new XdrParseException(
+      'Invalid transfer function arguments',
+    );
+    createValidatedSendTransaction.mockRejectedValueOnce(xdrParseError);
+    const trackErrorIfNeededSpy = jest
+      .spyOn(errorUtils, 'trackErrorIfNeeded')
+      .mockResolvedValue(undefined);
+
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(trackErrorIfNeededSpy).toHaveBeenCalledWith(xdrParseError);
+  });
+
+  it('returns invalid for unexpected errors from createValidatedSendTransaction', async () => {
+    const { handler, createValidatedSendTransaction } = setup();
+    const unexpectedError = new Error('unexpected');
+    createValidatedSendTransaction.mockRejectedValueOnce(unexpectedError);
+    const trackErrorIfNeededSpy = jest
+      .spyOn(errorUtils, 'trackErrorIfNeeded')
+      .mockResolvedValue(undefined);
+
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(trackErrorIfNeededSpy).toHaveBeenCalledWith(unexpectedError);
+  });
+
+  it('does not track expected validation errors from createValidatedSendTransaction', async () => {
     const { handler, createValidatedSendTransaction } = setup();
     createValidatedSendTransaction.mockRejectedValueOnce(
-      new Error('unexpected'),
+      new TransactionValidationException('x'),
     );
+    const trackErrorIfNeededSpy = jest
+      .spyOn(errorUtils, 'trackErrorIfNeeded')
+      .mockResolvedValue(undefined);
 
-    await expect(handler.handle(baseRequest())).rejects.toThrow('unexpected');
+    expect(await handler.handle(baseRequest())).toStrictEqual({
+      valid: false,
+      errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+    });
+    expect(trackErrorIfNeededSpy).not.toHaveBeenCalled();
   });
 
   it('continues successfully when saving pending transaction fails', async () => {

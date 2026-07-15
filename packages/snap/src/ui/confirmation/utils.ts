@@ -7,7 +7,7 @@ import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
-import { parseOperationAssetReference } from '../../services/transaction/utils';
+import { parseOperationAssetReferenceSafe } from '../../services/transaction/utils';
 import {
   TransactionScanValidationType,
   type TransactionScanResult,
@@ -37,29 +37,51 @@ export function getNetworkName(scope: KnownCaip2ChainId): string {
 }
 
 /**
+ * Display labels for known, non-URL origins, keyed by their lowercased raw value.
+ * Lets us show a friendly name for the internal MetaMask origin and WalletConnect
+ * channels instead of an empty/hidden origin row.
+ */
+const KNOWN_ORIGIN_LABELS: Record<string, string> = {
+  metamask: 'MetaMask',
+  'wallet-connect': 'WalletConnect',
+};
+
+/**
  * Formats an origin for display purposes.
  *
  * @param origin - The origin string to format (e.g., 'metamask', 'https://example.com').
- * @returns The formatted origin string (e.g., 'MetaMask', 'example.com').
+ * @returns The formatted origin string. `'Unknown'` for undefined/empty origins, a
+ * friendly label for known origins (e.g. `'MetaMask'`, `'WalletConnect'`), the
+ * hostname for http(s) URLs, or an empty string for any other value (e.g. a
+ * WalletConnect channelId or a non-http URL) so the UI hides the origin row.
  */
 export function formatOrigin(origin: string | undefined): string {
   if (!origin) {
     return 'Unknown';
   }
 
-  // Special case: format 'metamask' as 'MetaMask' (case-insensitive)
-  if (origin.toLowerCase() === 'metamask') {
-    return 'MetaMask';
+  const knownLabel = KNOWN_ORIGIN_LABELS[origin.toLowerCase()];
+  if (knownLabel) {
+    return knownLabel;
   }
 
   // Try to extract hostname from URL
   try {
-    return new URL(origin).hostname;
+    const url = new URL(origin);
+    return isHttpOrHttpsUrl(url) ? url.hostname : '';
   } catch {
-    // If not a valid URL, return the original value
-    // This shouldn't happen if validation is working correctly
-    return origin;
+    return '';
   }
+}
+
+/**
+ * Checks whether a parsed URL uses an HTTP(S) protocol.
+ *
+ * @param url - The parsed URL to check.
+ * @returns Whether the URL uses HTTP or HTTPS.
+ */
+function isHttpOrHttpsUrl(url: URL): boolean {
+  return url.protocol === 'http:' || url.protocol === 'https:';
 }
 
 /**
@@ -159,34 +181,65 @@ export function formatFeeData(
   amountInStroops: string,
 ): FeeData {
   const nativeAssetMetadata = getNativeAssetMetadata(scope);
-  const amountInLumen = toDisplayBalance(new BigNumber(amountInStroops));
+  const amountInXlm = toDisplayBalance(new BigNumber(amountInStroops));
   return {
     assetId: nativeAssetMetadata.assetId,
     symbol: nativeAssetMetadata.symbol,
     iconUrl: nativeAssetMetadata.iconUrl,
-    amount: amountInLumen,
+    amount: amountInXlm,
   };
 }
 
 /**
- * Determines whether a transaction confirmation must be temporarily blocked by scan state.
+ * Returns true while a fetch has not settled yet — either it hasn't started
+ * (`Initial`) or it is actively in flight (`Fetching`).
+ *
+ * @param status - The fetch status to inspect.
+ * @returns Whether the status represents an in-progress fetch.
+ */
+export function isFetchInProgress(status: FetchStatus): boolean {
+  return status === FetchStatus.Initial || status === FetchStatus.Fetching;
+}
+
+/**
+ * Determines whether the remote (Blockaid) transaction scan is still loading.
+ *
+ * @param params - Scan state.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @returns True while the remote scan is still in flight.
+ */
+export function isRemoteTransactionScanLoading(params: {
+  scanFetchStatus: FetchStatus;
+}): boolean {
+  // We only block while the scan is still running. A malicious result no longer
+  // disables confirm: per product/Blockaid, the user must always retain a
+  // "proceed anyway" path, gated behind the malicious acknowledgement screen
+  // (see {@link requiresMaliciousAcknowledgement}).
+  return params.scanFetchStatus === FetchStatus.Fetching;
+}
+
+/**
+ * Determines whether a malicious scan result requires explicit user
+ * acknowledgement before the transaction can be confirmed.
+ *
+ * When true, the confirmation footer swaps its primary button to "Review alerts"
+ * and routes the user through the acknowledgement screen instead of confirming
+ * directly. Warning-level results intentionally do not require this (reduced
+ * friction): they show the banner only.
  *
  * @param params - Scan and preference state.
  * @param params.preferences - User preferences controlling scan behavior.
  * @param params.scan - Latest transaction scan result.
- * @param params.scanFetchStatus - Latest transaction scan fetch status.
- * @returns True when the confirm action should be disabled.
+ * @returns True when the user must acknowledge a malicious result to proceed.
  */
-export function isConfirmDisabledByScan(params: {
+export function requiresMaliciousAcknowledgement(params: {
   preferences: GetPreferencesResult;
   scan?: TransactionScanResult | null;
-  scanFetchStatus: FetchStatus;
 }): boolean {
-  const { preferences, scan, scanFetchStatus } = params;
+  const { preferences, scan } = params;
   return (
-    scanFetchStatus === FetchStatus.Fetching ||
-    (preferences.useSecurityAlerts &&
-      scan?.validation?.type === TransactionScanValidationType.Malicious)
+    preferences.useSecurityAlerts &&
+    scan?.validation?.type === TransactionScanValidationType.Malicious
   );
 }
 
@@ -203,16 +256,90 @@ export function hasEnabledTransactionScan(
 }
 
 /**
- * Determines whether the confirm action must be blocked because background
- * re-validation found the pending transaction is no longer valid.
+ * Determines whether local background re-validation found the pending
+ * transaction is no longer valid.
  *
- * @param transactionsFetchStatus - Latest transaction validation fetch status.
- * @returns True when the confirm action should be disabled.
+ * @param transactionsFetchStatus - Latest transaction re-validation fetch status.
+ * @returns True when local re-validation has failed.
  */
-export function isConfirmDisabledByTransactionValidation(
+export function isLocalTransactionValidationFailed(
   transactionsFetchStatus: FetchStatus | undefined,
 ): boolean {
   return transactionsFetchStatus === FetchStatus.Error;
+}
+
+/**
+ * Single source of truth for whether the confirm action must be disabled.
+ *
+ * Combines the remote-scan and local-re-validation guards so the confirmation
+ * footer and the malicious-acknowledgement proceed handler can never drift
+ * apart. Flows without background re-validation (e.g. dapp sign-transaction)
+ * simply omit `transactionsFetchStatus`, which is treated as "not blocked".
+ *
+ * @param params - Latest fetch state.
+ * @param params.scanFetchStatus - Latest transaction scan fetch status.
+ * @param params.transactionsFetchStatus - Latest transaction re-validation fetch status.
+ * @returns True when the confirm action should be disabled.
+ */
+export function shouldDisableConfirmation(params: {
+  scanFetchStatus?: FetchStatus;
+  transactionsFetchStatus?: FetchStatus;
+}): boolean {
+  return (
+    isRemoteTransactionScanLoading({
+      scanFetchStatus: params.scanFetchStatus ?? FetchStatus.Initial,
+    }) || isLocalTransactionValidationFailed(params.transactionsFetchStatus)
+  );
+}
+
+/**
+ * The single banner the confirmation screen may show at the top.
+ *
+ * The transaction-validation banner and the Blockaid scan banner are mutually
+ * exclusive: only one is ever rendered, and validation takes priority.
+ */
+export enum ConfirmationBanner {
+  None = 'none',
+  TransactionValidation = 'transaction-validation',
+  TransactionScan = 'transaction-scan',
+}
+
+/**
+ * Resolves which top-of-screen banner the confirmation should display.
+ *
+ * Priority is explicit: a failed background re-validation (the transaction is no
+ * longer valid) outranks the Blockaid scan alert, so the two never stack. The
+ * scan banner is only considered when the user has security or simulation alerts
+ * enabled; the {@link TransactionAlert} component still decides its own content
+ * based on the scan result.
+ *
+ * @param params - Validation and scan-preference state.
+ * @param params.preferences - User preferences controlling scan behavior.
+ * @param params.transactionsFetchStatus - Latest transaction re-validation fetch status.
+ * @returns The single banner to render.
+ */
+export function resolveConfirmationBanner(params: {
+  preferences: GetPreferencesResult;
+  transactionsFetchStatus: FetchStatus | undefined;
+}): ConfirmationBanner {
+  const { preferences, transactionsFetchStatus } = params;
+
+  // The two banners are gated asymmetrically by design, and this only resolves
+  // which one wins the single slot; each component still decides whether it
+  // actually renders:
+  // - Validation is fail-only: re-validation starts optimistically (the tx was
+  //   already validated at build time), so the banner exists solely on Error.
+  // - Scan is preference-driven: while scan prefs are on, TransactionAlert owns
+  //   the full async lifecycle (in-progress -> result/error -> null for benign).
+  if (isLocalTransactionValidationFailed(transactionsFetchStatus)) {
+    return ConfirmationBanner.TransactionValidation;
+  }
+
+  if (hasEnabledTransactionScan(preferences)) {
+    return ConfirmationBanner.TransactionScan;
+  }
+
+  return ConfirmationBanner.None;
 }
 
 /**
@@ -242,7 +369,7 @@ export function resolveAssetDisplay(
   scope: KnownCaip2ChainId,
   assetReference: string,
 ): ResolvedAssetDisplay | null {
-  const assetId = parseOperationAssetReference(scope, assetReference);
+  const assetId = parseOperationAssetReferenceSafe(scope, assetReference);
   if (assetId === null) {
     return null;
   }
@@ -255,7 +382,7 @@ export function resolveAssetDisplay(
       iconUrl: xlmIcon,
     };
   }
-  // Safe: parseOperationAssetReference returned non-null for a non-native ref,
+  // Safe: parseOperationAssetReferenceSafe returned non-null for a non-native ref,
   // so the reference is a parseable classic CODE-ISSUER pair.
   const { assetCode } = parseClassicAssetCodeIssuer(assetReference);
   // TODO: resolve classic-asset iconUrl via AssetMetadataService once

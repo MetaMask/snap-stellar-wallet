@@ -9,6 +9,7 @@ import { State } from '../../state';
 import type {
   AssetMetadataByAssetId,
   KeyringAssetMetadataByAssetId,
+  StellarAssetMetadata,
 } from '../api';
 import { AssetMetadataRepository } from '../AssetMetadataRepository';
 import { AssetMetadataService } from '../AssetMetadataService';
@@ -63,6 +64,16 @@ export const generateMockStellarAssetMetadata = (): AssetMetadataByAssetId => {
       units: [{ name: 'USDT', symbol: 'USDT', decimals: 7 }],
     },
   } as AssetMetadataByAssetId;
+};
+
+export const getMockSep41Assets = (): StellarAssetMetadata[] => {
+  const metadata = generateMockStellarAssetMetadata();
+  const usdcSep41 = metadata[USDC_SEP41];
+  const usdtSep41 = metadata[USDT_SEP41];
+  if (!usdcSep41 || !usdtSep41) {
+    throw new Error('expected SEP-41 assets in mock metadata');
+  }
+  return [usdcSep41, usdtSep41];
 };
 
 export const generateMockKeyringAssetMetadata =

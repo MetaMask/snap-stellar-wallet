@@ -19,11 +19,12 @@ import {
   coerce,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
-import { parseCaipAssetType } from '@metamask/utils';
+import { CaipAssetTypeStruct, parseCaipAssetType } from '@metamask/utils';
 
 import {
   JsonRpcRequestStruct,
   KnownCaip2ChainIdStruct,
+  KnownCaip19AssetIdOrSlip44IdStruct,
   KnownCaip19ClassicAssetStruct,
   StellarTransactionHashStruct,
   UuidStruct,
@@ -141,12 +142,14 @@ export const ChangeTrustOptJsonRpcResponseStruct = object({
 });
 
 /**
- * Optional per-asset fields for chains that use trust lines (Stellar classic).
+ * Optional per-asset enrichment fields from getAccountAssetInfo.
+ * Classic assets use trust-line fields; native XLM uses baseReserve.
  */
 export const AccountAssetInfoExtraStruct = object({
   limit: optional(string()),
   authorized: optional(boolean()),
   sponsored: optional(boolean()),
+  baseReserve: optional(string()),
 });
 
 export type AccountAssetInfoExtra = Infer<typeof AccountAssetInfoExtraStruct>;
@@ -193,12 +196,18 @@ export const SignAndSendTransactionJsonRpcRequestStruct = assign(
       transaction: SwapTransactionXdrStruct,
       accountId: UuidStruct,
       scope: KnownCaip2ChainIdStruct,
-      options: optional(
-        object({
-          visible: optional(boolean()),
-          type: optional(string()),
-        }),
-      ),
+      options: object({
+        visible: optional(boolean()),
+        type: optional(string()),
+        /**
+         * Stellar asset id of the source asset in the swap or bridge flow.
+         */
+        sourceAssetId: KnownCaip19AssetIdOrSlip44IdStruct,
+        /**
+         * CAIP-19 asset id of the destination asset in the swap or bridge flow.
+         */
+        destAssetId: CaipAssetTypeStruct,
+      }),
     }),
   }),
 );

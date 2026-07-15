@@ -10,6 +10,7 @@ import { BigNumber } from 'bignumber.js';
 import {
   InvalidAssetForCreateAccountException,
   TransactionBuilderException,
+  TransactionValidationException,
 } from './exceptions';
 import { Transaction } from './Transaction';
 import { TransactionBuilder } from './TransactionBuilder';
@@ -17,6 +18,7 @@ import type { KnownCaip19ClassicAssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { getSlip44AssetId, toSmallestUnit } from '../../utils';
 import { logger } from '../../utils/logger';
+import { baseInclusionFee } from '../network/utils';
 import {
   createMockAccountWithBalances,
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
@@ -89,7 +91,7 @@ describe('TransactionBuilder', () => {
       }).toThrow(TransactionBuilderException);
     });
 
-    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+    it('throws a TransactionValidationException when assetId scope does not match request scope', () => {
       expect(() =>
         transactionBuilder.changeTrust({
           baseFee: '100',
@@ -97,7 +99,7 @@ describe('TransactionBuilder', () => {
           assetId: testAsset,
           onChainAccount: testOnChainAccount,
         }),
-      ).toThrow(TransactionBuilderException);
+      ).toThrow(TransactionValidationException);
     });
   });
 
@@ -251,7 +253,7 @@ describe('TransactionBuilder', () => {
       }).toThrow(InvalidAssetForCreateAccountException);
     });
 
-    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+    it('throws a TransactionValidationException when assetId scope does not match request scope', () => {
       const testDestination = getTestWallet();
       expect(() =>
         transactionBuilder.transfer({
@@ -265,13 +267,14 @@ describe('TransactionBuilder', () => {
           },
           baseFee: new BigNumber(100),
         }),
-      ).toThrow(TransactionBuilderException);
+      ).toThrow(TransactionValidationException);
     });
   });
 
   describe('sep41Transfer', () => {
     const sep41AssetId =
       `stellar:pubnet/sep41:CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J` as const;
+    const baseFee = baseInclusionFee();
 
     it('builds a sep41 transfer transaction', () => {
       const testDestination = getTestWallet();
@@ -281,6 +284,7 @@ describe('TransactionBuilder', () => {
         assetId: sep41AssetId,
         destination: testDestination.address,
         amount: new BigNumber(100000000),
+        baseFee,
       });
 
       expect(transaction).toBeInstanceOf(Transaction);
@@ -304,11 +308,12 @@ describe('TransactionBuilder', () => {
           assetId: sep41AssetId,
           destination: testDestination.address,
           amount: new BigNumber(100000000),
+          baseFee,
         });
       }).toThrow(TransactionBuilderException);
     });
 
-    it('throws a TransactionBuilderException when assetId scope does not match request scope', () => {
+    it('throws a TransactionValidationException when assetId scope does not match request scope', () => {
       const testDestination = getTestWallet();
       expect(() =>
         transactionBuilder.sep41Transfer({
@@ -317,8 +322,9 @@ describe('TransactionBuilder', () => {
           assetId: sep41AssetId,
           destination: testDestination.address,
           amount: new BigNumber(100000000),
+          baseFee,
         }),
-      ).toThrow(TransactionBuilderException);
+      ).toThrow(TransactionValidationException);
     });
   });
 });

@@ -10,6 +10,7 @@ import {
   ChangeTrustOptJsonRpcRequestStruct,
   ChangeTrustOptJsonRpcResponseStruct,
 } from './api';
+import { assertRefreshedTransactionFeeNotHigher } from './utils';
 import {
   type AccountResolver,
   type ResolvedActivatedAccount,
@@ -21,6 +22,7 @@ import type {
   AssetMetadataService,
   StellarAssetMetadata,
 } from '../../services/asset-metadata';
+import type { AccountNotActivatedException } from '../../services/network';
 import type { OnChainAccount } from '../../services/on-chain-account';
 import {
   TrustlineNotFoundException,
@@ -33,6 +35,7 @@ import type {
 } from '../../services/transaction';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
+import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
 import { createPrefixedLogger, type ILogger } from '../../utils/logger';
 import {
   trackTransactionAdded,
@@ -80,6 +83,22 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
   }
 
   /**
+   * Shows the account activation prompt when the account is unfunded, then returns
+   * `{ status: false }` so the client can treat it as an expected outcome (not an RPC error).
+   *
+   * @param error - The account not activated error.
+   * @param _request - The JSON-RPC request that triggered resolution.
+   * @returns `{ status: false }` after the user dismisses the funding prompt.
+   */
+  protected override async handleAccountNotActivatedError(
+    error: AccountNotActivatedException,
+    _request: ChangeTrustOptJsonRpcRequest,
+  ): Promise<ChangeTrustOptJsonRpcResponse> {
+    await renderAccountActivationPrompt(error.address);
+    return { status: false };
+  }
+
+  /**
    * Handles trustline opt-in/opt-out requests.
    *
    * @param resolvedAccount - The resolved and activated account.
@@ -95,24 +114,13 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     request: ChangeTrustOptJsonRpcRequest,
   ): Promise<ChangeTrustOptJsonRpcResponse> {
     const { scope, assetId, action } = request.params;
-    const { wallet, account, onChainAccount } = resolvedAccount;
+    const { account, onChainAccount } = resolvedAccount;
 
-    // Quit early if add is redundant (classic line already present with limit > 0)
-    if (action === ChangeTrustOptAction.Add) {
-      const asset = onChainAccount.getAsset(assetId);
-      if (asset?.limit?.gt(0)) {
-        return {
-          status: true,
-        };
-      }
-    }
-
-    // Quit early if the trustline does not exist for delete
-    if (
-      action === ChangeTrustOptAction.Delete &&
-      !onChainAccount.hasAsset(assetId)
-    ) {
-      throw new TrustlineNotFoundException(assetId, onChainAccount.accountId);
+    // Quit early if the opt-in is already redundant (throws for a missing opt-out trustline).
+    if (!this.#isChangeTrustOpNeeded(onChainAccount, request)) {
+      return {
+        status: true,
+      };
     }
 
     // Safeguard to ensure we use the correct limit for delete
@@ -157,13 +165,32 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
       chainIdCaip: scope,
     });
 
-    wallet.signTransaction(transaction);
+    const refreshed = await this.#refreshTransactionAfterConfirmation({
+      request,
+      confirmedTransaction: transaction,
+      limit: limitForTx,
+    });
+
+    if (refreshed === null) {
+      // The requested opt-in became redundant while the dialog was open; finish without submitting.
+      return {
+        status: true,
+      };
+    }
+
+    const {
+      wallet: refreshedWallet,
+      onChainAccount: refreshedOnChainAccount,
+      transaction: refreshedTransaction,
+    } = refreshed;
+
+    refreshedWallet.signTransaction(refreshedTransaction);
 
     const transactionId = await this.#transactionService.sendTransaction({
-      wallet,
-      onChainAccount,
+      wallet: refreshedWallet,
+      onChainAccount: refreshedOnChainAccount,
       scope,
-      transaction,
+      transaction: refreshedTransaction,
     });
 
     await this.#transactionService.savePendingKeyringTransactionSafe({
@@ -195,6 +222,80 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
     return {
       status: true,
       transactionId,
+    };
+  }
+
+  /**
+   * Whether the change-trust operation still needs to run for the given on-chain state.
+   *
+   * Used both before showing the dialog and after confirmation (against freshly
+   * resolved state), so a redundant opt-in is short-circuited and a missing opt-out
+   * trustline is rejected consistently.
+   *
+   * @param onChainAccount - The on-chain account to evaluate.
+   * @param request - The change-trust request.
+   * @returns `false` when an opt-in is redundant (line already present with limit > 0), otherwise `true`.
+   * @throws {TrustlineNotFoundException} If an opt-out targets a trustline that does not exist.
+   */
+  #isChangeTrustOpNeeded(
+    onChainAccount: OnChainAccount,
+    request: ChangeTrustOptJsonRpcRequest,
+  ): boolean {
+    const { assetId, action } = request.params;
+
+    if (action === ChangeTrustOptAction.Add) {
+      const asset = onChainAccount.getAsset(assetId);
+      if (asset?.limit?.gt(0)) {
+        return false;
+      }
+    }
+
+    if (
+      action === ChangeTrustOptAction.Delete &&
+      !onChainAccount.hasAsset(assetId)
+    ) {
+      throw new TrustlineNotFoundException(assetId, onChainAccount.accountId);
+    }
+
+    return true;
+  }
+
+  async #refreshTransactionAfterConfirmation(params: {
+    request: ChangeTrustOptJsonRpcRequest;
+    confirmedTransaction: Transaction;
+    limit?: string;
+  }): Promise<{
+    wallet: ResolvedActivatedAccount['wallet'];
+    onChainAccount: ResolvedActivatedAccount['onChainAccount'];
+    transaction: Transaction;
+  } | null> {
+    const { request, confirmedTransaction, limit } = params;
+    // Resolve again after the user confirms so sequence, balances, and fees are fresh before signing.
+    // sendTransaction still handles txBadSeq races that happen after this refresh.
+    const { wallet, onChainAccount } = await this.resolveAccount(request);
+
+    // The opt-in may have become redundant while the dialog was open (throws for a missing opt-out trustline).
+    if (!this.#isChangeTrustOpNeeded(onChainAccount, request)) {
+      return null;
+    }
+
+    const refreshedTransaction = await this.#createTransaction({
+      request,
+      onChainAccount,
+      limit,
+    });
+
+    // Reject if the refreshed fee is higher than what the user approved, so we
+    // never sign a transaction that differs from what was shown on the confirmation screen.
+    assertRefreshedTransactionFeeNotHigher({
+      confirmedTransaction,
+      refreshedTransaction,
+    });
+
+    return {
+      wallet,
+      onChainAccount,
+      transaction: refreshedTransaction,
     };
   }
 
@@ -268,10 +369,13 @@ export class ChangeTrustOptHandler extends BaseClientRequestHandler<
         },
         fee,
         interfaceKey: confirmationInterfaceKey,
+        // localSimulation drives re-validation only; a trustline op moves no
+        // balance, so there are no estimated changes to seed or display (we
+        // intentionally pass no initialScan).
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,

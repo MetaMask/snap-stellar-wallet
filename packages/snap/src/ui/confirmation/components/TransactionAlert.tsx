@@ -46,11 +46,14 @@ const VALIDATION_TYPE_TO_ALERT: Partial<
   },
 };
 
+// Keys are normalized API codes (lowercase, no punctuation); see TransactionScanErrorId.
 const ERROR_MESSAGE_IDS: Record<string, LocalizedMessage> = {
   insufficientbalance: 'transactionScan.errors.insufficientBalance',
   insufficientfunds: 'transactionScan.errors.insufficientFunds',
   invalidtransaction: 'transactionScan.errors.invalidTransaction',
   invalidaddress: 'transactionScan.errors.invalidAddress',
+  notrustline: 'transactionScan.errors.noTrustline',
+  transactionexpired: 'transactionScan.errors.transactionExpired',
   unsupportedeip712message: 'transactionScan.errors.unsupportedEIP712Message',
 };
 

@@ -1,17 +1,28 @@
-import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
+import { type Transaction as KeyringTransaction } from '@metamask/keyring-api';
+import { groupBy } from 'lodash';
 import sortBy from 'lodash/sortBy';
 import uniqBy from 'lodash/uniqBy';
 
+import type { StellarKeyringTransaction } from './api';
+import {
+  isPendingTransactionStatus,
+  shouldDropPendingTransaction,
+  toKeyringTransactions,
+} from './utils';
+import type { KnownCaip2ChainId } from '../../api';
 import type { State } from '../state/State';
 
 export type TransactionStateValue = {
-  transactions: Record<string, KeyringTransaction[]>;
+  transactions: Record<string, StellarKeyringTransaction[]>;
+  lastScanTokens: Record<string, Record<KnownCaip2ChainId, string | null>>;
 };
 
 export class TransactionRepository {
   readonly #state: State<TransactionStateValue>;
 
   readonly #stateKey = 'transactions';
+
+  readonly #lastScanTokensKey = 'lastScanTokens';
 
   constructor(state: State<TransactionStateValue>) {
     this.#state = state;
@@ -22,7 +33,40 @@ export class TransactionRepository {
       TransactionStateValue['transactions']
     >(this.#stateKey);
 
-    return Object.values(transactionsByAccount ?? {}).flat();
+    return toKeyringTransactions(
+      Object.values(transactionsByAccount ?? {}).flat(),
+    );
+  }
+
+  async findByAccountIds(
+    accountIds: string[],
+    scope?: KnownCaip2ChainId,
+  ): Promise<KeyringTransaction[]> {
+    return toKeyringTransactions(
+      await this.findStellarTransactionsByAccountIds(accountIds, scope),
+    );
+  }
+
+  async findStellarTransactionsByAccountIds(
+    accountIds: string[],
+    scope?: KnownCaip2ChainId,
+  ): Promise<StellarKeyringTransaction[]> {
+    const transactionsByAccount = await this.#state.getKey<
+      TransactionStateValue['transactions']
+    >(this.#stateKey);
+
+    const transactions: StellarKeyringTransaction[] = [];
+    for (const accountId of accountIds) {
+      const accountTransactions = transactionsByAccount?.[accountId] ?? [];
+      transactions.push(
+        ...accountTransactions.filter((transaction) =>
+          scope
+            ? transaction.chain === (scope as KeyringTransaction['chain'])
+            : true,
+        ),
+      );
+    }
+    return transactions;
   }
 
   async findByAccountId(accountId: string): Promise<KeyringTransaction[]> {
@@ -30,91 +74,116 @@ export class TransactionRepository {
       TransactionStateValue['transactions']
     >(this.#stateKey);
 
-    return transactionsByAccount?.[accountId] ?? [];
+    return toKeyringTransactions(transactionsByAccount?.[accountId] ?? []);
   }
 
-  /**
-   * Finds a persisted keyring transaction by its id (Stellar transaction hash), searching all
-   * accounts in snap state.
-   *
-   * @param txId - Transaction hash (`Transaction.id`).
-   * @returns The matching transaction, or `null` when none is stored.
-   */
-  async findByTransactionId(txId: string): Promise<KeyringTransaction | null> {
-    const transactionsByAccount = await this.#state.getKey<
-      TransactionStateValue['transactions']
-    >(this.#stateKey);
+  async findLastScanTokenByAccountIds(
+    accountIds: string[],
+    scope: KnownCaip2ChainId,
+  ): Promise<Record<string, string | null>> {
+    const lastScanTokens = await this.#state.getKey<
+      TransactionStateValue['lastScanTokens']
+    >(this.#lastScanTokensKey);
 
-    for (const list of Object.values(transactionsByAccount ?? {})) {
-      const found = list.find((t) => t.id === txId);
-      if (found) {
-        return found;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Finds a persisted keyring transaction by hash among the given accounts.
-   *
-   * @param txId - Stellar transaction hash (keyring `Transaction.id`).
-   * @param accountIds - Account ids to search (same order as the track job).
-   * @returns The transaction when found; otherwise `undefined`.
-   */
-  async findByIdAmongAccounts(
-    txId: string,
-    accountIds: readonly string[],
-  ): Promise<KeyringTransaction | undefined> {
-    const transactionsByAccount = await this.#state.getKey<
-      TransactionStateValue['transactions']
-    >(this.#stateKey);
+    const lastScanTokenByAccountId: Record<string, string | null> = {};
 
     for (const accountId of accountIds) {
-      const list = transactionsByAccount?.[accountId] ?? [];
-      const found = list.find((t) => t.id === txId);
-      if (found) {
-        return found;
-      }
+      lastScanTokenByAccountId[accountId] =
+        lastScanTokens?.[accountId]?.[scope] ?? null;
     }
-    return undefined;
+    return lastScanTokenByAccountId;
   }
 
-  async save(transaction: KeyringTransaction): Promise<void> {
-    const transactions = await this.findByAccountId(transaction.account);
-
-    await this.#state.setKey(
-      `${this.#stateKey}.${transaction.account}`,
-      this.#insertNewTransaction(transactions, transaction),
-    );
+  async save(transaction: StellarKeyringTransaction): Promise<void> {
+    await this.saveMany([transaction]);
   }
 
-  async saveMany(transactions: KeyringTransaction[]): Promise<void> {
-    // Optimize the state operations by reading and writing to the state only once
+  /**
+   * Applies transaction updates to snap state in a single locked write.
+   *
+   * Submitted transactions are upserted locally. Confirmed and failed transactions
+   * remove any matching id from snap state — durable history lives in the controller
+   * after AccountTransactionsUpdated is emitted. Pending transactions that exceed both
+   * `maxReconcileAttempts` and `maxPendingTransactionAge` are also evicted.
+   *
+   * @param transactions - Transactions to reconcile into snap state.
+   * @param lastScanTokens - Optional scan cursors to persist per account and scope.
+   */
+  async saveMany(
+    transactions: StellarKeyringTransaction[],
+    lastScanTokens?: Record<string, Record<KnownCaip2ChainId, string | null>>,
+  ): Promise<void> {
+    if (transactions.length === 0 && !lastScanTokens) {
+      return;
+    }
+
     await this.#state.update((state) => {
-      // Safe guard: persisted state may omit `transactions` until first write
       if (!state[this.#stateKey]) {
         state[this.#stateKey] = {};
       }
-      const allTransactionsByAccount = state[this.#stateKey];
+      if (!state[this.#lastScanTokensKey]) {
+        state[this.#lastScanTokensKey] = {};
+      }
 
-      transactions.forEach((transaction) => {
-        const accountId = transaction.account;
-        const existing = allTransactionsByAccount[accountId] ?? [];
-        state[this.#stateKey][accountId] = this.#insertNewTransaction(
-          existing,
-          transaction,
-        );
-      });
+      const allTransactionsByAccount = state[this.#stateKey];
+      const allLastScanTokensByAccountId = state[this.#lastScanTokensKey];
+
+      if (lastScanTokens) {
+        for (const [accountId, lastScanToken] of Object.entries(
+          lastScanTokens,
+        )) {
+          state[this.#lastScanTokensKey][accountId] = {
+            ...(allLastScanTokensByAccountId[accountId] ?? {}),
+            ...lastScanToken,
+          };
+        }
+      }
+
+      if (transactions.length > 0) {
+        const transactionsByAccount = groupBy(transactions, 'account');
+
+        for (const [accountId, accountTransactions] of Object.entries(
+          transactionsByAccount,
+        )) {
+          const existingTransactions =
+            allTransactionsByAccount[accountId] ?? [];
+          state[this.#stateKey][accountId] = this.#applyTransactionUpdate(
+            existingTransactions,
+            accountTransactions,
+          );
+        }
+      }
 
       return state;
     });
   }
 
-  #insertNewTransaction(
-    transactions: KeyringTransaction[],
-    newTransaction: KeyringTransaction,
-  ): KeyringTransaction[] {
-    const merged = [newTransaction, ...transactions];
-    return sortBy(uniqBy(merged, 'id'), (item) => -(item.timestamp ?? 0));
+  #applyTransactionUpdate(
+    existingTransactions: StellarKeyringTransaction[],
+    incomingTransactions: StellarKeyringTransaction[],
+  ): StellarKeyringTransaction[] {
+    const merged = [...incomingTransactions, ...existingTransactions];
+    // Merge the transactions based on transaction id and choose the incoming one if there are duplicates
+    // Sort it by timestamp in descending order
+    // Filter out completed transactions and pending txs eligible for eviction
+    return sortBy(
+      uniqBy(merged, 'id'),
+      (item) => -(item.timestamp ?? 0),
+    ).filter((transaction) => this.#canSave(transaction));
+  }
+
+  /**
+   * Checks if the transaction can be saved to snap state.
+   *
+   * Keeps pending transactions unless both reconcile attempts and max age are exceeded.
+   *
+   * @param transaction - The transaction to check.
+   * @returns Whether the transaction can be saved to snap state.
+   */
+  #canSave(transaction: StellarKeyringTransaction): boolean {
+    return (
+      isPendingTransactionStatus(transaction.status) &&
+      !shouldDropPendingTransaction(transaction)
+    );
   }
 }

@@ -9,12 +9,9 @@ import type { AccountResolver } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
-import type { TransactionService } from '../../services/transaction';
 import { OperationMapper, Transaction } from '../../services/transaction';
 import {
-  assertAccountInvolvesTransaction,
   assertTransactionScope,
-  assertTransactionTimeBound,
   collectTransactionAssetCaipIds,
 } from '../../services/transaction/utils';
 import type { Wallet } from '../../services/wallet';
@@ -37,19 +34,15 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
   SignTransactionRequest,
   SignTransactionResponse
 > {
-  readonly #transactionService: TransactionService;
-
   readonly #confirmationUIController: ConfirmationUXController;
 
   constructor({
     logger,
     accountResolver,
-    transactionService,
     confirmationUIController,
   }: {
     logger: ILogger;
     accountResolver: AccountResolver;
-    transactionService: TransactionService;
     confirmationUIController: ConfirmationUXController;
   }) {
     super({
@@ -59,7 +52,6 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       requestStruct: SignTransactionRequestStruct,
       responseStruct: SignTransactionResponseStruct,
     });
-    this.#transactionService = transactionService;
     this.#confirmationUIController = confirmationUIController;
   }
 
@@ -78,24 +70,15 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
 
     // verify the transaction scope matches the requested scope
     assertTransactionScope(transaction, scope);
-    // The signer may not be the tx source of the transaction,
-    // but it must participate as fee source (fee bump), or op source.
-    // We gate signing to envelopes that involve this wallet.
-    assertAccountInvolvesTransaction(transaction, wallet.address);
 
-    // Ensure the transaction has not expired
-    assertTransactionTimeBound(transaction);
-
-    // Computing fee will inject the fee into the transaction
-    const transactionWithFee =
-      await this.#transactionService.computingFee(transaction);
-
-    if (!(await this.#confirmation(request, transactionWithFee, account))) {
+    // We do not process RPC simulation here, we trust the fee that provided by the dapp.
+    // If the transaction is invalid, the security scan will output the error.
+    if (!(await this.#confirmation(request, transaction, account))) {
       throw new UserRejectedRequestError() as unknown as Error;
     }
 
-    wallet.signTransaction(transactionWithFee);
-    const signedTxXdr = transactionWithFee.getRaw().toXDR();
+    wallet.signTransaction(transaction);
+    const signedTxXdr = transaction.getRaw().toXDR();
 
     return {
       signedTxXdr,
@@ -132,6 +115,8 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
       ),
     ) as ContextWithPrices['tokenPrices'];
 
+    // Sign-transaction estimated changes come entirely from remote Blockaid
+    // simulation; the scan refresher fills them in once the scan returns.
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
         scope: request.scope,
@@ -142,7 +127,11 @@ export class SignTransactionHandler extends BaseSep43KeyringHandler<
           readableTransaction,
           account,
         },
-        renderOptions: { loadPrice: true, scanTxn: true },
+        renderOptions: {
+          loadPrice: true,
+          securityScanning: true,
+          remoteSimulation: true,
+        },
         securityScanRequest: {
           accountAddress: account.address,
           transaction: transaction.getRaw().toXDR(),

@@ -7,7 +7,6 @@ import {
   Footer,
   Heading,
   Icon,
-  Image,
   Section,
   Text as SnapText,
   Tooltip,
@@ -17,9 +16,9 @@ import { ConfirmSignMessageFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
-import { STELLAR_IMAGE } from '../../../images/icon';
 import type { ConfirmationBaseProps } from '../../api';
-import { getAccountName, getNetworkName } from '../../utils';
+import { NetworkRow } from '../../components/Network';
+import { getAccountName } from '../../utils';
 
 export type ConfirmSignMessageProps = Pick<
   ConfirmationBaseProps,
@@ -79,20 +78,12 @@ export const ConfirmSignMessage = ({
             </SnapText>
             <Address address={addressCaip10} truncate displayName avatar />
           </Box>
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {translate('confirmation.network')}
-            </SnapText>
-            <Box direction="horizontal" alignment="end">
-              <Image
-                borderRadius="medium"
-                src={networkImage ?? STELLAR_IMAGE}
-                height={16}
-                width={16}
-              />
-              <SnapText>{getNetworkName(scope)}</SnapText>
-            </Box>
-          </Box>
+          {/* Network */}
+          <NetworkRow
+            networkImage={networkImage}
+            scope={scope}
+            locale={locale as Locale}
+          />
         </Section>
       </Box>
       <Footer>

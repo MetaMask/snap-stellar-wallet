@@ -44,18 +44,18 @@
   "devDependencies": {
     "@metamask/auto-changelog": "^3.4.4",
     "@metamask/key-tree": "^10.1.1",
-    "@metamask/keyring-api": "23.0.1",
-    "@metamask/keyring-snap-sdk": "^7.2.0",
+    "@metamask/keyring-api": "^23.3.0",
+    "@metamask/keyring-snap-sdk": "^9.0.2",
     "@metamask/snaps-cli": "^8.4.0",
     "@metamask/snaps-jest": "^10.1.0",
-    "@metamask/snaps-sdk": "^10.4.0",
+    "@metamask/snaps-sdk": "^11.1.0",
     "@metamask/superstruct": "^3.2.1",
     "@metamask/utils": "^11.11.0",
     "@stellar/stellar-sdk": "^15.0.1",
     "@types/jest": "^30.0.0",
     "async-mutex": "^0.5.0",
     "bignumber.js": "^9.3.1",
-    "concurrently": "^9.2.0",
+    "concurrently": "^10.0.3",
     "dotenv": "^17.0.0",
     "jest": "^30.0.3",
     "jest-it-up": "^2.0.2",
@@ -63,7 +63,7 @@
     "lodash": "^4.18.1",
     "prettier": "^3.5.3",
     "qrcode-generator": "^2.0.4",
-    "ts-jest": "^29.4.0"
+    "ts-jest": "^29.4.11"
   },
   "publishConfig": {
     "access": "public",

@@ -11,7 +11,10 @@ import {
 import { BigNumber } from 'bignumber.js';
 
 import { StellarOperationType } from './api';
-import { TransactionDeserializationException } from './exceptions';
+import {
+  TransactionDeserializationException,
+  TransactionServiceException,
+} from './exceptions';
 import { parseExpirationMaxTime } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { bufferToUint8Array } from '../../utils';
@@ -236,7 +239,7 @@ export class Transaction {
     }
 
     if (!feeSource) {
-      throw new Error('Fee source account is not set');
+      throw new TransactionServiceException('Fee source account is not set');
     }
 
     return feeSource;
@@ -372,8 +375,10 @@ export class Transaction {
         caip2ChainIdToNetwork(scope),
       );
       return Transaction.fromRaw(decoded);
-    } catch {
-      throw new TransactionDeserializationException();
+    } catch (error: unknown) {
+      throw new TransactionDeserializationException({
+        cause: error,
+      });
     }
   }
 

@@ -1,28 +1,13 @@
 import { TokenApiClient } from './TokenApiClient';
-import { AssetType, KnownCaip2ChainId } from '../../../api';
-import { buildUrl, logger } from '../../../utils';
+import { KnownCaip2ChainId } from '../../../api';
+import { buildUrl } from '../../../utils';
+import {
+  HttpException,
+  HttpResponseException,
+  InvalidHttpResponseException,
+} from '../../../utils/errors';
 
-const pubnetClassicUsdc =
-  'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN' as const;
-
-const sep41AssetIdC =
-  'stellar:pubnet/sep41:CBGV2QFQBBGEQRUKUMCPO3SZOHDDYO6SCP5CH6TW7EALKVHCXTMWDDOF' as const;
-
-jest.mock('../../../config', () => ({
-  AppConfig: {
-    api: {
-      tokenApi: {
-        baseUrl: 'https://tokens.test',
-        chunkSize: 2,
-      },
-      staticApi: {
-        baseUrl: 'https://static.test',
-      },
-    },
-  },
-}));
-
-jest.mock('../../../utils/logger');
+const baseUrl = 'https://tokens.test';
 
 const classicAssetId =
   'stellar:testnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN' as const;
@@ -46,117 +31,61 @@ const jsonResponse = (
   } as Response;
 };
 
-const tokenApiClientOptions = {
-  baseUrl: 'https://tokens.test',
-  chunkSize: 2,
-} as const;
-
-/**
- * Batches of chunks can be executed in parallel; the mock must branch on the request URL
- * to return a failure for one chunk and success for the other.
- *
- * @param secondChunkRequestMarker - Substring present only in the successful chunk request URL.
- * @param secondChunkResponseBody - JSON body for a 200 response for that chunk.
- */
-function createFetchForPartiallyFailingBatches(
-  secondChunkRequestMarker: string,
-  secondChunkResponseBody: unknown,
-): typeof fetch {
-  return async (url: RequestInfo | URL) => {
-    let href: string;
-    if (typeof url === 'string') {
-      href = url;
-    } else if (url instanceof URL) {
-      href = url.href;
-    } else {
-      href = url.url;
-    }
-    if (href.includes(secondChunkRequestMarker)) {
-      return jsonResponse(secondChunkResponseBody);
-    }
-    return jsonResponse([], { ok: false, status: 503 });
-  };
-}
+const tokenMetadataResponse = (
+  assetId: string,
+  overrides: Record<string, unknown> = {},
+) => ({
+  assetId,
+  decimals: 7,
+  ...overrides,
+});
 
 describe('TokenApiClient', () => {
   const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 
-  const createClient = () =>
-    new TokenApiClient(tokenApiClientOptions, logger, mockFetch);
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-  describe('getTokensMetadata', () => {
-    it('returns empty array when assetIds is empty', async () => {
-      const client = createClient();
-      expect(await client.getTokensMetadata([])).toStrictEqual([]);
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
+  const createClient = () => new TokenApiClient({ baseUrl }, mockFetch);
 
-    it('requests token API with batched assetIds in query and maps response', async () => {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse([
-          {
-            assetId: classicAssetId,
-            decimals: 7,
-            name: 'USD Coin',
-            symbol: 'USDC',
-          },
-        ]),
-      );
+  describe('getAssetsByAssetIds', () => {
+    it('requests token API with assetIds in query and returns parsed body', async () => {
+      const body = [
+        tokenMetadataResponse(classicAssetId, {
+          name: 'USD Coin',
+          symbol: 'USDC',
+        }),
+      ];
+      mockFetch.mockResolvedValueOnce(jsonResponse(body));
 
       const client = createClient();
-      const result = await client.getTokensMetadata([classicAssetId]);
+      const result = await client.getAssetsByAssetIds([classicAssetId]);
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      const urlArg = mockFetch.mock.calls[0]?.[0];
-      expect(typeof urlArg).toBe('string');
-      expect(urlArg).toBe(
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(
         buildUrl({
-          baseUrl: 'https://tokens.test',
+          baseUrl,
           path: '/v3/assets',
           queryParams: { assetIds: classicAssetId },
         }),
       );
-
-      const row = result.find((entry) => entry.assetId === classicAssetId);
-      expect(row).toStrictEqual({
-        name: 'USD Coin',
-        symbol: 'USDC',
-        assetId: classicAssetId,
-        chainId: KnownCaip2ChainId.Testnet,
-        assetType: AssetType.Token,
-        fungible: true,
-        iconUrl: buildUrl({
-          baseUrl: 'https://static.test',
-          path: '/api/v2/tokenIcons/assets/{assetId}.png',
-          pathParams: {
-            assetId: classicAssetId.replace(/:/gu, '/'),
-          },
-          encodePathParams: false,
-        }),
-        units: [{ name: 'USD Coin', symbol: 'USDC', decimals: 7 }],
-      });
+      expect(result).toStrictEqual(body);
     });
 
-    it('joins multiple ids per chunk using configured chunkSize', async () => {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse([
-          {
-            assetId: sep41AssetIdA,
-            decimals: 7,
-            name: 'A',
-            symbol: 'A',
-          },
-          {
-            assetId: sep41AssetIdB,
-            decimals: 18,
-            name: 'B',
-            symbol: 'B',
-          },
-        ]),
-      );
+    it('joins multiple asset ids in the query param', async () => {
+      const body = [
+        tokenMetadataResponse(sep41AssetIdA, { name: 'A', symbol: 'A' }),
+        tokenMetadataResponse(sep41AssetIdB, {
+          decimals: 18,
+          name: 'B',
+          symbol: 'B',
+        }),
+      ];
+      mockFetch.mockResolvedValueOnce(jsonResponse(body));
 
       const client = createClient();
-      await client.getTokensMetadata([sep41AssetIdA, sep41AssetIdB]);
+      await client.getAssetsByAssetIds([sep41AssetIdA, sep41AssetIdB]);
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const urlArg = mockFetch.mock.calls[0]?.[0];
@@ -167,122 +96,57 @@ describe('TokenApiClient', () => {
       expect(assetIdsParam).toBe(`${sep41AssetIdA},${sep41AssetIdB}`);
     });
 
-    it('uses UNKNOWN when name and symbol are absent', async () => {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse([
-          {
-            assetId: sep41AssetIdA,
-            decimals: 7,
-          },
-        ]),
-      );
-
-      const client = createClient();
-      const result = await client.getTokensMetadata([sep41AssetIdA]);
-
-      const row = result.find((entry) => entry.assetId === sep41AssetIdA);
-      expect(row).toMatchObject({
-        name: 'UNKNOWN',
-        symbol: 'UNKNOWN',
-        units: [{ name: 'UNKNOWN', symbol: 'UNKNOWN', decimals: 7 }],
-        assetType: AssetType.Sep41,
-      });
-    });
-
-    it('uses response iconUrl when provided', async () => {
-      const iconUrl = 'https://cdn.example/token.png';
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse([
-          {
-            assetId: sep41AssetIdA,
-            decimals: 7,
-            name: 'T',
-            symbol: 'T',
-            iconUrl,
-          },
-        ]),
-      );
-
-      const client = createClient();
-      const result = await client.getTokensMetadata([sep41AssetIdA]);
-
-      expect(
-        result.find((entry) => entry.assetId === sep41AssetIdA)?.iconUrl,
-      ).toBe(iconUrl);
-    });
-
-    it('returns empty array when fetch fails', async () => {
+    it('throws HttpResponseException when response is not ok', async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse([], { ok: false, status: 503 }),
       );
 
       const client = createClient();
-      expect(await client.getTokensMetadata([classicAssetId])).toStrictEqual(
-        [],
-      );
+      await expect(
+        client.getAssetsByAssetIds([classicAssetId]),
+      ).rejects.toThrow(HttpResponseException);
     });
 
-    it('returns empty array when response body is invalid (batch is skipped)', async () => {
+    it('throws InvalidHttpResponseException when response body is invalid', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ notAnArray: true }));
 
       const client = createClient();
-      expect(await client.getTokensMetadata([classicAssetId])).toStrictEqual(
-        [],
-      );
+      await expect(
+        client.getAssetsByAssetIds([classicAssetId]),
+      ).rejects.toThrow(InvalidHttpResponseException);
     });
 
-    it('returns metadata from successful chunk when another chunk fails', async () => {
-      mockFetch.mockImplementation(
-        createFetchForPartiallyFailingBatches('CBGV2QFQBBGEQR', [
-          {
-            assetId: sep41AssetIdB,
-            decimals: 18,
-            name: 'B',
-            symbol: 'B',
-          },
-        ]),
-      );
+    it('throws HttpException when fetch rejects', async () => {
+      const networkError = Object.assign(new Error('network down'), {
+        cause: { code: 'ECONNREFUSED' },
+      });
+      mockFetch.mockRejectedValueOnce(networkError);
 
       const client = createClient();
-      const result = await client.getTokensMetadata([
-        pubnetClassicUsdc,
-        sep41AssetIdA,
-        sep41AssetIdB,
-        sep41AssetIdC,
-      ]);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]?.assetId).toBe(sep41AssetIdB);
+      await expect(
+        client.getAssetsByAssetIds([classicAssetId]),
+      ).rejects.toThrow(HttpException);
     });
   });
 
-  describe('getAllTokensMetadata', () => {
-    it('requests chain token API and maps data array to metadata', async () => {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          data: [
-            {
-              assetId: sep41AssetIdA,
-              decimals: 7,
-              name: 'A',
-              symbol: 'A',
-            },
-          ],
-          count: 1,
-          totalCount: 1,
-        }),
-      );
+  describe('getAssetsByChainId', () => {
+    it('requests chain token API and returns parsed body', async () => {
+      const body = {
+        data: [
+          tokenMetadataResponse(sep41AssetIdA, { name: 'A', symbol: 'A' }),
+        ],
+        count: 1,
+        totalCount: 1,
+      };
+      mockFetch.mockResolvedValueOnce(jsonResponse(body));
 
       const client = createClient();
-      const result = await client.getAllTokensMetadata(
-        KnownCaip2ChainId.Mainnet,
-      );
+      const result = await client.getAssetsByChainId(KnownCaip2ChainId.Mainnet);
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      const urlArg = mockFetch.mock.calls[0]?.[0];
-      expect(urlArg).toBe(
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(
         buildUrl({
-          baseUrl: 'https://tokens.test',
+          baseUrl,
           path: `/v3/chains/${KnownCaip2ChainId.Mainnet}/assets`,
           queryParams: {
             first: '1000',
@@ -292,94 +156,53 @@ describe('TokenApiClient', () => {
           },
         }),
       );
-
-      const row = result.find((entry) => entry.assetId === sep41AssetIdA);
-      expect(row).toMatchObject({
-        name: 'A',
-        symbol: 'A',
-        chainId: KnownCaip2ChainId.Mainnet,
-        assetType: AssetType.Sep41,
-        fungible: true,
-        units: [{ name: 'A', symbol: 'A', decimals: 7 }],
-      });
-      expect(row?.iconUrl).toBe(
-        buildUrl({
-          baseUrl: 'https://static.test',
-          path: '/api/v2/tokenIcons/assets/{assetId}.png',
-          pathParams: {
-            assetId: sep41AssetIdA.replace(/:/gu, '/'),
-          },
-          encodePathParams: false,
-        }),
-      );
+      expect(result).toStrictEqual(body);
     });
 
-    it('returns empty array when response data is empty', async () => {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          data: [],
-          count: 0,
-          totalCount: 0,
-        }),
-      );
+    it('returns parsed body when response data is empty', async () => {
+      const body = {
+        data: [],
+        count: 0,
+        totalCount: 0,
+      };
+      mockFetch.mockResolvedValueOnce(jsonResponse(body));
 
       const client = createClient();
       expect(
-        await client.getAllTokensMetadata(KnownCaip2ChainId.Testnet),
-      ).toStrictEqual([]);
+        await client.getAssetsByChainId(KnownCaip2ChainId.Testnet),
+      ).toStrictEqual(body);
     });
 
-    it('uses response iconUrl when provided', async () => {
-      const iconUrl = 'https://cdn.example/chain-asset.png';
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          data: [
-            {
-              assetId: sep41AssetIdA,
-              decimals: 7,
-              name: 'A',
-              symbol: 'A',
-              iconUrl,
-            },
-          ],
-          count: 1,
-          totalCount: 1,
-        }),
-      );
-
-      const client = createClient();
-      const result = await client.getAllTokensMetadata(
-        KnownCaip2ChainId.Mainnet,
-      );
-      expect(result.find((row) => row.assetId === sep41AssetIdA)?.iconUrl).toBe(
-        iconUrl,
-      );
-    });
-
-    it('rejects with TokenApiException on HTTP error', async () => {
+    it('throws HttpResponseException on HTTP error', async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({ data: [] }, { ok: false, status: 502 }),
       );
 
       const client = createClient();
       await expect(
-        client.getAllTokensMetadata(KnownCaip2ChainId.Mainnet),
-      ).rejects.toMatchObject({
-        name: 'TokenApiException',
-        message: 'HTTP error! status: 502',
-      });
+        client.getAssetsByChainId(KnownCaip2ChainId.Mainnet),
+      ).rejects.toThrow(HttpResponseException);
     });
 
-    it('rejects with TokenApiException when body does not match schema', async () => {
+    it('throws InvalidHttpResponseException when body does not match schema', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse([{ notValid: true }]));
 
       const client = createClient();
       await expect(
-        client.getAllTokensMetadata(KnownCaip2ChainId.Mainnet),
-      ).rejects.toMatchObject({
-        name: 'TokenApiException',
-        message: 'Failed to fetch token metadata',
+        client.getAssetsByChainId(KnownCaip2ChainId.Mainnet),
+      ).rejects.toThrow(InvalidHttpResponseException);
+    });
+
+    it('throws HttpException when fetch rejects', async () => {
+      const networkError = Object.assign(new Error('network down'), {
+        cause: { code: 'ECONNREFUSED' },
       });
+      mockFetch.mockRejectedValueOnce(networkError);
+
+      const client = createClient();
+      await expect(
+        client.getAssetsByChainId(KnownCaip2ChainId.Mainnet),
+      ).rejects.toThrow(HttpException);
     });
   });
 });

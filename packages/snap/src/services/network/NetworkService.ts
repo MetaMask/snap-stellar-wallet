@@ -1,4 +1,4 @@
-import { ensureError, parseCaipAssetType } from '@metamask/utils';
+import { parseCaipAssetType } from '@metamask/utils';
 import {
   Address,
   Contract,
@@ -6,15 +6,11 @@ import {
   NotFoundError,
   rpc,
 } from '@stellar/stellar-sdk';
-import { BigNumber } from 'bignumber.js';
 
 import type { AssetDataResponse } from './api';
 import { KnownRpcError } from './api';
 import {
-  AccountLoadException,
   AccountNotActivatedException,
-  AssetDataFetchException,
-  BaseFeeFetchException,
   NetworkServiceException,
   SimulationException,
   TransactionNotFoundException,
@@ -29,7 +25,7 @@ import {
   StellarRouterContract,
 } from './MultiCall';
 import {
-  extractAssetDataFromContractData,
+  baseInclusionFee,
   isAccountNotFoundError,
   sep41MulticallCellToBalance,
 } from './utils';
@@ -45,7 +41,7 @@ import {
   MAX_TRANSACTIONS_PAGE_SIZE,
   STELLAR_DECIMAL_PLACES,
 } from '../../constants';
-import type { ILogger, Serializable } from '../../utils';
+import type { AnyErrorConstructor, ILogger, Serializable } from '../../utils';
 import {
   isSameStr,
   createPrefixedLogger,
@@ -58,8 +54,10 @@ import {
 import type { ICache } from '../cache';
 import { useCache } from '../cache';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
+import { InvalidInvokeContractStructureException } from '../transaction/exceptions';
 import { Transaction } from '../transaction/Transaction';
 import { assertInvokeHostFunctionSoleOperation } from '../transaction/utils';
+import { extractAssetDataFromContractData } from '../transaction/xdrParser';
 
 /**
  * Stellar network access through **Horizon** and **Soroban RPC**: base fee, account loading (full
@@ -121,31 +119,32 @@ export class NetworkService {
   }
 
   /**
-   * Fetches the current base fee per operation from the Stellar network.
+   * Fetches the current Stellar network base fee and applies
+   * {@link AppConfig.transaction.baseFeeMultiplier} to produce the per-operation inclusion fee.
    *
    * @param scope - The CAIP-2 chain ID.
-   * @returns A Promise that resolves to the base fee as BigNumber.
-   * @throws {BaseFeeFetchException} If the fee cannot be fetched.
+   * @returns A Promise that resolves to the inclusion fee in stroops.
+   * @throws {NetworkServiceException} If the fee cannot be fetched.
    */
   async getBaseFee(scope: KnownCaip2ChainId): Promise<BigNumber> {
     try {
       const client = this.#getHorizonClient(scope);
       const baseFee = await client.fetchBaseFee();
-      return new BigNumber(baseFee)
-        .multipliedBy(AppConfig.transaction.baseFeeMultiplier)
-        .integerValue(BigNumber.ROUND_CEIL);
+      return baseInclusionFee(baseFee);
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to fetch base fee', error);
-      throw new BaseFeeFetchException(scope);
+      return this.#throwError({
+        error,
+        fallbackError: `Failed to get base fee for scope: ${scope}`,
+      });
     }
   }
 
   /**
-   * Fetches the current base fee per operation from the Stellar network with cache.
+   * Fetches the current per-operation inclusion fee with cache.
    *
    * @param scope - The CAIP-2 chain ID.
    * @param refreshCache - Whether to refresh the cache.
-   * @returns A promise that resolves to the base fee as BigNumber.
+   * @returns A promise that resolves to the inclusion fee in stroops.
    */
   async getBaseFeeWithCache(
     scope: KnownCaip2ChainId,
@@ -164,6 +163,7 @@ export class NetworkService {
    * @param transactionHash - Transaction hash from submission (hex).
    * @param scope - CAIP-2 chain id (Horizon endpoint).
    * @returns `pending` when the tx is not yet available (404); `success` / `failed` when present.
+   * @throws {NetworkServiceException} When Horizon returns a non-404 error.
    */
   async getHorizonTransactionInclusionStatus(
     transactionHash: string,
@@ -180,11 +180,10 @@ export class NetworkService {
       if (error instanceof NotFoundError) {
         return 'pending';
       }
-      this.#logger.logErrorWithDetails(
-        'Failed to load transaction from Horizon',
+      return this.#throwError({
         error,
-      );
-      throw ensureError(error);
+        fallbackError: 'Failed to load transaction from Horizon',
+      });
     }
   }
 
@@ -195,8 +194,8 @@ export class NetworkService {
    * @param transactionHash - Hash returned from `sendTransaction`.
    * @param scope - The CAIP-2 chain ID.
    * @returns The transaction hash when {@link rpc.Api.GetTransactionStatus.SUCCESS}.
-   * @throws {TransactionPollException} When the terminal status is not SUCCESS, or polling fails
-   * (uses {@link AppConfig.transaction.pollingAttempts} as the attempt budget).
+   * @throws {TransactionPollException} When the terminal status is not SUCCESS.
+   * @throws {NetworkServiceException} When polling fails for another reason (e.g. RPC error).
    */
   async pollTransaction(
     transactionHash: string,
@@ -212,12 +211,10 @@ export class NetworkService {
       }
       throw new TransactionPollException(transactionHash, result.status, scope);
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to poll transaction', error);
-      return rethrowIfInstanceElseThrow(
+      return this.#throwError({
         error,
-        [TransactionPollException],
-        new TransactionPollException(transactionHash, 'unknown', scope),
-      );
+        fallbackError: 'Failed to poll transaction',
+      });
     }
   }
 
@@ -228,7 +225,7 @@ export class NetworkService {
    * @param scope - The CAIP-2 chain ID.
    * @returns A Promise that resolves to a {@link OnChainAccount} backed by Horizon's account response.
    * @throws {AccountNotActivatedException} If the account does not exist on the network.
-   * @throws {AccountLoadException} If loading fails for another reason (e.g. network error).
+   * @throws {NetworkServiceException} If loading fails for another reason (e.g. network error).
    */
   async loadOnChainAccount(
     accountAddress: string,
@@ -241,11 +238,15 @@ export class NetworkService {
         scope,
       );
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to load an account', error);
-      if (error instanceof NotFoundError) {
-        throw new AccountNotActivatedException(accountAddress, scope);
+      if (isAccountNotFoundError(error, accountAddress)) {
+        throw new AccountNotActivatedException(accountAddress, scope, {
+          cause: error,
+        });
       }
-      throw new AccountLoadException(accountAddress, scope);
+      return this.#throwError({
+        error,
+        fallbackError: 'Failed to load an account',
+      });
     }
   }
 
@@ -286,8 +287,9 @@ export class NetworkService {
    * @param scope - The CAIP-2 chain ID.
    * @param batchSize - The batch size for the accounts.
    * @returns A Promise that resolves to an array of {@link OnChainAccount} objects.
+   * @throws {NetworkServiceException} When the batch request fails before per-account settlement.
    */
-  async loadOnChainAccounts(
+  async loadOnChainAccountsSafe(
     accountAddresses: string[],
     scope: KnownCaip2ChainId,
     // Hardcoded to 5 to avoid overwhelming the network
@@ -317,11 +319,10 @@ export class NetworkService {
 
       return onChainAccounts;
     } catch (error: unknown) {
-      return rethrowIfInstanceElseThrow(
+      return this.#throwError({
         error,
-        [AccountLoadException, AccountNotActivatedException],
-        new NetworkServiceException('Failed to load accounts'),
-      );
+        fallbackError: 'Failed to load on-chain accounts',
+      });
     }
   }
 
@@ -335,7 +336,7 @@ export class NetworkService {
    * @returns A Promise that resolves to a loaded account (sequence suitable for rebuilding txs).
    * @throws {AccountNotActivatedException} If Soroban RPC reports a missing account (SDK
    * `Error` message `Account not found: <G… address>`).
-   * @throws {AccountLoadException} If loading fails for another reason (e.g. network error).
+   * @throws {NetworkServiceException} If loading fails for another reason (e.g. network error).
    */
   async getAccount(
     accountAddress: string,
@@ -346,37 +347,20 @@ export class NetworkService {
       const loaded = await client.getAccount(accountAddress);
       return new OnChainAccount(loaded, scope);
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to get an account', error);
       if (isAccountNotFoundError(error, accountAddress)) {
-        throw new AccountNotActivatedException(accountAddress, scope);
+        throw new AccountNotActivatedException(accountAddress, scope, {
+          cause: error,
+        });
       }
-
-      throw new AccountLoadException(accountAddress, scope);
+      return this.#throwError({
+        error,
+        fallbackError: 'Failed to get account',
+      });
     }
   }
 
   /**
-   * Fetches token metadata from Soroban via `getLedgerEntries` for a SEP-41 contract CAIP-19 id.
-   *
-   * @param assetId - SEP-41 CAIP-19 asset id (`…/sep41:C…`) for a token contract on `scope`.
-   * @param scope - The CAIP-2 chain ID.
-   * @returns Classic- or SEP-41-shaped {@link AssetDataResponse} (classic when the contract is a Stellar Asset Contract).
-   * @throws {AssetDataFetchException} When RPC returns no entry for this asset.
-   */
-  async getAssetData(
-    assetId: KnownCaip19Sep41AssetId,
-    scope: KnownCaip2ChainId,
-  ): Promise<AssetDataResponse> {
-    const assetsData = await this.getAssetsData([assetId], scope);
-    const assetData = assetsData.find((asset) => asset.assetId === assetId);
-    if (!assetData) {
-      throw new AssetDataFetchException(scope, assetId);
-    }
-    return assetData;
-  }
-
-  /**
-   * Batch counterpart to {@link getAssetData}: loads token contract ledger entries over Soroban RPC.
+   * Batch loads token contract ledger entries over Soroban RPC.
    *
    * @param assetIds - SEP-41 CAIP-19 asset ids (`…/sep41:C…`) for contracts on `scope`.
    * @param scope - The CAIP-2 chain ID.
@@ -384,7 +368,7 @@ export class NetworkService {
    * contract entry are omitted (this is not an error).
    * @throws {NetworkServiceException} When the RPC request fails.
    */
-  async getAssetsData(
+  async getSep41AssetsData(
     assetIds: KnownCaip19Sep41AssetId[],
     scope: KnownCaip2ChainId,
   ): Promise<AssetDataResponse[]> {
@@ -431,8 +415,10 @@ export class NetworkService {
         };
       });
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to get assets data', error);
-      throw new NetworkServiceException('Failed to get assets data');
+      return this.#throwError({
+        error,
+        fallbackError: 'Failed to get assets data from Soroban',
+      });
     }
   }
 
@@ -442,7 +428,7 @@ export class NetworkService {
    * @param assetId - CAIP-19 classic asset id (`…/asset:CODE-ISSUER`).
    * @param scope - The CAIP-2 chain ID.
    * @returns for the classic asset.
-   * @throws {AssetDataFetchException} When Horizon returns no entry for this asset.
+   * @throws {NetworkServiceException} When Horizon returns no entry for this asset or the request fails.
    */
   async getClassicAssetData(
     assetId: KnownCaip19ClassicAssetId,
@@ -466,7 +452,9 @@ export class NetworkService {
         assetData.records[0].asset_code !== assetCode ||
         assetData.records[0].asset_issuer !== assetIssuer
       ) {
-        throw new AssetDataFetchException(scope, assetId);
+        throw new NetworkServiceException(
+          `Failed to get assets data from Horizon for asset id: ${assetId}`,
+        );
       }
 
       return {
@@ -476,15 +464,10 @@ export class NetworkService {
         name: assetCode,
       };
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to get assets data from Horizon',
+      return this.#throwError({
         error,
-      );
-      return rethrowIfInstanceElseThrow(
-        error,
-        [AssetDataFetchException],
-        new NetworkServiceException('Failed to get assets data from Horizon'),
-      );
+        fallbackError: 'Failed to get assets data from Horizon',
+      });
     }
   }
 
@@ -568,15 +551,10 @@ export class NetworkService {
       }
       return result;
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to load SEP-41 token balance',
+      return this.#throwError({
         error,
-      );
-      return rethrowIfInstanceElseThrow(
-        error,
-        [NetworkServiceException],
-        new NetworkServiceException('Failed to load SEP-41 token balance'),
-      );
+        fallbackError: 'Failed to load SEP-41 token balance',
+      });
     }
   }
 
@@ -631,7 +609,7 @@ export class NetworkService {
       );
 
       if (executedTransaction.status === 'ERROR') {
-        const errorCode = this.#getSendRpcErrorCode(executedTransaction);
+        const errorCode = this.#getSendRpcErrorCodeSafe(executedTransaction);
         if (isSameStr(errorCode, KnownRpcError.TxBadSeq)) {
           throw new TransactionRetryableException(scope, errorCode);
         }
@@ -644,24 +622,26 @@ export class NetworkService {
 
       return executedTransaction.hash;
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to send transaction', error);
-      return rethrowIfInstanceElseThrow(
+      return this.#throwError({
         error,
-        [NetworkServiceException],
-        new TransactionSendException(scope, 'unknown'),
-      );
+        fallbackError: new TransactionSendException(scope, 'unknown', {
+          cause: error,
+        }),
+      });
     }
   }
 
   /**
-   * Simulates a Soroban transaction via RPC and returns a new {@link Transaction} with updated fee
-   * and footprint (assembled envelope).
+   * Simulates a Soroban transaction via RPC and returns a new {@link Transaction} with an
+   * assembled envelope. Simulation supplies the Soroban resource fee; the per-operation inclusion
+   * fee on the input envelope is preserved unchanged. {@link rpc.assembleTransaction} applies
+   * `minResourceFee` from the RPC response as-is — it is not validated or scaled locally.
    *
    * @param transaction - Exactly one `invokeHostFunction` operation.
    * @param scope - The CAIP-2 chain ID.
    * @returns Assembled transaction suitable for signing.
-   * @throws {NetworkServiceException} When the envelope is not a single `invokeHostFunction` operation.
-   * @throws {SimulationException} When the RPC reports a simulation error or an unexpected failure occurs.
+   * @throws {SimulationException} When the envelope is not a valid contract invoke transaction, RPC reports a simulation error, or an unexpected failure occurs.
+   * @throws {InvalidInvokeContractStructureException} When the envelope is not a single `invokeHostFunction` operation.
    */
   async simulateTransaction(
     transaction: Transaction,
@@ -669,7 +649,7 @@ export class NetworkService {
   ): Promise<Transaction> {
     try {
       if (!transaction.hasInvokeHostFunction) {
-        throw new NetworkServiceException(
+        throw new SimulationException(
           'Transaction is not a valid contract invoke transaction',
         );
       }
@@ -688,27 +668,6 @@ export class NetworkService {
         );
       }
 
-      // Get the min resource fee from the simulation response.
-      const resourceFee = new BigNumber(simulateResponse.minResourceFee);
-
-      if (
-        resourceFee.isNaN() ||
-        !resourceFee.isFinite() ||
-        resourceFee.isNegative()
-      ) {
-        throw new SimulationException('Invalid resource fee');
-      }
-
-      // Set the resource fee to the multiplied value.
-      // simulateResponse.transactionData will be used to assemble the transaction.
-      // @link https://github.com/stellar/stellar-sdk/blob/main/packages/stellar-base/src/rpc/transaction.ts
-      simulateResponse.transactionData.setResourceFee(
-        resourceFee
-          .multipliedBy(AppConfig.transaction.simulationFeeMultiplier)
-          .integerValue(BigNumber.ROUND_CEIL)
-          .toString(),
-      );
-
       const simulatedTransaction = rpc.assembleTransaction(
         rawTransaction,
         simulateResponse,
@@ -716,19 +675,20 @@ export class NetworkService {
 
       return Transaction.fromRaw(simulatedTransaction.build());
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to simulate transaction', error);
-      return rethrowIfInstanceElseThrow(
+      return this.#throwError({
         error,
-        [NetworkServiceException],
-        new SimulationException(
-          error instanceof Error ? error.message : 'Unknown error',
+        exceptionClasses: [InvalidInvokeContractStructureException],
+        fallbackError: new SimulationException(
+          'Failed to simulate transaction',
+          { cause: error },
         ),
-      );
+      });
     }
   }
 
   /**
-   * Simulates a SEP-41 transfer via RPC and returns an assembled {@link Transaction} with fee and footprint.
+   * Simulates a SEP-41 transfer via RPC and returns an assembled {@link Transaction} with Soroban
+   * resource fee and footprint. The per-operation inclusion fee on the input envelope is unchanged.
    *
    * Results are cached by `assetId`, `fromAccountId`, `toAccountId`, and `scope` so repeated simulations
    * for the same transfer context (e.g. different amounts during fee estimation) avoid extra RPC calls.
@@ -758,14 +718,6 @@ export class NetworkService {
     toAccountId: string;
     refreshCache?: boolean;
   }): Promise<Transaction> {
-    if (!transaction.hasInvokeHostFunction) {
-      throw new NetworkServiceException(
-        'Transaction is not a valid SEP-41 transfer transaction',
-      );
-    }
-
-    assertInvokeHostFunctionSoleOperation(transaction);
-
     const cachedXdr = await useCache(
       async () => {
         const simulatedTransaction = await this.simulateTransaction(
@@ -801,7 +753,8 @@ export class NetworkService {
    * @param transactionHash - Stellar transaction hash (`hex`).
    * @param scope - CAIP-2 network scope used to choose the Horizon client and decode envelope XDR.
    * @returns The mapped {@link Transaction}.
-   * @throws {NetworkServiceException} When the transaction cannot be fetched or mapped.
+   * @throws {TransactionNotFoundException} When Horizon reports the transaction is not found.
+   * @throws {NetworkServiceException} When the transaction cannot be fetched or mapped for another reason.
    */
   async getTransaction(
     transactionHash: string,
@@ -815,13 +768,16 @@ export class NetworkService {
         .call();
       return this.#toTransaction(result, scope);
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to fetch transaction', error);
       if (error instanceof NotFoundError) {
-        throw new TransactionNotFoundException(transactionHash);
+        throw new TransactionNotFoundException(transactionHash, {
+          cause: error,
+        });
       }
-      throw new NetworkServiceException(
-        `Failed to fetch transaction ${transactionHash}`,
-      );
+
+      return this.#throwError({
+        error,
+        fallbackError: 'Failed to fetch transaction',
+      });
     }
   }
 
@@ -851,7 +807,7 @@ export class NetworkService {
    */
   async getTransactions(params: {
     accountAddress: string;
-    lastScanToken: string;
+    lastScanToken: string | null;
     scope: KnownCaip2ChainId;
     order?: 'asc' | 'desc';
     pageSize?: number;
@@ -880,7 +836,7 @@ export class NetworkService {
         .transactions()
         .forAccount(accountAddress)
         .order(order)
-        .cursor(lastScanToken)
+        .cursor(lastScanToken ?? '')
         .limit(pageSize)
         .includeFailed(includeFailed)
         .call();
@@ -921,12 +877,10 @@ export class NetworkService {
 
       return transactions;
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails('Failed to fetch transactions', error);
-      return rethrowIfInstanceElseThrow(
+      return this.#throwError({
         error,
-        [NetworkServiceException],
-        new NetworkServiceException('Failed to fetch transactions'),
-      );
+        fallbackError: 'Failed to fetch transactions',
+      });
     }
   }
 
@@ -961,15 +915,30 @@ export class NetworkService {
     });
   }
 
-  #getSendRpcErrorCode(rpcError: rpc.Api.SendTransactionResponse): string {
+  #getSendRpcErrorCodeSafe(rpcError: rpc.Api.SendTransactionResponse): string {
     try {
       return rpcError.errorResult?.result().switch().name ?? 'unknown';
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to parse send error code',
-        error,
-      );
+      this.#logger.warn('Failed to parse send error code', { error });
       return 'unknown';
     }
+  }
+
+  #throwError({
+    error,
+    exceptionClasses,
+    fallbackError,
+  }: {
+    error: unknown;
+    exceptionClasses?: readonly AnyErrorConstructor[];
+    fallbackError: string | NetworkServiceException;
+  }): never {
+    return rethrowIfInstanceElseThrow(
+      error,
+      [NetworkServiceException, ...(exceptionClasses ?? [])],
+      fallbackError instanceof Error
+        ? fallbackError
+        : new NetworkServiceException(String(fallbackError), { cause: error }),
+    );
   }
 }

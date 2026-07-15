@@ -1,4 +1,5 @@
-import { ensureError } from '@metamask/utils';
+import type { NonEmptyArray } from '@metamask/utils';
+import { parseCaipAssetType } from '@metamask/utils';
 
 import type {
   KnownCaip19AssetId,
@@ -18,13 +19,16 @@ import {
 import type { ILogger } from '../../utils';
 import type { AssetDataResponse, NetworkService } from '../network';
 import type {
+  AssetUnit,
   KeyringAssetMetadataByAssetId,
   StellarAssetMetadata,
 } from './api';
 import type { AssetMetadataRepository } from './AssetMetadataRepository';
 import { AssetMetadataServiceException } from './exceptions';
+import type { TokenMetadata } from './token-api/api';
 import { TokenApiClient } from './token-api/TokenApiClient';
 import {
+  getIconUrl,
   getNativeAssetMetadata,
   groupAssetsByChainId,
   toKeyringAssetMetadata,
@@ -62,13 +66,9 @@ export class AssetMetadataService {
     logger: ILogger;
   }) {
     this.#networkService = networkService;
-    this.#tokenApiClient = new TokenApiClient(
-      {
-        baseUrl: AppConfig.api.tokenApi.baseUrl,
-        chunkSize: AppConfig.api.tokenApi.chunkSize,
-      },
-      logger,
-    );
+    this.#tokenApiClient = new TokenApiClient({
+      baseUrl: AppConfig.api.tokenApi.baseUrl,
+    });
     this.#assetMetadataRepository = assetMetadataRepository;
     this.#logger = createPrefixedLogger(logger, '[🪙 AssetMetadataService]');
   }
@@ -148,13 +148,43 @@ export class AssetMetadataService {
   }
 
   /**
+   * Fetches all SEP-41 assets for the given scope, or synchronizes the assets if none are found.
+   *
+   * It is possible that the state is empty, due to the first sync.
+   * Hence, we synchronize the assets once.
+   *
+   * @param scope - The chain ID to look up.
+   * @returns A Promise that resolves to all SEP-41 assets for the given scope.
+   */
+  async fetchSep41AssetsOrSyncOnce(
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarAssetMetadata[]> {
+    // Get all SEP-41 assets for the given scope.
+    const allAssets = await this.getAllByScope(scope);
+
+    if (allAssets.length === 0) {
+      this.#logger.debug('No assets found in the state, synchronizing assets');
+      // It is possible that the state is empty, due to the first sync.
+      // Hence, we synchronize the assets once.
+      await this.synchronize(scope);
+    }
+
+    const sep41Assets = await this.getPersistedSep41AssetsMetadata(scope);
+
+    this.#logger.debug('SEP-41 assets found in the state', {
+      noOfAssets: sep41Assets.length,
+    });
+
+    return sep41Assets;
+  }
+
+  /**
    * Fetches and persists all Assets for the given chain ID from the token API.
    *
    * @param scope - The chain ID to fetch and persist assets for.
    */
   async synchronize(scope: KnownCaip2ChainId): Promise<void> {
-    const tokensMetadata =
-      await this.#tokenApiClient.getAllTokensMetadata(scope);
+    const tokensMetadata = await this.#getAssetsByChainId(scope);
     await this.#assetMetadataRepository.saveMany(tokensMetadata);
   }
 
@@ -255,8 +285,7 @@ export class AssetMetadataService {
     }
 
     this.#logger.debug('Fetching token assets from API', { assetIds });
-    const tokensMetadata =
-      await this.#tokenApiClient.getTokensMetadata(assetIds);
+    const tokensMetadata = await this.#getAssetsByAssetIds(assetIds);
     const { hits: assets, missing: missingAssetIds } =
       this.#partitionHitsAndMissingByArray(assetIds, tokensMetadata);
     this.#logger.debug('Token assets from API', { missingAssetIds });
@@ -277,7 +306,7 @@ export class AssetMetadataService {
       assetIds,
       this.#sepAssetChunkSize,
       this.#sepAssetBatchSize,
-      async (chunk) => this.#networkService.getAssetsData(chunk, scope),
+      async (chunk) => this.#networkService.getSep41AssetsData(chunk, scope),
     );
 
     const { assets, missingAssetIds } =
@@ -332,10 +361,9 @@ export class AssetMetadataService {
 
     for (const entry of settled) {
       if (entry.status === 'rejected') {
-        this.#logger.logErrorWithDetails(
-          'Error fetching assets',
-          ensureError(entry.reason).message,
-        );
+        this.#logger.warn('Failed to fetch assets metadata', {
+          error: entry.reason,
+        });
         continue;
       }
 
@@ -351,6 +379,48 @@ export class AssetMetadataService {
     }
 
     return { assets, missingAssetIds: Array.from(missingTokenAssetIds) };
+  }
+
+  async #getAssetsByAssetIds(
+    assetIds: KnownCaip19AssetId[],
+  ): Promise<StellarAssetMetadata[]> {
+    const tokenMetadataResponses =
+      await this.#tokenApiClient.getAssetsByAssetIds(assetIds);
+    // Note: it is possible that the token metadata does not contain all the asset ids.
+    return tokenMetadataResponses.map((tokenMetadata) =>
+      this.#toAssetMetadata(tokenMetadata),
+    );
+  }
+
+  async #getAssetsByChainId(
+    scope: KnownCaip2ChainId,
+  ): Promise<StellarAssetMetadata[]> {
+    const tokenMetadataResponses =
+      await this.#tokenApiClient.getAssetsByChainId(scope);
+    return tokenMetadataResponses.data.map((tokenMetadata) =>
+      this.#toAssetMetadata(tokenMetadata),
+    );
+  }
+
+  #toAssetMetadata(tokenMetadata: TokenMetadata): StellarAssetMetadata {
+    const name = tokenMetadata.name ?? 'UNKNOWN';
+    const symbol = tokenMetadata.symbol ?? 'UNKNOWN';
+    const { decimals } = tokenMetadata;
+    const { assetId } = tokenMetadata;
+    const units: NonEmptyArray<AssetUnit> = [{ name, symbol, decimals }];
+
+    const { assetNamespace, chainId } = parseCaipAssetType(assetId);
+
+    return {
+      name,
+      symbol,
+      assetId,
+      chainId: chainId as KnownCaip2ChainId,
+      assetType: assetNamespace as AssetType,
+      fungible: true as const,
+      iconUrl: tokenMetadata.iconUrl ?? getIconUrl(assetId),
+      units,
+    };
   }
 
   /**

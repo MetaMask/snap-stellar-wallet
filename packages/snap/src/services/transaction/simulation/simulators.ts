@@ -9,12 +9,7 @@ import type {
   ValidateContext,
   AccountState,
 } from './api';
-import {
-  getAccount,
-  effectiveSource,
-  getSpendableNative,
-  tryParseSep41TransferInvoke,
-} from './utils';
+import { getAccount, effectiveSource, getSpendableNative } from './utils';
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Slip44Id,
@@ -40,6 +35,7 @@ import {
   UpdateTrustlineException,
 } from '../exceptions';
 import { assertMemoWhenDestinationRequires } from '../utils';
+import { isSep41TransferInvoke, parseSep41TransferInvoke } from '../xdrParser';
 
 type ClassicAssetId = KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
 
@@ -630,11 +626,16 @@ export class InvokeHostFunctionOPSimulator implements OperationSimulator {
     const senderState = getAccount(state, sourceId);
 
     // handle the SEP-41 transfer operation
-    const parsed = tryParseSep41TransferInvoke(op, scope);
-    if (parsed === null) {
+    if (!isSep41TransferInvoke(op)) {
       // Not a SEP-41 `transfer`; skip contract-token balance validation (other invokes ignore SEP-41 rows).
       return;
     }
+
+    // Let XdrParseException propagate as-is: it signals an internal XDR/ScVal
+    // parsing failure, not a user-facing validation outcome like insufficient
+    // balance. confirmSend tracks these via trackErrorIfNeeded; onAmountInput returns
+    // invalid without tracking to reduce Sentry noise during amount entry.
+    const parsed = parseSep41TransferInvoke(op, scope);
 
     const { fromAccountId, assetId, amount } = parsed;
 

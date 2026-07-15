@@ -40,6 +40,16 @@ const parseIntegerStruct = (
     (value: string) => (value === '' ? undefined : parseInt(value, 10)),
   );
 
+const parseFloatStruct = (
+  minValue: number,
+  defaultValue: number,
+): Struct<number> =>
+  coerce(
+    defaulted(min(number(), minValue), defaultValue),
+    string(),
+    (value: string) => (value === '' ? undefined : parseFloat(value)),
+  );
+
 /**
  * A struct for validating the network config.
  */
@@ -86,28 +96,41 @@ const ConfigStruct = object({
      */
     trackTransactionMaxReschedules: parseIntegerStruct(0, 10),
     /**
-     * The base fee multiplier for the Stellar network.
-     */
-    baseFeeMultiplier: parseIntegerStruct(1, 1.2),
-    /**
-     * The smart contract transaction fee multiplier for the Stellar network.
-     * The multiplier is higher because smart contract transactions have tighter ledger limits than normal transactions.
+     * Multiplier applied to the Stellar network base fee to set the per-operation inclusion fee on
+     * submitted transactions. Inclusion fee determines ledger ordering; it is separate from
+     * the Soroban resource fee returned by simulation.
      *
-     * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering#ledger-limits
+     * @see https://developers.stellar.org/docs/learn/fundamentals/fees-resource-limits-metering
      */
-    simulationFeeMultiplier: parseIntegerStruct(1, 1.5),
+    baseFeeMultiplier: parseFloatStruct(1, 10),
+    /**
+     * The maximum fee threshold in XLM for the Stellar network.
+     */
+    maxFeeThresholdInXLM: parseFloatStruct(1, 1),
+    /**
+     * The maximum number of Horizon not-found reconcile attempts for a pending transaction.
+     * Used with `maxPendingTransactionAge` to evict stale pending txs from snap state;
+     * both limits must be exceeded before a pending tx is dropped.
+     * Minimum value is 2 to avoid dropping the pending transaction too early.
+     */
+    maxReconcileAttempts: parseIntegerStruct(2, 5),
+    /**
+     * The maximum age of a pending transaction in milliseconds.
+     * Used with `maxReconcileAttempts` to evict stale pending txs from snap state;
+     * both limits must be exceeded before a pending tx is dropped.
+     * Minimum value is 15000 to avoid dropping the pending transaction too early.
+     */
+    maxPendingTransactionAge: parseIntegerStruct(15000, 30000),
   }),
   api: object({
     tokenApi: object({
       baseUrl: UrlStruct,
-      chunkSize: parseIntegerStruct(1, 20),
     }),
     staticApi: object({
       baseUrl: UrlStruct,
     }),
     priceApi: object({
       baseUrl: UrlStruct,
-      chunkSize: parseIntegerStruct(1, 20),
     }),
     securityAlertsApi: object({
       baseUrl: UrlStruct,
@@ -169,21 +192,21 @@ export const AppConfig = create(
       timeout: process.env.TRANSACTION_TIMEOUT,
       pollingAttempts: process.env.TRANSACTION_POLLING_ATTEMPTS,
       baseFeeMultiplier: process.env.BASE_FEE_MULTIPLIER,
-      simulationFeeMultiplier: process.env.SIMULATION_FEE_MULTIPLIER,
+      maxFeeThresholdInXLM: process.env.MAX_FEE_THRESHOLD_IN_XLM,
       trackTransactionMaxReschedules:
         process.env.TRACK_TRANSACTION_MAX_RESCHEDULES,
+      maxReconcileAttempts: process.env.MAX_RECONCILE_ATTEMPTS,
+      maxPendingTransactionAge: process.env.MAX_PENDING_TRANSACTION_AGE,
     },
     api: {
       tokenApi: {
         baseUrl: process.env.TOKEN_API_BASE_URL,
-        chunkSize: process.env.TOKEN_API_CHUNK_SIZE,
       },
       staticApi: {
         baseUrl: process.env.STATIC_API_BASE_URL,
       },
       priceApi: {
         baseUrl: process.env.PRICE_API_BASE_URL,
-        chunkSize: process.env.PRICE_API_CHUNK_SIZE,
       },
       securityAlertsApi: {
         baseUrl:

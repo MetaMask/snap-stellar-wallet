@@ -1,5 +1,4 @@
 import type { GetPreferencesResult } from '@metamask/snaps-sdk';
-import { union } from '@metamask/snaps-sdk';
 import type { Infer } from '@metamask/superstruct';
 import {
   boolean,
@@ -9,6 +8,7 @@ import {
   type,
   string,
   nullable,
+  union,
   nonempty,
 } from '@metamask/superstruct';
 
@@ -77,6 +77,12 @@ export const ContextWithSecurityScanStruct = type({
   scan: optional(nullable(TransactionScanResultStruct)),
   scanFetchStatus: enums(Object.values(FetchStatus)),
   securityScanRequest: optional(SecurityScanRequestStruct),
+  // Render-time intents the scan refresher uses to pick Blockaid options,
+  // decoupled from the interface key:
+  // - securityScanning: request remote validation (gated by useSecurityAlerts)
+  // - remoteSimulation: request remote simulation (gated by simulateOnChainActions)
+  securityScanning: boolean(),
+  remoteSimulation: boolean(),
 });
 
 export type ContextWithSecurityScan = Infer<
@@ -131,4 +137,11 @@ export type ConfirmationBaseProps = Partial<ContextWithPrices> & {
   networkImage: string | null;
   origin: string;
   feeData?: FeeData;
+  // Identifies the active view so shared event handlers (e.g. the malicious
+  // acknowledgement screen) can re-render the correct confirmation.
+  interfaceKey?: ConfirmationInterfaceKey;
+  // True while the malicious acknowledgement screen is shown over the confirmation.
+  acknowledgementScreen?: boolean;
+  // Whether the user has checked the "I acknowledge the risk" box on that screen.
+  acknowledged?: boolean;
 };

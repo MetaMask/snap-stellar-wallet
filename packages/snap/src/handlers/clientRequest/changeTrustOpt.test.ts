@@ -1,5 +1,6 @@
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
+import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
 import {
@@ -19,7 +20,10 @@ import {
   generateMockStellarAssetMetadata,
   USDC_CLASSIC,
 } from '../../services/asset-metadata/__mocks__/assets.fixtures';
-import { NetworkService } from '../../services/network';
+import {
+  AccountNotActivatedException,
+  NetworkService,
+} from '../../services/network';
 import {
   OnChainAccount,
   OnChainAccountService,
@@ -31,13 +35,20 @@ import {
   mockOnChainAccountService,
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { TransactionService } from '../../services/transaction';
-import { createMockTransactionService } from '../../services/transaction/__mocks__/transaction.fixtures';
-import { TrustlineNotFoundException } from '../../services/transaction/exceptions';
+import {
+  buildMockClassicTransaction,
+  createMockTransactionService,
+} from '../../services/transaction/__mocks__/transaction.fixtures';
+import {
+  TransactionValidationException,
+  TrustlineNotFoundException,
+} from '../../services/transaction/exceptions';
 import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import { ConfirmationUXController } from '../../ui/confirmation/controller';
+import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
 import { logger } from '../../utils/logger';
 import * as snapUtils from '../../utils/snap';
 import { AccountResolver } from '../accountResolver';
@@ -46,6 +57,9 @@ import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 jest.mock('../../utils/logger');
 jest.mock('@metamask/keyring-snap-sdk', () => ({
   emitSnapKeyringEvent: jest.fn(),
+}));
+jest.mock('../../ui/confirmation/views/AccountActivationPrompt/render', () => ({
+  render: jest.fn().mockResolvedValue(undefined),
 }));
 
 describe('ChangeTrustOptHandler', () => {
@@ -167,7 +181,7 @@ describe('ChangeTrustOptHandler', () => {
     const renderConfirmationDialog = jest
       .spyOn(ConfirmationUXController.prototype, 'renderConfirmationDialog')
       .mockResolvedValue(true);
-    const confirmationUIController = new ConfirmationUXController({ logger });
+    const confirmationUIController = new ConfirmationUXController();
 
     const handler = new ChangeTrustOptHandler({
       logger,
@@ -244,6 +258,7 @@ describe('ChangeTrustOptHandler', () => {
       scope,
       limit: '1.5',
     });
+    expect(createValidatedChangeTrustTransaction).toHaveBeenCalledTimes(2);
     expect(renderConfirmationDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         scope,
@@ -255,8 +270,8 @@ describe('ChangeTrustOptHandler', () => {
         },
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
@@ -302,6 +317,26 @@ describe('ChangeTrustOptHandler', () => {
     });
   });
 
+  it('returns status false and shows account activation prompt when account is not funded', async () => {
+    const {
+      handler,
+      wallet,
+      resolveOnChainAccountSpy,
+      createValidatedChangeTrustTransaction,
+      renderConfirmationDialog,
+    } = setup();
+    resolveOnChainAccountSpy.mockRejectedValueOnce(
+      new AccountNotActivatedException(wallet.address, scope),
+    );
+
+    const result = await handler.handle(addRequest);
+
+    expect(result).toStrictEqual({ status: false });
+    expect(renderAccountActivationPrompt).toHaveBeenCalledWith(wallet.address);
+    expect(createValidatedChangeTrustTransaction).not.toHaveBeenCalled();
+    expect(renderConfirmationDialog).not.toHaveBeenCalled();
+  });
+
   it('returns success early for opt-in when trustline already exists', async () => {
     const {
       handler,
@@ -319,6 +354,56 @@ describe('ChangeTrustOptHandler', () => {
     expect(resolve).not.toHaveBeenCalled();
     expect(createValidatedChangeTrustTransaction).not.toHaveBeenCalled();
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
+    expect(signTransactionSpy).not.toHaveBeenCalled();
+    expect(sendTransaction).not.toHaveBeenCalled();
+    expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
+    expect(
+      TrackTransactionHandler.scheduleBackgroundEvent,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('returns success without submitting when the trustline appears between confirmation and submission', async () => {
+    const {
+      handler,
+      wallet,
+      resolveOnChainAccountSpy,
+      onChainAccount,
+      createValidatedChangeTrustTransaction,
+      renderConfirmationDialog,
+      sendTransaction,
+      savePendingKeyringTransaction,
+      signTransactionSpy,
+    } = setup();
+
+    const rawAccountWithTrustline = createMockAccountWithBalances(
+      wallet.address,
+      '1',
+      {
+        ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+        nativeBalance: 10,
+        assets: [trustlineAsset],
+      },
+    );
+    const onChainAccountWithTrustline = new OnChainAccount(
+      rawAccountWithTrustline,
+      scope,
+      horizonSource(rawAccountWithTrustline, scope),
+    );
+
+    // Preflight resolves an account without the trustline so the dialog is shown,
+    // but the post-confirmation refresh re-resolves an account that now has the
+    // trustline, making the opt-in redundant.
+    resolveOnChainAccountSpy
+      .mockReset()
+      .mockResolvedValueOnce(onChainAccount)
+      .mockResolvedValue(onChainAccountWithTrustline);
+
+    const result = await handler.handle(addRequest);
+
+    expect(result).toStrictEqual({ status: true });
+    expect(renderConfirmationDialog).toHaveBeenCalledTimes(1);
+    // Only the pre-dialog build runs; the refresh bails out before rebuilding.
+    expect(createValidatedChangeTrustTransaction).toHaveBeenCalledTimes(1);
     expect(signTransactionSpy).not.toHaveBeenCalled();
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
@@ -373,13 +458,14 @@ describe('ChangeTrustOptHandler', () => {
       scope,
       limit: '0',
     });
+    expect(createValidatedChangeTrustTransaction).toHaveBeenCalledTimes(2);
     expect(renderConfirmationDialog).toHaveBeenCalledWith(
       expect.objectContaining({
         interfaceKey: ConfirmationInterfaceKey.ChangeTrustlineOptOut,
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
@@ -441,6 +527,76 @@ describe('ChangeTrustOptHandler', () => {
     expect(
       TrackTransactionHandler.scheduleBackgroundEvent,
     ).not.toHaveBeenCalled();
+  });
+
+  it('throws when refreshed transaction fee is higher than confirmed fee', async () => {
+    const {
+      handler,
+      wallet,
+      createValidatedChangeTrustTransaction,
+      signTransactionSpy,
+      sendTransaction,
+      networkSendSpy,
+      savePendingKeyringTransaction,
+    } = setup();
+    const confirmedTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'changeTrust',
+          params: {
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            limit: '1.5',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '1',
+        },
+        baseFeePerOperation: '100',
+      },
+    );
+    const higherFeeTransaction = buildMockClassicTransaction(
+      [
+        {
+          type: 'changeTrust',
+          params: {
+            asset: {
+              code: 'USDC',
+              issuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+            },
+            limit: '1.5',
+          },
+        },
+      ],
+      {
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: wallet.address,
+          sequence: '2',
+        },
+        baseFeePerOperation: '200',
+      },
+    );
+    createValidatedChangeTrustTransaction
+      .mockResolvedValueOnce(confirmedTransaction)
+      .mockResolvedValueOnce(higherFeeTransaction);
+
+    await expect(handler.handle(addRequest)).rejects.toThrow(
+      TransactionValidationException,
+    );
+
+    expect(signTransactionSpy).not.toHaveBeenCalled();
+    expect(sendTransaction).not.toHaveBeenCalled();
+    expect(networkSendSpy).not.toHaveBeenCalled();
+    expect(savePendingKeyringTransaction).not.toHaveBeenCalled();
   });
 
   it('continues successfully when saving pending transaction fails', async () => {

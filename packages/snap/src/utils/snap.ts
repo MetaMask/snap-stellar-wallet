@@ -1,17 +1,21 @@
 import type { JsonSLIP10Node } from '@metamask/key-tree';
 import type { EntropySourceId } from '@metamask/keyring-api';
-import type {
-  ComponentOrElement,
-  DialogResult,
-  EntropySource,
-  GetClientStatusResult,
-  GetPreferencesResult,
-  Json,
-  ResolveInterfaceResult,
-  SnapsProvider,
-  UpdateInterfaceResult,
+import {
+  getJsonError,
+  type ComponentOrElement,
+  type DialogResult,
+  type EntropySource,
+  type GetClientStatusResult,
+  type GetPreferencesResult,
+  type Json,
+  type ResolveInterfaceResult,
+  type SnapsProvider,
+  type UpdateInterfaceResult,
 } from '@metamask/snaps-sdk';
+import { ensureError } from '@metamask/utils';
 
+import { StellarSnapException } from './errors';
+import { logger } from './logger';
 import { type Serializable, serialize, deserialize } from './serialization';
 
 export enum Duration {
@@ -66,6 +70,7 @@ export function getSnapProvider(): SnapsProvider {
  * @param params.path - The BIP32 derivation path for which to retrieve a `SLIP10NodeInterface`.
  * @param params.curve - The elliptic curve to use for key derivation.
  * @returns A Promise that resolves to a `SLIP10NodeInterface` object.
+ * @throws {StellarSnapException} If the Snap RPC call fails (message is intentionally generic).
  */
 export async function getBip32Entropy({
   entropySource,
@@ -76,14 +81,19 @@ export async function getBip32Entropy({
   path: string[];
   curve: 'secp256k1' | 'ed25519';
 }): Promise<JsonSLIP10Node> {
-  return getSnapProvider().request({
-    method: 'snap_getBip32Entropy',
-    params: {
-      path,
-      curve,
-      ...(entropySource ? { source: entropySource } : {}),
-    },
-  });
+  try {
+    return await getSnapProvider().request({
+      method: 'snap_getBip32Entropy',
+      params: {
+        path,
+        curve,
+        ...(entropySource ? { source: entropySource } : {}),
+      },
+    });
+  } catch {
+    // For security reasons, we do not want to expose the error message to the user
+    throw new StellarSnapException('Failed to get BIP32 entropy from Snap');
+  }
 }
 
 /**
@@ -436,7 +446,7 @@ export async function trackEvent(
   properties: Record<string, Json>,
 ): Promise<void> {
   try {
-    await snap.request({
+    await getSnapProvider().request({
       method: 'snap_trackEvent',
       params: {
         event: {
@@ -445,8 +455,9 @@ export async function trackEvent(
         },
       },
     });
-  } catch {
-    // Silently fail if tracking fails - we don't want to interrupt the user flow
+  } catch (error) {
+    // Silently fail if tracking fails - we don't want to interrupt the user flow.
+    logger.warn({ error }, 'Failed to track event via snap_trackEvent');
   }
 }
 
@@ -611,5 +622,34 @@ export async function trackSecurityScanCompleted(properties: {
     scan_status: properties.scanStatus,
     has_security_alerts: properties.hasSecurityAlerts,
   });
+}
+
+/**
+ * Track an error in MetaMask via Sentry (`snap_trackError`).
+ *
+ * RPC failures are caught and logged but never rethrown, so this is
+ * safe to call from already-failing error-handling paths without risk
+ * of masking the original failure.
+ *
+ * @param error - The error to report to Sentry.
+ * @returns The Sentry event ID on success, or `undefined` on failure.
+ */
+export async function trackError(
+  error: Error | unknown,
+): Promise<string | undefined> {
+  try {
+    let errorToTrack = error;
+
+    if (!(error instanceof Error)) {
+      errorToTrack = ensureError(error);
+    }
+    return await getSnapProvider().request({
+      method: 'snap_trackError',
+      params: { error: getJsonError(errorToTrack) },
+    });
+  } catch (rpcError) {
+    logger.warn({ rpcError }, 'Failed to track error via snap_trackError');
+    return undefined;
+  }
 }
 /* eslint-enable @typescript-eslint/naming-convention */

@@ -4,6 +4,7 @@ import {
   array,
   enums,
   literal,
+  nonempty,
   nullable,
   number,
   optional,
@@ -14,20 +15,49 @@ import {
   unknown,
 } from '@metamask/superstruct';
 
-import { KnownCaip2ChainId } from '../../api';
+import { KnownCaip2ChainId, XdrStruct } from '../../api';
 
+/**
+ * TransactionScanErrorId
+ *
+ * Error IDs for the transaction scan.
+ * These are used to map error messages to localized messages for the transaction alert.
+ *
+ * Values are lowercase and punctuation-free so they match the normalized API
+ * error codes looked up in {@link TransactionAlert} (`ERROR_MESSAGE_IDS`).
+ *
+ * @see packages/snap/src/ui/confirmation/components/TransactionAlert.tsx
+ */
+export enum TransactionScanErrorId {
+  InsufficientBalance = 'insufficientbalance',
+  InsufficientFunds = 'insufficientfunds',
+  InvalidTransaction = 'invalidtransaction',
+  InvalidAddress = 'invalidaddress',
+  NoTrustline = 'notrustline',
+  TransactionExpired = 'transactionexpired',
+}
+
+/** TransactionScanOption - Options for the transaction scan. */
 export enum TransactionScanOption {
   Simulation = 'simulation',
   Validation = 'validation',
 }
 
+/** TransactionScanValidationType */
 export enum TransactionScanValidationType {
   Benign = 'Benign',
   Warning = 'Warning',
   Malicious = 'Malicious',
 }
 
-export type StellarSecurityAlertsChain = 'pubnet' | 'testnet' | 'futurenet';
+/** AssetChangeDirection - Direction of an estimated balance change relative to the signer. */
+export enum AssetChangeDirection {
+  In = 'in',
+  Out = 'out',
+}
+
+/** Security Alerts API chain identifier. */
+export type SecurityAlertsChain = 'pubnet' | 'testnet' | 'futurenet';
 
 export type SecurityAlertsMetadata =
   | {
@@ -38,14 +68,38 @@ export type SecurityAlertsMetadata =
       type: 'in_app';
     };
 
-export type StellarTransactionScanRequest = {
+/**
+ * Request body sent to `POST /stellar/transaction/scan`.
+ */
+export type SecurityAlertsApiRequest = {
   account_address: string;
-  chain: StellarSecurityAlertsChain;
+  chain: SecurityAlertsChain;
   metadata: SecurityAlertsMetadata;
   transaction: string;
   options?: TransactionScanOption[];
 };
 
+/** ScanTransactionRequest */
+export const SecurityScanRequestStruct = type({
+  accountAddress: string(),
+  origin: string(),
+  scope: enums(Object.values(KnownCaip2ChainId)),
+  transaction: string(),
+});
+
+export const ScanTransactionRequestStruct = type({
+  accountAddress: nonempty(string()),
+  origin: string(),
+  scope: enums(Object.values(KnownCaip2ChainId)),
+  transaction: XdrStruct,
+  options: optional(array(enums(Object.values(TransactionScanOption)))),
+});
+
+export type SecurityScanRequest = Infer<typeof SecurityScanRequestStruct>;
+
+export type ScanTransactionRequest = Infer<typeof ScanTransactionRequestStruct>;
+
+/** StellarTransactionScanResponse */
 const StellarAssetTransferDetailsStruct = type({
   raw_value: number(),
   value: number(),
@@ -53,16 +107,38 @@ const StellarAssetTransferDetailsStruct = type({
   usd_price: optional(nullable(number())),
 });
 
-const StellarAssetDetailsStruct = type({
-  code: optional(string()),
-  issuer: optional(string()),
-  org_name: optional(string()),
-  org_url: optional(string()),
-  address: optional(string()),
-  name: optional(string()),
-  symbol: optional(string()),
-  type: optional(string()),
+export const StellarClassicAssetDetailsStruct = type({
+  type: literal('ASSET'),
+  code: string(),
+  issuer: string(),
+  org_name: string(),
+  org_url: string(),
 });
+
+export const StellarNativeAssetDetailsStruct = type({
+  type: literal('NATIVE'),
+  code: literal('XLM'),
+});
+
+export const StellarSep41AssetDetailsStruct = type({
+  type: literal('SEP41'),
+  address: string(),
+  name: string(),
+  symbol: string(),
+  decimals: number(),
+});
+
+/** Catch-all asset shape so Blockaid responses with unsupported types still parse. */
+export const StellarUnknownAssetDetailsStruct = type({
+  type: string(),
+});
+
+const StellarAssetDetailsStruct = union([
+  StellarNativeAssetDetailsStruct,
+  StellarClassicAssetDetailsStruct,
+  StellarSep41AssetDetailsStruct,
+  StellarUnknownAssetDetailsStruct,
+]);
 
 export const StellarAssetDiffStruct = type({
   asset: StellarAssetDetailsStruct,
@@ -129,36 +205,10 @@ export type StellarTransactionScanResponse = Infer<
   typeof StellarTransactionScanResponseStruct
 >;
 
-export type TransactionScanStatus = 'SUCCESS' | 'ERROR';
-
-export type TransactionScanAssetChange = {
-  type: 'in' | 'out';
-  value: number | null;
-  price: number | null;
-  symbol: string;
-  name: string;
-  logo: string | null;
-};
-
-export type TransactionScanEstimatedChanges = {
-  assets: TransactionScanAssetChange[];
-};
-
-export type TransactionScanValidation = {
-  type: TransactionScanValidationType | null;
-  reason: string | null;
-  description: string | null;
-};
-
-export type TransactionScanError = {
-  type: string | null;
-  code: string | null;
-  message: string | null;
-};
-
+/** TransactionScanResult */
 const TransactionScanAssetChangeStruct = type({
-  type: enums(['in', 'out']),
-  value: nullable(number()),
+  type: enums(Object.values(AssetChangeDirection)),
+  value: nullable(string()),
   price: nullable(number()),
   symbol: string(),
   name: string(),
@@ -172,7 +222,9 @@ const TransactionScanValidationStruct = type({
 });
 
 const TransactionScanErrorStruct = type({
-  type: nullable(string()),
+  type: nullable(
+    enums(Object.values(['simulation', 'validation', 'response'])),
+  ),
   code: nullable(string()),
   message: nullable(string()),
 });
@@ -186,23 +238,19 @@ export const TransactionScanResultStruct = type({
   error: nullable(TransactionScanErrorStruct),
 });
 
-export type TransactionScanResult = {
-  status: TransactionScanStatus;
-  estimatedChanges: TransactionScanEstimatedChanges;
-  validation: TransactionScanValidation | null;
-  error: TransactionScanError | null;
-};
+export type TransactionScanAssetChange = Infer<
+  typeof TransactionScanAssetChangeStruct
+>;
 
-export const SecurityScanRequestStruct = type({
-  accountAddress: string(),
-  origin: string(),
-  scope: enums(Object.values(KnownCaip2ChainId)),
-  transaction: string(),
-});
+export type TransactionScanResult = Infer<typeof TransactionScanResultStruct>;
 
-export type SecurityScanRequest = {
-  accountAddress: string;
-  origin: string;
-  scope: KnownCaip2ChainId;
-  transaction: string;
-};
+export type TransactionScanEstimatedChanges =
+  TransactionScanResult['estimatedChanges'];
+
+export type TransactionScanStatus = TransactionScanResult['status'];
+
+export type TransactionScanError = Infer<typeof TransactionScanErrorStruct>;
+
+export type TransactionScanValidation = Infer<
+  typeof TransactionScanValidationStruct
+>;

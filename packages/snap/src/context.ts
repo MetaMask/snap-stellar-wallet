@@ -25,6 +25,7 @@ import {
   RefreshConfirmationContextHandler,
 } from './handlers/cronjob/refreshConfirmationContext';
 import { SyncAccountsHandler } from './handlers/cronjob/syncAccounts';
+import { SyncAssetsHandler } from './handlers/cronjob/syncAssets';
 import { TrackTransactionHandler } from './handlers/cronjob/trackTransaction';
 import type { IKeyringRequestHandler } from './handlers/keyring';
 import {
@@ -47,6 +48,7 @@ import {
 } from './services/on-chain-account';
 import { PriceService } from './services/price';
 import { State } from './services/state';
+import { SynchronizeService } from './services/sync/SynchronizeService';
 import {
   TransactionBuilder,
   TransactionRepository,
@@ -68,6 +70,7 @@ const state = new State({
     keyringAccounts: {},
     assets: {},
     transactions: {},
+    lastScanTokens: {},
     onChainAccounts: {} as OnChainAccountState['onChainAccounts'],
   },
 });
@@ -89,7 +92,7 @@ const assetMetadataService = new AssetMetadataService({
 const transactionBuilder = new TransactionBuilder({
   logger,
 });
-const walletService = new WalletService({ logger });
+const walletService = new WalletService();
 
 const accountService = new AccountService({
   logger,
@@ -103,7 +106,6 @@ const onChainAccountService = new OnChainAccountService({
   logger,
   networkService,
   onChainAccountRepository,
-  assetMetadataService,
 });
 
 const transactionService = new TransactionService({
@@ -111,6 +113,7 @@ const transactionService = new TransactionService({
   transactionRepository,
   networkService,
   transactionBuilder,
+  accountService,
 });
 
 const priceService = new PriceService({
@@ -125,10 +128,15 @@ const transactionScanService = new TransactionScanService({
   logger,
 });
 
-/** UX Controller */
-const confirmationUIController = new ConfirmationUXController({
+const synchronizeService = new SynchronizeService({
   logger,
+  onChainAccountService,
+  assetMetadataService,
+  transactionService,
 });
+
+/** UX Controller */
+const confirmationUIController = new ConfirmationUXController();
 
 /** ------------------------------ Account Resolver ------------------------------ */
 const accountResolver = new AccountResolver({
@@ -141,7 +149,6 @@ const accountResolver = new AccountResolver({
 const signTransactionHandler = new SignTransactionHandler({
   logger,
   accountResolver,
-  transactionService,
   confirmationUIController,
 });
 
@@ -210,15 +217,19 @@ const refreshConfirmationContextHandler = new RefreshConfirmationContextHandler(
 const trackTransactionHandler = new TrackTransactionHandler({
   logger,
   networkService,
-  onChainAccountService,
+  synchronizeService,
   accountService,
-  transactionService,
 });
 
 const syncAccountsHandler = new SyncAccountsHandler({
   logger,
   accountService,
-  onChainAccountService,
+  synchronizeService,
+});
+
+const syncAssetsHandler = new SyncAssetsHandler({
+  logger,
+  synchronizeService,
 });
 
 const cronjobMethodHandlers: Record<
@@ -229,6 +240,7 @@ const cronjobMethodHandlers: Record<
     refreshConfirmationContextHandler,
   [BackgroundEventMethod.TrackTransaction]: trackTransactionHandler,
   [BackgroundEventMethod.SynchronizeAccounts]: syncAccountsHandler,
+  [BackgroundEventMethod.SynchronizeAssets]: syncAssetsHandler,
 };
 
 const cronjobHandler = new CronjobHandler({
@@ -251,9 +263,7 @@ const changeTrustOptHandler = new ChangeTrustOptHandler({
   confirmationUIController,
 });
 
-const onAddressInputHandler = new OnAddressInputHandler({
-  logger,
-});
+const onAddressInputHandler = new OnAddressInputHandler();
 
 const onAmountInputHandler = new OnAmountInputHandler({
   logger,
@@ -266,6 +276,7 @@ const signAndSendTransactionHandler = new SignAndSendTransactionHandler({
   logger,
   accountResolver,
   transactionService,
+  assetMetadataService,
 });
 
 const confirmSendHandler = new ConfirmSendHandler({

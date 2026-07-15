@@ -1,6 +1,4 @@
-export class TransactionScanException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'TransactionScanException';
-  }
-}
+import { StellarSnapException } from '../../utils/errors';
+
+/** Base for all Security Alerts API client errors. */
+export class TransactionScanException extends StellarSnapException {}

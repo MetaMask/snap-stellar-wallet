@@ -11,6 +11,7 @@ import {
   ConfirmSendJsonRpcResponseStruct,
   MultiChainSendErrorCodes,
 } from './api';
+import { assertRefreshedTransactionFeeNotHigher } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
@@ -32,7 +33,9 @@ import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import {
   hasDecimals,
+  isSlip44Id,
   toSmallestUnit,
+  trackErrorIfNeeded,
   trackTransactionAdded,
   trackTransactionApproved,
   trackTransactionRejected,
@@ -45,6 +48,8 @@ import type {
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
 import { AccountNotActivatedException } from '../../services/network';
+import { AssetChangeDirection } from '../../services/transaction-scan';
+import type { TransactionScanEstimatedChanges } from '../../services/transaction-scan';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
 
@@ -109,11 +114,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     request: ConfirmSendJsonRpcRequest,
   ): Promise<ConfirmSendJsonRpcResponse> {
     try {
-      const {
-        wallet,
-        onChainAccount,
-        account: stellarKeyringAccount,
-      } = resolved;
+      const { onChainAccount, account: stellarKeyringAccount } = resolved;
       const { amount, toAddress, assetId, scope } = request.params;
       const assetMetadata = await this.#assetMetadataService.resolve(assetId);
       const { decimals, symbol } = assetMetadata.units[0];
@@ -169,13 +170,23 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         chainIdCaip: scope,
       });
 
-      wallet.signTransaction(transaction);
+      const {
+        wallet: refreshedWallet,
+        onChainAccount: refreshedOnChainAccount,
+        transaction: refreshedTransaction,
+      } = await this.#refreshTransactionAfterConfirmation({
+        request,
+        confirmedTransaction: transaction,
+        amount: amountInSmallestUnit,
+      });
+
+      refreshedWallet.signTransaction(refreshedTransaction);
 
       const transactionId = await this.#transactionService.sendTransaction({
-        wallet,
-        onChainAccount,
+        wallet: refreshedWallet,
+        onChainAccount: refreshedOnChainAccount,
         scope,
-        transaction,
+        transaction: refreshedTransaction,
         pollTransaction: false,
       });
 
@@ -207,10 +218,7 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         transactionId,
       };
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to confirm send transaction',
-        error,
-      );
+      // Expected validation failures are user-facing outcomes; return them without tracking.
       if (error instanceof InsufficientBalanceException) {
         return {
           valid: false,
@@ -234,8 +242,63 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
           errors: [{ code: MultiChainSendErrorCodes.Invalid }],
         };
       }
-      throw error;
+
+      // User rejection must propagate so MetaMask can dismiss the send flow.
+      if (error instanceof UserRejectedRequestError) {
+        throw error;
+      }
+
+      // Unexpected errors are swallowed into `{ valid: false }`, so track them for debugging.
+      await trackErrorIfNeeded(error);
+
+      this.#logger.warn(
+        'Failed to confirm send transaction due to unexpected issue',
+        { error },
+      );
+
+      return {
+        valid: false,
+        errors: [{ code: MultiChainSendErrorCodes.Invalid }],
+      };
     }
+  }
+
+  async #refreshTransactionAfterConfirmation(params: {
+    request: ConfirmSendJsonRpcRequest;
+    confirmedTransaction: Transaction;
+    amount: BigNumber;
+  }): Promise<{
+    wallet: ResolvedActivatedAccount['wallet'];
+    onChainAccount: ResolvedActivatedAccount['onChainAccount'];
+    transaction: Transaction;
+  }> {
+    const { request, confirmedTransaction, amount } = params;
+    const { assetId, toAddress, scope } = request.params;
+    // Resolve again after the user confirms so sequence, balances, and fees are fresh before signing.
+    // sendTransaction still handles txBadSeq races that happen after this refresh.
+    const { wallet, onChainAccount } = await this.resolveAccount(request);
+
+    const refreshedTransaction =
+      await this.#transactionService.createValidatedSendTransaction({
+        onChainAccount,
+        scope,
+        assetId,
+        amount,
+        destination: toAddress,
+      });
+
+    // Reject if the refreshed fee is higher than what the user approved, so we
+    // never sign a transaction that differs from what was shown on the confirmation screen.
+    assertRefreshedTransactionFeeNotHigher({
+      confirmedTransaction,
+      refreshedTransaction,
+    });
+
+    return {
+      wallet,
+      onChainAccount,
+      transaction: refreshedTransaction,
+    };
   }
 
   async #confirmSend(params: {
@@ -249,6 +312,12 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
     const { request, account, assetMetadata, fee, scope, transaction } = params;
     const { toAddress, amount, assetId } = request.params;
     const xdr = transaction.getRaw().toXDR();
+    // The send asset and amount are known from the request, so the estimated
+    // changes are just a single outgoing row — no local simulation needed.
+    const estimatedChanges = this.#buildEstimatedChanges({
+      amount,
+      assetMetadata,
+    });
 
     return (
       (await this.#confirmationUIController.renderConfirmationDialog({
@@ -256,20 +325,24 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         origin: METAMASK_ORIGIN,
         renderContext: {
           account,
-          assetMetadata,
           toAddress,
-          amount,
         },
         fee: fee.toString(),
         interfaceKey: ConfirmationInterfaceKey.ConfirmSendTransaction,
         renderOptions: {
           loadPrice: true,
-          scanTxn: true,
-          validateTxn: true,
+          securityScanning: true,
+          localSimulation: true,
         },
         securityScanRequest: {
           accountAddress: account.address,
           transaction: xdr,
+        },
+        initialScan: {
+          status: 'SUCCESS',
+          estimatedChanges,
+          validation: null,
+          error: null,
         },
         transactionValidationRequest: {
           accountId: account.id,
@@ -281,6 +354,40 @@ export class ConfirmSendHandler extends BaseClientRequestHandler<
         } as ContextWithPrices['tokenPrices'],
       })) === true
     );
+  }
+
+  /**
+   * Builds the estimated balance changes for the send confirmation: a single
+   * outgoing row for the known send asset and amount. The network fee is
+   * surfaced separately, so it is excluded here.
+   *
+   * @param params - The parameters.
+   * @param params.amount - The send amount in human-readable units.
+   * @param params.assetMetadata - The asset metadata for the row.
+   * @returns The estimated changes to seed the confirmation.
+   */
+  #buildEstimatedChanges({
+    amount,
+    assetMetadata,
+  }: {
+    amount: string;
+    assetMetadata: StellarAssetMetadata;
+  }): TransactionScanEstimatedChanges {
+    const { assetId, symbol, iconUrl, name } = assetMetadata;
+    const logo = isSlip44Id(assetId) ? null : (iconUrl ?? null);
+
+    return {
+      assets: [
+        {
+          type: AssetChangeDirection.Out,
+          value: amount,
+          price: null,
+          symbol,
+          name: name ?? symbol,
+          logo,
+        },
+      ],
+    };
   }
 
   /**

@@ -1,57 +1,51 @@
 import { assert } from '@metamask/superstruct';
 import type { CaipAssetType } from '@metamask/utils';
-import { CaipAssetTypeStruct } from '@metamask/utils';
 
 import type {
   FiatExchangeRatesResponse,
   GetHistoricalPricesParams,
   GetHistoricalPricesResponse,
-  SpotPrices,
+  SpotPricesResponse,
   VsCurrencyParam,
 } from './api';
 import {
   FiatExchangeRatesResponseStruct,
+  GetHistoricalPricesParamsStruct,
   GetHistoricalPricesResponseStruct,
-  SpotPricesStruct,
+  GetSpotPricesParamsStruct,
+  GetSpotPricesResponseStruct,
 } from './api';
 import { PriceApiException } from './exceptions';
 import { UrlStruct } from '../../../api';
-import type { ILogger } from '../../../utils';
+import type { AnyErrorConstructor } from '../../../utils';
+import { buildUrl, rethrowIfInstanceElseThrow } from '../../../utils';
 import {
-  batchesAllSettledWithChunks,
-  buildUrl,
-  logger,
-  rethrowIfInstanceElseThrow,
-} from '../../../utils';
+  assertHttpRequestParams,
+  assertHttpResponse,
+  HttpException,
+  HttpResponseException,
+  InvalidHttpRequestParamsException,
+  InvalidHttpResponseException,
+  normalizeHttpException,
+} from '../../../utils/errors';
 
 export class PriceApiClient {
   readonly #fetch: typeof globalThis.fetch;
 
-  readonly #logger: ILogger;
-
   readonly #baseUrl: string;
-
-  readonly #chunkSize: number;
-
-  static readonly #parallelBatchFetchLimit = 3;
 
   constructor(
     {
       baseUrl,
-      chunkSize,
     }: {
       baseUrl: string;
-      chunkSize: number;
     },
-    _logger: ILogger = logger,
     _fetch: typeof globalThis.fetch = globalThis.fetch,
   ) {
     assert(baseUrl, UrlStruct);
 
     this.#fetch = _fetch;
-    this.#logger = _logger;
     this.#baseUrl = baseUrl;
-    this.#chunkSize = chunkSize;
   }
 
   async getFiatExchangeRates(): Promise<FiatExchangeRatesResponse> {
@@ -64,76 +58,34 @@ export class PriceApiClient {
       const response = await this.#fetch(url);
 
       if (!response.ok) {
-        throw new PriceApiException(`HTTP error! status: ${response.status}`);
+        throw new HttpResponseException(response.status);
       }
 
       const data = await response.json();
-      assert(data, FiatExchangeRatesResponseStruct);
+      assertHttpResponse(data, FiatExchangeRatesResponseStruct);
 
       return data;
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Error fetching fiat exchange rates',
+    } catch (error: unknown) {
+      return this.#throwError({
         error,
-      );
-      return rethrowIfInstanceElseThrow(
-        error,
-        [PriceApiException],
-        new PriceApiException('Error fetching fiat exchange rates'),
-      );
+        fallbackError: 'Error fetching fiat exchange rates',
+      });
     }
   }
 
-  /**
-   * Get the spot prices for a list of asset IDs.
-   *
-   * @param assetIds - The asset IDs to get the spot prices for.
-   * @param vsCurrency - The currency to convert the prices to.
-   * @returns A promise that resolves to the spot prices for the asset IDs.
-   * @throws {PriceApiException} When spot price aggregation fails unexpectedly.
-   * Failed batches are omitted from the result (logged) rather than thrown.
-   */
   async getSpotPrices(
     assetIds: CaipAssetType[],
     vsCurrency: VsCurrencyParam | string = 'usd',
-  ): Promise<Partial<SpotPrices>> {
+  ): Promise<SpotPricesResponse> {
     try {
-      if (assetIds.length === 0) {
-        return {};
-      }
-
-      const deduplicatedAssetIds = [...new Set(assetIds)];
-
-      const settled = await batchesAllSettledWithChunks(
-        deduplicatedAssetIds,
-        this.#chunkSize,
-        PriceApiClient.#parallelBatchFetchLimit,
-        async (chunk) => this.#fetchSpotPricesBatch(chunk, vsCurrency),
+      assertHttpRequestParams(
+        {
+          assetIds,
+          vsCurrency,
+        },
+        GetSpotPricesParamsStruct,
       );
 
-      const response: Partial<SpotPrices> = {};
-      for (const entry of settled) {
-        if (entry.status === 'rejected') {
-          continue;
-        }
-        for (const [assetId, spotPrice] of Object.entries(entry.value)) {
-          assert(assetId, CaipAssetTypeStruct);
-          response[assetId] = spotPrice;
-        }
-      }
-
-      return response;
-    } catch (error) {
-      this.#logger.logErrorWithDetails('Error fetching spot prices', error);
-      throw new PriceApiException('Error fetching spot prices');
-    }
-  }
-
-  async #fetchSpotPricesBatch(
-    assetIds: CaipAssetType[],
-    vsCurrency: VsCurrencyParam | string = 'usd',
-  ): Promise<SpotPrices> {
-    try {
       const url = buildUrl({
         baseUrl: this.#baseUrl,
         path: '/v3/spot-prices',
@@ -147,20 +99,18 @@ export class PriceApiClient {
       const response = await this.#fetch(url);
 
       if (!response.ok) {
-        throw new PriceApiException(`HTTP error! status: ${response.status}`);
+        throw new HttpResponseException(response.status);
       }
 
       const spotPrices = await response.json();
-      assert(spotPrices, SpotPricesStruct);
+      assertHttpResponse(spotPrices, GetSpotPricesResponseStruct);
 
       return spotPrices;
-    } catch (error) {
-      this.#logger.logErrorWithDetails('Error fetching spot prices', error);
-      return rethrowIfInstanceElseThrow(
+    } catch (error: unknown) {
+      return this.#throwError({
         error,
-        [PriceApiException],
-        new PriceApiException('Error fetching spot prices'),
-      );
+        fallbackError: 'Error fetching spot prices',
+      });
     }
   }
 
@@ -174,12 +124,16 @@ export class PriceApiClient {
    * @param params.to - The end date for the historical prices.
    * @param params.vsCurrency - The currency to convert the prices to.
    * @returns The historical prices for the token.
-   * @throws {PriceApiException} When the request fails or the response is invalid.
+   * @throws {HttpResponseException} When the HTTP response status is not successful.
+   * @throws {InvalidHttpResponseException} When the response body is invalid.
+   * @throws {PriceApiException} When the request fails for another reason.
    */
   async getHistoricalPrices(
     params: GetHistoricalPricesParams,
   ): Promise<GetHistoricalPricesResponse> {
     try {
+      assertHttpRequestParams(params, GetHistoricalPricesParamsStruct);
+
       const url = buildUrl({
         baseUrl: this.#baseUrl,
         path: '/v3/historical-prices/{assetType}',
@@ -202,23 +156,46 @@ export class PriceApiClient {
       const response = await this.#fetch(url);
 
       if (!response.ok) {
-        throw new PriceApiException(`HTTP error! status: ${response.status}`);
+        throw new HttpResponseException(response.status);
       }
 
       const historicalPrices = await response.json();
-      assert(historicalPrices, GetHistoricalPricesResponseStruct);
+      assertHttpResponse(historicalPrices, GetHistoricalPricesResponseStruct);
 
       return historicalPrices;
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Error fetching historical prices',
+    } catch (error: unknown) {
+      return this.#throwError({
         error,
-      );
-      return rethrowIfInstanceElseThrow(
-        error,
-        [PriceApiException],
-        new PriceApiException('Error fetching historical prices'),
-      );
+        fallbackError: 'Error fetching historical prices',
+      });
     }
+  }
+
+  #throwError({
+    error,
+    exceptionClasses,
+    fallbackError,
+  }: {
+    error: unknown;
+    exceptionClasses?: readonly AnyErrorConstructor[];
+    fallbackError: string | PriceApiException;
+  }): never {
+    const normalized = normalizeHttpException(error);
+    if (normalized instanceof HttpException) {
+      throw normalized;
+    }
+
+    return rethrowIfInstanceElseThrow(
+      normalized,
+      [
+        PriceApiException,
+        InvalidHttpRequestParamsException,
+        InvalidHttpResponseException,
+        ...(exceptionClasses ?? []),
+      ],
+      fallbackError instanceof Error
+        ? fallbackError
+        : new PriceApiException(String(fallbackError), { cause: error }),
+    );
   }
 }

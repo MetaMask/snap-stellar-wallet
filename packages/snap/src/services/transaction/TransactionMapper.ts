@@ -1,6 +1,5 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
-import { TransactionType } from '@metamask/keyring-api';
-import type { Operation } from '@stellar/stellar-sdk';
+import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
 import { Asset } from '@stellar/stellar-sdk';
 
 import { StellarOperationType } from './api';
@@ -19,68 +18,127 @@ import {
   isSendTransaction,
   isSwapTransaction,
   isReceiveOperation,
+  isPathPaymentOperation,
+  isInvokeHostFunctionOperation,
 } from './utils';
+import type { SuccessfulTransactionResult } from './xdrParser';
+import {
+  isSep41TransferInvoke,
+  parseSep41TransferInvoke,
+  parseSuccessfulTransactionResult,
+  TransactionResultType,
+} from './xdrParser';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import type { ILogger } from '../../utils';
 import {
-  getSlip44AssetId,
+  createPrefixedLogger,
   removeTrailingZeros,
   stellarAssetToCaip19,
   toDisplayBalance,
 } from '../../utils';
 import type { StellarKeyringAccount } from '../account/api';
+import type { StellarAssetMetadata } from '../asset-metadata';
 
 export class TransactionMapper {
   readonly #keyringTransactionBuilder: KeyringTransactionBuilder;
 
+  readonly #logger: ILogger;
+
   constructor({
     keyringTransactionBuilder,
+    logger,
   }: {
     keyringTransactionBuilder: KeyringTransactionBuilder;
+    logger: ILogger;
   }) {
     this.#keyringTransactionBuilder = keyringTransactionBuilder;
+    this.#logger = createPrefixedLogger(logger, '[💰 TransactionMapper]');
   }
 
-  mapTransaction({
-    transaction,
-    keyringAccount,
-    transactionFromState,
-  }: {
+  /**
+   * Maps an on-chain transaction to a keyring transaction without throwing.
+   *
+   * @param params - Mapping input.
+   * @param params.transaction - Horizon-sourced transaction to map.
+   * @param params.keyringAccount - Account that owns the activity.
+   * @param params.transactionFromState - Existing pending transaction to reconcile.
+   * @param params.assetMetadata - SEP-41 asset metadata keyed by CAIP-19 id for send mapping.
+   * @returns Mapped keyring transaction, `undefined` when intentionally skipped (dust or failed receive),
+   * or an unknown-typed transaction when mapping fails so batch mapping can continue.
+   */
+  mapTransactionSafe(params: {
     transaction: Transaction;
     keyringAccount: StellarKeyringAccount;
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>;
     transactionFromState?: KeyringTransaction;
   }): KeyringTransaction | undefined {
-    if (!transaction.rawData || !transaction.id) {
-      throw new TransactionMapperException(
-        'Transaction raw data and id are required; this transaction does not appear to be sourced from an on-chain transaction record',
+    const { transaction, keyringAccount, assetMetadata, transactionFromState } =
+      params;
+
+    try {
+      if (!transaction.rawData || !transaction.id) {
+        throw new TransactionMapperException(
+          'Transaction raw data and id are required; this transaction does not appear to be sourced from an on-chain transaction record',
+        );
+      }
+
+      if (transactionFromState) {
+        // Pending txs are not on Horizon until confirmed; once on-chain data exists,
+        // preserve the existing keyring transaction and refresh status, fees, and swap legs.
+        return this.#mapUpdatedTransaction(
+          transaction,
+          keyringAccount,
+          transactionFromState,
+        );
+      }
+
+      if (isDustPaymentTransaction(transaction, keyringAccount.address)) {
+        return undefined; // Skip dust payment transactions.
+      }
+
+      return this.#mapTransaction(transaction, keyringAccount, assetMetadata);
+    } catch (error) {
+      // Best effort to map a transaction.
+      // The error is not necessary to track.
+      // Log and fall back to unknown so batch mapping can continue for other transactions.
+      this.#logger.warn(
+        'Unable to map a transaction, mapping to an unknown transaction',
+        {
+          error,
+          transactionId: transaction.id,
+        },
       );
-    }
 
-    if (transactionFromState) {
-      // In Stellar, if a transaction is still pending, it will not able to fetch.
-      // Therefore, we are safe to assume when we get a onchain transaction, we can just update the status and fees.
-      return this.#mapUpdatedTransaction(transaction, transactionFromState);
+      return this.#mapUnknownTransaction(transaction, keyringAccount);
     }
-
-    if (isDustPaymentTransaction(transaction, keyringAccount.address)) {
-      return undefined; // Skip dust payment transactions.
-    }
-
-    return this.#mapTransaction(transaction, keyringAccount);
   }
 
   #mapTransaction(
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
-  ): KeyringTransaction {
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>,
+  ): KeyringTransaction | undefined {
     const { address } = keyringAccount;
 
-    // For any contract based transaction, we treat it as unknown.
-    if (transaction.hasInvokeHostFunction) {
-      return this.#mapUnknownTransaction(transaction, keyringAccount);
+    if (transaction.hasInvokeHostFunction && transaction.operationCount === 1) {
+      // Invoke host function: try SEP-41 send mapping first; fall back to unknown.
+      return (
+        this.#mapSep41SendTransaction(
+          transaction,
+          keyringAccount,
+          assetMetadata,
+        ) ?? this.#mapUnknownTransaction(transaction, keyringAccount)
+      );
+    }
+
+    // Send transaction: if all operations are payment operations or create account operation.
+    // It has higher priority than swap transaction if both are payment operations.
+    if (isSendTransaction(transaction, address)) {
+      return this.#mapSendTransaction(transaction, keyringAccount);
     }
 
     // Swap transaction: if the transaction has a path payment strict send operation
@@ -89,12 +147,7 @@ export class TransactionMapper {
       return this.#mapSwapTransaction(transaction, keyringAccount);
     }
 
-    // Send transaction: if all operation are payment operations or create account operation.
-    if (isSendTransaction(transaction, address)) {
-      return this.#mapSendTransaction(transaction, keyringAccount);
-    }
-
-    // Add change trust transaction: if all operations are change trust operations and limit is MAX_INT64.
+    // Change-trust opt-in: all operations are change trust with non-zero limit.
     if (isAddChangeTrustTransaction(transaction, address)) {
       return this.#mapChangeTrustTransaction(
         transaction,
@@ -103,7 +156,7 @@ export class TransactionMapper {
       );
     }
 
-    // Remove change trust transaction: if all operations are change trust operations and limit is 0.
+    // Change-trust opt-out: all operations are change trust with zero limit.
     if (isRemoveChangeTrustTransaction(transaction, address)) {
       return this.#mapChangeTrustTransaction(
         transaction,
@@ -112,26 +165,49 @@ export class TransactionMapper {
       );
     }
 
-    // Receive transaction: if any operation credits the account (payment, create account,
-    // path payment strict receive, or path payment strict send where destination is the account),
-    // regardless of source.
-    // Self-swap and self-send will not fall into this category, as they are classified as swap and send respectively.
+    // Incoming credit from any source (payment, create account, or path payment).
+    // Self-swap and self-send are already handled above.
     if (isReceiveTransaction(transaction, address)) {
       return this.#mapReceiveTransaction(transaction, keyringAccount);
     }
 
     // TODO: add bridge send transaction
-    // Fallback to unknown transaction if the transaction is not recognized.
+    // Unrecognized shape; surface as unknown activity.
     return this.#mapUnknownTransaction(transaction, keyringAccount);
   }
 
   #mapUpdatedTransaction(
     transaction: Transaction,
+    keyringAccount: StellarKeyringAccount,
     transactionFromState: KeyringTransaction,
   ): KeyringTransaction {
+    let { from } = transactionFromState;
+    let { to } = transactionFromState;
+
+    // For swaps, best-effort re-maps `from`/`to` from on-chain results for accurate amounts
+    try {
+      if (transactionFromState.type === TransactionType.Swap) {
+        const swapTransaction = this.#mapSwapTransaction(
+          transaction,
+          keyringAccount,
+        );
+        from = swapTransaction.from;
+        to = swapTransaction.to;
+      }
+    } catch {
+      // Best effort only; contract-based swaps may not be re-mappable from classic ops.
+      from = transactionFromState.from;
+      to = transactionFromState.to;
+    }
+
     return {
       ...transactionFromState,
-      fees: this.#getBaseFees(transaction),
+      from,
+      to,
+      fees: this.#keyringTransactionBuilder.getBaseFees(
+        transaction.feeCharged,
+        transaction.scope,
+      ),
       events: [
         ...transactionFromState.events,
         {
@@ -159,7 +235,10 @@ export class TransactionMapper {
       account: keyringAccount,
       scope: transaction.scope,
       status: transaction.status,
-      fees: this.#getBaseFees(transaction),
+      fees: this.#keyringTransactionBuilder.getBaseFees(
+        transaction.feeCharged,
+        transaction.scope,
+      ),
       timestamp: this.#getCreateTime(transaction),
     };
   }
@@ -204,8 +283,7 @@ export class TransactionMapper {
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
   ): KeyringTransaction {
-    // If there are multiple payment or create-account operations,
-    // we only pick the first one for the send transaction details.
+    // Multi-op sends only expose the first payment or create-account operation.
     const sendDetails = this.#getFirstSendOperationDetails(transaction);
 
     if (sendDetails) {
@@ -241,20 +319,39 @@ export class TransactionMapper {
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
   ): KeyringTransaction {
-    const swapOperation = transaction.transactionOperations.find(
-      (operation) =>
-        operation.type === StellarOperationType.PathPaymentStrictSend,
+    // Find the index of the swap operation as the key to look up the destination amount in the successful transaction result.
+    const swapOperationIndex = transaction.transactionOperations.findIndex(
+      (operation) => isPathPaymentOperation(operation),
     );
+    const swapOperation = transaction.transactionOperations[swapOperationIndex];
 
-    if (swapOperation) {
+    if (swapOperation && isPathPaymentOperation(swapOperation)) {
       const { scope } = transaction;
-      const {
-        destination: toAddress,
-        sendAsset,
-        destAsset,
-        sendAmount,
-        destMin,
-      } = swapOperation;
+
+      const successfulTransactionResult =
+        this.#getSuccessfulTransactionResultSafe(transaction);
+
+      const { destination: toAddress, sendAsset, destAsset } = swapOperation;
+
+      let sendAmount;
+      let destAmount;
+
+      // Extract the send/dest amount from the successful transaction result by the index of the swap operation.
+      if (swapOperation.type === StellarOperationType.PathPaymentStrictSend) {
+        destAmount =
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            swapOperationIndex,
+          ) ?? swapOperation.destMin;
+        sendAmount = swapOperation.sendAmount;
+      } else {
+        destAmount = swapOperation.destAmount;
+        sendAmount =
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            swapOperationIndex,
+          ) ?? swapOperation.sendMax;
+      }
 
       return this.#keyringTransactionBuilder.createTransaction({
         type: KeyringTransactionType.Swap,
@@ -262,7 +359,7 @@ export class TransactionMapper {
           ...this.#commonOnChainFields(transaction, keyringAccount),
           toAddress,
           fromAsset: this.#assetToKeyringAssetRow(sendAsset, scope, sendAmount),
-          toAsset: this.#assetToKeyringAssetRow(destAsset, scope, destMin),
+          toAsset: this.#assetToKeyringAssetRow(destAsset, scope, destAmount),
         },
       });
     }
@@ -279,8 +376,7 @@ export class TransactionMapper {
   ): KeyringTransaction {
     const operationTypes = transaction.transactionOperations;
     const { scope } = transaction;
-    // If there are multiple change trust operations,
-    // we only pick the first one for the activity details.
+    // Multi-op change-trust only exposes the first operation.
     const [firstOperation] = operationTypes;
     if (
       firstOperation &&
@@ -309,12 +405,16 @@ export class TransactionMapper {
   #mapReceiveTransaction(
     transaction: Transaction,
     keyringAccount: StellarKeyringAccount,
-  ): KeyringTransaction {
-    // We currently take the first receive operation asset (deduplicated by asset id).
+  ): KeyringTransaction | undefined {
+    // Skip failed transactions for receive mapping.
+    if (transaction.status === TransactionStatus.Failed) {
+      return undefined;
+    }
+
+    // Use the first deduplicated receive asset (by CAIP-19 id).
     const [receiveAsset] = this.#extractReceiveOperationAssetAndAmount(
       transaction,
       keyringAccount.address,
-      transaction.scope,
     );
 
     if (receiveAsset) {
@@ -325,7 +425,7 @@ export class TransactionMapper {
           transactionType: TransactionType.Receive,
           from: [
             {
-              // We assume the source account is the sender of the fund.
+              // Transaction source account is treated as the sender.
               address: transaction.sourceAccount,
               asset: receiveAsset,
             },
@@ -342,29 +442,62 @@ export class TransactionMapper {
     throw new TransactionMapperException('Unable to map a receive transaction');
   }
 
-  #getBaseFees(transaction: Transaction): KeyringTransaction['fees'] {
-    return [
-      {
-        type: 'base',
-        asset: {
-          unit: NATIVE_ASSET_SYMBOL,
-          type: getSlip44AssetId(transaction.scope),
-          // Horizon returns the fee charged in the smallest unit of the asset.
-          amount: toDisplayBalance(transaction.feeCharged),
-          fungible: true,
-        },
+  #mapSep41SendTransaction(
+    transaction: Transaction,
+    keyringAccount: StellarKeyringAccount,
+    assetMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>,
+  ): KeyringTransaction | undefined {
+    const { scope } = transaction;
+    const [firstOperation] = transaction.transactionOperations;
+
+    if (!isInvokeHostFunctionOperation(firstOperation)) {
+      return undefined;
+    }
+
+    if (!isSep41TransferInvoke(firstOperation)) {
+      return undefined;
+    }
+
+    const parsedSep41TransferInvoke = parseSep41TransferInvoke(
+      firstOperation,
+      scope,
+    );
+
+    const { assetId, amount, toAccountId, fromAccountId } =
+      parsedSep41TransferInvoke;
+
+    if (fromAccountId !== keyringAccount.address) {
+      return undefined;
+    }
+
+    // TODO: Fall back to NetworkService token metadata when state is missing (RPC cost per tx).
+    const asset = assetMetadata[assetId];
+    if (!asset) {
+      return undefined;
+    }
+
+    const assetRow = this.#toKeyringAssetRow(
+      asset.symbol,
+      asset.assetId,
+      toDisplayBalance(amount, asset.units[0].decimals),
+    );
+
+    return this.#keyringTransactionBuilder.createTransaction({
+      type: KeyringTransactionType.Send,
+      request: {
+        ...this.#commonOnChainFields(transaction, keyringAccount),
+        asset: assetRow,
+        toAddress: toAccountId,
       },
-    ];
+    });
   }
 
   #getCreateTime(transaction: Transaction): number {
-    if (!transaction.rawData?.created_at) {
-      return Math.floor(Date.now() / 1000); // seconds since epoch
-    }
-    // transaction.rawData?.created_at expected to be a UTC time string.
-    return Math.floor(
-      new Date(transaction.rawData?.created_at).getTime() / 1000,
-    ); // seconds since epoch
+    const createdAtSeconds = transaction.rawData?.created_at
+      ? Math.floor(new Date(transaction.rawData.created_at).getTime() / 1000)
+      : undefined;
+
+    return this.#keyringTransactionBuilder.getCreateTime(createdAtSeconds);
   }
 
   #assetToKeyringAssetRow(
@@ -372,10 +505,22 @@ export class TransactionMapper {
     scope: KnownCaip2ChainId,
     amount: string,
   ): KeyringTransactionAsset {
+    return this.#toKeyringAssetRow(
+      asset.getCode(),
+      stellarAssetToCaip19(asset, scope),
+      amount,
+    );
+  }
+
+  #toKeyringAssetRow(
+    unit: string,
+    type: KnownCaip19AssetIdOrSlip44Id,
+    amount: string,
+  ): KeyringTransactionAsset {
     return {
-      unit: asset.getCode(),
-      type: stellarAssetToCaip19(asset, scope),
-      // Horizon returns the amount with trailing zeros - "1.0000000" instead of "1".
+      unit,
+      type,
+      // Normalize Horizon amounts such as "1.0000000" to "1".
       amount: removeTrailingZeros(amount),
       fungible: true as const,
     };
@@ -386,13 +531,11 @@ export class TransactionMapper {
    *
    * @param transaction - Stellar transaction to extract receive operation assets from.
    * @param accountAddress - Stellar address to check for incoming credits.
-   * @param scope - CAIP-2 chain used to encode asset ids.
    * @returns Deduplicated receive-operation assets (amounts are not summed when multiple operations credit the same asset).
    */
   #extractReceiveOperationAssetAndAmount(
     transaction: Transaction,
     accountAddress: string,
-    scope: KnownCaip2ChainId,
   ): KeyringTransactionAsset[] {
     const operationTypes = transaction.transactionOperations;
     const assetMap = new Map<
@@ -400,14 +543,19 @@ export class TransactionMapper {
       KeyringTransactionAsset
     >();
 
-    operationTypes.forEach((operation) => {
+    // Parse the successful transaction result first to avoid parsing per operation.
+    const successfulTransactionResult =
+      this.#getSuccessfulTransactionResultSafe(transaction);
+
+    operationTypes.forEach((operation, index) => {
       if (!isReceiveOperation(operation, accountAddress)) {
         return;
       }
 
-      const receiveOperationAsset = this.#getReceiveOperationAsset(
-        operation,
-        scope,
+      const receiveOperationAsset = this.#getReceiveOperationAssetSafe(
+        transaction,
+        successfulTransactionResult,
+        index,
       );
       if (!receiveOperationAsset) {
         return;
@@ -422,46 +570,122 @@ export class TransactionMapper {
   /**
    * Resolves the asset and amount credited by a receive operation.
    *
-   * @param operation - Receive-capable operation (payment, create account, or path payment).
-   * @param scope - CAIP-2 chain used to encode asset ids.
+   * @param transaction - Stellar transaction containing the receive operation.
+   * @param successfulTransactionResult - Successful transaction result to extract the destination amount from.
+   * @param index - Index of the receive operation within the transaction.
    * @returns Asset code, CAIP-19 id, and amount credited by the operation, or `null` when unsupported.
    */
-  #getReceiveOperationAsset(
-    operation: Operation,
-    scope: KnownCaip2ChainId,
+  #getReceiveOperationAssetSafe(
+    transaction: Transaction,
+    successfulTransactionResult: SuccessfulTransactionResult | null,
+    index: number,
   ): KeyringTransactionAsset | null {
-    if (operation.type === StellarOperationType.Payment) {
-      return this.#assetToKeyringAssetRow(
-        operation.asset,
-        scope,
-        operation.amount,
-      );
+    try {
+      const { scope } = transaction;
+      const operation = transaction.transactionOperations[index];
+      if (!operation) {
+        return null;
+      }
+
+      if (operation.type === StellarOperationType.Payment) {
+        return this.#assetToKeyringAssetRow(
+          operation.asset,
+          scope,
+          operation.amount,
+        );
+      }
+
+      if (operation.type === StellarOperationType.CreateAccount) {
+        return this.#assetToKeyringAssetRow(
+          Asset.native(),
+          scope,
+          operation.startingBalance,
+        );
+      }
+
+      if (operation.type === StellarOperationType.PathPaymentStrictReceive) {
+        return this.#assetToKeyringAssetRow(
+          operation.destAsset,
+          scope,
+          operation.destAmount,
+        );
+      }
+
+      if (operation.type === StellarOperationType.PathPaymentStrictSend) {
+        const destAmount =
+          this.#extractSwapDestOrSourceAmount(
+            successfulTransactionResult,
+            index,
+          ) ?? operation.destMin;
+
+        return this.#assetToKeyringAssetRow(
+          operation.destAsset,
+          scope,
+          destAmount,
+        );
+      }
+    } catch (error) {
+      this.#logger.warn('Failed to get receive operation asset', {
+        error,
+        transactionId: transaction.id,
+        operationIndex: index,
+      });
+      // Best effort to get the receive operation asset,
+      // The error is not necessary to track.
+      // Skip unsupported or unparseable operations; keep collecting other receive assets.
     }
 
-    if (operation.type === StellarOperationType.CreateAccount) {
-      return this.#assetToKeyringAssetRow(
-        Asset.native(),
-        scope,
-        operation.startingBalance,
-      );
-    }
+    return null;
+  }
 
-    if (operation.type === StellarOperationType.PathPaymentStrictReceive) {
-      return this.#assetToKeyringAssetRow(
-        operation.destAsset,
-        scope,
-        operation.destAmount,
-      );
-    }
+  #getSuccessfulTransactionResultSafe(
+    transaction: Transaction,
+  ): SuccessfulTransactionResult | null {
+    try {
+      if (!transaction.rawData?.result_xdr) {
+        return null;
+      }
 
-    if (operation.type === StellarOperationType.PathPaymentStrictSend) {
-      return this.#assetToKeyringAssetRow(
-        operation.destAsset,
-        scope,
-        operation.destMin,
+      const successfulTransactionResult = parseSuccessfulTransactionResult(
+        transaction.rawData?.result_xdr,
+        transaction.scope,
       );
-    }
 
+      // There is no partically successful transaction result, so the successful transaction result either 0 or match the number of operations as the transaction.
+      if (
+        successfulTransactionResult?.operationResults.length !==
+        transaction.transactionOperations.length
+      ) {
+        return null;
+      }
+
+      return successfulTransactionResult;
+    } catch (error) {
+      // Best effort to parse the successful transaction result,
+      // The error is not necessary to track.
+      this.#logger.warn('Failed to parse successful transaction result', {
+        error,
+        transactionId: transaction.id,
+      });
+      return null;
+    }
+  }
+
+  #extractSwapDestOrSourceAmount(
+    successfulTransactionResult: SuccessfulTransactionResult | null,
+    index: number,
+  ): string | null {
+    const result = successfulTransactionResult?.operationResults[index];
+
+    if (
+      result &&
+      (result?.type === TransactionResultType.PathPaymentStrictSendSuccess ||
+        result?.type ===
+          TransactionResultType.PathPaymentStrictReceiveSuccess) &&
+      result?.amount !== undefined
+    ) {
+      return result.amount;
+    }
     return null;
   }
 }

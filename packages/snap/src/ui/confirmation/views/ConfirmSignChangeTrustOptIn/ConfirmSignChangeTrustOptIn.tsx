@@ -2,12 +2,9 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Address,
   Box,
-  Button,
   Container,
-  Footer,
   Heading,
   Icon,
-  Image,
   Section,
   Text as SnapText,
   Tooltip,
@@ -17,9 +14,8 @@ import { parseCaipAssetType } from '@metamask/utils';
 import { ConfirmSignChangeTrustOptInFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { StellarAssetMetadata } from '../../../../services/asset-metadata';
+import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
-import { STELLAR_IMAGE } from '../../../images/icon';
-import usdtSvg from '../../../images/usdt.svg';
 import type {
   ContextWithPrices,
   ConfirmationBaseProps,
@@ -29,17 +25,16 @@ import { FetchStatus } from '../../api';
 import {
   Asset,
   AssetIcon,
+  ConfirmationAlerts,
+  ConfirmationFooter,
   FeeRow,
-  TransactionAlert,
-  TransactionValidationAlert,
 } from '../../components';
+import { NetworkRow } from '../../components/Network';
 import {
   getAccountName,
   getClassicAssetExplorerUrl,
-  hasEnabledTransactionScan,
-  isConfirmDisabledByScan,
-  isConfirmDisabledByTransactionValidation,
-  getNetworkName,
+  requiresMaliciousAcknowledgement,
+  shouldDisableConfirmation,
 } from '../../utils';
 
 export type ConfirmSignChangeTrustOptInProps = ConfirmationBaseProps &
@@ -66,29 +61,20 @@ export const ConfirmSignChangeTrustOptIn = ({
 }: ConfirmSignChangeTrustOptInProps): ComponentOrElement => {
   const t = i18n(locale);
   const { address } = account;
-  const shouldDisableConfirmButton =
-    isConfirmDisabledByScan({
-      preferences,
-      scan,
-      scanFetchStatus,
-    }) || isConfirmDisabledByTransactionValidation(transactionsFetchStatus);
+  const shouldDisableConfirmButton = shouldDisableConfirmation({
+    scanFetchStatus,
+    transactionsFetchStatus,
+  });
 
   return (
     <Container>
       <Box>
-        <TransactionValidationAlert
+        <ConfirmationAlerts
           preferences={preferences}
+          scan={scan}
+          scanFetchStatus={scanFetchStatus}
           transactionsFetchStatus={transactionsFetchStatus}
         />
-        {transactionsFetchStatus !== FetchStatus.Error &&
-        hasEnabledTransactionScan(preferences) ? (
-          <TransactionAlert
-            scanFetchStatus={scanFetchStatus}
-            validation={scan?.validation ?? null}
-            error={scan?.error ?? null}
-            preferences={preferences}
-          />
-        ) : null}
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">
@@ -97,8 +83,7 @@ export const ConfirmSignChangeTrustOptIn = ({
             })}
           </Heading>
           <Box>
-            {/* TODO: Replace with the asset icon, dummy for testing */}
-            <AssetIcon iconUrl={usdtSvg} size="xl" />
+            <AssetIcon iconUrl={assetMetadata.iconUrl} size="xl" />
           </Box>
           <Box>{null}</Box>
           <Box>{null}</Box>
@@ -135,30 +120,21 @@ export const ConfirmSignChangeTrustOptIn = ({
               {t('confirmation.asset')}
             </SnapText>
 
-            {/* TODO: Replace with the asset icon, dummy for testing */}
             <Asset
               symbol={assetMetadata.symbol}
-              iconUrl={usdtSvg}
+              iconUrl={assetMetadata.iconUrl}
               link={getClassicAssetExplorerUrl(
                 parseCaipAssetType(assetMetadata.assetId).assetReference,
               )}
             />
           </Box>
 
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.network')}
-            </SnapText>
-            <Box direction="horizontal" alignment="end">
-              <Image
-                borderRadius="medium"
-                src={networkImage ?? STELLAR_IMAGE}
-                height={16}
-                width={16}
-              />
-              <SnapText>{getNetworkName(scope)}</SnapText>
-            </Box>
-          </Box>
+          {/* Network */}
+          <NetworkRow
+            networkImage={networkImage}
+            scope={scope}
+            locale={locale as Locale}
+          />
           <Box>{null}</Box>
           {/* Fee Breakdown */}
           <FeeRow
@@ -169,17 +145,16 @@ export const ConfirmSignChangeTrustOptIn = ({
           />
         </Section>
       </Box>
-      <Footer>
-        <Button name={ConfirmSignChangeTrustOptInFormNames.Cancel}>
-          {t('confirmation.cancelButton')}
-        </Button>
-        <Button
-          name={ConfirmSignChangeTrustOptInFormNames.Confirm}
-          disabled={shouldDisableConfirmButton}
-        >
-          {t('confirmation.confirmButton')}
-        </Button>
-      </Footer>
+      <ConfirmationFooter
+        locale={locale}
+        cancelButtonName={ConfirmSignChangeTrustOptInFormNames.Cancel}
+        confirmButtonName={ConfirmSignChangeTrustOptInFormNames.Confirm}
+        confirmDisabled={shouldDisableConfirmButton}
+        requiresAcknowledgement={requiresMaliciousAcknowledgement({
+          preferences,
+          scan,
+        })}
+      />
     </Container>
   );
 };

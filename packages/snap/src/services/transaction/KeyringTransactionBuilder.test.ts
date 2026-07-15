@@ -106,9 +106,12 @@ describe('KeyringTransactionBuilder', () => {
       },
     });
 
-    expect(transaction.type).toBe(TransactionType.Unknown);
+    expect(transaction.type).toBe(TransactionType.TokenApprove);
     expect(transaction.id).toBe('tx-opt-in-1');
     expect(transaction.status).toBe(TransactionStatus.Unconfirmed);
+    expect(transaction.details).toStrictEqual({
+      typeLabel: 'trustline-approve',
+    });
     expect(transaction.events).toStrictEqual([
       { status: TransactionStatus.Unconfirmed, timestamp: fixedTimestamp },
     ]);
@@ -155,8 +158,11 @@ describe('KeyringTransactionBuilder', () => {
       },
     });
 
-    expect(transaction.type).toBe(TransactionType.Unknown);
+    expect(transaction.type).toBe(TransactionType.TokenDisapprove);
     expect(transaction.status).toBe(TransactionStatus.Confirmed);
+    expect(transaction.details).toStrictEqual({
+      typeLabel: 'trustline-disapprove',
+    });
     expect(transaction.events).toStrictEqual([
       { status: TransactionStatus.Confirmed, timestamp: fixedTimestamp },
     ]);
@@ -203,6 +209,59 @@ describe('KeyringTransactionBuilder', () => {
     expect(transaction).toStrictEqual({
       type: TransactionType.Unknown,
       id: 'tx-pending-1',
+      from: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      to: [
+        {
+          address: account.address,
+          asset: {
+            unit: 'XLM',
+            type: 'stellar:pubnet/slip44:148',
+            amount: '0',
+            fungible: true,
+          },
+        },
+      ],
+      events: [
+        { status: TransactionStatus.Unconfirmed, timestamp: fixedTimestamp },
+      ],
+      chain: scope,
+      status: TransactionStatus.Unconfirmed,
+      account: account.id,
+      timestamp: fixedTimestamp,
+      fees: [],
+    });
+  });
+
+  it('uses caller-provided transaction type for asset-only pending transaction', () => {
+    const builder = new KeyringTransactionBuilder();
+
+    const transaction = builder.createTransaction({
+      type: KeyringTransactionType.Pending,
+      request: {
+        txId: 'tx-pending-bridge-send-1',
+        account,
+        scope,
+        transactionType: TransactionType.BridgeSend,
+        asset: {
+          type: 'stellar:pubnet/slip44:148',
+          symbol: 'XLM',
+        },
+      },
+    });
+
+    expect(transaction).toStrictEqual({
+      type: TransactionType.BridgeSend,
+      id: 'tx-pending-bridge-send-1',
       from: [
         {
           address: account.address,

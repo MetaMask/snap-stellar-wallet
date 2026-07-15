@@ -688,7 +688,7 @@ export class OperationMapper {
    */
   static #normalizeStellarAmount(value: Json): Json {
     if (typeof value === 'string' && /^-?\d+(\.\d+)?$/u.test(value)) {
-      return new BigNumber(value).toString();
+      return new BigNumber(value).toFixed();
     }
     return value;
   }

@@ -12,9 +12,11 @@ import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { AccountNotActivatedException } from '../../services/network/exceptions';
 import type { OnChainAccount } from '../../services/on-chain-account';
+import { minimumBalanceStroops } from '../../services/on-chain-account/utils';
 import {
   createPrefixedLogger,
   isClassicAssetId,
+  isSlip44Id,
   toDisplayBalance,
   type ILogger,
 } from '../../utils';
@@ -67,22 +69,22 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
   }
 
   /**
-   * Returns empty trust-line entries when the account is not activated.
+   * Returns default per-asset extra entries when the account is not activated.
    * Tolerates unactivated accounts for portfolio-import UX instead of showing the activation prompt.
    *
    * @param _error - The account not activated error.
    * @param request - The JSON-RPC request with assets to describe.
-   * @returns Per-asset trust-line fields without on-chain data.
+   * @returns Per-asset extra fields without on-chain data.
    */
   protected override async handleAccountNotActivatedError(
     _error: AccountNotActivatedException,
     request: GetAccountAssetInfoJsonRpcRequest,
   ): Promise<GetAccountAssetInfoJsonRpcResponse> {
     const { assets } = request.params;
-    return this.#buildEmptyTrustLineEntries(assets);
+    return this.#buildDefaultAccountAssetInfoEntries(assets);
   }
 
-  #buildEmptyTrustLineEntries(
+  #buildDefaultAccountAssetInfoEntries(
     assets: KnownCaip19AssetIdOrSlip44Id[],
   ): Record<KnownCaip19AssetIdOrSlip44Id, AccountAssetInfoExtra> {
     const result = {} as Record<
@@ -91,7 +93,7 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     >;
 
     for (const assetId of assets) {
-      if (!isClassicAssetId(assetId)) {
+      if (!isClassicAssetId(assetId) && !isSlip44Id(assetId)) {
         continue;
       }
       result[assetId] = {};
@@ -110,6 +112,11 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     >;
 
     for (const assetId of assets) {
+      if (isSlip44Id(assetId)) {
+        result[assetId] = this.#buildNativeXlmExtraEntry(onChainAccount);
+        continue;
+      }
+
       if (!isClassicAssetId(assetId)) {
         continue;
       }
@@ -118,18 +125,13 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
       // zero-limit rows that getAsset filters out for spendable-balance flows.
       const assetData = onChainAccount.getRawAsset(assetId);
 
+      // This should never happen, we already validate if the asset is a classic asset in the request.
       if (assetData?.limit === undefined) {
         // TODO: re-fetch from horizon when classic asset row is missing or has no limit.
-        this.#logger.logErrorWithDetails(
-          'Data error: classic asset missing trust-line limit in on-chain snapshot',
+        this.#logger.warn(
+          'Classic asset missing trust-line limit in on-chain snapshot',
           {
             assetId,
-            reason:
-              assetData === undefined
-                ? 'No stored row for this classic asset id (not synced or never trusted)'
-                : 'Stored row exists but limit field is undefined',
-            remark:
-              'Returning empty trust-line entry; portfolio may treat asset as untrusted',
           },
         );
         result[assetId] = {};
@@ -149,5 +151,27 @@ export class GetAccountAssetInfoHandler extends BaseClientRequestHandler<
     }
 
     return result;
+  }
+
+  #buildNativeXlmExtraEntry(
+    onChainAccount: OnChainAccount,
+  ): AccountAssetInfoExtra {
+    try {
+      const baseReserveStroops = minimumBalanceStroops({
+        subentryCount: onChainAccount.subentryCount,
+        numSponsoring: onChainAccount.numSponsoring,
+        numSponsored: onChainAccount.numSponsored,
+      });
+
+      return {
+        baseReserve: toDisplayBalance(
+          baseReserveStroops,
+          STELLAR_DECIMAL_PLACES,
+        ),
+      };
+    } catch (error: unknown) {
+      this.#logger.warn('Unable to compute native XLM base reserve', { error });
+      return {};
+    }
   }
 }

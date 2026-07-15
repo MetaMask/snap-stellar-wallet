@@ -17,12 +17,15 @@ import {
   UnsupportedMethodError,
   UserRejectedRequestError,
 } from '@metamask/snaps-sdk';
+import type { Struct } from '@metamask/superstruct';
+import { assert, enums, object, type } from '@metamask/superstruct';
 
 import type { ILogger } from './logger';
 import { logger as defaultLogger } from './logger';
+import { trackError } from './snap';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- must accept arbitrary `Error` subclass ctor signatures
-type AnyErrorConstructor = abstract new (...args: any[]) => Error;
+export type AnyErrorConstructor = abstract new (...args: any[]) => Error;
 
 /**
  * Re-throws `error` when it is an instance of **any** constructor in `exceptionClasses` (subclasses
@@ -44,59 +47,6 @@ export function rethrowIfInstanceElseThrow<Err extends Error>(
     }
   }
   throw fallback;
-}
-
-/**
- * Sanitizes error messages that may contain sensitive cryptographic information.
- * This prevents leaking details about private keys, entropy, or derivation paths.
- *
- * @param error - The error to sanitize.
- * @returns A sanitized error with a generic message if sensitive info is detected.
- */
-export function sanitizeSensitiveError(error: Error): Error {
-  const message = error?.message?.toLowerCase() ?? '';
-  const stack = error?.stack?.toLowerCase() ?? '';
-
-  // Check for sensitive keywords in error message or stack trace
-  const sensitiveKeywords = [
-    'private',
-    'key',
-    'entropy',
-    'mnemonic',
-    'seed',
-    'derivation',
-    'bip32',
-    'bip44',
-    'secret',
-  ];
-
-  const containsSensitiveInfo = sensitiveKeywords.some(
-    (keyword) => message.includes(keyword) || stack.includes(keyword),
-  );
-
-  if (containsSensitiveInfo) {
-    const maskedMessage =
-      'Key derivation failed. Please check your connection and try again.';
-    // Return generic error without exposing sensitive details
-    const sanitizedError = new Error(maskedMessage);
-    // Preserve error type if it's a Snap error
-    if (isSnapRpcError(error)) {
-      const Ctor = error.constructor;
-      if (typeof Ctor === 'function') {
-        try {
-          return new (Ctor as new (message: unknown) => typeof error)(
-            maskedMessage,
-          );
-        } catch {
-          return sanitizedError;
-        }
-      }
-      return sanitizedError;
-    }
-    return sanitizedError;
-  }
-
-  return error;
 }
 
 /** Union of Snap RPC error instance types (for type narrowing). */
@@ -148,6 +98,225 @@ export function isSnapRpcError(error: Error): error is SnapRpcError {
   return errors.some((errType) => error instanceof errType);
 }
 
+export type StellarSnapExceptionOptions = {
+  cause?: unknown;
+  data?: Record<string, unknown>;
+};
+
+/**
+ * A custom error class that extends the built-in Error class and adds a `data` property.
+ * Instances are serialized by {@link trackError} / `snap_trackError` and forwarded to
+ * MetaMask's Sentry pipeline, which applies platform-side scrubbing of sensitive fields.
+ */
+export class StellarSnapException extends Error {
+  readonly data?: Record<string, unknown>;
+
+  constructor(message: string, options?: StellarSnapExceptionOptions) {
+    super(message, { cause: options?.cause });
+    this.name = new.target.name;
+    this.data = options?.data;
+
+    // Explicitly hides this constructor from the stack trace if supported.
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
+  }
+}
+
+/** Network and transport error codes commonly surfaced by `fetch`. */
+const COMMON_HTTP_ERROR_CODES = [
+  'CERT_HAS_EXPIRED',
+  'UNABLE_TO_GET_ISSUER_CERT_LOC',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'ECONNRESET',
+  'AbortError',
+] as const;
+
+type CommonHttpErrorCode = (typeof COMMON_HTTP_ERROR_CODES)[number];
+
+const COMMON_HTTP_ERROR_CODE_SET = new Set<string>(COMMON_HTTP_ERROR_CODES);
+
+const CommonHttpErrorCodesStruct = object({
+  cause: type({
+    code: enums([...COMMON_HTTP_ERROR_CODES]),
+  }),
+});
+
+/** Base for HTTP API client errors (transport, request shape, response shape). */
+export class ApiException extends StellarSnapException {
+  constructor(message: string, options?: StellarSnapExceptionOptions) {
+    super(message, options);
+    this.name = 'ApiException';
+  }
+}
+
+/** Network-level HTTP failure (timeout, DNS, TLS, abort, etc.). */
+export class HttpException extends ApiException {
+  constructor(message: string, options?: StellarSnapExceptionOptions) {
+    super(message, options);
+    this.name = 'HttpException';
+  }
+}
+
+/** Non-success HTTP status from a completed response. */
+export class HttpResponseException extends HttpException {
+  constructor(statusCode: number, options?: StellarSnapExceptionOptions) {
+    super(`HTTP error! status: ${statusCode}`, options);
+    this.name = 'HttpResponseException';
+  }
+}
+
+/** Request parameters failed validation before the HTTP call. */
+export class InvalidHttpRequestParamsException extends ApiException {
+  constructor(message: string, options?: StellarSnapExceptionOptions) {
+    super(message, options);
+    this.name = 'InvalidHttpRequestParamsException';
+  }
+}
+
+/** Response body failed validation after a successful HTTP status. */
+export class InvalidHttpResponseException extends ApiException {
+  constructor(message: string, options?: StellarSnapExceptionOptions) {
+    super(message, options);
+    this.name = 'InvalidHttpResponseException';
+  }
+}
+
+/**
+ * Validates API request parameters and throws {@link InvalidHttpRequestParamsException} on failure.
+ *
+ * @param params - Request payload or query parameters to validate.
+ * @param struct - Superstruct schema for the validated shape.
+ */
+export function assertHttpRequestParams<Validated>(
+  params: unknown,
+  struct: Struct<Validated>,
+): asserts params is Validated {
+  try {
+    assert(params, struct);
+  } catch (error) {
+    throw new InvalidHttpRequestParamsException(
+      'Invalid API request parameters',
+      { cause: error },
+    );
+  }
+}
+
+/**
+ * Validates an API response body and throws {@link InvalidHttpResponseException} on failure.
+ *
+ * @param response - Parsed response body to validate.
+ * @param struct - Superstruct schema for `response`.
+ */
+export function assertHttpResponse<Response>(
+  response: Response,
+  struct: Struct<Response>,
+): void {
+  try {
+    assert(response, struct);
+  } catch (error) {
+    throw new InvalidHttpResponseException('Invalid API response', {
+      cause: error,
+    });
+  }
+}
+
+/**
+ * @param error - Value from a `catch` clause.
+ * @returns A known HTTP error code from `error.cause.code` or `error.code`.
+ */
+function getHttpErrorCode(error: Error): CommonHttpErrorCode | undefined {
+  if (CommonHttpErrorCodesStruct.is(error)) {
+    return error.cause?.code;
+  }
+
+  const { code } = error as { code?: string };
+  return code !== undefined && COMMON_HTTP_ERROR_CODE_SET.has(code)
+    ? (code as CommonHttpErrorCode)
+    : undefined;
+}
+
+/**
+ * Whether `error` represents a transient HTTP transport failure.
+ * Used by API clients to decide between fail-fast and partial-result recovery.
+ *
+ * @param error - Value from a `catch` clause or rejected batch entry.
+ * @returns `true` for network, timeout, abort, and non-2xx HTTP status errors.
+ */
+export function isHttpException(
+  error: unknown,
+): error is HttpException | (Error & { cause?: { code: string } }) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error instanceof HttpException) {
+    return true;
+  }
+
+  if (error.name === 'AbortError') {
+    return true;
+  }
+
+  return getHttpErrorCode(error) !== undefined;
+}
+
+/**
+ * Wraps raw transport errors in {@link HttpException}; leaves other values unchanged.
+ *
+ * @param error - Value from a `catch` clause.
+ * @returns `error` when it is already an {@link HttpException}, a new {@link HttpException}
+ * when `error` is a recognized transport failure, otherwise `error` unchanged.
+ */
+export function normalizeHttpException(error: unknown): unknown {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+
+  if (error instanceof HttpException) {
+    return error;
+  }
+
+  if (!isHttpException(error)) {
+    return error;
+  }
+
+  const code = getHttpErrorCode(error);
+  return new HttpException(
+    code ? `HTTP error! cause: ${code}` : 'HTTP error!',
+    { cause: error },
+  );
+}
+
+/**
+ * @param error - Value from a `catch` clause.
+ * @returns Whether `error` is an invalid request/response shape error.
+ */
+export function isInvalidApiRequestOrResponseException(
+  error: unknown,
+): error is InvalidHttpRequestParamsException | InvalidHttpResponseException {
+  return (
+    error instanceof InvalidHttpRequestParamsException ||
+    error instanceof InvalidHttpResponseException
+  );
+}
+
+/**
+ * Checks if the error is a {@link StellarSnapException} (including subclasses).
+ *
+ * @param error - Value from a `catch` clause.
+ * @returns Whether `error` is a {@link StellarSnapException} (including subclasses).
+ */
+export function isStellarSnapException(
+  error: unknown,
+): error is StellarSnapException {
+  return error instanceof StellarSnapException;
+}
+
 /**
  * A utility function that catches errors and throws them as SnapError.
  *
@@ -162,12 +331,18 @@ export const withCatchAndThrowSnapError = async <ResponseT>(
   try {
     return await fn();
   } catch (errorInstance: unknown) {
+    await trackErrorIfNeeded(errorInstance);
+
     let error: SnapRpcError;
 
     if (errorInstance instanceof Error) {
-      error = isSnapRpcError(errorInstance)
-        ? errorInstance
-        : new SnapError(errorInstance);
+      if (isStellarSnapException(errorInstance)) {
+        error = new SnapError(errorInstance);
+      } else if (isSnapRpcError(errorInstance)) {
+        error = errorInstance;
+      } else {
+        error = new SnapError(errorInstance);
+      }
     } else {
       error = new SnapError(errorInstance as string | Error);
     }
@@ -176,7 +351,24 @@ export const withCatchAndThrowSnapError = async <ResponseT>(
       { error },
       `[SnapError] ${JSON.stringify(error.toJSON(), null, 2)}`,
     );
+
     // eslint-disable-next-line @typescript-eslint/only-throw-error
     throw error;
   }
 };
+
+/**
+ * Sends `error` to Sentry when it represents an unexpected failure.
+ *
+ * Skips tracking for explicit user rejections.
+ * Callers should prefer this over {@link trackError} in swallow paths;
+ *
+ * @param error - Value from a `catch` clause.
+ */
+export async function trackErrorIfNeeded(error: unknown): Promise<void> {
+  if (error instanceof UserRejectedRequestError) {
+    return;
+  }
+
+  await trackError(error);
+}

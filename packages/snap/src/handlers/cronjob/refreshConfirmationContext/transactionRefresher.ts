@@ -8,12 +8,14 @@ import {
   type IConfirmationContextRefresher,
 } from './api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
-import {
+import type {
   Transaction,
-  type TransactionService,
+  TransactionService,
 } from '../../../services/transaction';
-import { assertTransactionTimeBound } from '../../../services/transaction/utils';
-import type { ContextWithTransactionValidation } from '../../../ui/confirmation/api';
+import type {
+  ContextWithSecurityScan,
+  ContextWithTransactionValidation,
+} from '../../../ui/confirmation/api';
 import {
   ContextWithTransactionValidationStruct,
   FetchStatus,
@@ -29,12 +31,18 @@ import {
 } from '../../clientRequest/api';
 
 type TransactionValidationContext = ConfirmationDataContext &
-  ContextWithTransactionValidation;
+  ContextWithTransactionValidation &
+  Partial<ContextWithSecurityScan> & {
+    // origin is always present on the rendered confirmation context
+    // (ConfirmationBaseProps.origin), but isn't part of the validation struct.
+    origin?: string;
+  };
 
 /**
  * Re-validates the pending transaction while the sign confirmation dialog is open.
- * Transaction slice of the confirmation context refresh pipeline; periodically
- * checks time bounds, fees, and balance against the latest on-chain account state.
+ * Transaction slice of the confirmation context refresh pipeline; on every cycle
+ * it rebuilds against the latest on-chain account state and propagates the fresh
+ * envelope to the security-scan request for the scan refresher.
  */
 export class ConfirmationTransactionRefresher implements IConfirmationContextRefresher {
   readonly key = ConfirmationContextRefresherKey.Transaction;
@@ -95,12 +103,7 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
   ): Promise<ConfirmationContextRefreshResult> {
     const validationCtx = ctx as TransactionValidationContext;
     try {
-      const {
-        request,
-        accountId,
-        scope,
-        transaction: transactionXdr,
-      } = validationCtx;
+      const { request, accountId, scope } = validationCtx;
 
       // Load the sender from the network so validation uses current sequence and balances.
       const { onChainAccount } = await this.#accountResolver.resolveAccount({
@@ -115,19 +118,11 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
         },
       });
 
-      // Deserialize the envelope awaiting signature and assert its own time bound.
-      // The draft rebuilt below gets a fresh timeout, so validating that draft would
-      // miss expiry of the transaction the user is actually looking at.
-      const transaction = Transaction.fromXdr({
-        xdr: transactionXdr,
-        scope,
-      });
-      assertTransactionTimeBound(transaction);
-
       // TODO(follow-up): this validates a rebuilt draft as a proxy for the stored
       // envelope. It can miss divergence (payment vs createAccount on a deactivated
       // destination, stale Soroban footprint). Seq drift is covered by the submit-time
       // txBadSeq retry. For full fidelity, validate the stored envelope itself.
+      let rebuiltTransaction: Transaction;
       switch (request.method) {
         case ClientRequestMethod.ConfirmSend: {
           const assetMetadata = await this.#assetMetadataService.resolve(
@@ -139,34 +134,53 @@ export class ConfirmationTransactionRefresher implements IConfirmationContextRef
             decimals,
           );
           // Throws on insufficient balance, inactive destination, or fee estimate failure.
-          await this.#transactionService.createValidatedSendTransaction({
-            onChainAccount,
-            scope,
-            assetId: request.params.assetId,
-            destination: request.params.toAddress,
-            amount,
-          });
+          rebuiltTransaction =
+            await this.#transactionService.createValidatedSendTransaction({
+              onChainAccount,
+              scope,
+              assetId: request.params.assetId,
+              destination: request.params.toAddress,
+              amount,
+            });
           break;
         }
         case ClientRequestMethod.ChangeTrustOpt:
           // Throws when change-trust limits or account state are no longer valid.
-          await this.#transactionService.createValidatedChangeTrustTransaction({
-            onChainAccount,
-            scope,
-            assetId: request.params.assetId,
-            limit:
-              request.params.action === ChangeTrustOptAction.Delete
-                ? '0'
-                : request.params.limit,
-          });
+          rebuiltTransaction =
+            await this.#transactionService.createValidatedChangeTrustTransaction(
+              {
+                onChainAccount,
+                scope,
+                assetId: request.params.assetId,
+                limit:
+                  request.params.action === ChangeTrustOptAction.Delete
+                    ? '0'
+                    : request.params.limit,
+              },
+            );
           break;
         default:
           throw new Error('Unsupported request method for transaction refresh');
       }
 
-      // Still valid: nothing to write. The status stays Fetched and we don't drive a
-      // reschedule ourselves (other refreshers keep the cron alive while the dialog is open).
-      return null;
+      const { securityScanRequest, origin } = validationCtx;
+      const rebuiltTransactionXdr = rebuiltTransaction.getRaw().toXDR();
+
+      // Always feed the rebuilt envelope to the scan refresher. The user-facing
+      // `transaction` field is intentionally left untouched; the signable envelope
+      // is rebuilt again at confirm time.
+      return {
+        result: {
+          securityScanRequest: {
+            accountAddress:
+              securityScanRequest?.accountAddress ?? onChainAccount.accountId,
+            origin: securityScanRequest?.origin ?? origin ?? '',
+            scope,
+            transaction: rebuiltTransactionXdr,
+          },
+        },
+        reschedule: false,
+      };
     } catch (error) {
       this.#logger.error(
         'Error re-validating confirmation transaction:',

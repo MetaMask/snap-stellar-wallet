@@ -22,19 +22,14 @@ import {
   isClassicAssetId,
   isSep41Id,
   toDisplayBalance,
+  trackErrorIfNeeded,
 } from '../../utils';
-import type { StellarKeyringAccount } from '../account';
 import type { StellarAssetMetadata } from '../asset-metadata';
-import type { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
-import { AccountNotActivatedException, type NetworkService } from '../network';
+import type { NetworkService } from '../network';
+import type { ActivatedAccountPair } from '../sync/api';
 
 type AccountAssetListDelta =
   KeyringEventPayload<KeyringEvent.AccountAssetListUpdated>['assets'][string];
-
-type ActivatedAccountPair = {
-  keyringAccount: StellarKeyringAccount;
-  onChainAccount: OnChainAccount;
-};
 
 type Sep41BalanceFetchResult = {
   assetIds: KnownCaip19Sep41AssetId[];
@@ -56,8 +51,6 @@ export class OnChainAccountSynchronizeService {
 
   readonly #onChainAccountRepository: OnChainAccountRepository;
 
-  readonly #assetMetadataService: AssetMetadataService;
-
   readonly #logger: ILogger;
 
   /** Serializes full sync runs; see class JSDoc. */
@@ -66,17 +59,14 @@ export class OnChainAccountSynchronizeService {
   constructor({
     networkService,
     onChainAccountRepository,
-    assetMetadataService,
     logger,
   }: {
     networkService: NetworkService;
     onChainAccountRepository: OnChainAccountRepository;
-    assetMetadataService: AssetMetadataService;
     logger: ILogger;
   }) {
     this.#networkService = networkService;
     this.#onChainAccountRepository = onChainAccountRepository;
-    this.#assetMetadataService = assetMetadataService;
     this.#logger = createPrefixedLogger(
       logger,
       '[💼 OnChainAccountSynchronizeService]',
@@ -89,209 +79,167 @@ export class OnChainAccountSynchronizeService {
    * snap for balances always see the new source of truth. Classic tombstones (`limit` 0) keep
    * removals reconcilable if a keyring emit fails.
    *
-   * @param keyringAccounts - Stellar keyring accounts to sync for `scope`.
+   * @param activatedAccountPairs - Activated keyring/on-chain account pairs to sync for `scope`.
    * @param scope - CAIP-2 network.
+   * @param sep41Assets - Preloaded SEP-41 assets from {@link SynchronizeService}.
    */
   async synchronize(
-    keyringAccounts: StellarKeyringAccount[],
+    activatedAccountPairs: ActivatedAccountPair[],
     scope: KnownCaip2ChainId,
+    sep41Assets: StellarAssetMetadata[],
   ): Promise<void> {
-    if (keyringAccounts.length === 0) {
+    if (activatedAccountPairs.length === 0) {
       this.#logger.debug('No accounts to synchronize');
       return;
     }
 
+    const startTime = Date.now();
+    this.#logger.debug(`Synchronize on-chain accounts started at ${startTime}`);
     // Mutex: prevent overlapping sync runs and keep read–merge–write consistent with state.
     // Trade-off: sync requests may arrive frequently (e.g. when users switch accounts); the next
     // request waits until the in-flight one finishes.
-    await this.#synchronizeMutex.runExclusive(async () => {
-      this.#logger.debug(
-        'Load on-chain accounts - number of accounts to load',
-        {
-          noOfAccounts: keyringAccounts.length,
-        },
-      );
-      // 1. Horizon: funded accounts only (unfunded / errors skipped in #loadActivatedPairs).
-      const activatedAccountPairs = await this.#loadActivatedPairs(
-        keyringAccounts,
-        scope,
-      );
-      this.#logger.debug(
-        'Loaded activated account pairs - number of accounts loaded',
-        {
-          noOfAccounts: activatedAccountPairs.length,
-        },
-      );
-      if (activatedAccountPairs.length === 0) {
-        return;
-      }
-
-      const stellarAccountIds: string[] = [];
-      const keyringAccountIds: string[] = [];
-      for (const { keyringAccount, onChainAccount } of activatedAccountPairs) {
-        keyringAccountIds.push(keyringAccount.id);
-        stellarAccountIds.push(onChainAccount.accountId);
-      }
-
-      // 2. SEP-41 token balances (best effort):
-      // - Try to load each tracked SEP-41 token for every activated account.
-      // - If this step throws, the rest of the sync still runs; step 4 can copy missing tokens from the last snapshot.
-      this.#logger.debug('Load SEP-41 token balances');
-      let sep41BalanceFetchResult: Sep41BalanceFetchResult | null = null;
-      try {
-        const sep41Assets = await this.#fetchSep41AssetOrSyncOnce(scope);
-        sep41BalanceFetchResult = await this.#synchronizeSep41AssetBalances({
-          stellarAccountIds,
-          scope,
-          sep41Assets,
-        });
-      } catch (error: unknown) {
-        this.#logger.logErrorWithDetails(
-          'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 asset entries where needed',
-          error,
-        );
-      }
-
-      // 3. Snap state: latest serialized snapshots before this run (merge source + keyring diff baseline).
-      this.#logger.debug('Load latest state snapshots for on-chain accounts');
-      const latestSerializedAccountSnapshotByKeyringId =
-        await this.#onChainAccountRepository.findByKeyringAccountIds(
-          keyringAccountIds,
-          scope,
-        );
-      const lengthOfSnapshot = Object.values(
-        latestSerializedAccountSnapshotByKeyringId,
-      ).filter((snapshot) => snapshot !== null).length;
-      this.#logger.debug(
-        'Loaded latest state snapshots for on-chain accounts - number of accounts loaded',
-        {
-          noOfAccounts: lengthOfSnapshot,
-          newActivatedAccountPairs:
-            activatedAccountPairs.length - lengthOfSnapshot,
-        },
-      );
-      // 4. Per activated account:
-      // - apply fetched SEP-41 balances (if the fetch step succeeded),
-      // - merge persisted snapshot gaps (SEP-41 backfill + classic removal tombstones),
-      // - compute keyring event deltas,
-      // - prepare the serialized snapshot payload for one batched save.
-      const snapshotsToSave: Record<string, OnChainAccountSerializableFull> =
-        {};
-      let balancesPayload:
-        | KeyringEventPayload<KeyringEvent.AccountBalancesUpdated>['balances']
-        | null = null;
-      let assetsPayload:
-        | KeyringEventPayload<KeyringEvent.AccountAssetListUpdated>['assets']
-        | null = null;
-
-      this.#logger.debug('Diff full snapshots for on-chain accounts');
-      for (const {
-        keyringAccount,
-        onChainAccount: synchronizedOnChainAccount,
-      } of activatedAccountPairs) {
-        const keyringAccountId = keyringAccount.id;
-        const latestStateSnapshotSerialized =
-          latestSerializedAccountSnapshotByKeyringId[keyringAccountId] ?? null;
-        const stateSnapshotOnChainAccount =
-          latestStateSnapshotSerialized === null
-            ? null
-            : OnChainAccount.fromSerializable(latestStateSnapshotSerialized);
-        const unresolvedSep41AssetIds = this.#setSep41BalancesForAccount(
-          synchronizedOnChainAccount,
-          sep41BalanceFetchResult,
-        );
-
-        // Fill gaps from the last saved snapshot: SEP-41 backfill + classic removal tombstones.
-        // SEP-41: if step 2 failed completely, copy every missing SEP-41 entry; if step 2 ran,
-        // copy only entries for token ids still unresolved. Classic: re-inject tombstone entries when
-        // Horizon dropped a trustline that persisted state still had (or limit 0 tombstone).
-        this.#mergePersistedEntriesIntoOnChainAccount(
-          synchronizedOnChainAccount,
-          stateSnapshotOnChainAccount,
-          unresolvedSep41AssetIds,
-        );
-
-        const { balanceChanges, assetListChanges } =
-          this.#computeKeyringSyncDeltas(
-            stateSnapshotOnChainAccount,
-            synchronizedOnChainAccount,
-          );
-
-        balancesPayload ??= {};
-        balancesPayload[keyringAccountId] = balanceChanges;
+    await this.#synchronizeMutex
+      .runExclusive(async () => {
         this.#logger.debug(
-          'Prepared account balance payload for keyring account',
-          {
-            keyringAccountId,
-            balanceEntriesLength: Object.keys(balanceChanges).length,
-          },
+          `Synchronize on-chain accounts mutex acquired at ${Date.now()}`,
         );
-        if (assetListChanges !== null) {
-          assetsPayload ??= {};
-          assetsPayload[keyringAccountId] = assetListChanges;
-          this.#logger.debug(
-            'Differences in full snapshots for keyring account - asset list changes',
-            {
-              keyringAccountId,
-              assetListChangesLength: Object.keys(assetListChanges).length,
-            },
+
+        const stellarAccountIds: string[] = [];
+        const keyringAccountIds: string[] = [];
+        for (const {
+          keyringAccount,
+          onChainAccount,
+        } of activatedAccountPairs) {
+          keyringAccountIds.push(keyringAccount.id);
+          stellarAccountIds.push(onChainAccount.accountId);
+        }
+
+        // 2. SEP-41 token balances (best effort):
+        // - Try to load each tracked SEP-41 token for every activated account.
+        // - If this step throws, the rest of the sync still runs; step 4 can copy missing tokens from the last snapshot.
+        this.#logger.debug('Load SEP-41 token balances');
+        let sep41BalanceFetchResult: Sep41BalanceFetchResult | null = null;
+        try {
+          sep41BalanceFetchResult = await this.#synchronizeSep41AssetBalances({
+            stellarAccountIds,
+            scope,
+            sep41Assets,
+          });
+        } catch (error: unknown) {
+          await trackErrorIfNeeded(error);
+          this.#logger.warn(
+            'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 asset entries where needed',
+            { error },
           );
         }
 
-        snapshotsToSave[keyringAccountId] =
-          synchronizedOnChainAccount.toSerializableFull();
-      }
+        // 3. Snap state: latest serialized snapshots before this run (merge source + keyring diff baseline).
+        this.#logger.debug('Load latest state snapshots for on-chain accounts');
+        const latestSerializedAccountSnapshotByKeyringId =
+          await this.#onChainAccountRepository.findByKeyringAccountIds(
+            keyringAccountIds,
+            scope,
+          );
+        const lengthOfSnapshot = Object.values(
+          latestSerializedAccountSnapshotByKeyringId,
+        ).filter((snapshot) => snapshot !== null).length;
+        this.#logger.debug(
+          'Loaded latest state snapshots for on-chain accounts - number of accounts loaded',
+          {
+            noOfAccounts: lengthOfSnapshot,
+            newActivatedAccountPairs:
+              activatedAccountPairs.length - lengthOfSnapshot,
+          },
+        );
+        // 4. Per activated account:
+        // - apply fetched SEP-41 balances (if the fetch step succeeded),
+        // - merge persisted snapshot gaps (SEP-41 backfill + classic removal tombstones),
+        // - compute keyring event deltas,
+        // - prepare the serialized snapshot payload for one batched save.
+        const snapshotsToSave: Record<string, OnChainAccountSerializableFull> =
+          {};
+        let balancesPayload:
+          | KeyringEventPayload<KeyringEvent.AccountBalancesUpdated>['balances']
+          | null = null;
+        let assetsPayload:
+          | KeyringEventPayload<KeyringEvent.AccountAssetListUpdated>['assets']
+          | null = null;
 
-      // 5. Save the snapshots to the State first.
-      // The client may request balances from the snap as soon as it handles the keyring event,
-      // so persisted state must already reflect the new snapshot.
-      this.#logger.debug('Save snapshots to the State');
-      await this.#onChainAccountRepository.saveMany(snapshotsToSave);
+        this.#logger.debug('Diff full snapshots for on-chain accounts');
+        for (const {
+          keyringAccount,
+          onChainAccount: synchronizedOnChainAccount,
+        } of activatedAccountPairs) {
+          const keyringAccountId = keyringAccount.id;
+          const latestStateSnapshotSerialized =
+            latestSerializedAccountSnapshotByKeyringId[keyringAccountId] ??
+            null;
+          const stateSnapshotOnChainAccount =
+            latestStateSnapshotSerialized === null
+              ? null
+              : OnChainAccount.fromSerializable(latestStateSnapshotSerialized);
+          const unresolvedSep41AssetIds = this.#setSep41BalancesForAccount(
+            synchronizedOnChainAccount,
+            sep41BalanceFetchResult,
+          );
 
-      // 6. Emit keyring events after persistence.
-      this.#logger.debug('Emit keyring events');
-      await this.#emitKeyringEvents(balancesPayload, assetsPayload);
-    });
-  }
+          // Fill gaps from the last saved snapshot: SEP-41 backfill + classic removal tombstones.
+          // SEP-41: if step 2 failed completely, copy every missing SEP-41 entry; if step 2 ran,
+          // copy only entries for token ids still unresolved. Classic: re-inject tombstone entries when
+          // Horizon dropped a trustline that persisted state still had (or limit 0 tombstone).
+          this.#mergePersistedEntriesIntoOnChainAccount(
+            synchronizedOnChainAccount,
+            stateSnapshotOnChainAccount,
+            unresolvedSep41AssetIds,
+          );
 
-  /**
-   * Loads each account from Horizon; skips unfunded accounts and logs other failures.
-   *
-   * @param accounts - Keyring accounts to load.
-   * @param scope - CAIP-2 network to query.
-   * @returns Pairs keyed for SEP-41 sync and persistence.
-   */
-  async #loadActivatedPairs(
-    accounts: StellarKeyringAccount[],
-    scope: KnownCaip2ChainId,
-  ): Promise<ActivatedAccountPair[]> {
-    const pairs: ActivatedAccountPair[] = [];
+          const { balanceChanges, assetListChanges } =
+            this.#computeKeyringSyncDeltas(
+              stateSnapshotOnChainAccount,
+              synchronizedOnChainAccount,
+            );
 
-    const results = await Promise.allSettled(
-      accounts.map(async (account) => ({
-        keyringAccount: account,
-        onChainAccount: await this.#networkService.loadOnChainAccount(
-          account.address,
-          scope,
-        ),
-      })),
-    );
+          balancesPayload ??= {};
+          balancesPayload[keyringAccountId] = balanceChanges;
+          this.#logger.debug(
+            'Prepared account balance payload for keyring account',
+            {
+              keyringAccountId,
+              balanceEntriesLength: Object.keys(balanceChanges).length,
+            },
+          );
+          if (assetListChanges !== null) {
+            assetsPayload ??= {};
+            assetsPayload[keyringAccountId] = assetListChanges;
+            this.#logger.debug(
+              'Differences in full snapshots for keyring account - asset list changes',
+              {
+                keyringAccountId,
+                assetListChangesLength: Object.keys(assetListChanges).length,
+              },
+            );
+          }
 
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        pairs.push(result.value);
-        return;
-      }
-      if (result.reason instanceof AccountNotActivatedException) {
-        return;
-      }
-      this.#logger.logErrorWithDetails('Failed to load account for sync', {
-        accountId: accounts[index]?.id,
-        error: result.reason,
+          snapshotsToSave[keyringAccountId] =
+            synchronizedOnChainAccount.toSerializableFull();
+        }
+
+        // 5. Save the snapshots to the State first.
+        // The client may request balances from the snap as soon as it handles the keyring event,
+        // so persisted state must already reflect the new snapshot.
+        this.#logger.debug('Save snapshots to the State');
+        await this.#onChainAccountRepository.saveMany(snapshotsToSave);
+
+        // 6. Emit keyring events after persistence.
+        this.#logger.debug('Emit keyring events');
+        await this.#emitKeyringEventsSafe(balancesPayload, assetsPayload);
+      })
+      .finally(() => {
+        const endTime = Date.now();
+        this.#logger.debug(
+          `Synchronize completed at ${endTime} in ${endTime - startTime}ms`,
+        );
       });
-    });
-
-    return pairs;
   }
 
   /**
@@ -335,29 +283,6 @@ export class OnChainAccountSynchronizeService {
       assetMetadataByAssetId,
       balancesByAccountId: sep41AssetBalancesByAccount,
     };
-  }
-
-  async #fetchSep41AssetOrSyncOnce(
-    scope: KnownCaip2ChainId,
-  ): Promise<StellarAssetMetadata[]> {
-    // Get all SEP-41 assets for the given scope.
-    const allAssets = await this.#assetMetadataService.getAllByScope(scope);
-
-    if (allAssets.length === 0) {
-      this.#logger.debug('No assets found in the state, synchronizing assets');
-      // It is possible that the state is empty, due to the first sync.
-      // Hence, we synchronize the assets once.
-      await this.#assetMetadataService.synchronize(scope);
-    }
-
-    const sep41Assets =
-      await this.#assetMetadataService.getPersistedSep41AssetsMetadata(scope);
-
-    this.#logger.debug('SEP-41 assets found in the state', {
-      noOfAssets: sep41Assets.length,
-    });
-
-    return sep41Assets;
   }
 
   /**
@@ -509,7 +434,7 @@ export class OnChainAccountSynchronizeService {
    *
    * @param stateSnapshotOnChainAccount - Last saved account from state, or `null` when none exists.
    * @param synchronizedOnChainAccount - Same account after Horizon, SEP-41, and merge steps.
-   * @returns `balanceChanges` for all known assets plus optional `assetListChanges`.
+   * @returns `balanceChanges` for on-chain-visible assets plus `assetListChanges` from state/on-chain visibility transitions.
    */
   #computeKeyringSyncDeltas(
     stateSnapshotOnChainAccount: OnChainAccount | null,
@@ -535,52 +460,68 @@ export class OnChainAccountSynchronizeService {
           : stateSnapshotOnChainAccount.getRawAsset(assetId);
       const onChainEntry = synchronizedOnChainAccount.getRawAsset(assetId);
 
-      // Always send the full balance snapshot, even when values did not change.
-      // This lets the client recover if it missed a previous balances event.
-      // Example with 4 assets:
-      // - XLM (native), USDC classic trustline, EURC classic trustline, SOLBTC SEP-41.
+      // assetIds = union of state + on-chain rawAssetIds (includes tombstones and zero SEP-41).
+      // Asset list is transition-based between persisted state and the on-chain view for this sync:
+      // newly visible on-chain vs state → added; no longer visible on-chain vs state → removed.
+      // Native is always included in added. When state already matches on-chain, asset-list deltas
+      // are empty aside from native (no replay of prior removals). Balances are emitted only for
+      // on-chain-visible assets; the client drops stale balance keys when it handles asset removed.
+      // Example: XLM (native), USDC/EURC/AQUA (classic trustlines), SOLBTC (SEP-41).
       // ------------------------- Sync 1 ------------------------------------------
       // - Sync 1 (success): payload received by client:
-      //   XLM=10 (raw total), USDC=25, EURC=0, SOLBTC=5.
+      //   state view: none (new account).
+      //   onChain view: XLM=10, USDC=25, EURC=0, SOLBTC=5.
+      //   balance payload: XLM=10, USDC=25, EURC=0, SOLBTC=5.
+      //   asset list payload: added XLM, USDC, EURC, SOLBTC; removed none.
       // ------------------------- Sync 2 ------------------------------------------
-      // - Sync 2 (client misses event): chain updates to
-      //   XLM=11, USDC=30, EURC trustline removed (it was already zero), SOLBTC=0.
-      //   Payload for this sync would include EURC amount=0 and SOLBTC amount=0,
-      //   but client missed it.
+      // - Sync 2 (client misses event):
+      //   state view: XLM=10, USDC=25, EURC=0, SOLBTC=5.
+      //   onChain view: XLM=11, USDC=30, AQUA trustline added, EURC trustline removed, SOLBTC=0.
+      //   balance payload: XLM=11, USDC=30, AQUA=0.
+      //   asset list payload: added XLM, AQUA; removed EURC, SOLBTC.
       // ------------------------- Sync 3 ------------------------------------------
-      // - Sync 3 (client misses event): chain updates to
-      //   XLM=9, USDC=30, SOLBTC still 0.
-      //   Because SEP-41 zero balances are persisted, payload still includes SOLBTC=0.
+      // - Sync 3 (client misses event):
+      //   state view: XLM=11, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
+      //   onChain view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
+      //   balance payload: XLM=9, USDC=30, AQUA=0.
+      //   asset list payload: added XLM only; removed none (visibility unchanged vs state).
       // ------------------------- Sync 4 ------------------------------------------
-      // - Sync 4 (success): we still emit full balances for on-chain view + latest snapshot,
-      //   so payload includes XLM=9 (raw total), USDC=30, SOLBTC=0.
-      //   Classic trustlines removed on chain are persisted as internal tombstones (`limit` 0),
-      //   so sync 4 can still send balance `0` for those asset ids if the client missed earlier events.
-      balanceChanges[assetId as string] =
-        assetId === nativeAssetId
-          ? {
-              unit: NATIVE_ASSET_SYMBOL,
-              amount: toDisplayBalance(
-                synchronizedOnChainAccount.nativeRawBalance,
-              ),
-            }
-          : this.#buildBalancePayloadFromEntries(
-              onChainEntry,
-              latestStateEntry,
-            );
-
+      // - Sync 4 (success): payload received by client:
+      //   state view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
+      //   onChain view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
+      //   balance payload: XLM=9, USDC=30, AQUA=0.
+      //   asset list payload: added XLM only; removed none (state matches on-chain).
+      const isVisibleFromOnChain = this.#isAssetVisible(assetId, onChainEntry);
       const isVisibleFromState = this.#isAssetVisible(
         assetId,
         latestStateEntry,
       );
-      const isVisibleFromOnChain = this.#isAssetVisible(assetId, onChainEntry);
-      // Add/remove is based on visibility transition between snapshots.
-      if (isVisibleFromOnChain && !isVisibleFromState) {
+
+      // Asset list: transition-based add/remove between persisted state and on-chain visibility.
+      if (!isVisibleFromState && isVisibleFromOnChain) {
         addedAssets.push(assetId);
       }
 
       if (isVisibleFromState && !isVisibleFromOnChain) {
         removedAssets.push(assetId);
+      }
+
+      // Balance: on-chain-visible assets only (tombstones and zero SEP-41 omitted).
+      // There is no need to emit balance for assets that are not visible from on-chain.
+      // The client controller will remove the balance entry if they receive a asset list event with the asset removed.
+      if (isVisibleFromOnChain) {
+        balanceChanges[assetId as string] =
+          assetId === nativeAssetId
+            ? {
+                unit: NATIVE_ASSET_SYMBOL,
+                amount: toDisplayBalance(
+                  synchronizedOnChainAccount.nativeRawBalance,
+                ),
+              }
+            : this.#buildBalancePayloadFromEntries(
+                onChainEntry,
+                latestStateEntry,
+              );
       }
     }
 
@@ -632,7 +573,7 @@ export class OnChainAccountSynchronizeService {
     return true;
   }
 
-  async #emitKeyringEvents(
+  async #emitKeyringEventsSafe(
     balancesPayload:
       | KeyringEventPayload<KeyringEvent.AccountBalancesUpdated>['balances']
       | null,
@@ -656,10 +597,11 @@ export class OnChainAccountSynchronizeService {
         );
       }
     } catch (error: unknown) {
-      this.#logger.logErrorWithDetails(
-        'Failed to emit keyring events after synchronize',
+      await trackErrorIfNeeded(error);
+
+      this.#logger.warn('Failed to emit keyring events after synchronize', {
         error,
-      );
+      });
     }
   }
 }

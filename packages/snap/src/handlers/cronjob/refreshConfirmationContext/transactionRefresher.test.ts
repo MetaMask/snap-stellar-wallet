@@ -6,6 +6,7 @@ import { ConfirmationTransactionRefresher } from './transactionRefresher';
 import { KnownCaip2ChainId } from '../../../api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
 import type { TransactionService } from '../../../services/transaction';
+import type { MockClassicOperation } from '../../../services/transaction/__mocks__/transaction.fixtures';
 import { buildMockClassicTransaction } from '../../../services/transaction/__mocks__/transaction.fixtures';
 import { FetchStatus } from '../../../ui/confirmation/api';
 import { getSlip44AssetId } from '../../../utils';
@@ -16,21 +17,33 @@ import {
   ClientRequestMethod,
 } from '../../clientRequest/api';
 
+jest.mock('../../../utils/logger');
+
 describe('ConfirmationTransactionRefresher', () => {
   const scope = KnownCaip2ChainId.Testnet;
   const accountId = '11111111-1111-4111-8111-111111111111';
   const toAddress = 'GDPMFLKUGASUTWBN2XGYYKD27QGHCYH4BUFUTER4L23INYQ4JHDWFOIE';
 
-  const transaction = buildMockClassicTransaction(
-    [
-      {
-        type: 'payment',
-        params: { destination: toAddress, asset: 'native', amount: '1' },
-      },
-    ],
-    { networkPassphrase: Networks.TESTNET },
-  );
+  const paymentOperations: MockClassicOperation[] = [
+    {
+      type: 'payment',
+      params: { destination: toAddress, asset: 'native', amount: '1' },
+    },
+  ];
+
+  const transaction = buildMockClassicTransaction(paymentOperations, {
+    networkPassphrase: Networks.TESTNET,
+  });
   const transactionXdr = transaction.getRaw().toXDR();
+
+  // The envelope previously held in the security-scan request. Each refresh
+  // cycle rebuilds the transaction and swaps this for the freshly rebuilt one.
+  const scanTransactionXdr = buildMockClassicTransaction(paymentOperations, {
+    networkPassphrase: Networks.TESTNET,
+    timeout: 600,
+  })
+    .getRaw()
+    .toXDR();
 
   const sendRequest = {
     jsonrpc: '2.0' as const,
@@ -113,6 +126,7 @@ describe('ConfirmationTransactionRefresher', () => {
       transactionsFetchStatus: FetchStatus.Fetched,
       accountId,
       scope,
+      origin: 'https://metamask.io',
       request: sendRequest,
       ...overrides,
     });
@@ -123,7 +137,7 @@ describe('ConfirmationTransactionRefresher', () => {
     expect(refresher.key).toBe(ConfirmationContextRefresherKey.Transaction);
   });
 
-  it('re-validates the send transaction and returns no patch on success', async () => {
+  it('re-validates the send transaction and propagates the rebuilt envelope to security scan', async () => {
     const { refresher, transactionService } = setup();
 
     const result = await refresher.refresh(createTransactionContext());
@@ -137,7 +151,17 @@ describe('ConfirmationTransactionRefresher', () => {
       destination: toAddress,
       amount: expect.anything(),
     });
-    expect(result).toBeNull();
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          accountAddress: accountId,
+          origin: 'https://metamask.io',
+          scope,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
+    });
   });
 
   it('marks the transaction invalid when re-validation throws', async () => {
@@ -172,7 +196,17 @@ describe('ConfirmationTransactionRefresher', () => {
     expect(
       transactionService.createValidatedSendTransaction,
     ).not.toHaveBeenCalled();
-    expect(result).toBeNull();
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          accountAddress: accountId,
+          origin: 'https://metamask.io',
+          scope,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
+    });
   });
 
   it('re-validates a change-trust opt-out transaction with a zero limit', async () => {
@@ -192,9 +226,59 @@ describe('ConfirmationTransactionRefresher', () => {
     });
   });
 
-  it('marks the transaction invalid when the original envelope has expired', async () => {
+  it('renews the security-scan transaction with the rebuilt envelope', async () => {
+    const { refresher } = setup();
+    const securityScanRequest = {
+      accountAddress: toAddress,
+      origin: 'https://dapp.example',
+      scope,
+      transaction: scanTransactionXdr,
+    };
+
+    const result = await refresher.refresh(
+      createTransactionContext({ securityScanRequest }),
+    );
+
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          ...securityScanRequest,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
+    });
+  });
+
+  it('renews the security-scan transaction for change-trust flows', async () => {
+    const { refresher } = setup();
+    const securityScanRequest = {
+      accountAddress: toAddress,
+      origin: 'https://dapp.example',
+      scope,
+      transaction: scanTransactionXdr,
+    };
+
+    const result = await refresher.refresh(
+      createTransactionContext({
+        request: changeTrustAddRequest,
+        securityScanRequest,
+      }),
+    );
+
+    expect(result).toStrictEqual({
+      result: {
+        securityScanRequest: {
+          ...securityScanRequest,
+          transaction: transactionXdr,
+        },
+      },
+      reschedule: false,
+    });
+  });
+
+  it('rebuilds when the stored envelope has expired', async () => {
     const { refresher, transactionService } = setup();
-    // The stored XDR being signed is expired, even though the rebuilt draft would be valid.
     const mockNow = 1_700_000_000_000;
     jest.useFakeTimers();
     jest.setSystemTime(mockNow);
@@ -219,9 +303,16 @@ describe('ConfirmationTransactionRefresher', () => {
 
       expect(
         transactionService.createValidatedSendTransaction,
-      ).not.toHaveBeenCalled();
+      ).toHaveBeenCalled();
       expect(result).toStrictEqual({
-        result: { transactionsFetchStatus: FetchStatus.Error },
+        result: {
+          securityScanRequest: {
+            accountAddress: accountId,
+            origin: 'https://metamask.io',
+            scope,
+            transaction: transactionXdr,
+          },
+        },
         reschedule: false,
       });
     } finally {

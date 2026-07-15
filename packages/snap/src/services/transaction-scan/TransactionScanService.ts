@@ -1,4 +1,13 @@
-import { TransactionScanOption } from './api';
+import { BigNumber } from 'bignumber.js';
+
+import {
+  AssetChangeDirection,
+  StellarClassicAssetDetailsStruct,
+  StellarNativeAssetDetailsStruct,
+  StellarSep41AssetDetailsStruct,
+  TransactionScanErrorId,
+  TransactionScanOption,
+} from './api';
 import type {
   StellarAssetDiff,
   StellarTransactionScanResponse,
@@ -10,8 +19,19 @@ import type {
 } from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import type { KnownCaip2ChainId } from '../../api';
+import { xlmIcon } from '../../ui/images';
 import type { ILogger } from '../../utils';
-import { createPrefixedLogger } from '../../utils';
+import {
+  createPrefixedLogger,
+  toCaip19ClassicAssetId,
+  toCaip19Sep41AssetId,
+  trackErrorIfNeeded,
+} from '../../utils';
+import { toDisplayBalance } from '../../utils/currency';
+import { getIconUrl } from '../asset-metadata/utils';
+import { TransactionExpireException } from '../transaction/exceptions';
+import { Transaction } from '../transaction/Transaction';
+import { assertTransactionTimeBound } from '../transaction/utils';
 
 export class TransactionScanService {
   readonly #securityAlertsApiClient: SecurityAlertsApiClient;
@@ -29,7 +49,7 @@ export class TransactionScanService {
     this.#logger = createPrefixedLogger(logger, '[🛡️ TransactionScanService]');
   }
 
-  async scanTransaction({
+  async scanTransactionSafe({
     accountAddress,
     origin,
     scope,
@@ -43,6 +63,12 @@ export class TransactionScanService {
     options: TransactionScanOption[];
   }): Promise<TransactionScanResult | null> {
     try {
+      const preflightValidationErrorResult = options.includes(
+        TransactionScanOption.Simulation,
+      )
+        ? this.#preflightValidation(transaction, scope)
+        : null;
+
       const result = await this.#securityAlertsApiClient.scanTransaction({
         accountAddress,
         origin,
@@ -51,36 +77,106 @@ export class TransactionScanService {
         options,
       });
 
-      return this.#mapScan(result, options);
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Error scanning Stellar transaction',
-        error,
+      return this.#mapScan(
+        result,
+        preflightValidationErrorResult,
+        options,
+        scope,
+        accountAddress,
       );
+    } catch (error: unknown) {
+      this.#logger.warn('Error scanning Stellar transaction', {
+        reason: error,
+      });
+
+      await trackErrorIfNeeded(error);
+
       return null;
     }
   }
 
+  /**
+   * Local checks Blockaid does not perform before calling the Security Alerts API.
+   *
+   * Currently verifies the transaction time bound has not passed. When the XDR
+   * cannot be parsed locally, returns `null` so Blockaid remains the source of
+   * truth for malformed envelopes.
+   *
+   * @param xdr - The transaction XDR.
+   * @param scope - The CAIP-2 chain of the transaction.
+   * @returns A preflight validation error, or `null` when no local issue applies.
+   */
+  #preflightValidation(
+    xdr: string,
+    scope: KnownCaip2ChainId,
+  ): TransactionScanError | null {
+    try {
+      const transaction = Transaction.fromXdr({
+        xdr,
+        scope,
+      });
+
+      assertTransactionTimeBound(transaction);
+
+      return null;
+    } catch (error) {
+      if (error instanceof TransactionExpireException) {
+        return {
+          type: TransactionScanOption.Simulation,
+          code: TransactionScanErrorId.TransactionExpired,
+          message: 'Transaction expired',
+        };
+      }
+
+      return null;
+    }
+  }
+
+  /**
+   * Maps a raw Security Alerts API response to the snap's scan result shape.
+   *
+   * @param result - Raw scan response from the Security Alerts API.
+   * @param preflightValidationErrorResult - Local preflight error, if any.
+   * @param options - Scan options that were requested.
+   * @param scope - CAIP-2 chain of the transaction.
+   * @param accountAddress - Signer address used to read per-account asset diffs.
+   * @returns Normalized scan result for confirmation UI and handlers.
+   */
   #mapScan(
     result: StellarTransactionScanResponse,
+    preflightValidationErrorResult: TransactionScanError | null,
     options: TransactionScanOption[],
+    scope: KnownCaip2ChainId,
+    accountAddress: string,
   ): TransactionScanResult {
     const simulation = result.simulation ?? null;
     const validation = result.validation ?? null;
     const simulationError =
       simulation?.status === 'Error'
-        ? this.#mapError('simulation', simulation.error)
+        ? this.#mapError(TransactionScanOption.Simulation, simulation.error)
         : null;
+
+    const preflightValidationError = preflightValidationErrorResult ?? null;
+
     const validationError =
       validation?.status === 'Error'
-        ? this.#mapError('validation', validation.error)
+        ? this.#mapError(TransactionScanOption.Validation, validation.error)
         : null;
     const missingResultError = this.#getMissingResultError({
       simulation,
       validation,
       options,
     });
-    const error = validationError ?? simulationError ?? missingResultError;
+    // Prefer the simulation revert: it carries the actionable reason (e.g.
+    // "insufficient balance"). Preflight expiration is next — a local time-bound
+    // failure the user can act on. A validation `Error` only means Blockaid
+    // could not produce a verdict, so it must not mask simulation or preflight
+    // failures.
+    const error =
+      simulationError ??
+      preflightValidationError ??
+      validationError ??
+      missingResultError;
 
     return {
       status: error ? 'ERROR' : 'SUCCESS',
@@ -88,7 +184,8 @@ export class TransactionScanService {
         assets:
           simulation?.status === 'Success'
             ? this.#mapAssetChanges(
-                simulation.account_summary.account_assets_diffs ?? [],
+                this.#getSignerAssetDiffs(simulation, accountAddress),
+                scope,
               )
             : [],
       },
@@ -100,37 +197,124 @@ export class TransactionScanService {
     };
   }
 
-  #mapAssetChanges(
-    assetDiffs: StellarAssetDiff[],
-  ): TransactionScanAssetChange[] {
-    return assetDiffs.flatMap((assetDiff) => {
-      const changes: TransactionScanAssetChange[] = [];
-      if (assetDiff.out) {
-        changes.push(this.#mapAssetChange(assetDiff, 'out'));
-      }
-      if (assetDiff.in) {
-        changes.push(this.#mapAssetChange(assetDiff, 'in'));
-      }
-      return changes;
-    });
+  /**
+   * Returns the signer's asset diffs from a successful simulation.
+   *
+   * Blockaid reports per-account diffs under `assets_diffs`, keyed by address.
+   * The aggregated `account_summary.account_assets_diffs` is frequently empty
+   * (e.g. for tiny/zero-USD amounts), so we read the signer's own entry.
+   *
+   * @param simulation - The successful Blockaid simulation result.
+   * @param accountAddress - The signer (scanned) account address.
+   * @returns The signer's asset diffs.
+   */
+  #getSignerAssetDiffs(
+    simulation: Extract<
+      NonNullable<StellarTransactionScanResponse['simulation']>,
+      { status: 'Success' }
+    >,
+    accountAddress: string,
+  ): StellarAssetDiff[] {
+    return simulation.assets_diffs?.[accountAddress] ?? [];
   }
 
+  #mapAssetChanges(
+    assetDiffs: StellarAssetDiff[],
+    scope: KnownCaip2ChainId,
+  ): TransactionScanAssetChange[] {
+    return assetDiffs
+      .flatMap((assetDiff) => {
+        const changes: (TransactionScanAssetChange | null)[] = [];
+
+        if (assetDiff.out) {
+          changes.push(
+            this.#mapAssetChange(assetDiff, AssetChangeDirection.Out, scope),
+          );
+        }
+        if (assetDiff.in) {
+          changes.push(
+            this.#mapAssetChange(assetDiff, AssetChangeDirection.In, scope),
+          );
+        }
+
+        return changes;
+      })
+      .filter(
+        (change): change is TransactionScanAssetChange => change !== null,
+      );
+  }
+
+  /**
+   * Maps a single asset diff to our internal asset change format.
+   *
+   * Returns `null` for asset types the confirmation UI cannot render yet (for
+   * example pool shares or other Blockaid classifications outside native,
+   * classic, and SEP-41).
+   *
+   * @param assetDiff - The asset diff to map.
+   * @param type - The direction of the asset change.
+   * @param scope - The CAIP-2 chain of the transaction.
+   * @returns The mapped asset change, or `null` when unsupported.
+   */
   #mapAssetChange(
     assetDiff: StellarAssetDiff,
-    type: 'in' | 'out',
-  ): TransactionScanAssetChange {
+    type: AssetChangeDirection,
+    scope: KnownCaip2ChainId,
+  ): TransactionScanAssetChange | null {
+    const { asset } = assetDiff;
     const transfer = assetDiff[type];
-    const symbol =
-      assetDiff.asset.symbol ?? assetDiff.asset.code ?? assetDiff.asset_type;
+    const hasTransfer = transfer !== undefined && transfer !== null;
+    const hasRawValue =
+      hasTransfer &&
+      transfer.raw_value !== undefined &&
+      transfer.raw_value !== null;
+    const usdPrice =
+      hasTransfer && transfer.usd_price !== undefined
+        ? transfer.usd_price
+        : null;
 
-    return {
-      type,
-      symbol,
-      name: assetDiff.asset.name ?? symbol,
-      logo: null,
-      value: transfer?.value ?? null,
-      price: transfer?.usd_price ?? null,
-    };
+    if (StellarNativeAssetDetailsStruct.is(asset)) {
+      return {
+        type,
+        symbol: asset.code,
+        name: asset.code,
+        logo: xlmIcon,
+        value: hasRawValue
+          ? toDisplayBalance(new BigNumber(transfer.raw_value))
+          : null,
+        price: usdPrice,
+      };
+    }
+    if (StellarClassicAssetDetailsStruct.is(asset)) {
+      return {
+        type,
+        symbol: asset.code,
+        name: asset.code,
+        logo: getIconUrl(
+          toCaip19ClassicAssetId(scope, asset.code, asset.issuer),
+        ),
+        value: hasRawValue
+          ? toDisplayBalance(new BigNumber(transfer.raw_value))
+          : null,
+        price: usdPrice,
+      };
+    }
+    if (StellarSep41AssetDetailsStruct.is(asset)) {
+      return {
+        type,
+        symbol: asset.symbol,
+        name: asset.name,
+        logo: getIconUrl(toCaip19Sep41AssetId(scope, asset.address)),
+        value: hasRawValue
+          ? toDisplayBalance(new BigNumber(transfer.raw_value), asset.decimals)
+          : null,
+        price: usdPrice,
+      };
+    }
+
+    // If the asset is unknown, return null.
+    // We don't support unknown assets yet.
+    return null;
   }
 
   #mapValidation(
@@ -149,9 +333,36 @@ export class TransactionScanService {
   #mapError(type: string, message: string): TransactionScanError {
     return {
       type,
-      code: this.#getErrorCode(message),
+      code: this.#mapErrorCode(message),
       message,
     };
+  }
+
+  /**
+   * Maps a Blockaid error message to a stable error code for localization.
+   *
+   * Blockaid may return either free-text revert messages (e.g. "insufficient
+   * balance") or machine-readable codes (e.g. `insufficient_balance`). Known
+   * free-text patterns are matched first; otherwise {@link #getErrorCode} is
+   * used to pass through compact API codes unchanged.
+   *
+   * @param message - Raw error string from the simulation or validation payload.
+   * @returns A normalized code aligned with {@link TransactionScanErrorId}.
+   */
+  #mapErrorCode(message: string): string {
+    // Blockaid error message contains some keywords about the error.
+    // Map them to a known error id.
+    // - "insufficient balance" to "insufficientbalance".
+    // - "no trustline" to "notrustline".
+    if (message.toLowerCase().includes('insufficient balance')) {
+      return TransactionScanErrorId.InsufficientBalance;
+    }
+    if (message.toLowerCase().includes('no trustline')) {
+      return TransactionScanErrorId.NoTrustline;
+    }
+    return (
+      this.#getErrorCode(message) ?? TransactionScanErrorId.InvalidTransaction
+    );
   }
 
   #getMissingResultError({

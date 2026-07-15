@@ -6,7 +6,7 @@ import type {
   AccountService,
   StellarKeyringAccount,
 } from '../../services/account';
-import type { OnChainAccountService } from '../../services/on-chain-account';
+import type { SynchronizeService } from '../../services/sync/SynchronizeService';
 import { Duration, scheduleBackgroundEvent } from '../../utils';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
@@ -23,17 +23,17 @@ export class SyncAccountsHandler extends CronjobBaseHandler<SyncAccountJsonRpcRe
     });
   }
 
-  readonly #onChainAccountService: OnChainAccountService;
+  readonly #synchronizeService: SynchronizeService;
 
   readonly #accountService: AccountService;
 
   constructor({
     logger,
-    onChainAccountService,
+    synchronizeService,
     accountService,
   }: {
     logger: ILogger;
-    onChainAccountService: OnChainAccountService;
+    synchronizeService: SynchronizeService;
     accountService: AccountService;
   }) {
     const prefixedLogger = createPrefixedLogger(
@@ -44,7 +44,7 @@ export class SyncAccountsHandler extends CronjobBaseHandler<SyncAccountJsonRpcRe
       logger: prefixedLogger,
       requestStruct: SyncAccountJsonRpcRequestStruct,
     });
-    this.#onChainAccountService = onChainAccountService;
+    this.#synchronizeService = synchronizeService;
     this.#accountService = accountService;
   }
 
@@ -75,8 +75,6 @@ export class SyncAccountsHandler extends CronjobBaseHandler<SyncAccountJsonRpcRe
       accounts = await this.#accountService.findByIds(accountIds);
     }
 
-    await this.#onChainAccountService.synchronize(accounts, scope);
-    // TODO:
-    // sync transaction history
+    await this.#synchronizeService.synchronize(accounts, { scope });
   }
 }

@@ -172,7 +172,7 @@ describe('SignAndSendTransactionJsonRpcResponseStruct', () => {
 describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
   const transaction = buildTestInvokeXdr();
 
-  it('accepts a valid signAndSendTransaction JSON-RPC request without options', () => {
+  it('rejects a signAndSendTransaction JSON-RPC request without options', () => {
     expect(() =>
       assert(
         {
@@ -187,7 +187,7 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
         },
         SignAndSendTransactionJsonRpcRequestStruct,
       ),
-    ).not.toThrow();
+    ).toThrow(StructError);
   });
 
   it('accepts a signAndSendTransaction JSON-RPC request without an options type', () => {
@@ -203,12 +203,58 @@ describe('SignAndSendTransactionJsonRpcRequestStruct', () => {
             transaction,
             options: {
               visible: false,
+              sourceAssetId: 'stellar:pubnet/slip44:148',
+              destAssetId: 'eip155:1/slip44:60',
             },
           },
         },
         SignAndSendTransactionJsonRpcRequestStruct,
       ),
     ).not.toThrow();
+  });
+
+  it('accepts a signAndSendTransaction JSON-RPC request with swap asset ids', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'signAndSendTransaction',
+          params: {
+            accountId,
+            scope,
+            transaction,
+            options: {
+              sourceAssetId: 'stellar:pubnet/slip44:148',
+              destAssetId: 'eip155:1/slip44:60',
+            },
+          },
+        },
+        SignAndSendTransactionJsonRpcRequestStruct,
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects a signAndSendTransaction request with a non-Stellar source asset id', () => {
+    expect(() =>
+      assert(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'signAndSendTransaction',
+          params: {
+            accountId,
+            scope,
+            transaction,
+            options: {
+              sourceAssetId: 'eip155:1/slip44:60',
+              destAssetId: 'stellar:pubnet/slip44:148',
+            },
+          },
+        },
+        SignAndSendTransactionJsonRpcRequestStruct,
+      ),
+    ).toThrow(StructError);
   });
 
   it.each([
@@ -712,6 +758,17 @@ describe('GetAccountAssetInfoJsonRpcResponseStruct', () => {
       assert(
         {
           [classicAssetId]: { limit: '1' },
+        },
+        GetAccountAssetInfoJsonRpcResponseStruct,
+      ),
+    ).not.toThrow();
+  });
+
+  it('accepts native XLM extra with baseReserve', () => {
+    expect(() =>
+      assert(
+        {
+          [slip44AssetId]: { baseReserve: '2.5' },
         },
         GetAccountAssetInfoJsonRpcResponseStruct,
       ),

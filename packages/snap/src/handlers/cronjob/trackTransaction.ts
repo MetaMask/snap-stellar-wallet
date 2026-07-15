@@ -1,5 +1,3 @@
-import { TransactionStatus } from '@metamask/keyring-api';
-
 import type {
   TrackTransactionJsonRpcRequest,
   TrackTransactionParams,
@@ -14,12 +12,13 @@ import { AppConfig } from '../../config';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { AccountService } from '../../services/account';
 import {
-  NetworkServiceException,
   TransactionNotFoundException,
   type NetworkService,
+  NetworkServiceException,
 } from '../../services/network';
-import type { OnChainAccountService } from '../../services/on-chain-account';
-import type { TransactionService } from '../../services/transaction';
+import type { SynchronizeService } from '../../services/sync/SynchronizeService';
+import { isCompletedTransactionStatus } from '../../services/transaction/utils';
+import { trackErrorIfNeeded } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import {
@@ -32,8 +31,7 @@ import {
  * Tracks transaction settlement via Horizon. Each cron run fetches the transaction once
  * via {@link NetworkService.getTransaction}, reschedules via `scheduleBackgroundEvent`
  * when Horizon has not indexed it yet or the request fails, then synchronizes keyring
- * accounts when the status is terminal ({@link TransactionStatus.Confirmed} or
- * {@link TransactionStatus.Failed}).
+ * accounts when the status is terminal (confirmed or failed).
  */
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static async scheduleBackgroundEvent(
@@ -49,24 +47,20 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
 
   readonly #networkService: NetworkService;
 
-  readonly #onChainAccountService: OnChainAccountService;
+  readonly #synchronizeService: SynchronizeService;
 
   readonly #accountService: AccountService;
-
-  readonly #transactionService: TransactionService;
 
   constructor({
     logger,
     networkService,
-    onChainAccountService,
+    synchronizeService,
     accountService,
-    transactionService,
   }: {
     logger: ILogger;
     networkService: NetworkService;
-    onChainAccountService: OnChainAccountService;
+    synchronizeService: SynchronizeService;
     accountService: AccountService;
-    transactionService: TransactionService;
   }) {
     const prefixedLogger = createPrefixedLogger(
       logger,
@@ -77,9 +71,8 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       requestStruct: TrackTransactionJsonRpcRequestStruct,
     });
     this.#networkService = networkService;
-    this.#onChainAccountService = onChainAccountService;
+    this.#synchronizeService = synchronizeService;
     this.#accountService = accountService;
-    this.#transactionService = transactionService;
   }
 
   /**
@@ -105,16 +98,8 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       );
 
       // Only synchronize once Horizon reports a terminal status.
-      if (
-        transaction.status === TransactionStatus.Confirmed ||
-        transaction.status === TransactionStatus.Failed
-      ) {
-        await this.#synchronize(
-          scope,
-          transaction.status,
-          txId,
-          accountIdsOrAddresses,
-        );
+      if (isCompletedTransactionStatus(transaction.status)) {
+        await this.#synchronize(scope, accountIdsOrAddresses);
       } else {
         this.logger.warn(
           'Transaction is neither confirmed nor failed; skipping synchronization',
@@ -140,15 +125,14 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
         return;
       }
       // For other errors, stop here; the synchronize cron job can recover later.
-      this.logger.logErrorWithDetails(
-        'Unexpected error when tracking transaction',
-        {
-          error,
-          txId,
-          scope,
-          attempt,
-        },
-      );
+      this.logger.warn('Unexpected error when tracking transaction', {
+        error,
+        txId,
+        scope,
+        attempt,
+      });
+
+      await trackErrorIfNeeded(error);
     }
   }
 
@@ -197,19 +181,13 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
 
   async #synchronize(
     scope: KnownCaip2ChainId,
-    status: TransactionStatus.Confirmed | TransactionStatus.Failed,
-    txId: string,
     accountIdsOrAddresses: TrackTransactionParams['accountIdsOrAddresses'],
   ): Promise<void> {
-    // TODO: Consider removing this transaction status update later; the synchronize cron job may handle it.
-    await this.#updateKeyringTransactionStatus(txId, status);
-
     // The first entry is the sender account UUID (validated by Superstruct).
     const senderAccountId = accountIdsOrAddresses[0];
     const senderAccount = await this.#accountService.findById(senderAccountId);
     if (!senderAccount) {
       this.logger.warn('Sender account not found, skipping synchronization', {
-        txId,
         scope,
         senderAccountId,
       });
@@ -240,40 +218,9 @@ export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransaction
       }
     }
 
-    await this.#onChainAccountService.synchronize(accountsToSynchronize, scope);
-  }
-
-  async #updateKeyringTransactionStatus(
-    txId: string,
-    status: TransactionStatus.Confirmed | TransactionStatus.Failed,
-  ): Promise<void> {
-    const keyringTransaction =
-      await this.#transactionService.findKeyringTransactionByTransactionId(
-        txId,
-      );
-
-    if (
-      keyringTransaction === null ||
-      keyringTransaction.status === TransactionStatus.Confirmed ||
-      keyringTransaction.status === TransactionStatus.Failed
-    ) {
-      this.logger.warn(
-        'Keyring transaction not found or already confirmed or failed; skipping transaction status update',
-        {
-          txId,
-          status,
-        },
-      );
-      return;
-    }
-
-    await this.#transactionService.save({
-      ...keyringTransaction,
-      status,
-      events: [
-        ...keyringTransaction.events,
-        { status, timestamp: Math.floor(Date.now() / 1000) },
-      ],
+    // Synchronize accounts right away without using the synchronize cron job.
+    await this.#synchronizeService.synchronize(accountsToSynchronize, {
+      scope,
     });
   }
 }

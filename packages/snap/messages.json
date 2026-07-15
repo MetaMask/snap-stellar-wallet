@@ -11,9 +11,6 @@
   "confirmation.estimatedChanges.send": {
     "message": "You send"
   },
-  "confirmation.bandwidthConsumed": {
-    "message": "Bandwidth consumed"
-  },
   "confirmation.estimatedChanges.receive": {
     "message": "You receive"
   },
@@ -40,6 +37,24 @@
   },
   "confirmation.cancelButton": {
     "message": "Cancel"
+  },
+  "confirmation.reviewAlertsButton": {
+    "message": "Review alert"
+  },
+  "confirmation.maliciousAck.title": {
+    "message": "Malicious request"
+  },
+  "confirmation.maliciousAck.description": {
+    "message": "If you confirm this request, you will probably lose your assets to a scammer."
+  },
+  "confirmation.maliciousAck.checkbox": {
+    "message": "I have acknowledged the risk and still want to proceed"
+  },
+  "confirmation.maliciousAck.proceed": {
+    "message": "Confirm"
+  },
+  "confirmation.maliciousAck.back": {
+    "message": "Go back"
   },
   "confirmation.closeButton": {
     "message": "Close"
@@ -123,7 +138,7 @@
     "message": "{reason}. Only continue if you trust every address involved."
   },
   "confirmation.simulationErrorTitle": {
-    "message": "This transaction was reverted during simulation."
+    "message": "This transaction is expected to fail."
   },
   "confirmation.simulationErrorSubtitle": {
     "message": "{reason}"
@@ -135,7 +150,7 @@
     "message": "It may have expired or your account balance changed. Close this request and try again."
   },
   "confirmation.validationScanErrorTitle": {
-    "message": "Security validation failed"
+    "message": "Security check unavailable"
   },
   "confirmation.validationScanErrorSubtitle": {
     "message": "{reason}"
@@ -153,10 +168,10 @@
     "message": "Security Alerts found potential risk. Only continue if you trust this site and every address involved."
   },
   "confirmation.validationErrorLearnMore": {
-    "message": "Learn more"
+    "message": "See details"
   },
   "confirmation.validationErrorSecurityAdviced": {
-    "message": "Security advice by"
+    "message": "Powered by"
   },
   "confirmation.transaction.accountmerge": {
     "message": "Merge account"
@@ -437,6 +452,12 @@
   "transactionScan.errors.insufficientFunds": {
     "message": "Insufficient funds"
   },
+  "transactionScan.errors.noTrustline": {
+    "message": "Trustline not found"
+  },
+  "transactionScan.errors.transactionExpired": {
+    "message": "Transaction expired"
+  },
   "transactionScan.errors.invalidAddress": {
     "message": "Invalid address"
   },
@@ -453,7 +474,7 @@
     "message": "Add XLM to your wallet to get started."
   },
   "confirmation.accountActivation.address": {
-    "message": "Stellar address."
+    "message": "Stellar address"
   },
   "confirmation.accountActivation.copyAddress": {
     "message": "Copy Address"

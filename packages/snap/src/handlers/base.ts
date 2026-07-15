@@ -1,6 +1,5 @@
 import type { Struct } from '@metamask/superstruct';
 import type { Json, JsonRpcRequest } from '@metamask/utils';
-import { ensureError } from '@metamask/utils';
 
 import type { ILogger } from '../utils';
 import { serializeToString, validateRequest, validateResponse } from '../utils';
@@ -48,19 +47,11 @@ export abstract class BaseHandler<
 
     const validatedRequest = validateRequest(request, this.requestStruct);
 
-    let result: ResponseType | Json;
-    try {
-      this.logger.debug(`Starting handle transformed request`, {
-        request: serializeToString({ value: validatedRequest }),
-      });
-      result = await this.handleRequest(validatedRequest);
-    } catch (error: unknown) {
-      this.logger.logErrorWithDetails(
-        'Error handling request',
-        ensureError(error).message,
-      );
-      throw error;
-    }
+    this.logger.debug(`Starting handle transformed request`, {
+      request: serializeToString({ value: validatedRequest }),
+    });
+
+    const result = await this.handleRequest(validatedRequest);
 
     this.logger.debug('Handled request', {
       result: serializeToString({ value: result }),

@@ -82,6 +82,21 @@ describe('OnChainAccountService', () => {
 
       expect(result).toBe(false);
     });
+
+    it('rethrows errors other than AccountNotActivatedException', async () => {
+      const { getAccountSpy } = getNetworkServiceSpies();
+      const accountAddress = generateStellarAddress();
+      getAccountSpy.mockRejectedValue(new Error('Horizon unavailable'));
+
+      const { onChainAccountService } = mockOnChainAccountService();
+
+      await expect(
+        onChainAccountService.isAccountActivated({
+          accountAddress,
+          scope: KnownCaip2ChainId.Mainnet,
+        }),
+      ).rejects.toThrow('Horizon unavailable');
+    });
   });
 
   describe('resolveOnChainAccount', () => {
@@ -211,6 +226,19 @@ describe('OnChainAccountService', () => {
         2,
         'entropy-source-1',
       );
+      const activatedAccountPairs = keyringAccounts.map((keyringAccount) => ({
+        keyringAccount,
+        onChainAccount: OnChainAccount.fromSerializable(
+          horizonSource(
+            createMockAccountWithBalances(
+              keyringAccount.address,
+              '1',
+              DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+            ),
+            KnownCaip2ChainId.Mainnet,
+          ) as OnChainAccountSerializableFull,
+        ),
+      }));
       const { onChainAccountService } = mockOnChainAccountService();
       const synchronizeSpy = jest.spyOn(
         OnChainAccountSynchronizeService.prototype,
@@ -218,13 +246,15 @@ describe('OnChainAccountService', () => {
       );
 
       await onChainAccountService.synchronize(
-        keyringAccounts,
+        activatedAccountPairs,
         KnownCaip2ChainId.Mainnet,
+        [],
       );
 
       expect(synchronizeSpy).toHaveBeenCalledWith(
-        keyringAccounts,
+        activatedAccountPairs,
         KnownCaip2ChainId.Mainnet,
+        [],
       );
     });
   });

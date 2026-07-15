@@ -11,6 +11,7 @@ import {
 import {
   OnChainAccountBalanceNotAvailableException,
   OnChainAccountException,
+  OnChainAccountMetadataNotAvailableException,
 } from './exceptions';
 import { OnChainAccount } from './OnChainAccount';
 import type {
@@ -413,6 +414,28 @@ describe('OnChainAccount', () => {
       );
       expect(() => onChainAccount.nativeSpendableBalance).toThrow(
         OnChainAccountBalanceNotAvailableException,
+      );
+      expect(() => onChainAccount.nativeSpendableBalance).toThrow(
+        /Balance not available for asset/u,
+      );
+    });
+
+    it('throws OnChainAccountMetadataNotAvailableException when ledger metadata is missing', () => {
+      const acc = new Account(
+        testOnChain.accountId,
+        testOnChain.sequenceNumber,
+      );
+      const onChainAccount = new OnChainAccount(
+        acc,
+        KnownCaip2ChainId.Mainnet,
+        unfundedHorizonBinding(acc, KnownCaip2ChainId.Mainnet),
+      );
+
+      expect(() => onChainAccount.subentryCount).toThrow(
+        OnChainAccountMetadataNotAvailableException,
+      );
+      expect(() => onChainAccount.subentryCount).toThrow(
+        'Account metadata not available',
       );
     });
   });

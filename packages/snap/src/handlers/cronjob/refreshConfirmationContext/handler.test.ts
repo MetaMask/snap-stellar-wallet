@@ -321,6 +321,68 @@ describe('RefreshConfirmationContextHandler', () => {
     );
   });
 
+  it('runs the transaction refresher first and feeds its patch to the remaining refreshers', async () => {
+    jest
+      .mocked(getInterfaceContextIfExists)
+      .mockResolvedValueOnce(baseContext)
+      .mockResolvedValueOnce(baseContext);
+
+    const transactionRefresher = createMockRefresher(
+      ConfirmationContextRefresherKey.Transaction,
+      {
+        refresh: jest.fn().mockResolvedValue({
+          result: { securityScanRequest: { transaction: 'FRESH_XDR' } },
+          reschedule: false,
+        }),
+      },
+    );
+    const scanRefresher = createMockRefresher(
+      ConfirmationContextRefresherKey.Scan,
+      {
+        refresh: jest.fn().mockResolvedValue({
+          result: { scanFetchStatus: FetchStatus.Fetched },
+          reschedule: true,
+        }),
+      },
+    );
+
+    // Register scan first to prove ordering is driven by key, not array order.
+    const { handler, updateConfirmation } = setup([
+      scanRefresher,
+      transactionRefresher,
+    ]);
+
+    await handler.handle({
+      jsonrpc: '2.0',
+      id: '1',
+      method: BackgroundEventMethod.RefreshConfirmationContext,
+      params: {
+        ...confirmationContextRequestParams,
+        refresherKeys: [
+          ConfirmationContextRefresherKey.Scan,
+          ConfirmationContextRefresherKey.Transaction,
+        ],
+      },
+    });
+
+    // The transaction refresher sees the original context...
+    expect(transactionRefresher.refresh).toHaveBeenCalledWith(baseContext);
+    // ...and the scan refresher sees it already patched with the rebuilt envelope.
+    expect(scanRefresher.refresh).toHaveBeenCalledWith(
+      expect.objectContaining({
+        securityScanRequest: { transaction: 'FRESH_XDR' },
+      }),
+    );
+    expect(updateConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        updatedContext: expect.objectContaining({
+          securityScanRequest: { transaction: 'FRESH_XDR' },
+          scanFetchStatus: FetchStatus.Fetched,
+        }),
+      }),
+    );
+  });
+
   it('does not run a refresher when its key is omitted from refresherKeys', async () => {
     jest.mocked(getInterfaceContextIfExists).mockResolvedValue(baseContext);
 

@@ -1,21 +1,15 @@
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
+import { StellarSnapException } from '../../utils';
 
-export class OnChainAccountException extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'OnChainAccountException';
-  }
-}
+export class OnChainAccountException extends StellarSnapException {}
 
 export class OnChainAccountBalanceNotAvailableException extends OnChainAccountException {
-  constructor(assetId: KnownCaip19AssetIdOrSlip44Id, accountId: string) {
-    super(`Balance not available for asset ${assetId} on account ${accountId}`);
-    this.name = 'OnChainAccountBalanceNotAvailableException';
+  constructor(assetId: KnownCaip19AssetIdOrSlip44Id) {
+    super(`Balance not available for asset ${assetId}`);
   }
 }
 export class OnChainAccountMetadataNotAvailableException extends OnChainAccountException {
-  constructor(accountId: string) {
-    super(`Account metadata not available for account ${accountId}`);
-    this.name = 'OnChainAccountMetadataNotAvailableException';
+  constructor() {
+    super(`Account metadata not available`);
   }
 }

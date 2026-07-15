@@ -19,6 +19,9 @@ import { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import { bufferToUint8Array } from '../../utils/buffer';
+import * as errorUtils from '../../utils/errors';
+import { logger } from '../../utils/logger';
+import type { StellarKeyringAccount } from '../account';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
 import {
   NATIVE,
@@ -26,10 +29,10 @@ import {
   USDT_SEP41,
   USDC_SEP41,
   generateMockStellarAssetMetadata,
+  getMockSep41Assets,
 } from '../asset-metadata/__mocks__/assets.fixtures';
-import type { StellarAssetMetadata } from '../asset-metadata/api';
-import { AssetMetadataService } from '../asset-metadata/AssetMetadataService';
-import { AccountNotActivatedException, NetworkService } from '../network';
+import { NetworkService } from '../network';
+import type { ActivatedAccountPair } from '../sync/api';
 
 const isKeyringEmitCall = (call: unknown[], event: KeyringEvent): boolean =>
   (call[1] as KeyringEvent) === event;
@@ -113,6 +116,7 @@ describe('OnChainAccountSynchronizeService', () => {
   );
   const sep41Id = USDC_SEP41 as KnownCaip19Sep41AssetId;
   const backupSep41Id = USDT_SEP41 as KnownCaip19Sep41AssetId;
+  const mockSep41Assets = getMockSep41Assets();
 
   const getNetworkServiceSpies = () => ({
     loadOnChainAccountSpy: jest.spyOn(
@@ -168,29 +172,13 @@ describe('OnChainAccountSynchronizeService', () => {
 
   const setupTest = () => {
     jest.mocked(emitSnapKeyringEvent).mockResolvedValue(undefined);
-    const metadata = generateMockStellarAssetMetadata();
-    const usdcSep41Row = metadata[USDC_SEP41];
-    if (!usdcSep41Row) {
-      throw new Error('expected USDC_SEP41 in mock asset metadata');
-    }
-    const usdtSep41Row = metadata[USDT_SEP41];
-    if (!usdtSep41Row) {
-      throw new Error('expected USDT_SEP41 in mock asset metadata');
-    }
-    jest
-      .spyOn(AssetMetadataService.prototype, 'getPersistedSep41AssetsMetadata')
-      .mockResolvedValue([usdcSep41Row, usdtSep41Row]);
-    // getKey('assets') in tests does not merge defaultState, so getAllByScope is empty unless mocked.
-    jest
-      .spyOn(AssetMetadataService.prototype, 'getAllByScope')
-      .mockImplementation(async (scope) => {
-        const byAssetId = generateMockStellarAssetMetadata();
-        return Object.values(byAssetId).filter(
-          (asset): asset is StellarAssetMetadata =>
-            asset !== undefined && asset.chainId === scope,
-        );
-      });
+    jest.spyOn(errorUtils, 'trackErrorIfNeeded').mockResolvedValue(undefined);
   };
+
+  const buildActivatedAccountPair = (
+    keyringAccount: StellarKeyringAccount,
+    onChainAccount: OnChainAccount,
+  ): ActivatedAccountPair => ({ keyringAccount, onChainAccount });
 
   const setupOnChainAccountWithBalance = (entropySource: string) => {
     const signer = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
@@ -216,6 +204,10 @@ describe('OnChainAccountSynchronizeService', () => {
       keyringAccount,
       binding,
       onChainAccount,
+      activatedAccountPair: buildActivatedAccountPair(
+        keyringAccount,
+        onChainAccount,
+      ),
     };
   };
 
@@ -224,66 +216,35 @@ describe('OnChainAccountSynchronizeService', () => {
 
     const { onChainAccountService, saveManySpy } = setupSynchronizeService();
 
-    await onChainAccountService.synchronize([], KnownCaip2ChainId.Mainnet);
+    await onChainAccountService.synchronize([], KnownCaip2ChainId.Mainnet, []);
 
     expect(saveManySpy).not.toHaveBeenCalled();
-  });
-
-  it('returns early when no activated account is loaded', async () => {
-    setupTest();
-
-    const keyringAccount = generateStellarKeyringAccount(
-      globalThis.crypto.randomUUID(),
-      Keypair.random().publicKey(),
-      'entropy-sync-no-activated',
-      0,
-    );
-    const { loadOnChainAccountSpy, getSep41AssetBalancesSpy } =
-      getNetworkServiceSpies();
-    loadOnChainAccountSpy.mockRejectedValue(
-      new AccountNotActivatedException(
-        keyringAccount.address,
-        KnownCaip2ChainId.Mainnet,
-      ),
-    );
-
-    const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
-    const { onChainAccountService, findByKeyringAccountIdsSpy, saveManySpy } =
-      setupSynchronizeService();
-
-    await onChainAccountService.synchronize(
-      [keyringAccount],
-      KnownCaip2ChainId.Mainnet,
-    );
-
-    expect(getSep41AssetBalancesSpy).not.toHaveBeenCalled();
-    expect(findByKeyringAccountIdsSpy).not.toHaveBeenCalled();
-    expect(saveManySpy).not.toHaveBeenCalled();
-    expect(emitSnapKeyringEventSpy).not.toHaveBeenCalled();
   });
 
   it('persists SEP-41 balances after sync and writes onChainAccounts state', async () => {
     setupTest();
 
-    const { signer, keyringAccount, onChainAccount } =
+    const { signer, activatedAccountPair } =
       setupOnChainAccountWithBalance('entropy-sync-1');
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy.mockResolvedValue({
       [signer.publicKey()]: {
         [sep41Id]: new BigNumber('1000'),
       },
     });
-    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     const { onChainAccountService, saveManySpy } = setupSynchronizeService();
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [activatedAccountPair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
 
-    const saved = getSavedSnapshotFromFirstSave(saveManySpy, keyringAccount.id);
+    const saved = getSavedSnapshotFromFirstSave(
+      saveManySpy,
+      activatedAccountPair.keyringAccount.id,
+    );
     expect(saved).toBeDefined();
     const sepRow = saved.balances.find((b) => b.assetId === sep41Id);
     expect(sepRow?.balance).toBe('1000');
@@ -303,9 +264,7 @@ describe('OnChainAccountSynchronizeService', () => {
     assuredUsdcSep41Row.units = [
       { ...assuredUsdcSep41Row.units[0], decimals: 2 },
     ];
-    jest
-      .spyOn(AssetMetadataService.prototype, 'getPersistedSep41AssetsMetadata')
-      .mockResolvedValue([assuredUsdcSep41Row, assuredUsdtSep41Row]);
+    const customSep41Assets = [assuredUsdcSep41Row, assuredUsdtSep41Row];
 
     const { signer, keyringAccount, binding } =
       setupOnChainAccountWithBalance('entropy-sync-2');
@@ -317,15 +276,14 @@ describe('OnChainAccountSynchronizeService', () => {
       ],
     };
     const onChainAccount = OnChainAccount.fromSerializable(withSep);
+    const pair = buildActivatedAccountPair(keyringAccount, onChainAccount);
 
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy.mockResolvedValue({
       [signer.publicKey()]: {
         [sep41Id]: new BigNumber('500'),
       },
     });
-    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
     const { onChainAccountService, findByKeyringAccountIdsSpy, saveManySpy } =
@@ -335,8 +293,9 @@ describe('OnChainAccountSynchronizeService', () => {
     });
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [pair],
       KnownCaip2ChainId.Mainnet,
+      customSep41Assets,
     );
 
     expect(emitSnapKeyringEventSpy).toHaveBeenCalledTimes(2);
@@ -374,7 +333,7 @@ describe('OnChainAccountSynchronizeService', () => {
     );
   });
 
-  it('keeps SEP-41 persisted with zero balance when new sync returns zero', async () => {
+  it('omits SEP-41 zero balance from balance payload while persisting it in state', async () => {
     setupTest();
 
     const {
@@ -390,8 +349,7 @@ describe('OnChainAccountSynchronizeService', () => {
         { assetId: sep41Id, balance: '200', symbol: 'USDC', decimals: 7 },
       ],
     };
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy.mockResolvedValue({
       [signer.publicKey()]: {
         [sep41Id]: new BigNumber(0),
@@ -404,11 +362,11 @@ describe('OnChainAccountSynchronizeService', () => {
     findByKeyringAccountIdsSpy.mockResolvedValue({
       [keyringAccount.id]: withSep,
     });
-    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [buildActivatedAccountPair(keyringAccount, onChainAccount)],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
 
     expect(emitSnapKeyringEventSpy).toHaveBeenCalledTimes(2);
@@ -418,9 +376,9 @@ describe('OnChainAccountSynchronizeService', () => {
       KeyringEvent.AccountBalancesUpdated,
       expect.objectContaining({
         balances: {
-          [keyringAccount.id]: expect.objectContaining({
-            [sep41Id]: { unit: 'USDC', amount: '0' },
-          }),
+          [keyringAccount.id]: {
+            [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
+          },
         },
       }),
     );
@@ -439,17 +397,15 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(sep41Row?.balance).toBe('0');
   });
 
-  it('still emits SEP-41 zero balance on later syncs after missed events', async () => {
+  it('omits SEP-41 zero balance from balance payload on later syncs after missed events', async () => {
     setupTest();
 
-    const { signer, keyringAccount, binding } = setupOnChainAccountWithBalance(
-      'entropy-sync-sep41-zero-replay',
-    );
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
-    loadOnChainAccountSpy.mockImplementation(async () =>
-      OnChainAccount.fromSerializable(binding),
-    );
+    const {
+      signer,
+      keyringAccount,
+      activatedAccountPair: pair,
+    } = setupOnChainAccountWithBalance('entropy-sync-sep41-zero-replay');
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy
       .mockResolvedValueOnce({
         [signer.publicKey()]: {
@@ -476,20 +432,24 @@ describe('OnChainAccountSynchronizeService', () => {
     const { onChainAccountService } = setupSynchronizeService();
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
 
     const balanceEventCalls = emitSnapKeyringEventSpy.mock.calls.filter(
@@ -499,15 +459,18 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(balanceEventCalls[3]?.[2]).toStrictEqual(
       expect.objectContaining({
         balances: {
-          [keyringAccount.id]: expect.objectContaining({
-            [sep41Id]: { unit: 'USDC', amount: '0' },
-          }),
+          [keyringAccount.id]: {
+            [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
+          },
         },
       }),
     );
+    expect(balanceEventCalls[3]?.[2]).not.toHaveProperty(
+      `balances.${keyringAccount.id}.${sep41Id}`,
+    );
   });
 
-  it('simulates client receiving sync 1 and 4 while missing 2 and 3 with trustline removal and SEP-41 zero', async () => {
+  it('emits no asset-list transitions on sync 4 when state matches on-chain while balance payload omits tombstones and zero SEP-41', async () => {
     setupTest();
 
     const {
@@ -537,14 +500,16 @@ describe('OnChainAccountSynchronizeService', () => {
       JSON.parse(JSON.stringify(baseBinding)) as OnChainAccountSerializableFull;
 
     let persistedSnapshot: OnChainAccountSerializableFull | null = null;
+    const sync1Pair = buildActivatedAccountPair(
+      keyringAccount,
+      onChainAccountWithTrustline,
+    );
+    const syncLaterPair = buildActivatedAccountPair(
+      keyringAccount,
+      OnChainAccount.fromSerializable(cloneBaseBinding()),
+    );
 
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
-    loadOnChainAccountSpy
-      .mockResolvedValueOnce(onChainAccountWithTrustline)
-      .mockImplementation(async () =>
-        OnChainAccount.fromSerializable(cloneBaseBinding()),
-      );
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy
       .mockResolvedValueOnce({
         [signer.publicKey()]: {
@@ -597,8 +562,9 @@ describe('OnChainAccountSynchronizeService', () => {
     /* eslint-enable jest/no-conditional-in-test */
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [sync1Pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     ); // sync 1
     const afterSync1 = saveManySpy.mock.calls[0]?.[0]?.[keyringAccount.id];
     expect(
@@ -606,8 +572,9 @@ describe('OnChainAccountSynchronizeService', () => {
     ).toBeDefined();
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [syncLaterPair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     ); // sync 2 (missed by client)
     expect(saveManySpy.mock.calls).toHaveLength(2);
     const afterSync2 = saveManySpy.mock.calls[1]?.[0]?.[keyringAccount.id];
@@ -623,12 +590,14 @@ describe('OnChainAccountSynchronizeService', () => {
     );
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [syncLaterPair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     ); // sync 3 (missed by client)
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [syncLaterPair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     ); // sync 4
 
     const balanceEventCalls = emitSnapKeyringEventSpy.mock.calls
@@ -636,18 +605,27 @@ describe('OnChainAccountSynchronizeService', () => {
         isKeyringEmitCall(call, KeyringEvent.AccountBalancesUpdated),
       )
       .map((call) => call[2]);
+    const assetListEventCalls = emitSnapKeyringEventSpy.mock.calls
+      .filter((call) =>
+        isKeyringEmitCall(call, KeyringEvent.AccountAssetListUpdated),
+      )
+      .map((call) => call[2]);
     expect(balanceEventCalls).toHaveLength(4);
-    const sync1Payload = balanceEventCalls[0] as {
+    expect(assetListEventCalls).toHaveLength(4);
+    const sync1BalancePayload = balanceEventCalls[0] as {
       balances: Record<
         string,
         Record<string, { amount: string; unit: string }>
       >;
     };
-    const sync4Payload = balanceEventCalls[3] as {
+    const sync4BalancePayload = balanceEventCalls[3] as {
       balances: Record<
         string,
         Record<string, { amount: string; unit: string }>
       >;
+    };
+    const sync4AssetListPayload = assetListEventCalls[3] as {
+      assets: Record<string, { added: string[]; removed: string[] }>;
     };
 
     const simulatedClientBalances: Record<
@@ -658,7 +636,7 @@ describe('OnChainAccountSynchronizeService', () => {
     // Client receives sync 1.
     Object.assign(
       simulatedClientBalances,
-      sync1Payload.balances[keyringAccount.id] as Record<
+      sync1BalancePayload.balances[keyringAccount.id] as Record<
         string,
         { amount: string; unit: string }
       >,
@@ -668,26 +646,32 @@ describe('OnChainAccountSynchronizeService', () => {
 
     // Client misses sync 2 and 3.
 
-    // Client receives sync 4 and catches up.
+    // Client receives sync 4 balance patch: visible assets only; stale keys from sync 1 remain.
     Object.assign(
       simulatedClientBalances,
-      sync4Payload.balances[keyringAccount.id] as Record<
+      sync4BalancePayload.balances[keyringAccount.id] as Record<
         string,
         { amount: string; unit: string }
       >,
     );
-    // Trustline removal happened on sync 2 and was missed by client.
-    // Classic removals persist as tombstone entries (`limit` 0), so sync 4 still sends balance 0.
-    expect(simulatedClientBalances[USDC_CLASSIC]?.amount).toBe('0');
-    // SEP-41 zero entries are persisted and continue to be sent by sync balance update events,
-    // so sync 4 corrects the client if it missed a previous update.
-    expect(simulatedClientBalances[sep41Id]).toStrictEqual({
-      unit: 'USDC',
-      amount: '0',
+    expect(simulatedClientBalances[USDC_CLASSIC]?.amount).toBe('25');
+    expect(simulatedClientBalances[sep41Id]?.amount).toBe('0.00005');
+    expect(simulatedClientBalances[NATIVE]?.amount).toBe('1');
+
+    // Asset list on sync 4: state already matches on-chain, so no add/remove transitions.
+    expect(sync4AssetListPayload.assets[keyringAccount.id]).toStrictEqual({
+      added: expect.arrayContaining([NATIVE]),
+      removed: [],
     });
+    expect(sync4BalancePayload.balances[keyringAccount.id]).not.toHaveProperty(
+      USDC_CLASSIC,
+    );
+    expect(sync4BalancePayload.balances[keyringAccount.id]).not.toHaveProperty(
+      sep41Id,
+    );
   });
 
-  it('runs four syncs with emit failures then full balance and asset-list reconciliation', async () => {
+  it('runs four syncs with emit failures then reconciles via transition-based asset-list and visible balances', async () => {
     setupTest();
 
     const {
@@ -736,18 +720,20 @@ describe('OnChainAccountSynchronizeService', () => {
     const onChainAccountEurcOnly =
       OnChainAccount.fromSerializable(withEurcBinding);
 
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
-    // simulate the OnChain data:
-    // 1) Add USDC trustline at 0 balance — emits succeed.
-    // 2) Remove USDC on Horizon — balance emit fails (client misses removal).
-    // 3) Add EURC trustline with 10 — balance emit fails (client misses add).
-    // 4) No ledger change — balance + asset emits succeed.
-    loadOnChainAccountSpy
-      .mockResolvedValueOnce(onChainAccountUsdcZero)
-      .mockResolvedValueOnce(onChainAccountNoClassic)
-      .mockResolvedValue(onChainAccountEurcOnly);
+    const sync1Pair = buildActivatedAccountPair(
+      keyringAccount,
+      onChainAccountUsdcZero,
+    );
+    const sync2Pair = buildActivatedAccountPair(
+      keyringAccount,
+      onChainAccountNoClassic,
+    );
+    const sync3And4Pair = buildActivatedAccountPair(
+      keyringAccount,
+      onChainAccountEurcOnly,
+    );
 
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy.mockResolvedValue({
       [signer.publicKey()]: {
         [sep41Id]: new BigNumber(0),
@@ -803,20 +789,24 @@ describe('OnChainAccountSynchronizeService', () => {
       .mockResolvedValue(undefined);
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [sync1Pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [sync2Pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [sync3And4Pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [sync3And4Pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
 
     expect(saveManySpy).toHaveBeenCalledTimes(4);
@@ -841,34 +831,37 @@ describe('OnChainAccountSynchronizeService', () => {
       return row!;
     };
 
-    // 1st `AccountBalancesUpdated` (after sync 1): USDC trustline at 0 + full snapshot.
+    // 1st `AccountBalancesUpdated` (after sync 1): USDC trustline at 0 + native.
     expect(accountBalancesFromNthBalanceEmit(0)).toMatchObject({
+      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
       [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
     });
 
-    // 2nd `AccountBalancesUpdated` (after sync 2): USDC removed on Horizon → tombstone balance 0 in payload.
-    expect(accountBalancesFromNthBalanceEmit(1)).toMatchObject({
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+    // 2nd `AccountBalancesUpdated` (after sync 2): USDC tombstone omitted; native only.
+    expect(accountBalancesFromNthBalanceEmit(1)).toStrictEqual({
+      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
     });
 
-    // 3rd `AccountBalancesUpdated` (after sync 3): EURC added on Horizon + USDC tombstone still in snapshot.
+    // 3rd `AccountBalancesUpdated` (after sync 3): EURC visible; USDC tombstone omitted.
     expect(accountBalancesFromNthBalanceEmit(2)).toMatchObject({
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
       [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
     });
+    expect(accountBalancesFromNthBalanceEmit(2)).not.toHaveProperty(
+      USDC_CLASSIC,
+    );
 
-    // 4th `AccountBalancesUpdated` (after sync 4): same on-chain entries as sync 3, but `find` read a stale
-    // baseline so asset-list deltas fire; balances stay a full per-asset map (native + SEP-41 + classics).
+    // 4th `AccountBalancesUpdated` (after sync 4): same visible balances as sync 3.
     const fourthBalanceSnapshot = accountBalancesFromNthBalanceEmit(3);
-    expect(Object.keys(fourthBalanceSnapshot).length).toBeGreaterThan(2);
-    expect(fourthBalanceSnapshot).toMatchObject({
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+    expect(fourthBalanceSnapshot).toStrictEqual({
+      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
       [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
     });
 
     const assetListCalls = emitSnapKeyringEventSpy.mock.calls.filter((call) =>
       isKeyringEmitCall(call, KeyringEvent.AccountAssetListUpdated),
     );
+    // Asset-list emit runs after balance emit in the same try block; sync 2 and 3 balance failures skip it.
     expect(assetListCalls).toHaveLength(2);
 
     const assetListDeltaFromNthAssetEmit = (
@@ -891,25 +884,22 @@ describe('OnChainAccountSynchronizeService', () => {
       removed: [],
     });
 
-    // 2nd `AccountAssetListUpdated` (after sync 4): stale baseline vs current → EURC added, USDC removed from list.
+    // 2nd `AccountAssetListUpdated` (after sync 4): stale state baseline vs current on-chain — EURC added, USDC removed.
     expect(assetListDeltaFromNthAssetEmit(1)).toStrictEqual({
       added: expect.arrayContaining([NATIVE, EURC_CLASSIC]),
-      removed: [USDC_CLASSIC],
+      removed: expect.arrayContaining([USDC_CLASSIC]),
     });
   });
 
   it('does not restore SEP-41 entries when SEP-41 balance fetch fails and no persisted snapshot is found', async () => {
     setupTest();
 
-    const { keyringAccount, onChainAccount } = setupOnChainAccountWithBalance(
-      'entropy-sync-fallback-all-fail',
-    );
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
+    const { keyringAccount, activatedAccountPair: pair } =
+      setupOnChainAccountWithBalance('entropy-sync-fallback-all-fail');
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy.mockRejectedValue(
       new Error('sep41 fetch temporarily unavailable'),
     );
-    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     const { setAssetSpy } = getOnChainAccountServiceSpies();
     const { onChainAccountService, findByKeyringAccountIdsSpy } =
@@ -918,10 +908,25 @@ describe('OnChainAccountSynchronizeService', () => {
     findByKeyringAccountIdsSpy.mockResolvedValue({ [keyringAccount.id]: null });
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
 
+    expect(errorUtils.trackErrorIfNeeded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'sep41 fetch temporarily unavailable',
+      }),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[💼 OnChainAccountSynchronizeService]',
+      'SEP-41 token balance step failed; merge will reuse last-saved SEP-41 asset entries where needed',
+      expect.objectContaining({
+        error: expect.objectContaining({
+          message: 'sep41 fetch temporarily unavailable',
+        }),
+      }),
+    );
     expect(setAssetSpy).not.toHaveBeenCalled();
   });
 
@@ -931,7 +936,7 @@ describe('OnChainAccountSynchronizeService', () => {
     const {
       keyringAccount,
       binding: base,
-      onChainAccount,
+      activatedAccountPair: pair,
     } = setupOnChainAccountWithBalance('entropy-sync-fallback-all-fail');
     const withPersistedSep41: OnChainAccountSerializableFull = {
       ...base,
@@ -940,12 +945,10 @@ describe('OnChainAccountSynchronizeService', () => {
         { assetId: sep41Id, balance: '700', symbol: 'USDC', decimals: 7 },
       ],
     };
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy.mockRejectedValue(
       new Error('sep41 fetch temporarily unavailable'),
     );
-    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
     const { onChainAccountService, findByKeyringAccountIdsSpy, saveManySpy } =
@@ -955,8 +958,9 @@ describe('OnChainAccountSynchronizeService', () => {
     });
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
 
     const saved = getSavedSnapshotFromFirstSave(saveManySpy, keyringAccount.id);
@@ -982,7 +986,7 @@ describe('OnChainAccountSynchronizeService', () => {
       signer,
       keyringAccount,
       binding: base,
-      onChainAccount,
+      activatedAccountPair: pair,
     } = setupOnChainAccountWithBalance('entropy-sync-fallback-some-fail');
     const withPersistedBackupSep41: OnChainAccountSerializableFull = {
       ...base,
@@ -996,15 +1000,13 @@ describe('OnChainAccountSynchronizeService', () => {
         },
       ],
     };
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy.mockResolvedValue({
       [signer.publicKey()]: {
         [sep41Id]: new BigNumber('500'),
         [backupSep41Id]: null,
       },
     });
-    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     const { onChainAccountService, findByKeyringAccountIdsSpy, saveManySpy } =
       setupSynchronizeService();
@@ -1013,8 +1015,9 @@ describe('OnChainAccountSynchronizeService', () => {
     });
 
     await onChainAccountService.synchronize(
-      [keyringAccount],
+      [pair],
       KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
     );
 
     const saved = getSavedSnapshotFromFirstSave(saveManySpy, keyringAccount.id);
@@ -1029,16 +1032,14 @@ describe('OnChainAccountSynchronizeService', () => {
   it('does not emit keyring events when saveMany fails', async () => {
     setupTest();
 
-    const { signer, keyringAccount, onChainAccount } =
+    const { signer, activatedAccountPair: pair } =
       setupOnChainAccountWithBalance('entropy-sync-1');
-    const { getSep41AssetBalancesSpy, loadOnChainAccountSpy } =
-      getNetworkServiceSpies();
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
     getSep41AssetBalancesSpy.mockResolvedValue({
       [signer.publicKey()]: {
         [sep41Id]: new BigNumber('1000'),
       },
     });
-    loadOnChainAccountSpy.mockResolvedValue(onChainAccount);
 
     const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
     const { onChainAccountService, saveManySpy } = setupSynchronizeService();
@@ -1046,12 +1047,47 @@ describe('OnChainAccountSynchronizeService', () => {
 
     await expect(
       onChainAccountService.synchronize(
-        [keyringAccount],
+        [pair],
         KnownCaip2ChainId.Mainnet,
+        mockSep41Assets,
       ),
     ).rejects.toThrow('saveMany failed');
 
     expect(saveManySpy).toHaveBeenCalled();
     expect(emitSnapKeyringEventSpy).not.toHaveBeenCalled();
+  });
+
+  it('tracks and logs emit failures without failing synchronize', async () => {
+    setupTest();
+
+    const { activatedAccountPair: pair } = setupOnChainAccountWithBalance(
+      'entropy-sync-emit-failure',
+    );
+    const { getSep41AssetBalancesSpy } = getNetworkServiceSpies();
+    getSep41AssetBalancesSpy.mockResolvedValue({
+      [pair.onChainAccount.accountId]: {
+        [sep41Id]: new BigNumber('1000'),
+      },
+    });
+
+    const emitError = new Error('client handler unavailable');
+    const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
+    emitSnapKeyringEventSpy.mockRejectedValue(emitError);
+
+    const { onChainAccountService, saveManySpy } = setupSynchronizeService();
+
+    await onChainAccountService.synchronize(
+      [pair],
+      KnownCaip2ChainId.Mainnet,
+      mockSep41Assets,
+    );
+
+    expect(saveManySpy).toHaveBeenCalled();
+    expect(errorUtils.trackErrorIfNeeded).toHaveBeenCalledWith(emitError);
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[💼 OnChainAccountSynchronizeService]',
+      'Failed to emit keyring events after synchronize',
+      { error: emitError },
+    );
   });
 });

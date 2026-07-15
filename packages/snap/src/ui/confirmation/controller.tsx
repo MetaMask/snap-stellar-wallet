@@ -1,16 +1,11 @@
-import type { ComponentOrElement, DialogResult } from '@metamask/snaps-sdk';
-import type { Json } from '@metamask/utils';
+import type { DialogResult } from '@metamask/snaps-sdk';
 
-import {
-  ConfirmationInterfaceKey,
-  type ContextWithPrices,
-  FetchStatus,
-} from './api';
+import { FetchStatus } from './api';
+import type { ConfirmationInterfaceKey, ContextWithPrices } from './api';
 import {
   formatFeeData,
   formatOrigin,
   getPreferencesWithFallback,
-  hasEnabledTransactionScan,
 } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
@@ -18,47 +13,39 @@ import type {
   ChangeTrustOptJsonRpcRequest,
   ConfirmSendJsonRpcRequest,
 } from '../../handlers/clientRequest/api';
-import type { SecurityScanRequest } from '../../services/transaction-scan';
-import type { ILogger, Locale } from '../../utils';
+import type {
+  SecurityScanRequest,
+  TransactionScanResult,
+} from '../../services/transaction-scan';
+import type { Locale } from '../../utils';
 import {
   createInterface,
-  createPrefixedLogger,
   Duration,
   getSlip44AssetId,
   showDialog,
+  StellarSnapException,
   updateInterfaceIfExists,
 } from '../../utils';
-import { STELLAR_IMAGE } from '../images/icon';
-import type { ConfirmSendTransactionProps } from './views/ConfirmSendTransaction/ConfirmSendTransaction';
-import { ConfirmSendTransaction } from './views/ConfirmSendTransaction/ConfirmSendTransaction';
+import { xlmIcon } from '../images';
 import {
-  ConfirmSignAuthEntry,
-  type ConfirmSignAuthEntryProps,
-} from './views/ConfirmSignAuthEntry/ConfirmSignAuthEntry';
-import type { ConfirmSignChangeTrustOptInProps } from './views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn';
-import { ConfirmSignChangeTrustOptIn } from './views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn';
-import type { ConfirmSignChangeTrustOptOutProps } from './views/ConfirmSignChangeTrustOptOut/ConfirmSignChangeTrustOptOut';
-import { ConfirmSignChangeTrustOptOut } from './views/ConfirmSignChangeTrustOptOut/ConfirmSignChangeTrustOptOut';
-import {
-  ConfirmSignMessage,
-  type ConfirmSignMessageProps,
-} from './views/ConfirmSignMessage/ConfirmSignMessage';
-import {
-  ConfirmSignTransaction,
-  type ConfirmSignTransactionProps,
-} from './views/ConfirmSignTransaction/ConfirmSignTransaction';
+  renderConfirmationView,
+  type ConfirmationViewProps,
+} from './views/render';
 import {
   ConfirmationContextRefresherKey,
   RefreshConfirmationContextHandler,
 } from '../../handlers/cronjob/refreshConfirmationContext';
 
-/** Serializable props bag stored on the interface and merged into each view. */
-type ConfirmationViewProps = Record<string, Json>;
-
 type ConfirmationRenderOptions = {
+  // Fetch external token spot prices.
   loadPrice?: boolean;
-  scanTxn?: boolean;
-  validateTxn?: boolean;
+  // Remote Blockaid validation (security alerts).
+  securityScanning?: boolean;
+  // Local on-chain simulation: estimated changes + per-cycle re-validation
+  // (send / change-trust).
+  localSimulation?: boolean;
+  // Remote Blockaid simulation for estimated changes (sign-transaction).
+  remoteSimulation?: boolean;
 };
 
 /**
@@ -80,6 +67,12 @@ type RenderConfirmationDialogCommon<Props extends ConfirmationViewProps> = {
   securityScanRequest?: Omit<SecurityScanRequest, 'origin' | 'scope'>;
   transactionValidationRequest?: TransactionValidationRequest;
   tokenPrices?: ContextWithPrices['tokenPrices'];
+  /**
+   * Seeds the initial scan result so locally-derived data (e.g. estimated
+   * balance changes from on-chain simulation) renders immediately on dialog
+   * open, before any remote security scan completes.
+   */
+  initialScan?: TransactionScanResult;
 };
 
 type ConfirmationDialogWithFee =
@@ -107,20 +100,12 @@ type RenderConfirmationDialogParams<Props extends ConfirmationViewProps> =
     });
 
 export class ConfirmationUXController {
-  readonly #logger: ILogger;
-
   readonly #defaultRenderOptions: ConfirmationRenderOptions = {
     loadPrice: false,
-    scanTxn: false,
-    validateTxn: false,
+    securityScanning: false,
+    localSimulation: false,
+    remoteSimulation: false,
   };
-
-  constructor({ logger }: { logger: ILogger }) {
-    this.#logger = createPrefixedLogger(
-      logger,
-      '[💬 ConfirmationUXController]',
-    );
-  }
 
   /**
    * Renders the confirmation dialog.
@@ -138,165 +123,176 @@ export class ConfirmationUXController {
   async renderConfirmationDialog<Props extends ConfirmationViewProps>(
     params: RenderConfirmationDialogParams<Props>,
   ): Promise<DialogResult> {
-    try {
-      const {
-        interfaceKey,
-        scope,
-        renderContext,
-        origin = METAMASK_ORIGIN,
-        fee,
-      } = params;
-      const renderOptions = {
-        ...this.#defaultRenderOptions,
-        ...params.renderOptions,
-      };
+    const {
+      interfaceKey,
+      scope,
+      renderContext,
+      origin = METAMASK_ORIGIN,
+      fee,
+    } = params;
+    const renderOptions = {
+      ...this.#defaultRenderOptions,
+      ...params.renderOptions,
+    };
 
-      if (renderOptions.scanTxn && params.securityScanRequest === undefined) {
-        throw new Error(
-          'Cannot scan a transaction confirmation without a security scan request.',
-        );
-      }
-
-      if (
-        renderOptions.validateTxn &&
-        params.transactionValidationRequest === undefined
-      ) {
-        throw new Error(
-          'Cannot re-validate a transaction confirmation without a transaction validation request.',
-        );
-      }
-
-      const preferences = await getPreferencesWithFallback();
-
-      const defaultTokenPrices = fee
-        ? ({
-            [getSlip44AssetId(scope)]: null,
-          } as ContextWithPrices['tokenPrices'])
-        : {};
-
-      const tokenPrices = {
-        ...defaultTokenPrices,
-        ...params.tokenPrices,
-      };
-
-      /**
-       * Enazble Price Fetching if:
-       * - Pricing Loading is enabled
-       * - External Pricing Preferences is enabled
-       * - Token Prices mapping is provided
-       */
-      const enablePricing =
-        renderOptions.loadPrice &&
-        preferences.useExternalPricingData &&
-        tokenPrices !== undefined;
-
-      const enableSecurityScan =
-        renderOptions.scanTxn &&
-        hasEnabledTransactionScan(preferences) &&
-        params.securityScanRequest !== undefined;
-
-      const enableTransactionValidation =
-        renderOptions.validateTxn &&
-        params.transactionValidationRequest !== undefined;
-
-      const defaultContext = {
-        // if pricing is disabled, mark as fetched immediately
-        tokenPricesFetchStatus: enablePricing
-          ? FetchStatus.Fetching
-          : FetchStatus.Fetched,
-        preferences,
-        locale: preferences.locale as Locale,
-        networkImage: STELLAR_IMAGE,
-        origin: formatOrigin(origin),
-        currency: preferences.currency,
-        scope,
-        feeData: fee ? formatFeeData(scope, fee) : {},
-        scan: null,
-        scanFetchStatus: enableSecurityScan
-          ? FetchStatus.Fetching
-          : FetchStatus.Fetched,
-        ...(enableSecurityScan
-          ? {
-              securityScanRequest: {
-                ...params.securityScanRequest,
-                origin,
-                scope,
-              },
-            }
-          : {}),
-        // Optimistic: tx was validated at build time, so keep confirm enabled; the
-        // refresher flips to Error if it later drifts (submission rejects invalid txs too).
-        // TODO(follow-up): re-validate synchronously right before signing.
-        ...(renderOptions.validateTxn && params.transactionValidationRequest
-          ? {
-              transactionsFetchStatus: FetchStatus.Fetched,
-              accountId: params.transactionValidationRequest.accountId,
-              transaction: params.transactionValidationRequest.transaction,
-              request: params.transactionValidationRequest.request,
-            }
-          : {}),
-        tokenPrices,
-      };
-
-      // 1. Initial context with loading state
-      const context = {
-        ...defaultContext,
-        ...renderContext,
-      };
-
-      // 2. Initial render with loading skeleton (always show loading if pricing enabled)
-      const id = await createInterface(
-        this.#renderConfirmationView(interfaceKey, context),
-        {},
+    if (
+      (renderOptions.securityScanning || renderOptions.remoteSimulation) &&
+      params.securityScanRequest === undefined
+    ) {
+      throw new StellarSnapException(
+        'Cannot scan a transaction confirmation without a security scan request.',
       );
-      const dialogPromise = showDialog(id);
-
-      // 3. Update interface context after initial render (silently ignores if dismissed)
-      const updated = await updateInterfaceIfExists(
-        id,
-        this.#renderConfirmationView(interfaceKey, context),
-        context,
-      );
-
-      // If interface was dismissed during scan, exit early
-      if (!updated) {
-        return dialogPromise;
-      }
-
-      // 5. Schedule background context refresh for enabled refreshers only
-      const refresherKeys: ConfirmationContextRefresherKey[] = [];
-      if (enablePricing) {
-        refresherKeys.push(ConfirmationContextRefresherKey.Prices);
-      }
-      if (enableSecurityScan) {
-        refresherKeys.push(ConfirmationContextRefresherKey.Scan);
-      }
-      if (enableTransactionValidation) {
-        refresherKeys.push(ConfirmationContextRefresherKey.Transaction);
-      }
-
-      if (refresherKeys.length > 0) {
-        await RefreshConfirmationContextHandler.scheduleBackgroundEvent(
-          {
-            scope,
-            interfaceId: id,
-            interfaceKey,
-            refresherKeys,
-          },
-          Duration.OneSecond,
-        );
-      }
-
-      // 6. Return the dialog promise immediately (don't await it!)
-      // Cleanup happens in the background refresh handler when it detects the interface is gone
-      return dialogPromise;
-    } catch (error) {
-      this.#logger.logErrorWithDetails(
-        'Error rendering confirmation dialog',
-        error,
-      );
-      throw error;
     }
+
+    if (
+      renderOptions.localSimulation &&
+      params.transactionValidationRequest === undefined
+    ) {
+      throw new StellarSnapException(
+        'Cannot run local simulation on a transaction confirmation without a transaction validation request.',
+      );
+    }
+
+    const preferences = await getPreferencesWithFallback();
+
+    const defaultTokenPrices = fee
+      ? ({
+          [getSlip44AssetId(scope)]: null,
+        } as ContextWithPrices['tokenPrices'])
+      : {};
+
+    const tokenPrices = {
+      ...defaultTokenPrices,
+      ...params.tokenPrices,
+    };
+
+    /**
+     * Enable Price Fetching if:
+     * - Pricing Loading is enabled
+     * - External Pricing Preferences is enabled
+     * - Token Prices mapping is provided
+     */
+    const enablePricing =
+      renderOptions.loadPrice &&
+      preferences.useExternalPricingData &&
+      tokenPrices !== undefined;
+
+    // Remote Blockaid scan runs when either remote source is both requested by
+    // the flow and enabled by the user: validation (security alerts) or
+    // simulation (on-chain action simulation).
+    const wantsRemoteValidation =
+      Boolean(renderOptions.securityScanning) && preferences.useSecurityAlerts;
+    const wantsRemoteSimulation =
+      Boolean(renderOptions.remoteSimulation) &&
+      preferences.simulateOnChainActions;
+    const enableSecurityScan =
+      params.securityScanRequest !== undefined &&
+      (wantsRemoteValidation || wantsRemoteSimulation);
+
+    // Local simulation (estimated changes + per-cycle submittability
+    // re-validation) is driven by the Transaction refresher.
+    const enableLocalSimulation =
+      renderOptions.localSimulation &&
+      params.transactionValidationRequest !== undefined;
+
+    const defaultContext = {
+      // Persisted so shared event handlers (malicious acknowledgement screen)
+      // can re-render the correct confirmation view.
+      interfaceKey,
+      // if pricing is disabled, mark as fetched immediately
+      tokenPricesFetchStatus: enablePricing
+        ? FetchStatus.Fetching
+        : FetchStatus.Fetched,
+      preferences,
+      locale: preferences.locale as Locale,
+      networkImage: xlmIcon,
+      origin: formatOrigin(origin),
+      currency: preferences.currency,
+      scope,
+      feeData: fee ? formatFeeData(scope, fee) : {},
+      scan: params.initialScan ?? null,
+      scanFetchStatus: enableSecurityScan
+        ? FetchStatus.Fetching
+        : FetchStatus.Fetched,
+      ...(enableSecurityScan
+        ? {
+            securityScanRequest: {
+              ...params.securityScanRequest,
+              origin,
+              scope,
+            },
+            // Persist the flow's scan intents so the refresher picks Blockaid
+            // options without keying off the interface key.
+            securityScanning: Boolean(renderOptions.securityScanning),
+            remoteSimulation: Boolean(renderOptions.remoteSimulation),
+          }
+        : {}),
+      // Optimistic: tx was validated at build time, so keep confirm enabled; the
+      // refresher flips to Error if it later drifts (submission rejects invalid txs too).
+      // TODO(follow-up): re-validate synchronously right before signing.
+      ...(enableLocalSimulation && params.transactionValidationRequest
+        ? {
+            transactionsFetchStatus: FetchStatus.Fetched,
+            accountId: params.transactionValidationRequest.accountId,
+            transaction: params.transactionValidationRequest.transaction,
+            request: params.transactionValidationRequest.request,
+          }
+        : {}),
+      tokenPrices,
+    };
+
+    // 1. Initial context with loading state
+    const context = {
+      ...defaultContext,
+      ...renderContext,
+    };
+
+    // 2. Initial render with loading skeleton (always show loading if pricing enabled)
+    const id = await createInterface(
+      renderConfirmationView(interfaceKey, context),
+      {},
+    );
+    const dialogPromise = showDialog(id);
+
+    // 3. Update interface context after initial render (silently ignores if dismissed)
+    const updated = await updateInterfaceIfExists(
+      id,
+      renderConfirmationView(interfaceKey, context),
+      context,
+    );
+
+    // If interface was dismissed during scan, exit early
+    if (!updated) {
+      return dialogPromise;
+    }
+
+    // 5. Schedule background context refresh for enabled refreshers only
+    const refresherKeys: ConfirmationContextRefresherKey[] = [];
+    if (enablePricing) {
+      refresherKeys.push(ConfirmationContextRefresherKey.Prices);
+    }
+    if (enableSecurityScan) {
+      refresherKeys.push(ConfirmationContextRefresherKey.Scan);
+    }
+    if (enableLocalSimulation) {
+      refresherKeys.push(ConfirmationContextRefresherKey.Transaction);
+    }
+
+    if (refresherKeys.length > 0) {
+      await RefreshConfirmationContextHandler.scheduleBackgroundEvent(
+        {
+          scope,
+          interfaceId: id,
+          interfaceKey,
+          refresherKeys,
+        },
+        Duration.OneSecond,
+      );
+    }
+
+    // 6. Return the dialog promise immediately (don't await it!)
+    // Cleanup happens in the background refresh handler when it detects the interface is gone
+    return dialogPromise;
   }
 
   /**
@@ -315,52 +311,8 @@ export class ConfirmationUXController {
     const { interfaceId, updatedContext, interfaceKey } = params;
     await updateInterfaceIfExists(
       interfaceId,
-      this.#renderConfirmationView(interfaceKey, updatedContext),
+      renderConfirmationView(interfaceKey, updatedContext),
       updatedContext,
     );
-  }
-
-  #renderConfirmationView(
-    interfaceKey: ConfirmationInterfaceKey,
-    context: ConfirmationViewProps,
-  ): ComponentOrElement {
-    switch (interfaceKey) {
-      case ConfirmationInterfaceKey.ChangeTrustlineOptIn:
-        return (
-          <ConfirmSignChangeTrustOptIn
-            {...(context as unknown as ConfirmSignChangeTrustOptInProps)}
-          />
-        );
-      case ConfirmationInterfaceKey.ChangeTrustlineOptOut:
-        return (
-          <ConfirmSignChangeTrustOptOut
-            {...(context as unknown as ConfirmSignChangeTrustOptOutProps)}
-          />
-        );
-      case ConfirmationInterfaceKey.SignTransaction:
-        return (
-          <ConfirmSignTransaction
-            {...(context as unknown as ConfirmSignTransactionProps)}
-          />
-        );
-      case ConfirmationInterfaceKey.SignMessage:
-        return <ConfirmSignMessage {...(context as ConfirmSignMessageProps)} />;
-      case ConfirmationInterfaceKey.SignAuthEntry:
-        return (
-          <ConfirmSignAuthEntry
-            {...(context as unknown as ConfirmSignAuthEntryProps)}
-          />
-        );
-      case ConfirmationInterfaceKey.ConfirmSendTransaction:
-        return (
-          <ConfirmSendTransaction
-            {...(context as unknown as ConfirmSendTransactionProps)}
-          />
-        );
-      default: {
-        const exhaustive: never = interfaceKey;
-        throw new Error(`Unsupported interface key: ${String(exhaustive)}`);
-      }
-    }
   }
 }

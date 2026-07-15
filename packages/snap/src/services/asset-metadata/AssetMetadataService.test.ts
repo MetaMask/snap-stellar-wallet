@@ -6,10 +6,11 @@ import {
   KnownCaip2ChainId,
   type KnownCaip19AssetId,
 } from '../../api';
-import { getSlip44AssetId, logger } from '../../utils';
+import { buildUrl, getSlip44AssetId, logger } from '../../utils';
 import type { NetworkService } from '../network';
 import { TokenApiClient } from './token-api/TokenApiClient';
 import { NATIVE_ASSET_NAME, NATIVE_ASSET_SYMBOL } from '../../constants';
+import type { TokenMetadata } from './token-api/api';
 
 /** Mainnet classic USDC (matches CAIP-19 pattern used across Stellar fixtures). */
 const MAINNET_CLASSIC_USDC =
@@ -20,7 +21,6 @@ jest.mock('../../config', () => ({
     api: {
       tokenApi: {
         baseUrl: 'https://tokens.test',
-        chunkSize: 10,
       },
       staticApi: {
         baseUrl: 'https://static.test',
@@ -35,7 +35,8 @@ jest.mock('./token-api/TokenApiClient', () => ({
   TokenApiClient: jest.fn(),
 }));
 
-const mockGetTokensMetadata = jest.fn();
+const mockGetAssetsByAssetIds = jest.fn();
+const mockGetAssetsByChainId = jest.fn();
 
 function createCachedRow(
   assetId: KnownCaip19AssetId,
@@ -71,14 +72,14 @@ function createService(deps: {
   } as unknown as AssetMetadataRepository;
 
   const network = {
-    getAssetsData: jest.fn().mockResolvedValue([]),
+    getSep41AssetsData: jest.fn().mockResolvedValue([]),
     getClassicAssetData: jest.fn(),
     ...deps.network,
   } as unknown as NetworkService;
 
   (TokenApiClient as jest.Mock).mockImplementation(() => ({
-    getTokensMetadata: mockGetTokensMetadata,
-    getAllTokensMetadata: jest.fn(),
+    getAssetsByAssetIds: mockGetAssetsByAssetIds,
+    getAssetsByChainId: mockGetAssetsByChainId,
   }));
 
   const service = new AssetMetadataService({
@@ -95,8 +96,8 @@ function createService(deps: {
     saveMany: repo.saveMany as jest.MockedFunction<
       AssetMetadataRepository['saveMany']
     >,
-    getAssetsData: network.getAssetsData as jest.MockedFunction<
-      NetworkService['getAssetsData']
+    getSep41AssetsData: network.getSep41AssetsData as jest.MockedFunction<
+      NetworkService['getSep41AssetsData']
     >,
     getClassicAssetData: network.getClassicAssetData as jest.MockedFunction<
       NetworkService['getClassicAssetData']
@@ -107,7 +108,12 @@ function createService(deps: {
 describe('AssetMetadataService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetTokensMetadata.mockResolvedValue([]);
+    mockGetAssetsByAssetIds.mockResolvedValue([]);
+    mockGetAssetsByChainId.mockResolvedValue({
+      data: [],
+      count: 0,
+      totalCount: 0,
+    });
   });
 
   it('returns native metadata for mainnet slip44 id', async () => {
@@ -117,7 +123,7 @@ describe('AssetMetadataService', () => {
 
     expect(result.assetId).toBe(slipId);
     expect(getByAssetIds).toHaveBeenCalledWith([]);
-    expect(mockGetTokensMetadata).not.toHaveBeenCalled();
+    expect(mockGetAssetsByAssetIds).not.toHaveBeenCalled();
   });
 
   it('loads mainnet classic from Horizon when token API and cache miss', async () => {
@@ -138,7 +144,7 @@ describe('AssetMetadataService', () => {
 
     expect(result.assetId).toBe(classicId);
     expect(result.symbol).toBe('USDC');
-    expect(mockGetTokensMetadata).toHaveBeenCalled();
+    expect(mockGetAssetsByAssetIds).toHaveBeenCalled();
     expect(getClassicAssetData).toHaveBeenCalledWith(
       classicId,
       KnownCaip2ChainId.Mainnet,
@@ -158,7 +164,7 @@ describe('AssetMetadataService', () => {
 
     expect(result).toStrictEqual(cached);
     expect(getByAssetIds).toHaveBeenCalledWith([classicId]);
-    expect(mockGetTokensMetadata).not.toHaveBeenCalled();
+    expect(mockGetAssetsByAssetIds).not.toHaveBeenCalled();
     expect(saveMany).not.toHaveBeenCalled();
   });
 
@@ -226,7 +232,7 @@ describe('AssetMetadataService', () => {
     ]);
 
     expect(getByAssetIds).toHaveBeenCalledWith([classicId]);
-    expect(mockGetTokensMetadata).toHaveBeenCalledWith([classicId]);
+    expect(mockGetAssetsByAssetIds).toHaveBeenCalledWith([classicId]);
     expect(getClassicAssetData).toHaveBeenCalledTimes(1);
     expect(result[classicId]).toMatchObject({
       symbol: 'USDC',
@@ -254,5 +260,109 @@ describe('AssetMetadataService', () => {
       AssetType.Sep41,
       KnownCaip2ChainId.Mainnet,
     );
+  });
+
+  it('resolves mainnet classic from token API when API returns metadata', async () => {
+    const classicId = MAINNET_CLASSIC_USDC;
+    const tokenRow: TokenMetadata = {
+      assetId: classicId,
+      decimals: 7,
+      name: 'USD Coin',
+      symbol: 'USDC',
+    };
+    const { service, getClassicAssetData, saveMany } = createService({});
+    mockGetAssetsByAssetIds.mockResolvedValueOnce([tokenRow]);
+
+    const result = await service.resolve(classicId);
+
+    expect(result).toMatchObject({
+      assetId: classicId,
+      name: 'USD Coin',
+      symbol: 'USDC',
+      chainId: KnownCaip2ChainId.Mainnet,
+      assetType: AssetType.Token,
+      fungible: true,
+      units: [{ name: 'USD Coin', symbol: 'USDC', decimals: 7 }],
+      iconUrl: buildUrl({
+        baseUrl: 'https://static.test',
+        path: '/api/v2/tokenIcons/assets/{assetId}.png',
+        pathParams: {
+          assetId: classicId.replace(/:/gu, '/'),
+        },
+        encodePathParams: false,
+      }),
+    });
+    expect(getClassicAssetData).not.toHaveBeenCalled();
+    expect(saveMany).toHaveBeenCalledWith([
+      expect.objectContaining({ assetId: classicId }),
+    ]);
+  });
+
+  it('maps UNKNOWN name and symbol when token API omits them', async () => {
+    const classicId = MAINNET_CLASSIC_USDC;
+    const tokenRow: TokenMetadata = {
+      assetId: classicId,
+      decimals: 7,
+    };
+    const { service } = createService({});
+    mockGetAssetsByAssetIds.mockResolvedValueOnce([tokenRow]);
+
+    const result = await service.resolve(classicId);
+
+    expect(result).toMatchObject({
+      name: 'UNKNOWN',
+      symbol: 'UNKNOWN',
+      units: [{ name: 'UNKNOWN', symbol: 'UNKNOWN', decimals: 7 }],
+    });
+  });
+
+  it('uses token API iconUrl when provided', async () => {
+    const classicId = MAINNET_CLASSIC_USDC;
+    const iconUrl = 'https://cdn.example/token.png';
+    const tokenRow: TokenMetadata = {
+      assetId: classicId,
+      decimals: 7,
+      name: 'USD Coin',
+      symbol: 'USDC',
+      iconUrl,
+    };
+    const { service } = createService({});
+    mockGetAssetsByAssetIds.mockResolvedValueOnce([tokenRow]);
+
+    const result = await service.resolve(classicId);
+
+    expect(result.iconUrl).toBe(iconUrl);
+  });
+
+  it('persists mapped assets from token API during synchronize', async () => {
+    const sep41AssetId =
+      'stellar:pubnet/sep41:CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J' as KnownCaip19AssetId;
+    const tokenRow: TokenMetadata = {
+      assetId: sep41AssetId,
+      decimals: 7,
+      name: 'Token A',
+      symbol: 'TA',
+    };
+    const { service, saveMany } = createService({});
+    mockGetAssetsByChainId.mockResolvedValueOnce({
+      data: [tokenRow],
+      count: 1,
+      totalCount: 1,
+    });
+
+    await service.synchronize(KnownCaip2ChainId.Mainnet);
+
+    expect(mockGetAssetsByChainId).toHaveBeenCalledWith(
+      KnownCaip2ChainId.Mainnet,
+    );
+    expect(saveMany).toHaveBeenCalledWith([
+      expect.objectContaining({
+        assetId: sep41AssetId,
+        name: 'Token A',
+        symbol: 'TA',
+        assetType: AssetType.Sep41,
+        chainId: KnownCaip2ChainId.Mainnet,
+      }),
+    ]);
   });
 });

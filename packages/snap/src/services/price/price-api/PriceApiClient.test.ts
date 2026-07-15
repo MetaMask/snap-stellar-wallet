@@ -1,7 +1,11 @@
 import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from '../api';
-import { PriceApiException } from './exceptions';
 import { PriceApiClient } from './PriceApiClient';
-import { buildUrl, logger } from '../../../utils';
+import { buildUrl } from '../../../utils';
+import {
+  HttpException,
+  HttpResponseException,
+  InvalidHttpResponseException,
+} from '../../../utils/errors';
 
 jest.mock('../../../utils/logger');
 
@@ -38,8 +42,7 @@ describe('PriceApiClient', () => {
     jest.clearAllMocks();
   });
 
-  const createClient = (chunkSize = 10) =>
-    new PriceApiClient({ baseUrl, chunkSize }, logger, mockFetch);
+  const createClient = () => new PriceApiClient({ baseUrl }, mockFetch);
 
   describe('getFiatExchangeRates', () => {
     it('requests fiat exchange rates endpoint and returns parsed body', async () => {
@@ -65,43 +68,40 @@ describe('PriceApiClient', () => {
       );
     });
 
-    it('throws PriceApiException when response is not ok', async () => {
+    it('throws HttpResponseException when response is not ok', async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({}, { ok: false, status: 502 }),
       );
 
       const client = createClient();
       await expect(client.getFiatExchangeRates()).rejects.toThrow(
-        PriceApiException,
+        HttpResponseException,
       );
     });
 
-    it('throws PriceApiException when response body fails validation', async () => {
+    it('throws InvalidHttpResponseException when response body fails validation', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ invalid: true }));
 
       const client = createClient();
       await expect(client.getFiatExchangeRates()).rejects.toThrow(
-        PriceApiException,
+        InvalidHttpResponseException,
       );
     });
 
-    it('throws PriceApiException when fetch rejects', async () => {
-      mockFetch.mockRejectedValueOnce(new Error('network down'));
+    it('throws HttpException when fetch rejects', async () => {
+      const networkError = Object.assign(new Error('network down'), {
+        cause: { code: 'ECONNREFUSED' },
+      });
+      mockFetch.mockRejectedValueOnce(networkError);
 
       const client = createClient();
       await expect(client.getFiatExchangeRates()).rejects.toThrow(
-        PriceApiException,
+        HttpException,
       );
     });
   });
 
   describe('getSpotPrices', () => {
-    it('returns empty object when assetIds is empty', async () => {
-      const client = createClient();
-      expect(await client.getSpotPrices([])).toStrictEqual({});
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
     it('requests spot prices with default vsCurrency and includeMarketData', async () => {
       const spotBody = {
         [stellarClassicUsdc]: minimalSpotPrice('usdc', 1),
@@ -149,7 +149,33 @@ describe('PriceApiClient', () => {
       );
     });
 
-    it('deduplicates assetIds before batching', async () => {
+    it('passes all assetIds in a single request', async () => {
+      const spotBody = {
+        [stellarClassicUsdc]: minimalSpotPrice('usdc', 1),
+        [stellarSep41]: minimalSpotPrice('sep41', 0.12),
+      };
+      mockFetch.mockResolvedValueOnce(jsonResponse(spotBody));
+
+      const client = createClient();
+      expect(
+        await client.getSpotPrices([stellarClassicUsdc, stellarSep41]),
+      ).toStrictEqual(spotBody);
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch.mock.calls[0]?.[0]).toBe(
+        buildUrl({
+          baseUrl,
+          path: '/v3/spot-prices',
+          queryParams: {
+            vsCurrency: 'usd',
+            assetIds: `${stellarClassicUsdc},${stellarSep41}`,
+            includeMarketData: 'true',
+          },
+        }),
+      );
+    });
+
+    it('preserves duplicate assetIds in the request', async () => {
       const spotBody = {
         [stellarClassicUsdc]: minimalSpotPrice('usdc', 1),
       };
@@ -161,81 +187,40 @@ describe('PriceApiClient', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const urlArg = mockFetch.mock.calls[0]?.[0] as string;
       expect(new URL(urlArg).searchParams.get('assetIds')).toBe(
-        stellarClassicUsdc,
+        `${stellarClassicUsdc},${stellarClassicUsdc}`,
       );
     });
 
-    it('splits requests by chunkSize and merges batch results', async () => {
-      mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            [stellarClassicUsdc]: minimalSpotPrice('usdc', 1),
-          }),
-        )
-        .mockResolvedValueOnce(
-          jsonResponse({
-            [stellarSep41]: minimalSpotPrice('sep41', 0.12),
-          }),
-        );
-
-      const client = createClient(1);
-      expect(
-        await client.getSpotPrices([stellarClassicUsdc, stellarSep41]),
-      ).toStrictEqual({
-        [stellarClassicUsdc]: minimalSpotPrice('usdc', 1),
-        [stellarSep41]: minimalSpotPrice('sep41', 0.12),
-      });
-
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-    });
-
-    it('returns empty spot prices and logs when response is not ok', async () => {
+    it('throws HttpResponseException when response is not ok', async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({}, { ok: false, status: 503 }),
       );
 
       const client = createClient();
-      expect(await client.getSpotPrices([stellarClassicUsdc])).toStrictEqual(
-        {},
+      await expect(client.getSpotPrices([stellarClassicUsdc])).rejects.toThrow(
+        HttpResponseException,
       );
     });
 
-    it('returns empty spot prices and logs when response body fails validation', async () => {
+    it('rejects with InvalidHttpResponseException when response body fails validation', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ notValid: true }));
 
       const client = createClient();
-      expect(await client.getSpotPrices([stellarClassicUsdc])).toStrictEqual(
-        {},
-      );
+      await expect(
+        client.getSpotPrices([stellarClassicUsdc]),
+      ).rejects.toBeInstanceOf(InvalidHttpResponseException);
     });
 
-    it('returns empty spot prices and logs when fetch rejects', async () => {
-      const networkError = new Error('network down');
+    it('throws HttpException when fetch rejects with HTTP error', async () => {
+      const networkError = Object.assign(new Error('network down'), {
+        cause: { code: 'ECONNREFUSED' },
+      });
       mockFetch.mockRejectedValueOnce(networkError);
 
       const client = createClient();
-      expect(await client.getSpotPrices([stellarClassicUsdc])).toStrictEqual(
-        {},
+      await expect(client.getSpotPrices([stellarClassicUsdc])).rejects.toThrow(
+        HttpException,
       );
-    });
-
-    it('merges successful batches and skips failed batches', async () => {
-      mockFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            [stellarClassicUsdc]: minimalSpotPrice('usdc', 1),
-          }),
-        )
-        .mockResolvedValueOnce(jsonResponse({}, { ok: false, status: 500 }));
-
-      const client = createClient(1);
-      expect(
-        await client.getSpotPrices([stellarClassicUsdc, stellarSep41]),
-      ).toStrictEqual({
-        [stellarClassicUsdc]: minimalSpotPrice('usdc', 1),
-      });
-
-      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -300,7 +285,7 @@ describe('PriceApiClient', () => {
       );
     });
 
-    it('throws PriceApiException when response is not ok', async () => {
+    it('throws HttpResponseException when response is not ok', async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({}, { ok: false, status: 502 }),
       );
@@ -311,10 +296,10 @@ describe('PriceApiClient', () => {
           assetType: stellarClassicUsdc,
           timePeriod: '7d',
         }),
-      ).rejects.toThrow(PriceApiException);
+      ).rejects.toThrow(HttpResponseException);
     });
 
-    it('throws PriceApiException when response body fails validation', async () => {
+    it('throws InvalidHttpResponseException when response body fails validation', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ invalid: true }));
 
       const client = createClient();
@@ -322,7 +307,7 @@ describe('PriceApiClient', () => {
         client.getHistoricalPrices({
           assetType: stellarClassicUsdc,
         }),
-      ).rejects.toThrow(PriceApiException);
+      ).rejects.toThrow(InvalidHttpResponseException);
     });
   });
 });

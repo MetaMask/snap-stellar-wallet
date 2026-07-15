@@ -2,12 +2,9 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import {
   Address,
   Box,
-  Button,
   Container,
-  Footer,
   Heading,
   Icon,
-  Image,
   Section,
   Text as SnapText,
   Tooltip,
@@ -22,18 +19,20 @@ import type { StellarKeyringAccount } from '../../../../services/account';
 import type { ReadableTransactionJson } from '../../../../services/transaction';
 import type { Locale, LocalizedMessage } from '../../../../utils';
 import { i18n } from '../../../../utils';
-import { STELLAR_IMAGE } from '../../../images/icon';
 import type { ConfirmationBaseProps, FeeData } from '../../api';
 import { FetchStatus } from '../../api';
 import { Asset } from '../../components/Asset';
+import { ConfirmationFooter } from '../../components/ConfirmationFooter';
+import { EstimatedChanges } from '../../components/EstimatedChanges/EstimatedChanges';
 import { FeeRow } from '../../components/Fee';
+import { NetworkRow } from '../../components/Network';
 import { TransactionAlert } from '../../components/TransactionAlert';
 import {
   getAccountName,
-  getNetworkName,
   hasEnabledTransactionScan,
-  isConfirmDisabledByScan,
+  requiresMaliciousAcknowledgement,
   resolveAssetDisplay,
+  shouldDisableConfirmation,
 } from '../../utils';
 
 export type ConfirmSignTransactionProps = Omit<
@@ -177,9 +176,9 @@ export const ConfirmSignTransaction = ({
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
   const feePrice = tokenPrices?.[feeData.assetId] ?? null;
-  const shouldDisableConfirmButton = isConfirmDisabledByScan({
-    preferences,
-    scan,
+  // Sign-transaction has no local simulation/re-validation step, so only the
+  // remote-scan-loading guard applies here.
+  const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
   });
 
@@ -199,6 +198,14 @@ export const ConfirmSignTransaction = ({
           <Heading size="lg">{t('confirmation.signTransaction.title')}</Heading>
           <Box>{null}</Box>
         </Box>
+
+        {preferences.simulateOnChainActions ? (
+          <EstimatedChanges
+            changes={scan?.estimatedChanges ?? null}
+            preferences={preferences}
+            scanFetchStatus={scanFetchStatus}
+          />
+        ) : null}
 
         <Section>
           {origin ? (
@@ -220,20 +227,14 @@ export const ConfirmSignTransaction = ({
             </SnapText>
             <Address address={addressCaip10} truncate displayName avatar />
           </Box>
-          <Box alignment="space-between" direction="horizontal">
-            <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.network')}
-            </SnapText>
-            <Box direction="horizontal" alignment="end">
-              <Image
-                borderRadius="medium"
-                src={networkImage ?? STELLAR_IMAGE}
-                height={16}
-                width={16}
-              />
-              <SnapText>{getNetworkName(scope)}</SnapText>
-            </Box>
-          </Box>
+          {/* Network */}
+          <NetworkRow
+            networkImage={networkImage}
+            scope={scope}
+            locale={locale as Locale}
+          />
+          <Box>{null}</Box>
+          {/* Fee */}
           <FeeRow
             fee={feeData}
             preferences={preferences}
@@ -308,17 +309,16 @@ export const ConfirmSignTransaction = ({
           ))}
         </Section>
       </Box>
-      <Footer>
-        <Button name={ConfirmSignTransactionFormNames.Cancel}>
-          {t('confirmation.cancelButton')}
-        </Button>
-        <Button
-          name={ConfirmSignTransactionFormNames.Confirm}
-          disabled={shouldDisableConfirmButton}
-        >
-          {t('confirmation.confirmButton')}
-        </Button>
-      </Footer>
+      <ConfirmationFooter
+        locale={locale}
+        cancelButtonName={ConfirmSignTransactionFormNames.Cancel}
+        confirmButtonName={ConfirmSignTransactionFormNames.Confirm}
+        confirmDisabled={shouldDisableConfirmButton}
+        requiresAcknowledgement={requiresMaliciousAcknowledgement({
+          preferences,
+          scan,
+        })}
+      />
     </Container>
   );
 };

@@ -7,6 +7,8 @@ import {
   RefreshConfirmationContextJsonRpcRequestStruct,
   SyncAccountJsonRpcRequestStruct,
   SyncAccountParamsStruct,
+  SyncAssetsJsonRpcRequestStruct,
+  SyncAssetsParamsStruct,
   TrackTransactionJsonRpcRequestStruct,
 } from './api';
 import { KnownCaip2ChainId } from '../../api';
@@ -121,6 +123,60 @@ describe('Cronjob API structs', () => {
             params: { accountIds: 'selected' },
           },
           SyncAccountJsonRpcRequestStruct,
+        ),
+      ).toThrow(StructError);
+    });
+  });
+
+  describe('SyncAssetsParamsStruct', () => {
+    it('accepts empty object when params are omitted', () => {
+      const value = {};
+      assert(value, SyncAssetsParamsStruct);
+      expect(value).toStrictEqual({});
+    });
+
+    it('rejects unknown properties', () => {
+      expect(() =>
+        assert({ extra: 'not-allowed' }, SyncAssetsParamsStruct),
+      ).toThrow(StructError);
+    });
+  });
+
+  describe('SyncAssetsJsonRpcRequestStruct', () => {
+    it('accepts synchronize assets requests without params', () => {
+      const value = {
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.SynchronizeAssets,
+      };
+      assert(value, SyncAssetsJsonRpcRequestStruct);
+      expect(value).toStrictEqual({
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.SynchronizeAssets,
+      });
+    });
+
+    it('accepts synchronize assets requests with empty params object', () => {
+      const value = {
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.SynchronizeAssets,
+        params: {},
+      };
+      assert(value, SyncAssetsJsonRpcRequestStruct);
+      expect(value).toStrictEqual({
+        ...jsonRpcBase,
+        method: BackgroundEventMethod.SynchronizeAssets,
+        params: {},
+      });
+    });
+
+    it('rejects wrong method for synchronize assets request', () => {
+      expect(() =>
+        assert(
+          {
+            ...jsonRpcBase,
+            method: BackgroundEventMethod.SynchronizeAccounts,
+          },
+          SyncAssetsJsonRpcRequestStruct,
         ),
       ).toThrow(StructError);
     });
