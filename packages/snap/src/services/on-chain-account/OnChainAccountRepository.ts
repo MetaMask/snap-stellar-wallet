@@ -88,9 +88,7 @@ export class OnChainAccountRepository {
   }
 
   /**
-   * Writes accounts in one atomic `IStateManager.update` (full state blob). Callers that read then
-   * merge outside this method should serialize those steps if updates can overlap (see
-   * `OnChainAccountSynchronizeService` mutex).
+   * Writes accounts in one atomic `IStateManager.update` (full state blob).
    *
    * @param accounts - Map of keyring account id → snapshot for `accounts[id].scope`.
    */

@@ -6,7 +6,6 @@ import {
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
-import { Mutex } from 'async-mutex';
 import { cloneDeep } from 'lodash';
 
 import type {
@@ -83,9 +82,6 @@ export class TransactionSynchronizeService {
 
   readonly #logger: ILogger;
 
-  /** Prevents overlapping sync runs from interleaving read–merge–write. */
-  readonly #synchronizeMutex = new Mutex();
-
   constructor({
     networkService,
     transactionMapper,
@@ -122,33 +118,28 @@ export class TransactionSynchronizeService {
     const startTime = Date.now();
     this.#logger.debug(`Synchronize transactions started at ${startTime}`);
 
-    await this.#synchronizeMutex
-      .runExclusive(async () => {
-        this.#logger.debug(
-          `Synchronize transactions mutex acquired at ${Date.now()}`,
-        );
-        // Step 1: pending txs from snap state, scan cursors, and an empty mapped-tx queue.
-        const context = await this.#createSyncContext(
-          activatedAccountPairs,
-          scope,
-          sep41Assets,
-        );
+    try {
+      // Step 1: pending txs from snap state, scan cursors, and an empty mapped-tx queue.
+      const context = await this.#createSyncContext(
+        activatedAccountPairs,
+        scope,
+        sep41Assets,
+      );
 
-        // Step 2: Fetch Horizon history per account → map to keyring transactions.
-        await this.#scanAccountTransactionsAndMap(context);
+      // Step 2: Fetch Horizon history per account → map to keyring transactions.
+      await this.#scanAccountTransactionsAndMap(context);
 
-        // Step 3: snap pending txs not seen in step 2 — fetch by hash, verify on chain, map.
-        await this.#reconcilePendingTransactionsAndMap(context);
+      // Step 3: snap pending txs not seen in step 2 — fetch by hash, verify on chain, map.
+      await this.#reconcilePendingTransactionsAndMap(context);
 
-        // Step 4: update snap state (pending removal + scan cursors) and emit to controller.
-        await this.#saveAndEmit(context);
-      })
-      .finally(() => {
-        const endTime = Date.now();
-        this.#logger.debug(
-          `Synchronize transactions completed at ${endTime} in ${endTime - startTime}ms`,
-        );
-      });
+      // Step 4: update snap state (pending removal + scan cursors) and emit to controller.
+      await this.#saveAndEmit(context);
+    } finally {
+      const endTime = Date.now();
+      this.#logger.debug(
+        `Synchronize transactions completed at ${endTime} in ${endTime - startTime}ms`,
+      );
+    }
   }
 
   // #region -------------------- Context Creation --------------------

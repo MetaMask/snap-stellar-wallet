@@ -81,7 +81,7 @@ export const METAMASK_ORIGIN = 'metamask';
  *
  * @see https://developers.stellar.org/docs/data/apis/horizon/api-reference/get-transactions-by-account-id
  */
-export const MAX_TRANSACTIONS_PAGE_SIZE = 200;
+export const MAX_TRANSACTIONS_PAGE_SIZE = 50;
 
 /**
  * Maximum number of pages remaining to fetch in this run.
@@ -90,7 +90,7 @@ export const MAX_TRANSACTIONS_PAGE_SIZE = 200;
  *
  * @see {@link NetworkService.getTransactions}
  */
-export const MAX_TRANSACTION_SCAN_PAGES = 2;
+export const MAX_TRANSACTION_SCAN_PAGES = 1;
 
 /*
  * The key for the memo required attribute.
