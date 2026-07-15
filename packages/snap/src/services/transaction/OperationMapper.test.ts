@@ -101,6 +101,28 @@ describe('OperationMapper', () => {
     });
   });
 
+  it('keeps small amounts in decimal notation', () => {
+    const destination = Keypair.random().publicKey();
+    const transaction = buildMockClassicTransaction([
+      {
+        type: 'payment',
+        params: {
+          destination,
+          asset: 'native',
+          amount: '0.0000001',
+        },
+      },
+    ]);
+
+    const json = mapper.mapTransaction(transaction);
+
+    expect(json.operations[0]?.params).toContainEqual({
+      key: 'asset',
+      type: 'assetWithAmount',
+      value: ['native', '0.0000001'],
+    });
+  });
+
   it('sets source and explicitSource when operation overrides source account', () => {
     const txKp = Keypair.random();
     const opSourceKp = Keypair.random();
