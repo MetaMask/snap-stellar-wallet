@@ -1,9 +1,4 @@
-import {
-  KeyringEvent,
-  type Transaction as KeyringTransaction,
-} from '@metamask/keyring-api';
-import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
-import { groupBy } from 'lodash';
+import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 
 import { InsufficientBalanceException } from './exceptions';
 import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
@@ -18,7 +13,10 @@ import {
   type TransactionSimulatorOptions,
 } from './TransactionSimulator';
 import { TransactionSynchronizeService } from './TransactionSynchronizeService';
-import { assertTransactionScope } from './utils';
+import {
+  assertTransactionScope,
+  emitAccountTransactionsUpdated,
+} from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19ClassicAssetId,
@@ -26,12 +24,7 @@ import type {
   KnownCaip19Slip44Id,
   KnownCaip2ChainId,
 } from '../../api';
-import {
-  getSnapProvider,
-  isSep41Id,
-  isSlip44Id,
-  trackErrorIfNeeded,
-} from '../../utils';
+import { isSep41Id, isSlip44Id, trackErrorIfNeeded } from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { AccountService } from '../account';
@@ -479,7 +472,7 @@ export class TransactionService {
       transaction,
     });
 
-    await this.save(transaction);
+    await this.#saveAndEmit(transaction);
 
     return transaction;
   }
@@ -628,30 +621,16 @@ export class TransactionService {
   }
 
   /**
-   * Saves a transaction.
+   * Emits `AccountTransactionsUpdated`, then persists the transaction to snap state.
    *
-   * @param transaction - The transaction to save.
-   * @returns A promise that resolves when the transaction is saved.
-   */
-  async save(transaction: KeyringTransaction): Promise<void> {
-    // use saveMany here to leverage the state lock,
-    // hence the update of the state and the transaction event emission will be in sequence
-    await this.saveMany([transaction]);
-  }
-
-  /**
-   * Reconciles transactions into snap state and emits all of them to the MetaMask
-   * controller. Confirmed/failed removal from snap state is handled by
-   * {@link TransactionRepository.saveMany}.
+   * Emit runs first so a failed emit skips the save and the caller can retry. If save
+   * fails after a successful emit, the controller already has the update.
    *
-   * @param transactions - Transactions to persist or remove locally and emit upstream.
-   * @returns A promise that resolves when persistence and emission complete.
+   * @param transaction - The transaction to emit and save.
    */
-  async saveMany(transactions: KeyringTransaction[]): Promise<void> {
-    if (transactions.length > 0) {
-      await this.#transactionRepository.saveMany(transactions);
-      await this.#emitAccountTransactionsUpdated(transactions);
-    }
+  async #saveAndEmit(transaction: KeyringTransaction): Promise<void> {
+    await emitAccountTransactionsUpdated([transaction]);
+    await this.#transactionRepository.save(transaction);
   }
 
   /**
@@ -672,20 +651,6 @@ export class TransactionService {
       activatedAccountPairs,
       scope,
       sep41Assets,
-    );
-  }
-
-  async #emitAccountTransactionsUpdated(
-    transactions: KeyringTransaction[],
-  ): Promise<void> {
-    const transactionsByAccountId = groupBy(transactions, 'account');
-
-    await emitSnapKeyringEvent(
-      getSnapProvider(),
-      KeyringEvent.AccountTransactionsUpdated,
-      {
-        transactions: transactionsByAccountId,
-      },
     );
   }
 }

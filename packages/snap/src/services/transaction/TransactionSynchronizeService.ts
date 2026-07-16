@@ -1,12 +1,9 @@
 import {
-  KeyringEvent,
   FungibleAssetStruct,
   TransactionStatus,
   TransactionType,
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
-import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
-import { Mutex } from 'async-mutex';
 import { cloneDeep } from 'lodash';
 
 import type {
@@ -19,7 +16,6 @@ import type { ILogger } from '../../utils';
 import {
   batchesAllSettled,
   createPrefixedLogger,
-  getSnapProvider,
   isSameStr,
   isSep41Id,
   pushToRecordArray,
@@ -38,6 +34,7 @@ import type { TransactionRepository } from './TransactionRepository';
 import type { StellarAssetMetadata } from '../asset-metadata';
 import { TransactionNotFoundException, type NetworkService } from '../network';
 import {
+  emitAccountTransactionsUpdated,
   isPendingTransactionStatus,
   shouldDropPendingTransaction,
   toKeyringTransactions,
@@ -55,7 +52,7 @@ type SyncContext = {
   allAccountsByAddress: Map<StellarAddress, StellarKeyringAccount>;
   pendingTransactionsById: Map<TransactionId, StellarKeyringTransaction>;
   lastScanTokenByAccountId: Record<KeyringAccountId, string | null>;
-  /** Mapped keyring txs collected during steps 2–3; persisted and emitted in step 4. */
+  /** Mapped keyring txs collected during steps 2–3; emitted then persisted in step 4. */
   transactionsToSave: Record<KeyringAccountId, StellarKeyringTransaction[]>;
   sep41AssetsMetadata: Record<KnownCaip19Sep41AssetId, StellarAssetMetadata>;
 };
@@ -67,7 +64,7 @@ type SyncContext = {
  * 1. Create {@link SyncContext} — pending txs from snap state, scan cursors, empty collector.
  * 2. Scan paginated on-chain history per account, map to keyring transactions, and apply best-effort SEP-41 receive mapping.
  * 3. Reconcile remaining snap pending txs against on-chain (by hash), then map.
- * 4. Save snap state and emit `AccountTransactionsUpdated` to the controller.
+ * 4. Emit `AccountTransactionsUpdated` to the controller, then save snap state.
  *
  * Confirmed/failed history is stored in the controller, not snap state. First scan uses
  * DESC order (newest first, page-limited). Incremental scans use ASC from the saved cursor.
@@ -82,9 +79,6 @@ export class TransactionSynchronizeService {
   readonly #accountService: AccountService;
 
   readonly #logger: ILogger;
-
-  /** Prevents overlapping sync runs from interleaving read–merge–write. */
-  readonly #synchronizeMutex = new Mutex();
 
   constructor({
     networkService,
@@ -122,33 +116,28 @@ export class TransactionSynchronizeService {
     const startTime = Date.now();
     this.#logger.debug(`Synchronize transactions started at ${startTime}`);
 
-    await this.#synchronizeMutex
-      .runExclusive(async () => {
-        this.#logger.debug(
-          `Synchronize transactions mutex acquired at ${Date.now()}`,
-        );
-        // Step 1: pending txs from snap state, scan cursors, and an empty mapped-tx queue.
-        const context = await this.#createSyncContext(
-          activatedAccountPairs,
-          scope,
-          sep41Assets,
-        );
+    try {
+      // Step 1: pending txs from snap state, scan cursors, and an empty mapped-tx queue.
+      const context = await this.#createSyncContext(
+        activatedAccountPairs,
+        scope,
+        sep41Assets,
+      );
 
-        // Step 2: Fetch Horizon history per account → map to keyring transactions.
-        await this.#scanAccountTransactionsAndMap(context);
+      // Step 2: Fetch Horizon history per account → map to keyring transactions.
+      await this.#scanAccountTransactionsAndMap(context);
 
-        // Step 3: snap pending txs not seen in step 2 — fetch by hash, verify on chain, map.
-        await this.#reconcilePendingTransactionsAndMap(context);
+      // Step 3: snap pending txs not seen in step 2 — fetch by hash, verify on chain, map.
+      await this.#reconcilePendingTransactionsAndMap(context);
 
-        // Step 4: update snap state (pending removal + scan cursors) and emit to controller.
-        await this.#saveAndEmit(context);
-      })
-      .finally(() => {
-        const endTime = Date.now();
-        this.#logger.debug(
-          `Synchronize transactions completed at ${endTime} in ${endTime - startTime}ms`,
-        );
-      });
+      // Step 4: update snap state (pending removal + scan cursors) and emit to controller.
+      await this.#saveAndEmit(context);
+    } finally {
+      const endTime = Date.now();
+      this.#logger.debug(
+        `Synchronize transactions completed at ${endTime} in ${endTime - startTime}ms`,
+      );
+    }
   }
 
   // #region -------------------- Context Creation --------------------
@@ -577,11 +566,16 @@ export class TransactionSynchronizeService {
     return transactions.at(cursorIndex)?.rawData?.paging_token ?? null;
   }
 
+  /**
+   * Emits mapped transactions to the controller, then persists snap state and scan cursors.
+   *
+   * Emit runs first so a failed emit skips the save and the next sync can retry from the
+   * last scan token. If save fails after a successful emit, the controller already has the
+   * update; the next sync can retry persistence.
+   *
+   * @param context - Mutable sync run state including mapped txs and scan cursors.
+   */
   async #saveAndEmit(context: SyncContext): Promise<void> {
-    // Do emit event first to ensure the controller is updated with the latest transactions.
-    // then save the transactions.
-    // - if the emit fails, the transactions will not be saved and we can retry the sync from the last scan token later.
-    // - if the save fails, worst case is to retry the sync from the last scan token later.
     await this.#emitTransactionsUpdated(context);
     await this.#saveTransactions(context);
   }
@@ -613,25 +607,23 @@ export class TransactionSynchronizeService {
     this.#logger.debug('Transactions saved');
   }
 
+  /**
+   * Emits `AccountTransactionsUpdated` for all mapped transactions in this sync run.
+   *
+   * @param context - Mutable sync run state whose `transactionsToSave` will be emitted.
+   */
   async #emitTransactionsUpdated(context: SyncContext): Promise<void> {
+    const transactions = Object.values(context.transactionsToSave).flat();
+
     this.#logger.debug('Emitting transactions updated event', {
-      noOfTransactions: Object.values(context.transactionsToSave).flat().length,
+      noOfTransactions: transactions.length,
     });
-    await emitSnapKeyringEvent(
-      getSnapProvider(),
-      KeyringEvent.AccountTransactionsUpdated,
-      {
-        // Strip snap-internal reconcile metadata before keyring emit.
-        transactions: Object.fromEntries(
-          Object.entries(context.transactionsToSave).map(
-            ([accountId, transactions]) => [
-              accountId,
-              toKeyringTransactions(transactions),
-            ],
-          ),
-        ),
-      },
+
+    await emitAccountTransactionsUpdated(
+      // Strip snap-internal reconcile metadata before keyring emit.
+      toKeyringTransactions(transactions),
     );
+
     this.#logger.debug('Transactions updated event emitted');
   }
 

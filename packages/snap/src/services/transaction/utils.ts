@@ -1,11 +1,14 @@
 import {
+  KeyringEvent,
   TransactionStatus,
   type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
+import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { parseCaipAssetType } from '@metamask/utils';
 import type { Operation } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
+import { groupBy } from 'lodash';
 
 import { StellarOperationType, type StellarKeyringTransaction } from './api';
 import {
@@ -29,6 +32,7 @@ import { AppConfig } from '../../config';
 import { DUST_XLM_AMOUNT } from '../../constants';
 import {
   getSlip44AssetId,
+  getSnapProvider,
   isClassicAssetId,
   isSlip44Id,
   parseClassicAssetCodeIssuer,
@@ -657,5 +661,24 @@ export function shouldDropPendingTransaction(
   return (
     isReconcileAttemptExceeded(transaction.reconcileAttemptCount ?? 0) &&
     isMaxPendingTransactionAgeExceeded(transaction.timestamp)
+  );
+}
+
+/**
+ * Emits {@link KeyringEvent.AccountTransactionsUpdated} grouped by account id.
+ *
+ * @param transactions - Keyring transactions to include in the event payload.
+ */
+export async function emitAccountTransactionsUpdated(
+  transactions: KeyringTransaction[],
+): Promise<void> {
+  const transactionsByAccountId = groupBy(transactions, 'account');
+
+  await emitSnapKeyringEvent(
+    getSnapProvider(),
+    KeyringEvent.AccountTransactionsUpdated,
+    {
+      transactions: transactionsByAccountId,
+    },
   );
 }
