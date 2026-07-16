@@ -1,6 +1,13 @@
+import { E_ALREADY_LOCKED, Mutex, tryAcquire } from 'async-mutex';
+
 import type { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
-import { trackErrorIfNeeded } from '../../utils';
+import { BackgroundEventMethod } from '../../handlers/cronjob/api';
+import {
+  Duration,
+  scheduleBackgroundEvent,
+  trackErrorIfNeeded,
+} from '../../utils';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account';
@@ -27,6 +34,11 @@ export class SynchronizeService {
 
   readonly #assetMetadataService: AssetMetadataService;
 
+  readonly #synchronizeMutex = new Mutex();
+
+  /** Account ids currently inside an exclusive sync run. */
+  readonly #accountsInSync = new Set<string>();
+
   constructor({
     logger,
     onChainAccountService,
@@ -51,6 +63,12 @@ export class SynchronizeService {
    * sync tasks (accounts and/or transactions) concurrently. Unfunded accounts are skipped;
    * per-task failures are logged and do not fail the overall run.
    *
+   * Only one sync runs at a time. Overlapping requests for accounts already in sync are
+   * skipped (common during onboarding) to avoid Snap request timeouts. Requests for
+   * accounts not currently syncing — e.g. after an account switch — are scheduled as a
+   * short background event instead of waiting on the mutex or waiting for the next
+   * declarative cron interval.
+   *
    * @param accounts - Keyring accounts to synchronize.
    * @param options - Optional flags for scope and which sync steps to run. Defaults to synchronizing accounts and transactions on the selected network.
    */
@@ -74,50 +92,110 @@ export class SynchronizeService {
       return;
     }
 
-    // Both async loads are fail-safe, so we can use Promise.all.
-    const [activatedAccountPairs, sep41Assets] = await Promise.all([
-      this.#loadActivatedPairsSafe(accounts, scope),
-      this.#loadSep41AssetsSafe(scope),
-    ]);
+    const startTime = Date.now();
+    try {
+      await tryAcquire(this.#synchronizeMutex).runExclusive(async () => {
+        this.#logger.debug('Synchronize started', { startTime });
 
-    const tasks: { name: string; task: Promise<void> }[] = [];
+        for (const account of accounts) {
+          this.#accountsInSync.add(account.id);
+        }
 
-    if (syncAccounts) {
-      tasks.push({
-        name: 'synchronize accounts',
-        task: this.#onChainAccountService.synchronize(
-          activatedAccountPairs,
-          scope,
-          sep41Assets,
-        ),
+        try {
+          // Both async loads are fail-safe, so we can use Promise.all.
+          const [activatedAccountPairs, sep41Assets] = await Promise.all([
+            this.#loadActivatedPairsSafe(accounts, scope),
+            this.#loadSep41AssetsSafe(scope),
+          ]);
+
+          const tasks: { name: string; task: Promise<void> }[] = [];
+
+          if (syncAccounts) {
+            tasks.push({
+              name: 'synchronize accounts',
+              task: this.#onChainAccountService.synchronize(
+                activatedAccountPairs,
+                scope,
+                sep41Assets,
+              ),
+            });
+          }
+
+          if (syncTransactions) {
+            tasks.push({
+              name: 'synchronize transactions',
+              task: this.#transactionService.synchronize(
+                activatedAccountPairs,
+                scope,
+                sep41Assets,
+              ),
+            });
+          }
+
+          const results = await Promise.allSettled(
+            tasks.map(async ({ task }) => task),
+          );
+
+          for (const [index, result] of results.entries()) {
+            if (result.status === 'rejected') {
+              await trackErrorIfNeeded(result.reason);
+
+              const taskName = tasks[index]?.name ?? 'synchronize';
+              this.#logger.warn(`Failed to ${taskName}`, {
+                error: result.reason,
+              });
+            }
+          }
+        } finally {
+          this.#accountsInSync.clear();
+          this.#logger.debug('Synchronize finished', {
+            duration: Date.now() - startTime,
+          });
+        }
       });
-    }
+    } catch (error: unknown) {
+      if (error === E_ALREADY_LOCKED) {
+        await this.#handleBusySynchronize(accounts);
+        return;
+      }
 
-    if (syncTransactions) {
-      tasks.push({
-        name: 'synchronize transactions',
-        task: this.#transactionService.synchronize(
-          activatedAccountPairs,
-          scope,
-          sep41Assets,
-        ),
-      });
+      this.#logger.error('Synchronize failed', { error });
+      await trackErrorIfNeeded(error);
     }
+  }
 
-    const results = await Promise.allSettled(
-      tasks.map(async ({ task }) => task),
+  /**
+   * When a sync is already running: skip accounts already in that run; schedule a
+   * background sync for any remaining accounts (e.g. after an account switch).
+   *
+   * @param accounts - Accounts from the overlapping synchronize call.
+   */
+  async #handleBusySynchronize(
+    accounts: StellarKeyringAccount[],
+  ): Promise<void> {
+    const accountsToSchedule = accounts.filter(
+      (account) => !this.#accountsInSync.has(account.id),
     );
 
-    for (const [index, result] of results.entries()) {
-      if (result.status === 'rejected') {
-        await trackErrorIfNeeded(result.reason);
-
-        const taskName = tasks[index]?.name ?? 'synchronize';
-        this.#logger.warn(`Failed to ${taskName}`, {
-          error: result.reason,
-        });
-      }
+    if (accountsToSchedule.length === 0) {
+      this.#logger.debug(
+        'Synchronize already in progress for requested accounts, skipping',
+      );
+      return;
     }
+
+    const accountIds = accountsToSchedule.map((account) => account.id);
+    this.#logger.debug(
+      'Synchronize already in progress for other accounts; scheduling delayed sync',
+    );
+
+    await scheduleBackgroundEvent({
+      method: BackgroundEventMethod.SynchronizeAccounts,
+      params: { accountIds },
+      // Longer than a typical exclusive sync so the mutex is free when this fires;
+      // if still busy, the delayed run will skip or reschedule again.
+      duration: Duration.TwoSeconds,
+    });
   }
 
   /**
