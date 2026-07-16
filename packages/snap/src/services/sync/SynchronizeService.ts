@@ -147,7 +147,7 @@ export class SynchronizeService {
             }
           }
         } finally {
-          this.#accountsInSync.clear()
+          this.#accountsInSync.clear();
           this.#logger.debug('Synchronize finished', {
             duration: Date.now() - startTime,
           });
@@ -179,7 +179,7 @@ export class SynchronizeService {
 
     if (accountsToSchedule.length === 0) {
       this.#logger.debug(
-        'Synchronize already in progress for requested accounts, skipping'
+        'Synchronize already in progress for requested accounts, skipping',
       );
       return;
     }
