@@ -489,8 +489,8 @@ export class OnChainAccountSynchronizeService {
         removedAssets.push(assetId);
       }
 
-      // Balance: visible assets, plus amount 0 when becoming not visible (non-zero → zero).
-      // Already-zero / tombstone assets that stay not visible are omitted.
+      // Balance: visible assets, plus amount 0 when transitioning from visible → not visible (SEP-41 non-zero → zero; classic trustline removed).
+      // Already-not-visible assets that stay not visible are omitted.
       if (isVisibleFromOnChain || isVisibleFromState) {
         balanceChanges[assetId as string] =
           assetId === nativeAssetId

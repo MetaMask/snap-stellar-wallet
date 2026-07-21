@@ -430,30 +430,33 @@ describe('OnChainAccountSynchronizeService', () => {
       });
 
     const { emitSnapKeyringEventSpy } = getKeyringEventSpies();
-    const { onChainAccountService, saveManySpy, onChainAccountRepository } =
-      setupSynchronizeService();
+    const {
+      onChainAccountService,
+      saveManySpy,
+      findByKeyringAccountIdsSpy,
+      onChainAccountRepository,
+    } = setupSynchronizeService();
 
     let persistedSnapshot: OnChainAccountSerializableFull | null = null;
-    jest
-      .spyOn(onChainAccountRepository, 'findByKeyringAccountIds')
-      .mockImplementation(async (keyringAccountIds: string[]) => {
+    findByKeyringAccountIdsSpy.mockImplementation(
+      async (keyringAccountIds: string[]) => {
         const out: Record<string, OnChainAccountSerializableFull | null> = {};
         for (const id of keyringAccountIds) {
           out[id] = persistedSnapshot;
         }
         return out;
-      });
+      },
+    );
 
     const saveManyInner = OnChainAccountRepository.prototype.saveMany.bind(
       onChainAccountRepository,
     );
     saveManySpy.mockImplementation(async (accounts) => {
       const next = accounts[keyringAccount.id];
-      if (next) {
-        persistedSnapshot = JSON.parse(
-          JSON.stringify(next),
-        ) as OnChainAccountSerializableFull;
-      }
+      expect(next).toBeDefined();
+      persistedSnapshot = JSON.parse(
+        JSON.stringify(next),
+      ) as OnChainAccountSerializableFull;
       await saveManyInner(accounts);
     });
 
@@ -589,11 +592,10 @@ describe('OnChainAccountSynchronizeService', () => {
 
     saveManySpy.mockImplementation(async (accounts) => {
       const next = accounts[keyringAccount.id];
-      if (next) {
-        persistedSnapshot = JSON.parse(
-          JSON.stringify(next),
-        ) as OnChainAccountSerializableFull;
-      }
+      expect(next).toBeDefined();
+      persistedSnapshot = JSON.parse(
+        JSON.stringify(next),
+      ) as OnChainAccountSerializableFull;
       await saveManyInner(accounts);
     });
 
