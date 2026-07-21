@@ -61,9 +61,13 @@
     "typescript-eslint": "^8.48.0"
   },
   "resolutions": {
-    "@metamask/snaps-sdk": "^11.1.0",
-    "axios@npm:1.14.0": "1.16.0",
-    "form-data@npm:^4.0.5": "^4.0.6"
+    "@metamask/snaps-sdk": "11.1.1",
+    "@stellar/stellar-sdk/axios@npm:1.14.0": "1.18.1",
+    "axios/form-data@npm:^4.0.5": "^4.0.6",
+    "@metamask/snaps-utils/fast-xml-parser@npm:^5.3.4": "^5.7.0",
+    "ethers/ws@npm:8.17.1": "^8.21.0",
+    "webpack-bundle-analyzer/ws@npm:^7.3.1": "^7.5.11",
+    "pbkdf2/ripemd160@npm:=2.0.1": "2.0.2"
   },
   "packageManager": "yarn@4.17.0",
   "engines": {
