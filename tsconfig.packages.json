@@ -1,8 +1,4 @@
 {
-  /**
-   * This configuration is extended by the `tsconfig.json` configuration in each package.
-   */
-  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "esModuleInterop": true,
     "exactOptionalPropertyTypes": true,
@@ -15,9 +11,6 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "es2023",
-    "paths": {
-      "@metamask/*": ["../*/src"]
-    }
+    "target": "es2023"
   }
 }
