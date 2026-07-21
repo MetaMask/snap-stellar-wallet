@@ -8,6 +8,7 @@
     "@types/lodash",
     "async-mutex",
     "bignumber.js",
-    "lodash"
+    "lodash",
+    "jest-silent-reporter"
   ]
 }
