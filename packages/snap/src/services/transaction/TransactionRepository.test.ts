@@ -101,14 +101,14 @@ describe('TransactionRepository', () => {
       {
         ...pendingTransaction,
         reconcileAttemptCount: 1,
-      } as StellarKeyringTransaction,
+      },
     ]);
 
     await repository.saveMany([
       {
         ...pendingTransaction,
         reconcileAttemptCount: 2,
-      } as StellarKeyringTransaction,
+      },
     ]);
 
     const stored = await repository.findStellarTransactionsByAccountIds([
@@ -136,7 +136,7 @@ describe('TransactionRepository', () => {
       {
         ...pendingTransaction,
         reconcileAttemptCount: 5,
-      } as StellarKeyringTransaction,
+      },
     ]);
 
     const stored = await repository.findStellarTransactionsByAccountIds([
@@ -159,7 +159,7 @@ describe('TransactionRepository', () => {
       {
         ...pendingTransaction,
         reconcileAttemptCount: 5,
-      } as StellarKeyringTransaction,
+      },
     ]);
 
     const stored = await repository.findStellarTransactionsByAccountIds([
@@ -187,7 +187,7 @@ describe('TransactionRepository', () => {
       {
         ...pendingTransaction,
         reconcileAttemptCount: 1,
-      } as StellarKeyringTransaction,
+      },
     ]);
 
     const stored = await repository.findStellarTransactionsByAccountIds([

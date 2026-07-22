@@ -1,4 +1,4 @@
-import { type Transaction as KeyringTransaction } from '@metamask/keyring-api';
+import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { groupBy } from 'lodash';
 import sortBy from 'lodash/sortBy';
 import uniqBy from 'lodash/uniqBy';

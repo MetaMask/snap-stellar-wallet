@@ -36,7 +36,7 @@ export const ConfirmSignMessage = ({
   networkImage,
   origin,
 }: ConfirmSignMessageProps): ComponentOrElement => {
-  const translate = i18n(locale as Locale);
+  const translate = i18n(locale);
   const { address } = account;
   const addressCaip10 = getAccountName(scope, address);
 

@@ -27,10 +27,8 @@ import {
   updateInterfaceIfExists,
 } from '../../utils';
 import { xlmIcon } from '../images';
-import {
-  renderConfirmationView,
-  type ConfirmationViewProps,
-} from './views/render';
+import { renderConfirmationView } from './views/render';
+import type { ConfirmationViewProps } from './views/render';
 import {
   ConfirmationContextRefresherKey,
   RefreshConfirmationContextHandler,

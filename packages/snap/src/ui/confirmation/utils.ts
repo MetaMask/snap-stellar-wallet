@@ -2,16 +2,15 @@ import type { GetPreferencesResult } from '@metamask/snaps-sdk';
 import type { CaipAccountId } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
-import { FetchStatus, type FeeData } from './api';
+import { FetchStatus } from './api';
+import type { FeeData } from './api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
 import { parseOperationAssetReferenceSafe } from '../../services/transaction/utils';
-import {
-  TransactionScanValidationType,
-  type TransactionScanResult,
-} from '../../services/transaction-scan';
+import { TransactionScanValidationType } from '../../services/transaction-scan';
+import type { TransactionScanResult } from '../../services/transaction-scan';
 import type { Locale } from '../../utils';
 import {
   FALLBACK_LANGUAGE,

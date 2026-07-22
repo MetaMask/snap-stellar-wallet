@@ -126,7 +126,7 @@ export const ConfirmSignAuthEntry = ({
   networkImage,
   origin,
 }: ConfirmSignAuthEntryProps): ComponentOrElement => {
-  const translate = i18n(locale as Locale);
+  const translate = i18n(locale);
   const { address } = account;
   const addressCaip10 = getAccountName(scope, address);
   const { subInvocations } = readableAuthEntry;

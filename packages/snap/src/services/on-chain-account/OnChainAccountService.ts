@@ -3,7 +3,8 @@ import { OnChainAccountSynchronizeService } from './OnChainAccountSynchronizeSer
 import type { KnownCaip2ChainId } from '../../api';
 import type { ILogger } from '../../utils';
 import { assertSameAddress } from '../account/utils';
-import { AccountNotActivatedException, type NetworkService } from '../network';
+import { AccountNotActivatedException } from '../network';
+import type { NetworkService } from '../network';
 import type { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { StellarAssetMetadata } from '../asset-metadata';
 import type { ActivatedAccountPair } from '../sync/api';

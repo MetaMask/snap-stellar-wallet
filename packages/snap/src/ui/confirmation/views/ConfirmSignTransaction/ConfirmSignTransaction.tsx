@@ -171,7 +171,7 @@ export const ConfirmSignTransaction = ({
   scan,
   scanFetchStatus = FetchStatus.Initial,
 }: ConfirmSignTransactionProps): ComponentOrElement => {
-  const t = i18n(locale as Locale);
+  const t = i18n(locale);
   const { address } = account;
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
@@ -244,7 +244,7 @@ export const ConfirmSignTransaction = ({
           {[readableTransaction.memo].filter(Boolean).map((memo) => (
             <Box alignment="space-between" direction="horizontal">
               <SnapText fontWeight="medium" color="alternative">
-                {t('confirmation.memo' as LocalizedMessage)}
+                {t('confirmation.memo')}
               </SnapText>
               <SnapText>{memo}</SnapText>
             </Box>

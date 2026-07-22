@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 import { Networks } from '@stellar/stellar-sdk';
 
 import {
@@ -594,7 +593,7 @@ describe('TransactionScanService', () => {
           status: 'Success',
           result_type: TransactionScanValidationType.Benign,
         },
-      } as StellarTransactionScanResponse);
+      });
 
       const result = await service.scanTransactionSafe(scanParams);
 
@@ -693,7 +692,7 @@ describe('TransactionScanService', () => {
           status: 'Success',
           result_type: TransactionScanValidationType.Benign,
         },
-      } as StellarTransactionScanResponse);
+      });
 
       const result = await service.scanTransactionSafe(scanParams);
 
@@ -741,7 +740,7 @@ describe('TransactionScanService', () => {
           status: 'Success',
           result_type: TransactionScanValidationType.Benign,
         },
-      } as StellarTransactionScanResponse);
+      });
 
       const result = await service.scanTransactionSafe(scanParams);
 

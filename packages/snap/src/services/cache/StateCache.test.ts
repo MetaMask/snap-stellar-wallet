@@ -1,5 +1,5 @@
 /* eslint-disable jest/prefer-strict-equal */
-/* eslint-disable @typescript-eslint/naming-convention */
+
 import { InMemoryState } from './InMemoryState';
 import type { StateValue } from './StateCache';
 import { StateCache } from './StateCache';

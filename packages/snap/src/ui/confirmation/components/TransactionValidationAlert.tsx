@@ -1,7 +1,6 @@
 import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import { Banner, Text as SnapText } from '@metamask/snaps-sdk/jsx';
 
-import type { Locale } from '../../../utils';
 import { i18n } from '../../../utils';
 import type { ConfirmationBaseProps } from '../api';
 import { FetchStatus } from '../api';
@@ -21,7 +20,7 @@ export const TransactionValidationAlert = ({
     return null;
   }
 
-  const translate = i18n(preferences.locale as Locale);
+  const translate = i18n(preferences.locale);
 
   return (
     <Banner

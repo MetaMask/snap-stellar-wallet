@@ -315,9 +315,8 @@ describe('Transaction', () => {
         .build();
 
       const horizonRecord = {
-        // eslint-disable-next-line @typescript-eslint/naming-convention
         envelope_xdr: inner.toXDR(),
-        // eslint-disable-next-line @typescript-eslint/naming-convention
+
         fee_charged: '300',
         successful: true,
       } as Horizon.ServerApi.TransactionRecord;
@@ -351,9 +350,8 @@ describe('Transaction', () => {
         .build();
 
       const horizonRecord = {
-        // eslint-disable-next-line @typescript-eslint/naming-convention
         envelope_xdr: inner.toXDR(),
-        // eslint-disable-next-line @typescript-eslint/naming-convention
+
         fee_charged: '100',
         successful: false,
       } as Horizon.ServerApi.TransactionRecord;

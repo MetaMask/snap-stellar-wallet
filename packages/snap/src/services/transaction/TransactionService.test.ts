@@ -1,9 +1,9 @@
 import {
   KeyringEvent,
-  type Transaction as KeyringTransaction,
   TransactionStatus,
   TransactionType,
 } from '@metamask/keyring-api';
+import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { hexToBytes } from '@metamask/utils';
 import { Networks } from '@stellar/stellar-sdk';

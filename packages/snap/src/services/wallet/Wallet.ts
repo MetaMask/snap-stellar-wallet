@@ -1,4 +1,5 @@
-import { hash, type Keypair } from '@stellar/stellar-sdk';
+import { hash } from '@stellar/stellar-sdk';
+import type { Keypair } from '@stellar/stellar-sdk';
 
 import {
   SignAuthEntryException,

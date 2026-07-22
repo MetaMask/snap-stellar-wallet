@@ -1,11 +1,8 @@
 import type { CaipAssetType } from '@metamask/utils';
 
 import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from './api';
-import {
-  HISTORICAL_PRICE_TIME_PERIODS,
-  type HistoricalPriceTimePeriod,
-  PriceService,
-} from './PriceService';
+import { HISTORICAL_PRICE_TIME_PERIODS, PriceService } from './PriceService';
+import type { HistoricalPriceTimePeriod } from './PriceService';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { AppConfig } from '../../config';
 import { logger, serialize } from '../../utils';

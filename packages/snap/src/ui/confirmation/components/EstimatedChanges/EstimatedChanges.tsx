@@ -18,7 +18,6 @@ import type {
   TransactionScanAssetChange,
   TransactionScanEstimatedChanges,
 } from '../../../../services/transaction-scan';
-import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
 import { xlmIcon } from '../../../images';
 import { FetchStatus } from '../../api';
@@ -66,7 +65,7 @@ const EstimatedChangesHeader = ({
 }: {
   preferences: GetPreferencesResult;
 }): ComponentOrElement => {
-  const t = i18n(preferences.locale as Locale);
+  const t = i18n(preferences.locale);
 
   return (
     <Box direction="horizontal" alignment="start">
@@ -146,7 +145,7 @@ export const EstimatedChanges = ({
   preferences,
   scanFetchStatus,
 }: EstimatedChangesProps): ComponentOrElement => {
-  const t = i18n(preferences.locale as Locale);
+  const t = i18n(preferences.locale);
   const isFetching = isFetchInProgress(scanFetchStatus);
   const isFetched = scanFetchStatus === FetchStatus.Fetched;
   const isFetchError = scanFetchStatus === FetchStatus.Error;

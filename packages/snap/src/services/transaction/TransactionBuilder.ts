@@ -27,12 +27,12 @@ import type {
 import { AppConfig } from '../../config';
 import {
   createPrefixedLogger,
-  type ILogger,
   isSep41Id,
   isSlip44Id,
   normalizeAmount,
   rethrowIfInstanceElseThrow,
 } from '../../utils';
+import type { ILogger } from '../../utils';
 import { baseInclusionFee, caip2ChainIdToNetwork } from '../network/utils';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 

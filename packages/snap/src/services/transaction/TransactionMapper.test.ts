@@ -57,14 +57,14 @@ function toHorizonTransaction(
   return {
     id: inner.hash().toString('hex'),
     hash: inner.hash().toString('hex'),
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
     envelope_xdr: inner.toXDR(),
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
     fee_charged: inner.fee,
     successful: true,
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
     created_at: '2026-01-15T00:00:00.000Z',
-    // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
     paging_token: 'scan-token-1',
     ...overrides,
   } as Horizon.ServerApi.TransactionRecord;
@@ -449,7 +449,7 @@ describe('TransactionMapper', () => {
         account: keyringAccount.id,
         timestamp,
         fees: expectedBaseFees(transaction),
-        // eslint-disable-next-line jest/no-conditional-in-test
+
         ...(details ? { details } : {}),
       });
     },
@@ -554,7 +554,7 @@ describe('TransactionMapper', () => {
     const transaction = Transaction.fromHorizon({
       horizonTransaction: {
         ...swapTransactionWithoutFeeCollectResponse,
-        // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
+
         result_xdr: undefined as unknown as string,
       },
       scope,
@@ -612,7 +612,6 @@ describe('TransactionMapper', () => {
     );
     const transaction = Transaction.fromHorizon({
       horizonTransaction: toHorizonTransaction(built, {
-        // eslint-disable-next-line @typescript-eslint/naming-convention -- Horizon API field names
         result_xdr: swapTransactionWithoutFeeCollectResponse.result_xdr,
       }),
       scope,

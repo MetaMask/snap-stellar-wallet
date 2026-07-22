@@ -2,8 +2,8 @@ import {
   FeeType,
   TransactionStatus,
   TransactionType,
-  type Transaction as KeyringTransaction,
 } from '@metamask/keyring-api';
+import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 
 import { KeyringTransactionBuilderException } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';

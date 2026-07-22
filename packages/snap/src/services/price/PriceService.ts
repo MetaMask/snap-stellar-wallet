@@ -13,9 +13,8 @@ import {
   getFiatTicker,
   isFiat,
   trackErrorIfNeeded,
-  type ILogger,
-  type Serializable,
 } from '../../utils';
+import type { ILogger, Serializable } from '../../utils';
 import type { ICache } from '../cache';
 import { useCache } from '../cache';
 import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from './api';

@@ -47,6 +47,6 @@ export function createMemoryCache(): {
       },
     ),
     mdelete: jest.fn(async () => ({})),
-  } as unknown as ICache<Serializable>;
+  };
   return { cache, store };
 }

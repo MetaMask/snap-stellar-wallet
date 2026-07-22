@@ -1,10 +1,7 @@
 import type { JsonRpcRequest } from '@metamask/utils';
 
-import {
-  ClientRequestMethod,
-  MultiChainSendErrorCodes,
-  type OnAddressInputJsonRpcRequest,
-} from './api';
+import { ClientRequestMethod, MultiChainSendErrorCodes } from './api';
+import type { OnAddressInputJsonRpcRequest } from './api';
 import { OnAddressInputHandler } from './onAddressInput';
 
 jest.mock('../../utils/logger');

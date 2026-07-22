@@ -10,7 +10,8 @@ import {
   handleKeyringRequest,
   MethodNotSupportedError,
 } from '@metamask/keyring-snap-sdk';
-import { InvalidParamsError, type JsonRpcRequest } from '@metamask/snaps-sdk';
+import { InvalidParamsError } from '@metamask/snaps-sdk';
+import type { JsonRpcRequest } from '@metamask/snaps-sdk';
 import { create } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
 
@@ -29,10 +30,8 @@ import {
 import { KeyringHandler } from './keyring';
 import { KnownCaip2ChainId } from '../../api';
 import { KEYRING_ACCOUNT_TYPE, METAMASK_ORIGIN } from '../../constants';
-import {
-  AccountService,
-  type StellarKeyringAccount,
-} from '../../services/account';
+import { AccountService } from '../../services/account';
+import type { StellarKeyringAccount } from '../../services/account';
 import {
   generateMockStellarKeyringAccounts,
   generateStellarKeyringAccount,
@@ -44,8 +43,8 @@ import {
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
   horizonSource,
   mockOnChainAccountService,
-  type MockAccountWithBalancesData,
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
+import type { MockAccountWithBalancesData } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
 import {
   createMockTransactionService,
@@ -1057,7 +1056,7 @@ describe('KeyringHandler', () => {
           id: keyringRequestId,
           origin: METAMASK_ORIGIN,
           request: {
-            method: 'invalid:method' as MultichainMethod,
+            method: 'invalid:method',
             params: { message: 'Hello, world!' },
           },
           scope: KnownCaip2ChainId.Mainnet,

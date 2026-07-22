@@ -1,11 +1,11 @@
 import type { Json } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
-import {
-  ConfirmationContextRefresherKey,
-  type ConfirmationContextRefreshResult,
-  type ConfirmationDataContext,
-  type IConfirmationContextRefresher,
+import { ConfirmationContextRefresherKey } from './api';
+import type {
+  ConfirmationContextRefreshResult,
+  ConfirmationDataContext,
+  IConfirmationContextRefresher,
 } from './api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
 import type {

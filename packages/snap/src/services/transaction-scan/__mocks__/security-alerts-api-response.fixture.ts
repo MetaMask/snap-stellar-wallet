@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/naming-convention */
 export const insufficientBalanceResponse = {
   simulation: {
     status: 'Error',

@@ -1,7 +1,8 @@
 import { FeeType } from '@metamask/keyring-api';
 import { Networks } from '@stellar/stellar-sdk';
 
-import { ClientRequestMethod, type ComputeFeeJsonRpcRequest } from './api';
+import { ClientRequestMethod } from './api';
+import type { ComputeFeeJsonRpcRequest } from './api';
 import { ComputeFeeHandler } from './computeFee';
 import { KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
