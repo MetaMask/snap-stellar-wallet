@@ -415,7 +415,7 @@ export class OnChainAccountSynchronizeService {
    *
    * @param stateSnapshotOnChainAccount - Last saved account from state, or `null` when none exists.
    * @param synchronizedOnChainAccount - Same account after Horizon, SEP-41, and merge steps.
-   * @returns `balanceChanges` for on-chain-visible assets plus `assetListChanges` from state/on-chain visibility transitions.
+   * @returns `balanceChanges` for on-chain-visible assets and assets that just became zero / not visible, plus `assetListChanges` from visibility transitions.
    */
   #computeKeyringSyncDeltas(
     stateSnapshotOnChainAccount: OnChainAccount | null,
@@ -445,8 +445,10 @@ export class OnChainAccountSynchronizeService {
       // Asset list is transition-based between persisted state and the on-chain view for this sync:
       // newly visible on-chain vs state → added; no longer visible on-chain vs state → removed.
       // Native is always included in added. When state already matches on-chain, asset-list deltas
-      // are empty aside from native (no replay of prior removals). Balances are emitted only for
-      // on-chain-visible assets; the client drops stale balance keys when it handles asset removed.
+      // are empty aside from native (no replay of prior removals).
+      // Balances: emit for currently visible assets, and also emit amount 0 when an asset
+      // transitions from visible → not visible (non-zero → zero / trustline removed). Do not
+      // re-emit zeros that were already not visible in state (avoids flooding SEP-41 zeros).
       // Example: XLM (native), USDC/EURC/AQUA (classic trustlines), SOLBTC (SEP-41).
       // ------------------------- Sync 1 ------------------------------------------
       // - Sync 1 (success): payload received by client:
@@ -458,7 +460,7 @@ export class OnChainAccountSynchronizeService {
       // - Sync 2 (client misses event):
       //   state view: XLM=10, USDC=25, EURC=0, SOLBTC=5.
       //   onChain view: XLM=11, USDC=30, AQUA trustline added, EURC trustline removed, SOLBTC=0.
-      //   balance payload: XLM=11, USDC=30, AQUA=0.
+      //   balance payload: XLM=11, USDC=30, AQUA=0, EURC=0, SOLBTC=0.
       //   asset list payload: added XLM, AQUA; removed EURC, SOLBTC.
       // ------------------------- Sync 3 ------------------------------------------
       // - Sync 3 (client misses event):
@@ -487,10 +489,9 @@ export class OnChainAccountSynchronizeService {
         removedAssets.push(assetId);
       }
 
-      // Balance: on-chain-visible assets only (tombstones and zero SEP-41 omitted).
-      // There is no need to emit balance for assets that are not visible from on-chain.
-      // The client controller will remove the balance entry if they receive a asset list event with the asset removed.
-      if (isVisibleFromOnChain) {
+      // Balance: visible assets, plus amount 0 when transitioning from visible → not visible (SEP-41 non-zero → zero; classic trustline removed).
+      // Already-not-visible assets that stay not visible are omitted.
+      if (isVisibleFromOnChain || isVisibleFromState) {
         balanceChanges[assetId as string] =
           assetId === nativeAssetId
             ? {
