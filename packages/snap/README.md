@@ -3,7 +3,7 @@
 ## Configuration
 
 Rename `.env.example` to `.env`
-Configurations are setup though `.env`,
+Configurations are setup though `.env`.
 
 ## API:
 
