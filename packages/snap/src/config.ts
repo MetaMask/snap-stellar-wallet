@@ -193,7 +193,8 @@ export const AppConfig = create(
         explorerBaseUrl:
           process.env.EXPLORER_MAINNET_BASE_URL === ''
             ? DEFAULT_EXPLORER_MAINNET_BASE_URL
-            : process.env.EXPLORER_MAINNET_BASE_URL,
+            : (process.env.EXPLORER_MAINNET_BASE_URL ??
+              DEFAULT_EXPLORER_MAINNET_BASE_URL),
       },
       [KnownCaip2ChainId.Testnet]: {
         rpcUrl: process.env.RPC_URL_TESTNET,
@@ -201,7 +202,8 @@ export const AppConfig = create(
         explorerBaseUrl:
           process.env.EXPLORER_TESTNET_BASE_URL === ''
             ? DEFAULT_EXPLORER_TESTNET_BASE_URL
-            : process.env.EXPLORER_TESTNET_BASE_URL,
+            : (process.env.EXPLORER_TESTNET_BASE_URL ??
+              DEFAULT_EXPLORER_TESTNET_BASE_URL),
       },
     },
     selectedNetwork: KnownCaip2ChainId.Mainnet,
