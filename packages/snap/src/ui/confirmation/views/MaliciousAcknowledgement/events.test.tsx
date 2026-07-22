@@ -26,8 +26,10 @@ const baseContext = {
   acknowledged: false,
 };
 
-const buttonEvent = (name: string): UserInputEvent =>
-  ({ type: UserInputEventType.ButtonClickEvent, name }) as UserInputEvent;
+const buttonEvent = (name: string): UserInputEvent => ({
+  type: UserInputEventType.ButtonClickEvent,
+  name,
+});
 
 const checkboxEvent = (name: string, value: boolean): UserInputEvent =>
   ({

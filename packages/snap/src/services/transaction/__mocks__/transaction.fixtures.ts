@@ -526,7 +526,6 @@ export function buildMockHorizonTransactionRecord(
       },
     ]);
 
-  /* eslint-disable @typescript-eslint/naming-convention */
   return {
     envelope_xdr: transaction.getRaw().toXDR(),
     fee_charged: options.feeCharged ?? transaction.totalFee.toFixed(0),
@@ -534,7 +533,6 @@ export function buildMockHorizonTransactionRecord(
     source_account: options.sourceAccount ?? transaction.sourceAccount,
     successful: options.successful ?? true,
   } as Horizon.ServerApi.TransactionRecord;
-  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 /**

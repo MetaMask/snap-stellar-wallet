@@ -20,6 +20,12 @@ import {
   KnownCaip2ChainId,
 } from './api';
 
+const DEFAULT_TOKEN_API_BASE_URL = 'https://tokens.api.cx.metamask.io';
+
+const DEFAULT_STATIC_API_BASE_URL = 'https://static.cx.metamask.io';
+
+const DEFAULT_PRICE_API_BASE_URL = 'https://price.api.cx.metamask.io';
+
 const DEFAULT_SECURITY_ALERTS_API_BASE_URL =
   'https://security-alerts.api.cx.metamask.io';
 
@@ -200,13 +206,22 @@ export const AppConfig = create(
     },
     api: {
       tokenApi: {
-        baseUrl: process.env.TOKEN_API_BASE_URL,
+        baseUrl:
+          process.env.TOKEN_API_BASE_URL === ''
+            ? DEFAULT_TOKEN_API_BASE_URL
+            : (process.env.TOKEN_API_BASE_URL ?? DEFAULT_TOKEN_API_BASE_URL),
       },
       staticApi: {
-        baseUrl: process.env.STATIC_API_BASE_URL,
+        baseUrl:
+          process.env.STATIC_API_BASE_URL === ''
+            ? DEFAULT_STATIC_API_BASE_URL
+            : (process.env.STATIC_API_BASE_URL ?? DEFAULT_STATIC_API_BASE_URL),
       },
       priceApi: {
-        baseUrl: process.env.PRICE_API_BASE_URL,
+        baseUrl:
+          process.env.PRICE_API_BASE_URL === ''
+            ? DEFAULT_PRICE_API_BASE_URL
+            : (process.env.PRICE_API_BASE_URL ?? DEFAULT_PRICE_API_BASE_URL),
       },
       securityAlertsApi: {
         baseUrl:

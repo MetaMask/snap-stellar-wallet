@@ -9,8 +9,8 @@ import {
   GetSpotPricesParamsStruct,
   GetSpotPricesResponseStruct,
   SpotPriceStruct,
-  type SpotPricesResponse,
 } from './api';
+import type { SpotPricesResponse } from './api';
 import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from '../api';
 
 const stellarClassicUsdc =

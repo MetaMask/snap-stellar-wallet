@@ -9,9 +9,9 @@ import {
   ComputeFeeJsonRpcRequestStruct,
   ComputeFeeJsonRpcResponseStruct,
 } from './api';
-import {
-  type AccountResolver,
-  type ResolvedActivatedAccount,
+import type {
+  AccountResolver,
+  ResolvedActivatedAccount,
 } from '../accountResolver';
 import { BaseClientRequestHandler } from './base';
 import { KnownCaip19Slip44IdMap } from '../../api';

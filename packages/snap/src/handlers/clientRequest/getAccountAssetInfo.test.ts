@@ -3,7 +3,8 @@ import { BigNumber } from 'bignumber.js';
 import type { GetAccountAssetInfoJsonRpcResponse } from './api';
 import { ClientRequestMethod } from './api';
 import { GetAccountAssetInfoHandler } from './getAccountAssetInfo';
-import { type KnownCaip19ClassicAssetId, KnownCaip2ChainId } from '../../api';
+import { KnownCaip2ChainId } from '../../api';
+import type { KnownCaip19ClassicAssetId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
 import { USDC_CLASSIC } from '../../services/asset-metadata/__mocks__/assets.fixtures';
@@ -13,8 +14,8 @@ import {
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
   horizonSource,
   mockOnChainAccountService,
-  type MockAccountWithBalancesData,
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
+import type { MockAccountWithBalancesData } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from '../../services/on-chain-account/OnChainAccount';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';

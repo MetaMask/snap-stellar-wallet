@@ -1,18 +1,13 @@
 import type { ComponentOrElement } from '@metamask/snaps-sdk';
-import {
-  Banner,
-  Icon,
-  Link,
-  Text as SnapText,
-  type BannerProps,
-} from '@metamask/snaps-sdk/jsx';
+import { Banner, Icon, Link, Text as SnapText } from '@metamask/snaps-sdk/jsx';
+import type { BannerProps } from '@metamask/snaps-sdk/jsx';
 
 import type {
   TransactionScanError,
   TransactionScanValidation,
 } from '../../../services/transaction-scan';
 import { TransactionScanValidationType } from '../../../services/transaction-scan';
-import type { Locale, LocalizedMessage } from '../../../utils';
+import type { LocalizedMessage } from '../../../utils';
 import { i18n } from '../../../utils';
 import type { ConfirmationBaseProps } from '../api';
 import { FetchStatus } from '../api';
@@ -98,7 +93,7 @@ export const TransactionAlert = ({
   error,
   scanFetchStatus,
 }: TransactionAlertProps): ComponentOrElement | null => {
-  const translate = i18n(preferences.locale as Locale);
+  const translate = i18n(preferences.locale);
 
   if (scanFetchStatus === FetchStatus.Fetching) {
     return (
@@ -232,8 +227,5 @@ function getErrorMessage(error: TransactionScanError, locale: string): string {
     return translate(messageId);
   }
 
-  return (
-    error.message ??
-    translate('transactionScan.errors.unknownError' as LocalizedMessage)
-  );
+  return error.message ?? translate('transactionScan.errors.unknownError');
 }

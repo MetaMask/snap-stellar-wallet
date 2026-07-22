@@ -2,13 +2,12 @@ import {
   Account,
   Address,
   Contract,
-  type Operation,
   rpc,
   scValToNative,
-  type Transaction,
   TransactionBuilder,
   xdr,
 } from '@stellar/stellar-sdk';
+import type { Operation, Transaction } from '@stellar/stellar-sdk';
 
 import { caip2ChainIdToNetwork } from './utils';
 import { KnownCaip2ChainId } from '../../api/network';

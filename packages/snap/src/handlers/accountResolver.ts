@@ -1,9 +1,9 @@
 import type { KnownCaip2ChainId } from '../api';
 import { AppConfig } from '../config';
-import {
-  assertSameAddress,
-  type AccountService,
-  type StellarKeyringAccount,
+import { assertSameAddress } from '../services/account';
+import type {
+  AccountService,
+  StellarKeyringAccount,
 } from '../services/account';
 import { AccountNotActivatedException } from '../services/network/exceptions';
 import type { OnChainAccountService } from '../services/on-chain-account';

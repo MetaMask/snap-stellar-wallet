@@ -5,16 +5,13 @@ import {
 import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import {
-  ClientRequestMethod,
-  MultiChainSendErrorCodes,
-  type ConfirmSendJsonRpcRequest,
-} from './api';
+import { ClientRequestMethod, MultiChainSendErrorCodes } from './api';
+import type { ConfirmSendJsonRpcRequest } from './api';
 import { ConfirmSendHandler } from './confirmSend';
-import {
-  KnownCaip2ChainId,
-  type KnownCaip19ClassicAssetId,
-  type KnownCaip19Sep41AssetId,
+import { KnownCaip2ChainId } from '../../api';
+import type {
+  KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
 } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import { AccountService } from '../../services/account';

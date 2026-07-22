@@ -479,7 +479,6 @@ describe('NetworkService', () => {
       'stellar:pubnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN' as KnownCaip19ClassicAssetId;
     const issuer = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
 
-    /* eslint-disable @typescript-eslint/naming-convention -- Horizon asset record fields */
     it('returns classic asset metadata from Horizon', async () => {
       const call = jest.fn().mockResolvedValue({
         records: [
@@ -570,7 +569,6 @@ describe('NetworkService', () => {
 
       assetsSpy.mockRestore();
     });
-    /* eslint-enable @typescript-eslint/naming-convention */
   });
 
   describe('pollTransaction', () => {

@@ -1,10 +1,8 @@
 import { FeeType, TransactionType } from '@metamask/keyring-api';
 import { Networks } from '@stellar/stellar-sdk';
 
-import {
-  ClientRequestMethod,
-  type SignAndSendTransactionJsonRpcRequest,
-} from './api';
+import { ClientRequestMethod } from './api';
+import type { SignAndSendTransactionJsonRpcRequest } from './api';
 import { SignAndSendTransactionHandler } from './signAndSendTransaction';
 import { KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';

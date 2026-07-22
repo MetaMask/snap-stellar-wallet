@@ -12,8 +12,10 @@ import { TokenApiException } from './exceptions';
 import {
   KnownCaip19AssetIdOrSlip44IdStruct,
   KnownCaip2ChainIdStruct,
-  type KnownCaip19AssetIdOrSlip44Id,
-  type KnownCaip2ChainId,
+} from '../../../api';
+import type {
+  KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip2ChainId,
 } from '../../../api';
 import type { AnyErrorConstructor } from '../../../utils';
 import { buildUrl, rethrowIfInstanceElseThrow } from '../../../utils';

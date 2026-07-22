@@ -173,9 +173,8 @@ export class OperationMapper {
       try {
         const { func } = hostOp;
         if (
-          func &&
-          func.switch() ===
-            xdr.HostFunctionType.hostFunctionTypeInvokeContract()
+          func?.switch() ===
+          xdr.HostFunctionType.hostFunctionTypeInvokeContract()
         ) {
           const invokeArgs = func.invokeContract();
           const contractIdHex = bufferToUint8Array(
@@ -228,7 +227,6 @@ export class OperationMapper {
   }
 
   #mapClassicParams(operation: Operation): ReadableOperationField[] {
-    /* eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- enum cases mirror SDK `operation.type` literals */
     switch (operation.type) {
       case StellarOperationType.Payment: {
         const payment = operation;

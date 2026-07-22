@@ -38,14 +38,14 @@ import { caip2ChainIdToNetwork } from '../network/utils';
 import {
   createMockAccountWithBalances,
   horizonSource,
-  type MockAccountWithBalancesData,
 } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
+import type { MockAccountWithBalancesData } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import {
   buildMockClassicTransaction,
   buildMockInvokeHostFunctionTransaction,
-  type BuildMockTransactionOptions,
 } from './__mocks__/transaction.fixtures';
+import type { BuildMockTransactionOptions } from './__mocks__/transaction.fixtures';
 import {
   generateStellarAddress,
   getTestWallet,

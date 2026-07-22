@@ -78,7 +78,7 @@ export class OnChainAccountRepository {
     await this.#state.update((state) => {
       const newState = cloneDeep(state);
       if (!newState[this.#stateKey]) {
-        newState[this.#stateKey] = {} as OnChainAccountSnapshotsByKeyringId;
+        newState[this.#stateKey] = {};
       }
       const root = newState[this.#stateKey];
       root[keyringAccountId] ??= {};
@@ -102,7 +102,7 @@ export class OnChainAccountRepository {
     await this.#state.update((state) => {
       const newState = cloneDeep(state);
       if (!newState[this.#stateKey]) {
-        newState[this.#stateKey] = {} as OnChainAccountSnapshotsByKeyringId;
+        newState[this.#stateKey] = {};
       }
       const accountsByKeyringId = newState[this.#stateKey];
 

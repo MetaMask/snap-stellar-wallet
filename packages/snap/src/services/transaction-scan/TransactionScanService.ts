@@ -15,7 +15,6 @@ import type {
   TransactionScanError,
   TransactionScanResult,
   TransactionScanValidation,
-  TransactionScanValidationType,
 } from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import type { KnownCaip2ChainId } from '../../api';
@@ -324,7 +323,7 @@ export class TransactionScanService {
     >,
   ): TransactionScanValidation {
     return {
-      type: validation.result_type as TransactionScanValidationType,
+      type: validation.result_type,
       reason: validation.reason ?? null,
       description: validation.description ?? null,
     };

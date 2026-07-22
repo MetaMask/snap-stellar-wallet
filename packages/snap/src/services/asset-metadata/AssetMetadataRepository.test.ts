@@ -2,11 +2,8 @@ import { cloneDeep } from 'lodash';
 
 import type { AssetMetadataState, StellarAssetMetadata } from './api';
 import { AssetMetadataRepository } from './AssetMetadataRepository';
-import {
-  AssetType,
-  KnownCaip2ChainId,
-  type KnownCaip19AssetId,
-} from '../../api';
+import { AssetType, KnownCaip2ChainId } from '../../api';
+import type { KnownCaip19AssetId } from '../../api';
 import type { IStateManager } from '../state/IStateManager';
 
 const classicId =

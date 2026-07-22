@@ -1,11 +1,8 @@
 import type { StellarAssetMetadata } from './api';
 import type { AssetMetadataRepository } from './AssetMetadataRepository';
 import { AssetMetadataService } from './AssetMetadataService';
-import {
-  AssetType,
-  KnownCaip2ChainId,
-  type KnownCaip19AssetId,
-} from '../../api';
+import { AssetType, KnownCaip2ChainId } from '../../api';
+import type { KnownCaip19AssetId } from '../../api';
 import { buildUrl, getSlip44AssetId, logger } from '../../utils';
 import type { NetworkService } from '../network';
 import { TokenApiClient } from './token-api/TokenApiClient';

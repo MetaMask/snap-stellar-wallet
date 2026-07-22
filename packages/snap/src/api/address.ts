@@ -1,4 +1,5 @@
-import { refine, string, nonempty, type Infer } from '@metamask/superstruct';
+import { refine, string, nonempty } from '@metamask/superstruct';
+import type { Infer } from '@metamask/superstruct';
 import { StrKey } from '@stellar/stellar-sdk';
 
 /**

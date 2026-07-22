@@ -1,6 +1,5 @@
 import type { Horizon } from '@stellar/stellar-sdk';
 
-/* eslint-disable @typescript-eslint/naming-convention -- Horizon API field names */
 export const receivePaymentTransactionPathReceiveResponse = {
   _links: {
     self: {
@@ -803,4 +802,3 @@ export const sep41SendTransactionResponse = {
     },
   },
 } as unknown as Horizon.ServerApi.TransactionRecord;
-/* eslint-enable @typescript-eslint/naming-convention */

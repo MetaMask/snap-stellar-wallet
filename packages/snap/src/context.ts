@@ -41,7 +41,6 @@ import {
 } from './services/asset-metadata';
 import { InMemoryCache } from './services/cache';
 import { NetworkService } from './services/network';
-import type { OnChainAccountState } from './services/on-chain-account';
 import {
   OnChainAccountRepository,
   OnChainAccountService,
@@ -71,7 +70,7 @@ const state = new State({
     assets: {},
     transactions: {},
     lastScanTokens: {},
-    onChainAccounts: {} as OnChainAccountState['onChainAccounts'],
+    onChainAccounts: {},
   },
 });
 

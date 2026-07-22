@@ -4,7 +4,7 @@ const actual = jest.requireActual('../snap');
 
 (globalThis as any).snap = {
   request: jest.fn(),
-} as unknown as SnapsProvider;
+};
 
 export const getSnapProvider = (): SnapsProvider => snap;
 

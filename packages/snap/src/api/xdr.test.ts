@@ -7,8 +7,8 @@ import {
   Networks,
   Operation,
   TransactionBuilder,
-  type xdr,
 } from '@stellar/stellar-sdk';
+import type { xdr } from '@stellar/stellar-sdk';
 
 import { SwapTransactionXdrStruct } from './xdr';
 

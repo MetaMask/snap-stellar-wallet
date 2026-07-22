@@ -110,8 +110,7 @@ export class AccountsRepository {
     await this.#state.update((state) => {
       const newState = cloneDeep(state);
       if (!newState[this.#storageKey]) {
-        newState[this.#storageKey] =
-          {} as KeyringAccountState['keyringAccounts'];
+        newState[this.#storageKey] = {};
       }
       for (const account of accounts) {
         newState[this.#storageKey][account.id] = account;

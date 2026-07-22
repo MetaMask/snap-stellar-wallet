@@ -3,13 +3,8 @@ import { Mutex } from 'async-mutex';
 import { unset } from 'lodash';
 
 import type { IStateManager } from './IStateManager';
-import {
-  type Serializable,
-  safeMerge,
-  getState,
-  setState,
-  updateState,
-} from '../../utils';
+import { safeMerge, getState, setState, updateState } from '../../utils';
+import type { Serializable } from '../../utils';
 
 export type StateConfig<TValue extends Record<string, Serializable>> = {
   encrypted: boolean;

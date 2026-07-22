@@ -1,6 +1,7 @@
 import { Address, Keypair, Networks, hash, xdr } from '@stellar/stellar-sdk';
 
-import { MultichainMethod, type SignAuthEntryRequest } from './api';
+import { MultichainMethod } from './api';
+import type { SignAuthEntryRequest } from './api';
 import { Sep43ErrorCode } from './exceptions';
 import { SignAuthEntryHandler } from './signAuthEntry';
 import { KnownCaip2ChainId } from '../../api';

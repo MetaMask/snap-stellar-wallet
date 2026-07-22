@@ -1,15 +1,13 @@
 import { KnownCaip2ChainId } from '../../../../api';
 import {
   ConfirmationInterfaceKey,
-  type ContextWithPrices,
   FetchStatus,
 } from '../../../../ui/confirmation/api';
+import type { ContextWithPrices } from '../../../../ui/confirmation/api';
 import { getSlip44AssetId } from '../../../../utils';
 import type { RefreshConfirmationContextParams } from '../../api';
-import {
-  ConfirmationContextRefresherKey,
-  type ConfirmationDataContext,
-} from '../api';
+import { ConfirmationContextRefresherKey } from '../api';
+import type { ConfirmationDataContext } from '../api';
 
 const scope = KnownCaip2ChainId.Testnet;
 const nativeAssetId = getSlip44AssetId(scope);

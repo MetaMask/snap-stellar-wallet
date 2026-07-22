@@ -1,4 +1,5 @@
-import { nonempty, refine, string, type Infer } from '@metamask/superstruct';
+import { nonempty, refine, string } from '@metamask/superstruct';
+import type { Infer } from '@metamask/superstruct';
 import { BigNumber } from 'bignumber.js';
 
 import { MAX_INT64, STELLAR_DECIMAL_PLACES } from '../constants';

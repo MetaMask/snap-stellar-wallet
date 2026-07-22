@@ -9,12 +9,12 @@ import {
 import { BigNumber } from 'bignumber.js';
 
 import { XdrParseException } from './exceptions';
-import {
-  StellarAddressOrContractStruct,
-  type KnownCaip19ClassicAssetId,
-  type KnownCaip19Sep41AssetId,
-  type KnownCaip19Slip44Id,
-  type KnownCaip2ChainId,
+import { StellarAddressOrContractStruct } from '../../api';
+import type {
+  KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
+  KnownCaip19Slip44Id,
+  KnownCaip2ChainId,
 } from '../../api';
 import {
   getSlip44AssetId,
@@ -184,7 +184,7 @@ export function isSep41TransferInvoke(
   op: Operation.InvokeHostFunction,
 ): boolean {
   const { func } = op;
-  if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
+  if (func?.switch().name !== 'hostFunctionTypeInvokeContract') {
     return false;
   }
   return func.invokeContract().functionName().toString() === 'transfer';
@@ -208,7 +208,7 @@ export function parseSep41TransferInvoke(
 ): ParsedSep41TransferInvoke {
   try {
     const { func } = op;
-    if (!func || func.switch().name !== 'hostFunctionTypeInvokeContract') {
+    if (func?.switch().name !== 'hostFunctionTypeInvokeContract') {
       throw new XdrParseException('Not an invoke contract operation');
     }
     const ic = func.invokeContract();
