@@ -1,7 +1,15 @@
 {
   "extends": "../../tsconfig.packages.json",
   "compilerOptions": {
-    "resolveJsonModule": true /*  lets us import JSON modules from within TypeScript modules. */,
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noErrorTruncation": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
     "jsx": "react-jsx",
     "jsxImportSource": "@metamask/snaps-sdk",
     "exactOptionalPropertyTypes": false,
