@@ -1,16 +1,18 @@
 {
+  /**
+   * This configuration is extended by the `tsconfig.json` configuration in each package.
+   */
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "esModuleInterop": true,
-    "exactOptionalPropertyTypes": true,
-    "forceConsistentCasingInFileNames": true,
-    "lib": ["ES2023", "DOM"],
-    "module": "CommonJS",
-    "moduleResolution": "node",
-    "noEmit": true,
-    "noErrorTruncation": true,
-    "noUncheckedIndexedAccess": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "target": "es2023"
+    /**
+     * Here we ensure that TypeScript resolves `@metamask/*` imports to the
+     * uncompiled source code for packages that live in this repo.
+     *
+     * NOTE: This must be synchronized with the `moduleNameMapper` option in
+     * `jest.config.packages.js`.
+     */
+    "paths": {
+      "@metamask/*": ["../*/src"]
+    }
   }
 }
