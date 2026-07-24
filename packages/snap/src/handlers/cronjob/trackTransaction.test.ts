@@ -196,7 +196,7 @@ describe('TrackTransactionHandler', () => {
         accountIdsOrAddresses: [accountId],
         attempt: 1,
       },
-      duration: Duration.TwoSeconds,
+      duration: Duration.FiveSeconds,
     });
   });
 
