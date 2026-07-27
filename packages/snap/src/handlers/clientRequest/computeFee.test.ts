@@ -1,7 +1,7 @@
 import { FeeType } from '@metamask/keyring-api';
 import { Networks } from '@stellar/stellar-sdk';
 
-import { ClientRequestMethod } from './api';
+import { ClientRequestMethod, MultiChainSendErrorCodes } from './api';
 import type { ComputeFeeJsonRpcRequest } from './api';
 import { ComputeFeeHandler } from './computeFee';
 import { KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../../api';
@@ -22,6 +22,7 @@ import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
   TransactionService,
+  TransactionValidationException,
 } from '../../services/transaction';
 import {
   buildMockInvokeHostFunctionTransaction,
@@ -185,50 +186,50 @@ describe('ComputeFeeHandler', () => {
     );
   });
 
-  it('returns the required native fee when balance is insufficient to cover fees', async () => {
+  it('throws a structured validation error when balance is insufficient to cover fees', async () => {
     const { handler, request, createValidatedSwapTransaction } = setup();
-    createValidatedSwapTransaction.mockRejectedValueOnce(
-      new InsufficientBalanceToCoverFeeException('100', '12500000'),
-    );
+    const cause = new InsufficientBalanceToCoverFeeException('100', '12500000');
+    createValidatedSwapTransaction.mockRejectedValueOnce(cause);
 
-    const result = await handler.handle(request);
+    const error: unknown = await handler
+      .handle(request)
+      .catch((thrown: unknown) => thrown);
 
-    expect(result).toStrictEqual([
-      {
-        type: FeeType.Base,
-        asset: {
-          unit: NATIVE_ASSET_SYMBOL,
-          type: KnownCaip19Slip44IdMap[scope],
-          amount: '1.25',
-          fungible: true,
-        },
-      },
-    ]);
+    expect(error).toBeInstanceOf(TransactionValidationException);
+    const validationError = error as TransactionValidationException;
+    expect(validationError.message).toBe(cause.message);
+    expect(validationError.cause).toBe(cause);
+    expect(validationError.data).toStrictEqual({
+      code: MultiChainSendErrorCodes.InsufficientBalanceToCoverFee,
+      assetId: KnownCaip19Slip44IdMap[scope],
+      availableAmount: '0.00001',
+      requiredAmount: '1.25',
+    });
   });
 
-  it('returns the required native fee when native balance is insufficient for the swap', async () => {
+  it('throws a structured validation error when native balance is insufficient for the swap', async () => {
     const { handler, request, createValidatedSwapTransaction } = setup();
-    createValidatedSwapTransaction.mockRejectedValueOnce(
-      new InsufficientBalanceException(
-        '100',
-        '50000000',
-        KnownCaip19Slip44IdMap[scope],
-      ),
+    const cause = new InsufficientBalanceException(
+      '100',
+      '50000000',
+      KnownCaip19Slip44IdMap[scope],
     );
+    createValidatedSwapTransaction.mockRejectedValueOnce(cause);
 
-    const result = await handler.handle(request);
+    const error: unknown = await handler
+      .handle(request)
+      .catch((thrown: unknown) => thrown);
 
-    expect(result).toStrictEqual([
-      {
-        type: FeeType.Base,
-        asset: {
-          unit: NATIVE_ASSET_SYMBOL,
-          type: KnownCaip19Slip44IdMap[scope],
-          amount: '5',
-          fungible: true,
-        },
-      },
-    ]);
+    expect(error).toBeInstanceOf(TransactionValidationException);
+    const validationError = error as TransactionValidationException;
+    expect(validationError.message).toBe(cause.message);
+    expect(validationError.cause).toBe(cause);
+    expect(validationError.data).toStrictEqual({
+      code: MultiChainSendErrorCodes.InsufficientBalance,
+      assetId: KnownCaip19Slip44IdMap[scope],
+      availableAmount: '0.00001',
+      requiredAmount: '5',
+    });
   });
 
   it('rethrows when balance is insufficient for a non-native asset', async () => {

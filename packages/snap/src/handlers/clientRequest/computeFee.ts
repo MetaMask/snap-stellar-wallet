@@ -8,6 +8,7 @@ import type {
 import {
   ComputeFeeJsonRpcRequestStruct,
   ComputeFeeJsonRpcResponseStruct,
+  MultiChainSendErrorCodes,
 } from './api';
 import type {
   AccountResolver,
@@ -19,6 +20,7 @@ import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
+  TransactionValidationException,
 } from '../../services/transaction';
 import type { TransactionService } from '../../services/transaction/TransactionService';
 import { isSlip44Id } from '../../utils';
@@ -104,17 +106,23 @@ export class ComputeFeeHandler extends BaseClientRequestHandler<
           isSlip44Id(error.assetId)) ||
         error instanceof InsufficientBalanceToCoverFeeException
       ) {
-        return [
-          {
-            type: FeeType.Base,
-            asset: {
-              unit: NATIVE_ASSET_SYMBOL,
-              type: KnownCaip19Slip44IdMap[scope],
-              amount: toDisplayBalance(new BigNumber(error.required)),
-              fungible: true as const,
-            },
+        const code =
+          error instanceof InsufficientBalanceException
+            ? MultiChainSendErrorCodes.InsufficientBalance
+            : MultiChainSendErrorCodes.InsufficientBalanceToCoverFee;
+
+        throw new TransactionValidationException(error.message, {
+          cause: error,
+          data: {
+            code,
+            assetId:
+              error instanceof InsufficientBalanceException
+                ? error.assetId
+                : KnownCaip19Slip44IdMap[scope],
+            availableAmount: toDisplayBalance(new BigNumber(error.balance)),
+            requiredAmount: toDisplayBalance(new BigNumber(error.required)),
           },
-        ];
+        });
       }
       throw error;
     }
