@@ -271,6 +271,7 @@ export class TransactionService {
         // We don't need symbol/decimals for a SEP-41 asset here; simulation
         // does not use them.
         symbol: '',
+        decimals: 0,
       });
     }
 

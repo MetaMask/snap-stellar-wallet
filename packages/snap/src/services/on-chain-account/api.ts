@@ -8,8 +8,11 @@ export type SpendableBalance = {
   limit?: BigNumber;
   address?: string;
   authorized?: boolean;
+  /** True when a non-empty Horizon `sponsor` is present (reserve sponsored by another account). */
   sponsored?: boolean;
-  decimals?: number;
+  /** Horizon trustline `sponsor` account id when the reserve is sponsored. */
+  sponsor?: string;
+  decimals: number;
 };
 
 type KeyringAccountId = string;

@@ -20,7 +20,7 @@ import {
   SerializableClassicSpendableBalanceStruct,
   SerializableSep41SpendableBalanceStruct,
 } from './OnChainAccountSerializable';
-import { calculateSpendableBalance } from './utils';
+import { calculateSpendableBalance, minimumBalanceStroops } from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19ClassicAssetId,
@@ -31,6 +31,7 @@ import {
   ACCOUNT_REQUIRES_MEMO,
   MEMO_REQUIRED_KEY,
   NATIVE_ASSET_SYMBOL,
+  STELLAR_DECIMAL_PLACES,
 } from '../../constants';
 import {
   getSlip44AssetId,
@@ -131,6 +132,20 @@ export class OnChainAccount {
     throw new OnChainAccountMetadataNotAvailableException();
   }
 
+  /**
+   * Stellar minimum native balance (stroops).
+   *
+   * @returns Minimum balance in stroops.
+   * @throws {OnChainAccountMetadataNotAvailableException} When ledger meta is unbound.
+   */
+  get minimumReserveBalance(): BigNumber {
+    return minimumBalanceStroops({
+      subentryCount: this.subentryCount,
+      numSponsoring: this.numSponsoring,
+      numSponsored: this.numSponsored,
+    });
+  }
+
   get requiresMemo(): boolean {
     return this.#dataEntries?.[MEMO_REQUIRED_KEY] === ACCOUNT_REQUIRES_MEMO;
   }
@@ -210,6 +225,32 @@ export class OnChainAccount {
     assetEntry: SpendableBalance,
   ): void {
     this.#balances.set(assetId, assetEntry);
+  }
+
+  /**
+   * Sets a tombstone asset entry for a given asset id.
+   *
+   * @param assetId - classic CAIP-19 id (not slip44 native).
+   * @param assetEntry - Entry stored in the in-memory asset map.
+   */
+  setTombstoneClassicAsset(
+    assetId: KnownCaip19ClassicAssetId,
+    assetEntry: SpendableBalance,
+  ): void {
+    this.#balances.set(assetId, {
+      balance: new BigNumber(0),
+      symbol: assetEntry.symbol,
+      limit: new BigNumber(0),
+      address: assetEntry.address,
+      authorized: assetEntry.authorized ?? true,
+      ...(assetEntry.sponsored === undefined
+        ? {}
+        : { sponsored: assetEntry.sponsored }),
+      ...(assetEntry.sponsor === undefined || assetEntry.sponsor.length === 0
+        ? {}
+        : { sponsor: assetEntry.sponsor }),
+      decimals: assetEntry.decimals,
+    });
   }
 
   /**
@@ -344,7 +385,12 @@ export class OnChainAccount {
             limit: entry.limit.toString(),
             address: entry.address,
             authorized: entry.authorized,
-            sponsored: entry.sponsored,
+            ...(entry.sponsored === undefined
+              ? {}
+              : { sponsored: entry.sponsored }),
+            ...(entry.sponsor === undefined || entry.sponsor.length === 0
+              ? {}
+              : { sponsor: entry.sponsor }),
           }),
         );
       } else if (isSep41Id(assetId)) {
@@ -454,7 +500,7 @@ export class OnChainAccount {
           address: balance.asset_issuer,
           limit: limit.toString(),
           authorized,
-          ...(sponsored ? { sponsored: true } : {}),
+          ...(sponsored ? { sponsored: true, sponsor: sponsorId } : {}),
         });
       }
     }
@@ -511,6 +557,7 @@ export class OnChainAccount {
           numSponsored: meta.numSponsored,
         }),
         symbol: NATIVE_ASSET_SYMBOL,
+        decimals: STELLAR_DECIMAL_PLACES,
       });
 
       assetEntries.forEach((assetEntry) => {
@@ -526,8 +573,15 @@ export class OnChainAccount {
         }
 
         if (SerializableClassicSpendableBalanceStruct.is(assetEntry)) {
-          const { balance, symbol, limit, address, authorized, sponsored } =
-            assetEntry;
+          const {
+            balance,
+            symbol,
+            limit,
+            address,
+            authorized,
+            sponsored,
+            sponsor,
+          } = assetEntry;
           this.#balances.set(assetEntry.assetId, {
             balance: new BigNumber(balance),
             symbol,
@@ -535,6 +589,10 @@ export class OnChainAccount {
             address,
             authorized,
             ...(sponsored === undefined ? {} : { sponsored }),
+            ...(sponsor === undefined || sponsor.length === 0
+              ? {}
+              : { sponsor }),
+            decimals: STELLAR_DECIMAL_PLACES,
           });
         } else if (SerializableSep41SpendableBalanceStruct.is(assetEntry)) {
           const { balance, symbol, decimals } =

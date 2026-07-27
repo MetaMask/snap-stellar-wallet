@@ -33,7 +33,11 @@ import {
   TransactionSimulator,
 } from './TransactionSimulator';
 import { KnownCaip2ChainId } from '../../api';
-import { ACCOUNT_REQUIRES_MEMO, MEMO_REQUIRED_KEY } from '../../constants';
+import {
+  ACCOUNT_REQUIRES_MEMO,
+  MEMO_REQUIRED_KEY,
+  STELLAR_DECIMAL_PLACES,
+} from '../../constants';
 import { caip2ChainIdToNetwork } from '../network/utils';
 import {
   createMockAccountWithBalances,
@@ -1536,6 +1540,7 @@ describe('TransactionSimulator', () => {
       loaded.setAsset(SEP41_ASSET_MAINNET, {
         balance: new BigNumber(1_000_000),
         symbol: 'TOK',
+        decimals: STELLAR_DECIMAL_PLACES,
       });
 
       expect(simulator.simulate(sorobanTx, loaded)).toHaveLength(2);
@@ -1559,6 +1564,7 @@ describe('TransactionSimulator', () => {
       loaded.setAsset(SEP41_ASSET_MAINNET, {
         balance: new BigNumber(5),
         symbol: 'TOK',
+        decimals: STELLAR_DECIMAL_PLACES,
       });
 
       expect(() => simulator.simulate(sorobanTx, loaded)).toThrow(
@@ -1589,6 +1595,7 @@ describe('TransactionSimulator', () => {
       otherLoaded.setAsset(SEP41_ASSET_MAINNET, {
         balance: new BigNumber(100),
         symbol: 'TOK',
+        decimals: STELLAR_DECIMAL_PLACES,
       });
 
       expect(() =>
@@ -1628,6 +1635,7 @@ describe('TransactionSimulator', () => {
       loaded.setAsset(SEP41_ASSET_MAINNET, {
         balance: new BigNumber(1_000_000),
         symbol: 'TOK',
+        decimals: STELLAR_DECIMAL_PLACES,
       });
 
       expect(simulator.simulate(sorobanTx, loaded)).toHaveLength(2);

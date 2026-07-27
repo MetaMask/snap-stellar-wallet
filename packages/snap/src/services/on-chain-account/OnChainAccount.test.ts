@@ -250,6 +250,7 @@ describe('OnChainAccount', () => {
         limit: new BigNumber(0),
         address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
         authorized: true,
+        decimals: 7,
       });
       expect(onChainAccount.getRawAsset(sep41Id)).toStrictEqual({
         balance: new BigNumber(0),
@@ -285,6 +286,7 @@ describe('OnChainAccount', () => {
           address: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
           limit: new BigNumber('9223372036854775807'),
           authorized: true,
+          decimals: 7,
         },
       },
       {
@@ -292,6 +294,7 @@ describe('OnChainAccount', () => {
         expected: {
           balance: new BigNumber('90000000'),
           symbol: 'XLM',
+          decimals: 7,
         },
       },
     ])(
@@ -439,6 +442,72 @@ describe('OnChainAccount', () => {
     });
   });
 
+  describe('minimumReserveBalance', () => {
+    it('returns protocol minimum balance even when the account is underfunded', () => {
+      const { wallet } = createTestWallet();
+      // subentryCount 2 → min = (2+2) × 0.5 = 2 XLM; native is only 1 XLM (underfunded).
+      const underfunded = OnChainAccount.fromHorizon(
+        createMockAccountWithBalances(wallet.address, '1', {
+          nativeBalance: 1,
+          assets: [],
+          subentryCount: 2,
+          sponsoringCount: 0,
+          sponsoredCount: 0,
+        }) as unknown as Horizon.AccountResponse,
+        KnownCaip2ChainId.Mainnet,
+      );
+
+      const expected = minimumBalanceStroops({
+        subentryCount: 2,
+        numSponsoring: 0,
+        numSponsored: 0,
+      });
+      expect(underfunded.nativeSpendableBalance.isZero()).toBe(true);
+      expect(underfunded.minimumReserveBalance).toStrictEqual(expected);
+      expect(underfunded.minimumReserveBalance.toFixed(0)).toBe(
+        toSmallestUnit(new BigNumber('2')).toFixed(0),
+      );
+    });
+  });
+
+  describe('sponsor', () => {
+    it('stores Horizon sponsor id on classic trustlines and round-trips through serialize', () => {
+      const { wallet } = createTestWallet();
+      const sponsorId =
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+      const onChainAccount = OnChainAccount.fromHorizon(
+        createMockAccountWithBalances(wallet.address, '1', {
+          nativeBalance: 10,
+          assets: [
+            {
+              assetType: 'credit_alphanum4',
+              assetCode: 'USDC',
+              assetIssuer:
+                'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+              balance: 5,
+              sponsor: sponsorId,
+            },
+          ],
+        }) as unknown as Horizon.AccountResponse,
+        KnownCaip2ChainId.Mainnet,
+      );
+
+      const usdcId = toCaip19ClassicAssetId(
+        KnownCaip2ChainId.Mainnet,
+        'USDC',
+        'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+      );
+      const entry = expectDefined(onChainAccount.getAsset(usdcId));
+      expect(entry.sponsor).toBe(sponsorId);
+      expect(entry.sponsored).toBe(true);
+
+      const restored = OnChainAccount.fromSerializable(
+        onChainAccount.toSerializable(),
+      );
+      expect(expectDefined(restored.getAsset(usdcId)).sponsor).toBe(sponsorId);
+    });
+  });
+
   describe('getRaw', () => {
     it('returns the raw account', () => {
       const account = createMockAccountWithBalances(
@@ -504,7 +573,12 @@ describe('OnChainAccount', () => {
         address: usdcRow.address,
         limit: optionalBigNumberString(usdcRow.limit),
         authorized: usdcRow.authorized,
-        sponsored: usdcRow.sponsored,
+        ...(usdcRow.sponsored === undefined
+          ? {}
+          : { sponsored: usdcRow.sponsored }),
+        ...(usdcRow.sponsor === undefined || usdcRow.sponsor.length === 0
+          ? {}
+          : { sponsor: usdcRow.sponsor }),
       });
       expect(fullSer.rawNativeBalance).toBe(
         onChainAccount.nativeRawBalance.toFixed(0),

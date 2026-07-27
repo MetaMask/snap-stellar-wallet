@@ -1818,15 +1818,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@metamask/keyring-api@npm:^23.3.0":
-  version: 23.3.0
-  resolution: "@metamask/keyring-api@npm:23.3.0"
+"@metamask/keyring-api@npm:^23.7.0":
+  version: 23.7.0
+  resolution: "@metamask/keyring-api@npm:23.7.0"
   dependencies:
-    "@metamask/keyring-utils": "npm:^3.3.1"
-    "@metamask/superstruct": "npm:^3.1.0"
+    "@metamask/keyring-utils": "npm:^4.0.0"
+    "@metamask/superstruct": "npm:^3.4.1"
     "@metamask/utils": "npm:^11.11.0"
     bitcoin-address-validation: "npm:^2.2.3"
-  checksum: 10/c6ad3bf4294b09730d752d548b1cd0c1c622f357a12c7287af2b5889a01e99a4d20316cc9e96840d5c5619eee0f9305d4dfc03febd0bd136e72de95ce3fd0a1e
+  checksum: 10/3c1aea064e017be0b99202a4e59b7ed9e1965aeb732b04ad5cb252dfa6b443487284f8b4253986ca325d8b45fd7977cef93f470f95f0342d377551d4b93738c3
   languageName: node
   linkType: hard
 
@@ -1855,6 +1855,18 @@ __metadata:
     "@metamask/utils": "npm:^11.11.0"
     bitcoin-address-validation: "npm:^2.2.3"
   checksum: 10/d0917b2f634d9eb2f563827739fca00c1675ee90674ec49b2b68afcb604aee843d6c5be5d79e9780fa22d29f71fc876f40b2d3d0ed4cab7f5948937ddd276691
+  languageName: node
+  linkType: hard
+
+"@metamask/keyring-utils@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "@metamask/keyring-utils@npm:4.0.0"
+  dependencies:
+    "@ethereumjs/tx": "npm:^5.4.0"
+    "@metamask/superstruct": "npm:^3.4.1"
+    "@metamask/utils": "npm:^11.11.0"
+    bitcoin-address-validation: "npm:^2.2.3"
+  checksum: 10/a4299fafadd4a4f2f1a4475a7f4e6c4d268ccfa82e505cdd4cf4a1ff5cc6ca485edd7422650c498409db93d4fe32429db7bd02276ce6fee80aac5f6a64439578
   languageName: node
   linkType: hard
 
@@ -2253,7 +2265,7 @@ __metadata:
   dependencies:
     "@metamask/auto-changelog": "npm:^6.1.0"
     "@metamask/key-tree": "npm:^10.1.1"
-    "@metamask/keyring-api": "npm:^23.3.0"
+    "@metamask/keyring-api": "npm:^23.7.0"
     "@metamask/keyring-snap-sdk": "npm:^9.0.2"
     "@metamask/snaps-cli": "npm:^8.4.0"
     "@metamask/snaps-jest": "npm:^10.1.0"
@@ -2290,6 +2302,13 @@ __metadata:
   version: 3.2.1
   resolution: "@metamask/superstruct@npm:3.2.1"
   checksum: 10/9e29380f2cf8b129283ccb2b568296d92682b705109ba62dbd7739ffd6a1982fe38c7228cdcf3cbee94dbcdd5fcc1c846ab9d1dd3582167154f914422fcff547
+  languageName: node
+  linkType: hard
+
+"@metamask/superstruct@npm:^3.4.1":
+  version: 3.4.1
+  resolution: "@metamask/superstruct@npm:3.4.1"
+  checksum: 10/d37b5662dc9bbe0d99e06eb951167fa745829ae3abfa103423e9d8c05e8712f1451376f8479d484722e1e1c1d881732da1efddccaca8868b530a786264b903b5
   languageName: node
   linkType: hard
 

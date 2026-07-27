@@ -5,7 +5,6 @@ import {
   KeyringEvent,
 } from '@metamask/keyring-api';
 import type {
-  Balance,
   CreateAccountOptions as KeyringApiCreateAccountOptions,
   DiscoveredAccount,
   EntropySourceId,
@@ -16,6 +15,7 @@ import type {
   Pagination,
   ResolvedAccountAddress,
   Transaction,
+  Balance,
 } from '@metamask/keyring-api';
 import {
   emitSnapKeyringEvent,
@@ -55,7 +55,6 @@ import type {
   KnownCaip2ChainId,
 } from '../../api';
 import { AppConfig } from '../../config';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import type {
   AccountService,
   StellarKeyringAccount,
@@ -65,6 +64,12 @@ import type {
   OnChainAccount,
   OnChainAccountService,
 } from '../../services/on-chain-account';
+import {
+  toClassicBalanceEntry,
+  getDefaultBalanceEntry,
+  toNativeBalanceEntry,
+  toStandardBalanceEntry,
+} from '../../services/on-chain-account';
 import type { TransactionService } from '../../services/transaction/TransactionService';
 import type { ILogger } from '../../utils';
 import {
@@ -72,8 +77,8 @@ import {
   Duration,
   getSlip44AssetId,
   getSnapProvider,
+  isClassicAssetId,
   isSlip44Id,
-  toDisplayBalance,
   validateOrigin,
   validateRequest,
   withCatchAndThrowSnapError,
@@ -392,10 +397,7 @@ export class KeyringHandler implements Keyring {
     if (onChainAccount === null) {
       const nativeAssetId = assets.find(isSlip44Id);
       if (nativeAssetId !== undefined) {
-        assetBalances[nativeAssetId] = {
-          unit: NATIVE_ASSET_SYMBOL,
-          amount: '0',
-        };
+        assetBalances[nativeAssetId] = getDefaultBalanceEntry();
       }
       return assetBalances;
     }
@@ -408,16 +410,15 @@ export class KeyringHandler implements Keyring {
       }
 
       if (isSlip44Id(assetId)) {
-        // We show the raw native balance, not the spendable balance for XLM
-        assetBalances[assetId] = {
-          unit: NATIVE_ASSET_SYMBOL,
-          amount: toDisplayBalance(onChainAccount.nativeRawBalance),
-        };
+        assetBalances[assetId] = toNativeBalanceEntry({
+          nativeBalance: onChainAccount.nativeRawBalance,
+          spendableBalance: onChainAccount.nativeSpendableBalance,
+          minimumReserveBalance: onChainAccount.minimumReserveBalance,
+        });
+      } else if (isClassicAssetId(assetId)) {
+        assetBalances[assetId] = toClassicBalanceEntry(asset);
       } else {
-        assetBalances[assetId] = {
-          unit: asset.symbol ?? '',
-          amount: toDisplayBalance(asset.balance, asset.decimals),
-        };
+        assetBalances[assetId] = toStandardBalanceEntry(asset);
       }
     }
     return assetBalances;
