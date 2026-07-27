@@ -2,12 +2,12 @@
 
 Soroban contract token transfer (`SEP-41` CAIP-19 asset → `invokeHostFunction` calling `transfer`).
 
-| | |
-| --- | --- |
-| **Service** | `TransactionService.createValidatedSendTransaction` → `#createValidatedSep41Transfer` |
-| **Builder** | `TransactionBuilder.sep41Transfer` |
-| **Client** | [`onAmountInput`](../../use-cases/client-request/onAmountInput.md), [`confirmSend`](../../use-cases/client-request/confirmSend.md) |
-| **Submit** | [Submit & bad-sequence retry](./submit-sequence-retry.md) |
+|             |                                                                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Service** | `TransactionService.createValidatedSendTransaction` → `#createValidatedSep41Transfer`                                              |
+| **Builder** | `TransactionBuilder.sep41Transfer`                                                                                                 |
+| **Client**  | [`onAmountInput`](../../use-cases/client-request/onAmountInput.md), [`confirmSend`](../../use-cases/client-request/confirmSend.md) |
+| **Submit**  | [Submit & bad-sequence retry](./submit-sequence-retry.md)                                                                          |
 
 ## Build
 

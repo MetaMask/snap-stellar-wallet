@@ -2,22 +2,22 @@
 
 Refresh the Snap’s asset metadata catalog from the token API (mainnet only).
 
-| | |
-| --- | --- |
-| **Entry** | `onCronjob` → `CronjobHandler` → `SyncAssetsHandler` |
-| **Method** | `synchronizeAssets` (`BackgroundEventMethod.SynchronizeAssets`) |
-| **Source** | [`handlers/cronjob/syncAssets.ts`](../../../src/handlers/cronjob/syncAssets.ts) |
-| **Synchronization** | [synchronization](../../misc/synchronization/synchronization.md) |
-| **Gate** | Skipped when wallet locked / inactive — see [cronjob.md](./cronjob.md) |
+|                     |                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------- |
+| **Entry**           | `onCronjob` → `CronjobHandler` → `SyncAssetsHandler`                            |
+| **Method**          | `synchronizeAssets` (`BackgroundEventMethod.SynchronizeAssets`)                 |
+| **Source**          | [`handlers/cronjob/syncAssets.ts`](../../../src/handlers/cronjob/syncAssets.ts) |
+| **Synchronization** | [synchronization](../../misc/synchronization/synchronization.md)                |
+| **Gate**            | Skipped when wallet locked / inactive — see [cronjob.md](./cronjob.md)          |
 
 Declarative cron in `snap.manifest.json` (no params required).
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `SyncAssetsHandler` | `handlers/cronjob` | Cron entry |
-| `SynchronizeService` | `services/sync` | `synchronizeAssets(scope)` |
+| Component              | Path                      | Role                         |
+| ---------------------- | ------------------------- | ---------------------------- |
+| `SyncAssetsHandler`    | `handlers/cronjob`        | Cron entry                   |
+| `SynchronizeService`   | `services/sync`           | `synchronizeAssets(scope)`   |
 | `AssetMetadataService` | `services/asset-metadata` | Pull / persist asset catalog |
 
 ## Step-by-step

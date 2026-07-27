@@ -2,21 +2,21 @@
 
 Asset metadata catalog refresh from the token API.
 
-| | |
-| --- | --- |
-| **Service** | [`AssetMetadataService.synchronize`](../../../src/services/asset-metadata/AssetMetadataService.ts) |
-| **Orchestrator** | [`SynchronizeService.synchronizeAssets`](../../../src/services/sync/SynchronizeService.ts) |
-| **Snap state** | [`AssetMetadataRepository`](../../../src/services/asset-metadata/AssetMetadataRepository.ts) |
-| **Overview** | [synchronization.md](./synchronization.md) |
+|                  |                                                                                                    |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| **Service**      | [`AssetMetadataService.synchronize`](../../../src/services/asset-metadata/AssetMetadataService.ts) |
+| **Orchestrator** | [`SynchronizeService.synchronizeAssets`](../../../src/services/sync/SynchronizeService.ts)         |
+| **Snap state**   | [`AssetMetadataRepository`](../../../src/services/asset-metadata/AssetMetadataRepository.ts)       |
+| **Overview**     | [synchronization.md](./synchronization.md)                                                         |
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `SyncAssetsHandler` | `handlers/cronjob` | Cron entry |
-| `SynchronizeService` | `services/sync` | `synchronizeAssets(scope)` delegate |
-| `AssetMetadataService` | `services/asset-metadata` | Fetch + persist catalog |
-| `TokenApiClient` | `services/asset-metadata/token-api` | Token API |
+| Component              | Path                                | Role                                |
+| ---------------------- | ----------------------------------- | ----------------------------------- |
+| `SyncAssetsHandler`    | `handlers/cronjob`                  | Cron entry                          |
+| `SynchronizeService`   | `services/sync`                     | `synchronizeAssets(scope)` delegate |
+| `AssetMetadataService` | `services/asset-metadata`           | Fetch + persist catalog             |
+| `TokenApiClient`       | `services/asset-metadata/token-api` | Token API                           |
 
 ## Request / response
 
@@ -53,10 +53,10 @@ sequenceDiagram
 
 ## Data source
 
-| Data | Source |
-| --- | --- |
-| Asset catalog (symbol, decimals, icon, …) | **Token API** → persisted in **snap state** |
-| On-demand lookup (`onAssetsLookup`) | Snap state catalog (fetch + persist missing ids) |
+| Data                                      | Source                                           |
+| ----------------------------------------- | ------------------------------------------------ |
+| Asset catalog (symbol, decimals, icon, …) | **Token API** → persisted in **snap state**      |
+| On-demand lookup (`onAssetsLookup`)       | Snap state catalog (fetch + persist missing ids) |
 
 ## Related
 

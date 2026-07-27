@@ -2,21 +2,21 @@
 
 SEP-43: confirm and sign an arbitrary message (UTF-8 or base64 bytes).
 
-| | |
-| --- | --- |
-| **Entry** | `onKeyringRequest` → `KeyringHandler.submitRequest` → `SignMessageHandler` |
-| **Method** | `signMessage` (`MultichainMethod.SignMessage`) |
-| **Source** | [`handlers/keyring/signMessage.ts`](../../../src/handlers/keyring/signMessage.ts) |
-| **Overview** | [keyring.md](./keyring.md) |
+|              |                                                                                   |
+| ------------ | --------------------------------------------------------------------------------- |
+| **Entry**    | `onKeyringRequest` → `KeyringHandler.submitRequest` → `SignMessageHandler`        |
+| **Method**   | `signMessage` (`MultichainMethod.SignMessage`)                                    |
+| **Source**   | [`handlers/keyring/signMessage.ts`](../../../src/handlers/keyring/signMessage.ts) |
+| **Overview** | [keyring.md](./keyring.md)                                                        |
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `SignMessageHandler` | `handlers/keyring` | Confirm + sign |
-| `AccountResolver` | `handlers/` | Load keyring account + wallet |
-| `Wallet` | `services/wallet` | `signMessage` |
-| `ConfirmationUXController` | `ui/confirmation` | Sign-message dialog |
+| Component                  | Path               | Role                          |
+| -------------------------- | ------------------ | ----------------------------- |
+| `SignMessageHandler`       | `handlers/keyring` | Confirm + sign                |
+| `AccountResolver`          | `handlers/`        | Load keyring account + wallet |
+| `Wallet`                   | `services/wallet`  | `signMessage`                 |
+| `ConfirmationUXController` | `ui/confirmation`  | Sign-message dialog           |
 
 ## Request / response
 
@@ -43,9 +43,9 @@ The confirmation UI decodes base64 `message` to UTF-8 for display when possible,
 
 **References**
 
-| Spec | Role |
-| --- | --- |
-| [SEP-43](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md) | Keyring `signMessage` request/response wire format |
+| Spec                                                                                      | Role                                                         |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [SEP-43](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md)   | Keyring `signMessage` request/response wire format           |
 | [SEP-0053](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0053.md) | Stellar Signed Message prefix, hash, and signature algorithm |
 
 ## Step-by-step

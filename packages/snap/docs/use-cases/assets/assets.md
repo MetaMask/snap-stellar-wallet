@@ -2,18 +2,18 @@
 
 Asset metadata and price entry points via Snap Assets API handlers → `AssetsHandler`.
 
-| | |
-| --- | --- |
-| **Entry** | `onAssetsLookup` / `onAssetsConversion` / `onAssetsMarketData` / `onAssetHistoricalPrice` → `AssetsHandler` |
-| **Source** | [`handlers/asset/assets.ts`](../../../src/handlers/asset/assets.ts) |
+|            |                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| **Entry**  | `onAssetsLookup` / `onAssetsConversion` / `onAssetsMarketData` / `onAssetHistoricalPrice` → `AssetsHandler` |
+| **Source** | [`handlers/asset/assets.ts`](../../../src/handlers/asset/assets.ts)                                         |
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `AssetsHandler` | `handlers/asset` | Assets API surface |
-| `AssetMetadataService` | `services/asset-metadata` | Resolve CAIP-19 asset metadata |
-| `PriceService` | `services/price` | Conversions, market data, historical prices |
+| Component              | Path                      | Role                                        |
+| ---------------------- | ------------------------- | ------------------------------------------- |
+| `AssetsHandler`        | `handlers/asset`          | Assets API surface                          |
+| `AssetMetadataService` | `services/asset-metadata` | Resolve CAIP-19 asset metadata              |
+| `PriceService`         | `services/price`          | Conversions, market data, historical prices |
 
 ## Request / response
 
@@ -25,9 +25,9 @@ This Snap implements those handlers in `index.ts` and delegates to `AssetsHandle
 
 ## Methods
 
-| Method | What it does | Data source |
-| --- | --- | --- |
-| `onAssetsLookup` | Metadata for requested CAIP-19 asset ids | **Snap state** catalog via `AssetMetadataService` (fetch + persist when missing) |
-| `onAssetsConversion` | Conversion rates for requested asset pairs | **Price API** via `PriceService` (cached) |
-| `onAssetsMarketData` | Market data for requested assets | **Price API** via `PriceService` (cached) |
-| `onAssetHistoricalPrice` | Historical price intervals for a `from` → `to` pair | **Price API** via `PriceService` (cached) |
+| Method                   | What it does                                        | Data source                                                                      |
+| ------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `onAssetsLookup`         | Metadata for requested CAIP-19 asset ids            | **Snap state** catalog via `AssetMetadataService` (fetch + persist when missing) |
+| `onAssetsConversion`     | Conversion rates for requested asset pairs          | **Price API** via `PriceService` (cached)                                        |
+| `onAssetsMarketData`     | Market data for requested assets                    | **Price API** via `PriceService` (cached)                                        |
+| `onAssetHistoricalPrice` | Historical price intervals for a `from` → `to` pair | **Price API** via `PriceService` (cached)                                        |

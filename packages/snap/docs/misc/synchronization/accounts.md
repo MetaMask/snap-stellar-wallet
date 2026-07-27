@@ -2,17 +2,14 @@
 
 On-chain account snapshots (balances, trustlines, SEP-41 tokens) for **activated** keyring accounts.
 
-
-|                  |                                                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+|                  |                                                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **Service**      | `[OnChainAccountSynchronizeService](../../../src/services/on-chain-account/OnChainAccountSynchronizeService.ts)` |
 | **Orchestrator** | `[SynchronizeService](../../../src/services/sync/SynchronizeService.ts)`                                         |
 | **Snap state**   | `[OnChainAccountRepository](../../../src/services/on-chain-account/OnChainAccountRepository.ts)`                 |
-| **Overview**     | [synchronization.md](./synchronization.md)                                                                                  |
-
+| **Overview**     | [synchronization.md](./synchronization.md)                                                                       |
 
 ## Participants
-
 
 | Component                          | Path                        | Role                                                                                                                              |
 | ---------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -21,9 +18,6 @@ On-chain account snapshots (balances, trustlines, SEP-41 tokens) for **activated
 | `OnChainAccountService`            | `services/on-chain-account` | Resolve live on-chain account                                                                                                     |
 | `NetworkService`                   | `services/network`          | [Horizon](https://developers.stellar.org/docs/data/apis/horizon/api-reference/retrieve-an-account) account + SEP-41 balance reads |
 | `SyncAccountsHandler`              | `handlers/cronjob`          | Cron / scheduled entry                                                                                                            |
-
-
-
 
 ## Request / response
 
@@ -52,11 +46,10 @@ Merge and deltas are two linked steps:
 
 1. `#mergePersistedEntriesIntoOnChainAccount` — fill gaps so the in-memory on-chain view is complete before diffing.
 2. `#computeKeyringSyncDeltas` — compare **persisted snapshot** vs **merged on-chain view** for visibility transitions:
-  - newly visible → `added` (+ balance)
-  - no longer visible → `removed` (+ balance `0`)
-  - already not visible → omit (avoid flooding zeros)
 
-
+- newly visible → `added` (+ balance)
+- no longer visible → `removed` (+ balance `0`)
+- already not visible → omit (avoid flooding zeros)
 
 ## Sequence
 
@@ -84,12 +77,7 @@ sequenceDiagram
   OnChain->>MM: AccountAssetListUpdated (delta added/removed)
 ```
 
-
-
-
-
 ## Data source
-
 
 | Data                                 | Source                                                                                                                                               |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -98,9 +86,6 @@ sequenceDiagram
 | Persisted snapshot                   | **Snap state** (`OnChainAccountRepository`)                                                                                                          |
 | Keyring-facing balances / asset list | Emitted from latest snapshot (can be slightly stale until next sync)                                                                                 |
 
-
-
-
 ## Related
 
 - [Horizon — Accounts](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/accounts)
@@ -108,4 +93,3 @@ sequenceDiagram
 - [syncAccounts.md](../../use-cases/cron-job/syncAccounts.md) — cron entry and params
 - [keyring.md](../../use-cases/keyring/keyring.md) — `listAccountAssets` / `getAccountBalances` read snap snapshots
 - [transaction.md](./transaction.md) — transaction sync on the same run
-

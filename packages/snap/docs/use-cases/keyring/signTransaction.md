@@ -2,22 +2,22 @@
 
 SEP-43: show a confirmation, then return a **signed** transaction XDR to the dapp. The Snap does **not** change the envelope and does **not** broadcast it.
 
-| | |
-| --- | --- |
-| **Entry** | `onKeyringRequest` → `KeyringHandler.submitRequest` → `SignTransactionHandler` |
-| **Method** | `signTransaction` (`MultichainMethod.SignTransaction`) |
-| **Source** | [`handlers/keyring/signTransaction.ts`](../../../src/handlers/keyring/signTransaction.ts) |
-| **Overview** | [keyring.md](./keyring.md) |
+|              |                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| **Entry**    | `onKeyringRequest` → `KeyringHandler.submitRequest` → `SignTransactionHandler`            |
+| **Method**   | `signTransaction` (`MultichainMethod.SignTransaction`)                                    |
+| **Source**   | [`handlers/keyring/signTransaction.ts`](../../../src/handlers/keyring/signTransaction.ts) |
+| **Overview** | [keyring.md](./keyring.md)                                                                |
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `SignTransactionHandler` | `handlers/keyring` | Decode, confirm, sign |
-| `AccountResolver` | `handlers/` | Load keyring account + wallet |
-| `Wallet` | `services/wallet` | `signTransaction` |
-| `ConfirmationUXController` | `ui/confirmation` | Sign-transaction dialog |
-| `TransactionScanService` | `services/transaction-scan` | Security scan + remote simulation while dialog is open |
+| Component                  | Path                        | Role                                                   |
+| -------------------------- | --------------------------- | ------------------------------------------------------ |
+| `SignTransactionHandler`   | `handlers/keyring`          | Decode, confirm, sign                                  |
+| `AccountResolver`          | `handlers/`                 | Load keyring account + wallet                          |
+| `Wallet`                   | `services/wallet`           | `signTransaction`                                      |
+| `ConfirmationUXController` | `ui/confirmation`           | Sign-transaction dialog                                |
+| `TransactionScanService`   | `services/transaction-scan` | Security scan + remote simulation while dialog is open |
 
 ## Request / response
 

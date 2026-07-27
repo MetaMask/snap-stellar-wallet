@@ -2,11 +2,11 @@
 
 Confirms and submits a send for Unified Non-EVM Send (live on-chain data at build and submit time).
 
-| | |
-| --- | --- |
-| **Entry** | `onClientRequest` → `ClientRequestHandler` → `ConfirmSendHandler` |
-| **Method** | `confirmSend` (`ClientRequestMethod.ConfirmSend`) |
-| **Source** | [`handlers/clientRequest/confirmSend.ts`](../../../src/handlers/clientRequest/confirmSend.ts) |
+|                          |                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Entry**                | `onClientRequest` → `ClientRequestHandler` → `ConfirmSendHandler`                                                                                              |
+| **Method**               | `confirmSend` (`ClientRequestMethod.ConfirmSend`)                                                                                                              |
+| **Source**               | [`handlers/clientRequest/confirmSend.ts`](../../../src/handlers/clientRequest/confirmSend.ts)                                                                  |
 | **Transaction pipeline** | [SEP-41](../../misc/transaction/send-sep41.md) · [classic](../../misc/transaction/send-classic-trustline.md) · [native](../../misc/transaction/send-native.md) |
 
 ## Request / response (shape)
@@ -27,21 +27,21 @@ User rejection of the confirmation dialog throws `UserRejectedRequestError`. Una
 
 ## Participants
 
-| Component | Path | Role in this flow |
-| --- | --- | --- |
-| `ClientRequestHandler` | `handlers/clientRequest` | Routes `confirmSend` to the handler |
-| `ConfirmSendHandler` | `handlers/clientRequest` | Orchestrates the use case |
-| `AccountResolver` | `handlers/` | Loads keyring account + wallet + **live** on-chain account |
-| `AccountService` | `services/account` | Keyring account lookup (via resolver) |
-| `WalletService` / `Wallet` | `services/wallet` | Signing key material + `signTransaction` |
-| `OnChainAccountService` | `services/on-chain-account` | Fresh balances / sequence |
-| `AssetMetadataService` | `services/asset-metadata` | Decimals, symbol, metadata for UI |
-| `TransactionService` | `services/transaction` | Build + validate send; submit; save pending keyring tx |
-| `NetworkService` | `services/network` | Base fee / network reads (via `TransactionService`) |
-| `ConfirmationUXController` | `ui/confirmation` | Send confirmation dialog |
-| `TransactionScanService` | `services/transaction-scan` | Security scan while dialog is open |
-| `RefreshConfirmationContextHandler` | `handlers/cronjob` | Refresh balances, tx, and scan while dialog is open |
-| `TrackTransactionHandler` | `handlers/cronjob` | Schedule background status tracking after submit |
+| Component                           | Path                        | Role in this flow                                          |
+| ----------------------------------- | --------------------------- | ---------------------------------------------------------- |
+| `ClientRequestHandler`              | `handlers/clientRequest`    | Routes `confirmSend` to the handler                        |
+| `ConfirmSendHandler`                | `handlers/clientRequest`    | Orchestrates the use case                                  |
+| `AccountResolver`                   | `handlers/`                 | Loads keyring account + wallet + **live** on-chain account |
+| `AccountService`                    | `services/account`          | Keyring account lookup (via resolver)                      |
+| `WalletService` / `Wallet`          | `services/wallet`           | Signing key material + `signTransaction`                   |
+| `OnChainAccountService`             | `services/on-chain-account` | Fresh balances / sequence                                  |
+| `AssetMetadataService`              | `services/asset-metadata`   | Decimals, symbol, metadata for UI                          |
+| `TransactionService`                | `services/transaction`      | Build + validate send; submit; save pending keyring tx     |
+| `NetworkService`                    | `services/network`          | Base fee / network reads (via `TransactionService`)        |
+| `ConfirmationUXController`          | `ui/confirmation`           | Send confirmation dialog                                   |
+| `TransactionScanService`            | `services/transaction-scan` | Security scan while dialog is open                         |
+| `RefreshConfirmationContextHandler` | `handlers/cronjob`          | Refresh balances, tx, and scan while dialog is open        |
+| `TrackTransactionHandler`           | `handlers/cronjob`          | Schedule background status tracking after submit           |
 
 ## Step-by-step
 

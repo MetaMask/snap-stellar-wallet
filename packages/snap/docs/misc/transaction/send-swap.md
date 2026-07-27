@@ -2,27 +2,27 @@
 
 Swap and bridge envelopes are **not** built by `TransactionBuilder` inside the Snap. MetaMask CrossChain API supplies Base64 XDR; the Snap decodes, checks the accepted op shape, validates, then (for submit) signs and sends.
 
-| | |
-| --- | --- |
-| **Service** | `TransactionService.createValidatedSwapTransaction` |
-| **Decode** | `Transaction.fromXdr` |
-| **Shape gate** | `SwapTransactionXdrStruct` ([`api/xdr.ts`](../../../src/api/xdr.ts)) |
-| **Client** | [`computeFee`](../../use-cases/client-request/computeFee.md), [`signAndSendTransaction`](../../use-cases/client-request/signAndSendTransaction.md) |
-| **Submit** | [Submit & bad-sequence retry](./submit-sequence-retry.md) |
+|                |                                                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Service**    | `TransactionService.createValidatedSwapTransaction`                                                                                                |
+| **Decode**     | `Transaction.fromXdr`                                                                                                                              |
+| **Shape gate** | `SwapTransactionXdrStruct` ([`api/xdr.ts`](../../../src/api/xdr.ts))                                                                               |
+| **Client**     | [`computeFee`](../../use-cases/client-request/computeFee.md), [`signAndSendTransaction`](../../use-cases/client-request/signAndSendTransaction.md) |
+| **Submit**     | [Submit & bad-sequence retry](./submit-sequence-retry.md)                                                                                          |
 
 ## Accepted operation patterns from XDR
 
 `SwapTransactionXdrStruct` only checks **operation kind + order** (not balances / memos). Downstream service + simulator do the rest.
 
-| Ops (in order) | Meaning |
-| --- | --- |
-| `[invokeHostFunction]` | Soroban swap (single contract invoke) |
-| `[payment]` | Bridge deposit (single payment to deposit account) **or** swap without a separate fee op |
-| `[pathPayment*]` | Classic swap without a trailing fee payment |
-| `[pathPayment*, payment]` | Classic swap + route fee payment |
-| `[changeTrust, pathPayment*]` | Trustline setup then swap (no fee op) |
-| `[payment, payment]` | Bridge: deposit payment + fee wallet payment |
-| `[changeTrust, pathPayment*, payment]` | Trustline + classic swap + fee payment |
+| Ops (in order)                         | Meaning                                                                                  |
+| -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `[invokeHostFunction]`                 | Soroban swap (single contract invoke)                                                    |
+| `[payment]`                            | Bridge deposit (single payment to deposit account) **or** swap without a separate fee op |
+| `[pathPayment*]`                       | Classic swap without a trailing fee payment                                              |
+| `[pathPayment*, payment]`              | Classic swap + route fee payment                                                         |
+| `[changeTrust, pathPayment*]`          | Trustline setup then swap (no fee op)                                                    |
+| `[payment, payment]`                   | Bridge: deposit payment + fee wallet payment                                             |
+| `[changeTrust, pathPayment*, payment]` | Trustline + classic swap + fee payment                                                   |
 
 `pathPayment*` = `pathPaymentStrictSend` or `pathPaymentStrictReceive`.
 

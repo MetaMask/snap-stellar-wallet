@@ -2,12 +2,12 @@
 
 Payment of a **classic issued asset** (CAIP-19 classic, non-native). Destination must already hold / be able to receive the asset — the Snap does **not** create the destination account for non-native assets.
 
-| | |
-| --- | --- |
-| **Service** | `TransactionService.createValidatedSendTransaction` → `#createValidatedClassicAssetTransfer` |
-| **Builder** | `TransactionBuilder.transfer` → `#send` (`Operation.payment`) |
-| **Client** | [`onAmountInput`](../../use-cases/client-request/onAmountInput.md), [`confirmSend`](../../use-cases/client-request/confirmSend.md) |
-| **Submit** | [Submit & bad-sequence retry](./submit-sequence-retry.md) |
+|             |                                                                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Service** | `TransactionService.createValidatedSendTransaction` → `#createValidatedClassicAssetTransfer`                                       |
+| **Builder** | `TransactionBuilder.transfer` → `#send` (`Operation.payment`)                                                                      |
+| **Client**  | [`onAmountInput`](../../use-cases/client-request/onAmountInput.md), [`confirmSend`](../../use-cases/client-request/confirmSend.md) |
+| **Submit**  | [Submit & bad-sequence retry](./submit-sequence-retry.md)                                                                          |
 
 ## Build
 

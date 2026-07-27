@@ -2,13 +2,13 @@
 
 After a tx is submitted, keep polling Horizon until it shows up, then refresh the affected accounts’ balances / history.
 
-| | |
-| --- | --- |
-| **Entry** | `onCronjob` → `CronjobHandler` → `TrackTransactionHandler` |
-| **Method** | `trackTransaction` (`BackgroundEventMethod.TrackTransaction`) |
-| **Source** | [`handlers/cronjob/trackTransaction.ts`](../../../src/handlers/cronjob/trackTransaction.ts) |
-| **Synchronization** | [synchronization](../../misc/synchronization/synchronization.md) |
-| **Gate** | Skipped when wallet locked / inactive — see [cronjob.md](./cronjob.md) |
+|                     |                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| **Entry**           | `onCronjob` → `CronjobHandler` → `TrackTransactionHandler`                                  |
+| **Method**          | `trackTransaction` (`BackgroundEventMethod.TrackTransaction`)                               |
+| **Source**          | [`handlers/cronjob/trackTransaction.ts`](../../../src/handlers/cronjob/trackTransaction.ts) |
+| **Synchronization** | [synchronization](../../misc/synchronization/synchronization.md)                            |
+| **Gate**            | Skipped when wallet locked / inactive — see [cronjob.md](./cronjob.md)                      |
 
 Scheduled right after submit by [`confirmSend`](../client-request/confirmSend.md), [`changeTrustOpt`](../client-request/changeTrustOpt.md), [`signAndSendTransaction`](../client-request/signAndSendTransaction.md).
 
@@ -21,22 +21,22 @@ Scheduled right after submit by [`confirmSend`](../client-request/confirmSend.md
 
 ## What Horizon returns
 
-| Outcome | Meaning |
-| --- | --- |
-| **404 / not found** | Not indexed yet (or unknown hash) |
+| Outcome             | Meaning                                           |
+| ------------------- | ------------------------------------------------- |
+| **404 / not found** | Not indexed yet (or unknown hash)                 |
 | **Found + success** | On-chain succeeded → keyring status **Confirmed** |
-| **Found + fail** | On-chain failed → keyring status **Failed** |
+| **Found + fail**    | On-chain failed → keyring status **Failed**       |
 
 Both found outcomes are **terminal** — settlement is done; sync accounts.
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `TrackTransactionHandler` | `handlers/cronjob` | Poll Horizon, reschedule, sync on settle |
-| `NetworkService` | `services/network` | `getTransaction` from Horizon |
-| `AccountService` | `services/account` | Resolve sender / optional receiver keyring accounts |
-| `SynchronizeService` | `services/sync` | Refresh balances / history after settle |
+| Component                 | Path               | Role                                                |
+| ------------------------- | ------------------ | --------------------------------------------------- |
+| `TrackTransactionHandler` | `handlers/cronjob` | Poll Horizon, reschedule, sync on settle            |
+| `NetworkService`          | `services/network` | `getTransaction` from Horizon                       |
+| `AccountService`          | `services/account` | Resolve sender / optional receiver keyring accounts |
+| `SynchronizeService`      | `services/sync`    | Refresh balances / history after settle             |
 
 ## Step-by-step
 

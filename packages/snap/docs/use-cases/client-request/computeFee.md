@@ -2,12 +2,12 @@
 
 Quotes fees for a swap / bridge envelope from MetaMask CrossChain API (same validation path as `signAndSendTransaction`).
 
-| | |
-| --- | --- |
-| **Entry** | `onClientRequest` → `ClientRequestHandler` → `ComputeFeeHandler` |
-| **Method** | `computeFee` (`ClientRequestMethod.ComputeFee`) |
-| **Source** | [`handlers/clientRequest/computeFee.ts`](../../../src/handlers/clientRequest/computeFee.ts) |
-| **Transaction pipeline** | [Swap / bridge from XDR](../../misc/transaction/send-swap.md) |
+|                          |                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| **Entry**                | `onClientRequest` → `ClientRequestHandler` → `ComputeFeeHandler`                            |
+| **Method**               | `computeFee` (`ClientRequestMethod.ComputeFee`)                                             |
+| **Source**               | [`handlers/clientRequest/computeFee.ts`](../../../src/handlers/clientRequest/computeFee.ts) |
+| **Transaction pipeline** | [Swap / bridge from XDR](../../misc/transaction/send-swap.md)                               |
 
 ## Client workflow
 
@@ -33,15 +33,15 @@ No confirmation dialog; nothing is signed or submitted.
 
 ## Participants
 
-| Component | Path | Role in this flow |
-| --- | --- | --- |
-| `ClientRequestHandler` | `handlers/clientRequest` | Routes `computeFee` to the handler |
-| `ComputeFeeHandler` | `handlers/clientRequest` | Orchestrates fee quoting |
-| `AccountResolver` | `handlers/` | Loads keyring account + wallet + **live** on-chain account (network) |
-| `AccountService` | `services/account` | Keyring account lookup (via resolver) |
-| `OnChainAccountService` | `services/on-chain-account` | Balances for validation / simulation |
-| `TransactionService` | `services/transaction` | Decode, validate, simulate swap XDR; read `totalFee` |
-| `NetworkService` | `services/network` | Fees / simulation network reads (via `TransactionService`) |
+| Component               | Path                        | Role in this flow                                                    |
+| ----------------------- | --------------------------- | -------------------------------------------------------------------- |
+| `ClientRequestHandler`  | `handlers/clientRequest`    | Routes `computeFee` to the handler                                   |
+| `ComputeFeeHandler`     | `handlers/clientRequest`    | Orchestrates fee quoting                                             |
+| `AccountResolver`       | `handlers/`                 | Loads keyring account + wallet + **live** on-chain account (network) |
+| `AccountService`        | `services/account`          | Keyring account lookup (via resolver)                                |
+| `OnChainAccountService` | `services/on-chain-account` | Balances for validation / simulation                                 |
+| `TransactionService`    | `services/transaction`      | Decode, validate, simulate swap XDR; read `totalFee`                 |
+| `NetworkService`        | `services/network`          | Fees / simulation network reads (via `TransactionService`)           |
 
 ## Step-by-step
 

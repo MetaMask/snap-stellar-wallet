@@ -4,11 +4,11 @@ Shared on-chain **submit** path used after any flow has built (or decoded), vali
 
 Suggested name vs “general on-chain send”: prefer **submit / sequence retry** — it is not a payment-type chooser; it is the last mile of every successful submit.
 
-| | |
-| --- | --- |
-| **Service** | `TransactionService.sendTransaction` |
-| **Network** | `NetworkService.send` |
-| **Rebuild** | `TransactionBuilder.rebuildTxnWithNewSeq` |
+|             |                                                                                                                                                                                                                               |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Service** | `TransactionService.sendTransaction`                                                                                                                                                                                          |
+| **Network** | `NetworkService.send`                                                                                                                                                                                                         |
+| **Rebuild** | `TransactionBuilder.rebuildTxnWithNewSeq`                                                                                                                                                                                     |
 | **Used by** | [`confirmSend`](../../use-cases/client-request/confirmSend.md), [`changeTrustOpt`](../../use-cases/client-request/changeTrustOpt.md), [`signAndSendTransaction`](../../use-cases/client-request/signAndSendTransaction.md), … |
 
 ## Happy path

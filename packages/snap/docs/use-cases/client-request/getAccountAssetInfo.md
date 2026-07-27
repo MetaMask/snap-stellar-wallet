@@ -2,10 +2,10 @@
 
 Returns per-asset enrichment for portfolio / trust-line UX (classic trust-line fields or native XLM base reserve).
 
-| | |
-| --- | --- |
-| **Entry** | `onClientRequest` → `ClientRequestHandler` → `GetAccountAssetInfoHandler` |
-| **Method** | `getAccountAssetInfo` (`ClientRequestMethod.GetAccountAssetInfo`) |
+|            |                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------- |
+| **Entry**  | `onClientRequest` → `ClientRequestHandler` → `GetAccountAssetInfoHandler`                                     |
+| **Method** | `getAccountAssetInfo` (`ClientRequestMethod.GetAccountAssetInfo`)                                             |
 | **Source** | [`handlers/clientRequest/getAccountAssetInfo.ts`](../../../src/handlers/clientRequest/getAccountAssetInfo.ts) |
 
 ## Request / response (shape)
@@ -20,23 +20,23 @@ Returns per-asset enrichment for portfolio / trust-line UX (classic trust-line f
 
 Map keyed by asset id → optional extras:
 
-| Asset kind | Fields |
-| --- | --- |
-| Classic | `limit`, optional `authorized`, optional `sponsored` |
-| Native (slip44) | `baseReserve` |
-| Missing / unsupported | `{}` |
+| Asset kind            | Fields                                               |
+| --------------------- | ---------------------------------------------------- |
+| Classic               | `limit`, optional `authorized`, optional `sponsored` |
+| Native (slip44)       | `baseReserve`                                        |
+| Missing / unsupported | `{}`                                                 |
 
 Unactivated accounts return empty extras per asset (`{}`) instead of showing the activation prompt (portfolio-import friendly).
 
 ## Participants
 
-| Component | Path | Role in this flow |
-| --- | --- | --- |
-| `ClientRequestHandler` | `handlers/clientRequest` | Routes `getAccountAssetInfo` to the handler |
-| `GetAccountAssetInfoHandler` | `handlers/clientRequest` | Builds per-asset extras from on-chain snapshot |
-| `AccountResolver` | `handlers/` | Loads account + on-chain snapshot from **state** |
-| `AccountService` | `services/account` | Keyring account lookup (via resolver) |
-| `OnChainAccountService` | `services/on-chain-account` | Persisted balances / trustlines (via resolver) |
+| Component                    | Path                        | Role in this flow                                |
+| ---------------------------- | --------------------------- | ------------------------------------------------ |
+| `ClientRequestHandler`       | `handlers/clientRequest`    | Routes `getAccountAssetInfo` to the handler      |
+| `GetAccountAssetInfoHandler` | `handlers/clientRequest`    | Builds per-asset extras from on-chain snapshot   |
+| `AccountResolver`            | `handlers/`                 | Loads account + on-chain snapshot from **state** |
+| `AccountService`             | `services/account`          | Keyring account lookup (via resolver)            |
+| `OnChainAccountService`      | `services/on-chain-account` | Persisted balances / trustlines (via resolver)   |
 
 No confirmation UI, signing, or transaction build.
 

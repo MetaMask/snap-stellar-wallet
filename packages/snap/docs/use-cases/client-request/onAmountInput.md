@@ -2,11 +2,11 @@
 
 Preflight-validates a send amount while the user types (balance and fee checks only; nothing is signed or submitted).
 
-| | |
-| --- | --- |
-| **Entry** | `onClientRequest` → `ClientRequestHandler` → `OnAmountInputHandler` |
-| **Method** | `onAmountInput` (`ClientRequestMethod.OnAmountInput`) |
-| **Source** | [`handlers/clientRequest/onAmountInput.ts`](../../../src/handlers/clientRequest/onAmountInput.ts) |
+|                          |                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Entry**                | `onClientRequest` → `ClientRequestHandler` → `OnAmountInputHandler`                                                                                            |
+| **Method**               | `onAmountInput` (`ClientRequestMethod.OnAmountInput`)                                                                                                          |
+| **Source**               | [`handlers/clientRequest/onAmountInput.ts`](../../../src/handlers/clientRequest/onAmountInput.ts)                                                              |
 | **Transaction pipeline** | [SEP-41](../../misc/transaction/send-sep41.md) · [classic](../../misc/transaction/send-classic-trustline.md) · [native](../../misc/transaction/send-native.md) |
 
 ## Request / response (shape)
@@ -27,15 +27,15 @@ Unactivated accounts return `{ valid: false, errors: [{ code: "Invalid" }] }` (n
 
 ## Participants
 
-| Component | Path | Role in this flow |
-| --- | --- | --- |
-| `ClientRequestHandler` | `handlers/clientRequest` | Routes `onAmountInput` to the handler |
-| `OnAmountInputHandler` | `handlers/clientRequest` | Orchestrates preflight validation |
-| `AccountResolver` | `handlers/` | Loads account + wallet + on-chain snapshot from **state** |
-| `AccountService` | `services/account` | Keyring account lookup (via resolver) |
-| `OnChainAccountService` | `services/on-chain-account` | Persisted on-chain balances (via resolver) |
-| `AssetMetadataService` | `services/asset-metadata` | Decimals for amount conversion |
-| `TransactionService` | `services/transaction` | Build + validate send tx (`useCache: true`) |
+| Component               | Path                        | Role in this flow                                         |
+| ----------------------- | --------------------------- | --------------------------------------------------------- |
+| `ClientRequestHandler`  | `handlers/clientRequest`    | Routes `onAmountInput` to the handler                     |
+| `OnAmountInputHandler`  | `handlers/clientRequest`    | Orchestrates preflight validation                         |
+| `AccountResolver`       | `handlers/`                 | Loads account + wallet + on-chain snapshot from **state** |
+| `AccountService`        | `services/account`          | Keyring account lookup (via resolver)                     |
+| `OnChainAccountService` | `services/on-chain-account` | Persisted on-chain balances (via resolver)                |
+| `AssetMetadataService`  | `services/asset-metadata`   | Decimals for amount conversion                            |
+| `TransactionService`    | `services/transaction`      | Build + validate send tx (`useCache: true`)               |
 
 ## Step-by-step
 

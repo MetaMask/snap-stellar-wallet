@@ -2,21 +2,21 @@
 
 SEP-43: confirm and sign a Soroban authorization preimage (`HashIdPreimage` / `envelopeTypeSorobanAuthorization`).
 
-| | |
-| --- | --- |
-| **Entry** | `onKeyringRequest` → `KeyringHandler.submitRequest` → `SignAuthEntryHandler` |
-| **Method** | `signAuthEntry` (`MultichainMethod.SignAuthEntry`) |
-| **Source** | [`handlers/keyring/signAuthEntry.ts`](../../../src/handlers/keyring/signAuthEntry.ts) |
-| **Overview** | [keyring.md](./keyring.md) |
+|              |                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------- |
+| **Entry**    | `onKeyringRequest` → `KeyringHandler.submitRequest` → `SignAuthEntryHandler`          |
+| **Method**   | `signAuthEntry` (`MultichainMethod.SignAuthEntry`)                                    |
+| **Source**   | [`handlers/keyring/signAuthEntry.ts`](../../../src/handlers/keyring/signAuthEntry.ts) |
+| **Overview** | [keyring.md](./keyring.md)                                                            |
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `SignAuthEntryHandler` | `handlers/keyring` | Decode, confirm, sign |
-| `AccountResolver` | `handlers/` | Load keyring account + wallet |
-| `Wallet` | `services/wallet` | `signAuthEntry` |
-| `ConfirmationUXController` | `ui/confirmation` | Sign-auth-entry dialog |
+| Component                  | Path               | Role                          |
+| -------------------------- | ------------------ | ----------------------------- |
+| `SignAuthEntryHandler`     | `handlers/keyring` | Decode, confirm, sign         |
+| `AccountResolver`          | `handlers/`        | Load keyring account + wallet |
+| `Wallet`                   | `services/wallet`  | `signAuthEntry`               |
+| `ConfirmationUXController` | `ui/confirmation`  | Sign-auth-entry dialog        |
 
 ## Request / response
 

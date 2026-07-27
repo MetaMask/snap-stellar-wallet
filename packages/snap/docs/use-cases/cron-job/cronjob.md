@@ -2,9 +2,9 @@
 
 All background events enter through `onCronjob` → `CronjobHandler`, which **skips work when MetaMask is inactive or the wallet is locked**.
 
-| | |
-| --- | --- |
-| **Entry** | `onCronjob` → `CronjobHandler` |
+|            |                                                                           |
+| ---------- | ------------------------------------------------------------------------- |
+| **Entry**  | `onCronjob` → `CronjobHandler`                                            |
 | **Source** | [`handlers/cronjob/cronjob.ts`](../../../src/handlers/cronjob/cronjob.ts) |
 
 ## Behavior
@@ -15,14 +15,13 @@ All background events enter through `onCronjob` → `CronjobHandler`, which **sk
 
 This gate applies to **every** cron method (`trackTransaction`, `synchronizeAccounts`, `synchronizeAssets`, `refreshConfirmationContext`). Individual handlers do not re-check lock state.
 
-
 ## Cronjob handlers
 
-| Cronjob handlers | Doc |
-| --- | --- |
-| `trackTransaction` | [trackTransaction.md](./trackTransaction.md) |
-| `synchronizeAccounts` | [syncAccounts.md](./syncAccounts.md) |
-| `synchronizeAssets` | [syncAssets.md](./syncAssets.md) |
+| Cronjob handlers             | Doc                                                              |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `trackTransaction`           | [trackTransaction.md](./trackTransaction.md)                     |
+| `synchronizeAccounts`        | [syncAccounts.md](./syncAccounts.md)                             |
+| `synchronizeAssets`          | [syncAssets.md](./syncAssets.md)                                 |
 | `refreshConfirmationContext` | [refreshConfirmationContext.md](./refreshConfirmationContext.md) |
 
 ## Sequence

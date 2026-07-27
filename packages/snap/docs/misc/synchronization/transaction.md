@@ -2,22 +2,22 @@
 
 Maps [Horizon](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/transactions) history to keyring transactions and reconciles snap-state pending txs.
 
-| | |
-| --- | --- |
-| **Service** | [`TransactionSynchronizeService`](../../../src/services/transaction/TransactionSynchronizeService.ts) |
-| **Mapper** | [`TransactionMapper`](../../../src/services/transaction/TransactionMapper.ts) |
-| **Snap state** | [`TransactionRepository`](../../../src/services/transaction/TransactionRepository.ts) |
-| **Overview** | [synchronization.md](./synchronization.md) |
+|                |                                                                                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| **Service**    | [`TransactionSynchronizeService`](../../../src/services/transaction/TransactionSynchronizeService.ts) |
+| **Mapper**     | [`TransactionMapper`](../../../src/services/transaction/TransactionMapper.ts)                         |
+| **Snap state** | [`TransactionRepository`](../../../src/services/transaction/TransactionRepository.ts)                 |
+| **Overview**   | [synchronization.md](./synchronization.md)                                                            |
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `TransactionSynchronizeService` | `services/transaction` | Scan, map, reconcile, emit |
-| `TransactionMapper` | `services/transaction` | On-chain tx → keyring tx |
-| `KeyringTransactionBuilder` | `services/transaction` | Build keyring tx shapes |
-| `TransactionRepository` | `services/transaction` | Pending txs + scan cursors |
-| `NetworkService` | `services/network` | [Horizon](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/transactions) fetch by account / hash |
+| Component                       | Path                   | Role                                                                                                                          |
+| ------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `TransactionSynchronizeService` | `services/transaction` | Scan, map, reconcile, emit                                                                                                    |
+| `TransactionMapper`             | `services/transaction` | On-chain tx → keyring tx                                                                                                      |
+| `KeyringTransactionBuilder`     | `services/transaction` | Build keyring tx shapes                                                                                                       |
+| `TransactionRepository`         | `services/transaction` | Pending txs + scan cursors                                                                                                    |
+| `NetworkService`                | `services/network`     | [Horizon](https://developers.stellar.org/docs/data/apis/horizon/api-reference/resources/transactions) fetch by account / hash |
 
 ## Step-by-step
 
@@ -61,15 +61,15 @@ sequenceDiagram
 
 ### How we decide what type of activity it is
 
-| Activity type | When we map it as this | Extra mapping conditions |
-| --- | --- | --- |
-| Send | I am the sender, and the transaction only contains payment or create-account operations. | Send takes priority over swap. If there are multiple operations, we only show the first payment or create-account (recipient, asset, amount). |
-| Token send (SEP-41) | I am the sender, and it is a supported SEP-41 token we recognize. | Unsupported tokens may fall back to unknown. |
-| Swap | I am the sender, the transaction matches our swap pattern, and it includes a path payment that credits back to my own account. | Self-swap is not a receive. If there are multiple path payment operations, we only use the first one for from/to assets and amounts. |
-| Receive | At least one operation credits my account (payment, account creation, or swap). | Self-send / self-swap are not receives. Failed receives are hidden. Dust spam is hidden (very small incoming native XLM <= 0.001 from someone else). If multiple assets are credited, we show the first unique asset only (amounts are not summed). |
-| Token trust (add) | I am the sender, and every operation is adding trust for a token. | If there are multiple change-trust operations, we only show the first token. |
-| Token trust (remove) | I am the sender, and every operation is removing trust for a token. | If there are multiple change-trust operations, we only show the first token. |
-| Unknown | The transaction does not match any rule above, or mapping fails. | We still show it as activity rather than hiding it. |
+| Activity type        | When we map it as this                                                                                                         | Extra mapping conditions                                                                                                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Send                 | I am the sender, and the transaction only contains payment or create-account operations.                                       | Send takes priority over swap. If there are multiple operations, we only show the first payment or create-account (recipient, asset, amount).                                                                                                       |
+| Token send (SEP-41)  | I am the sender, and it is a supported SEP-41 token we recognize.                                                              | Unsupported tokens may fall back to unknown.                                                                                                                                                                                                        |
+| Swap                 | I am the sender, the transaction matches our swap pattern, and it includes a path payment that credits back to my own account. | Self-swap is not a receive. If there are multiple path payment operations, we only use the first one for from/to assets and amounts.                                                                                                                |
+| Receive              | At least one operation credits my account (payment, account creation, or swap).                                                | Self-send / self-swap are not receives. Failed receives are hidden. Dust spam is hidden (very small incoming native XLM <= 0.001 from someone else). If multiple assets are credited, we show the first unique asset only (amounts are not summed). |
+| Token trust (add)    | I am the sender, and every operation is adding trust for a token.                                                              | If there are multiple change-trust operations, we only show the first token.                                                                                                                                                                        |
+| Token trust (remove) | I am the sender, and every operation is removing trust for a token.                                                            | If there are multiple change-trust operations, we only show the first token.                                                                                                                                                                        |
+| Unknown              | The transaction does not match any rule above, or mapping fails.                                                               | We still show it as activity rather than hiding it.                                                                                                                                                                                                 |
 
 Notes:
 General rule for multi-operation transactions:
@@ -80,20 +80,20 @@ We do not split multiple sends, swaps, or receives in the same transaction into 
 
 ### Fee handling (Only for transactions that made from MetaMask)
 
-| Activity type | Fee while pending | When settled (confirmed / failed) |
-| --- | --- | --- |
-| Send | No fee shown yet. | We read the actual network fee from the settled transaction and show it in XLM. |
-| Token trust (add / remove) | No fee shown yet. | Same as send - actual network fee in XLM is shown after settlement. |
-| Swap | Estimated fee from the signed transaction. | Fee is replaced with the actual network fee from the settled transaction. |
-| Bridge send | Estimated fee from the signed transaction. | Fee is replaced with the actual network fee from the settled transaction. |
+| Activity type              | Fee while pending                          | When settled (confirmed / failed)                                               |
+| -------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------- |
+| Send                       | No fee shown yet.                          | We read the actual network fee from the settled transaction and show it in XLM. |
+| Token trust (add / remove) | No fee shown yet.                          | Same as send - actual network fee in XLM is shown after settlement.             |
+| Swap                       | Estimated fee from the signed transaction. | Fee is replaced with the actual network fee from the settled transaction.       |
+| Bridge send                | Estimated fee from the signed transaction. | Fee is replaced with the actual network fee from the settled transaction.       |
 
 ### Swap amounts (Only for transactions that made from MetaMask)
 
-| Activity type | Amounts while pending | When settled (confirmed / failed) |
-| --- | --- | --- |
-| Swap | Estimated amounts from the signed transaction, not the final executed amounts yet. | We re-read actual executed amounts from the on-chain result and update the from and to legs. |
-| Contract-based swap | Amounts shown as `0` - final amounts not known yet. | We try to re-map from on-chain data. If that fails, we keep the pending amounts (still `0`) as best effort. |
-| Cross-chain bridge send | No from/to amounts in the snap. | Handled from transaction history when available. |
+| Activity type           | Amounts while pending                                                              | When settled (confirmed / failed)                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Swap                    | Estimated amounts from the signed transaction, not the final executed amounts yet. | We re-read actual executed amounts from the on-chain result and update the from and to legs.                |
+| Contract-based swap     | Amounts shown as `0` - final amounts not known yet.                                | We try to re-map from on-chain data. If that fails, we keep the pending amounts (still `0`) as best effort. |
+| Cross-chain bridge send | No from/to amounts in the snap.                                                    | Handled from transaction history when available.                                                            |
 
 ## Related
 

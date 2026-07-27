@@ -2,12 +2,12 @@
 
 Signs and submits a swap / bridge envelope previously quoted via `computeFee`. **No Snap confirmation dialog** — the caller must obtain user consent first.
 
-| | |
-| --- | --- |
-| **Entry** | `onClientRequest` → `ClientRequestHandler` → `SignAndSendTransactionHandler` |
-| **Method** | `signAndSendTransaction` (`ClientRequestMethod.SignAndSendTransaction`) |
-| **Source** | [`handlers/clientRequest/signAndSendTransaction.ts`](../../../src/handlers/clientRequest/signAndSendTransaction.ts) |
-| **Transaction pipeline** | [Swap / bridge from XDR](../../misc/transaction/send-swap.md) |
+|                          |                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| **Entry**                | `onClientRequest` → `ClientRequestHandler` → `SignAndSendTransactionHandler`                                        |
+| **Method**               | `signAndSendTransaction` (`ClientRequestMethod.SignAndSendTransaction`)                                             |
+| **Source**               | [`handlers/clientRequest/signAndSendTransaction.ts`](../../../src/handlers/clientRequest/signAndSendTransaction.ts) |
+| **Transaction pipeline** | [Swap / bridge from XDR](../../misc/transaction/send-swap.md)                                                       |
 
 ## Client workflow
 
@@ -36,17 +36,17 @@ This handler does **not** show a Snap confirmation. The client is responsible fo
 
 ## Participants
 
-| Component | Path | Role in this flow |
-| --- | --- | --- |
-| `ClientRequestHandler` | `handlers/clientRequest` | Routes `signAndSendTransaction` to the handler |
-| `SignAndSendTransactionHandler` | `handlers/clientRequest` | Orchestrates validate → sign → submit |
-| `AccountResolver` | `handlers/` | Loads keyring account + wallet + **live** on-chain account (network) |
-| `AccountService` | `services/account` | Keyring account lookup (via resolver) |
-| `WalletService` / `Wallet` | `services/wallet` | `signTransaction` |
-| `OnChainAccountService` | `services/on-chain-account` | Balances / sequence for validation |
-| `AssetMetadataService` | `services/asset-metadata` | Same-chain swap asset labels for pending tx |
-| `TransactionService` | `services/transaction` | Validate swap XDR; submit; save pending keyring tx |
-| `TrackTransactionHandler` | `handlers/cronjob` | Schedule background status tracking after submit |
+| Component                       | Path                        | Role in this flow                                                    |
+| ------------------------------- | --------------------------- | -------------------------------------------------------------------- |
+| `ClientRequestHandler`          | `handlers/clientRequest`    | Routes `signAndSendTransaction` to the handler                       |
+| `SignAndSendTransactionHandler` | `handlers/clientRequest`    | Orchestrates validate → sign → submit                                |
+| `AccountResolver`               | `handlers/`                 | Loads keyring account + wallet + **live** on-chain account (network) |
+| `AccountService`                | `services/account`          | Keyring account lookup (via resolver)                                |
+| `WalletService` / `Wallet`      | `services/wallet`           | `signTransaction`                                                    |
+| `OnChainAccountService`         | `services/on-chain-account` | Balances / sequence for validation                                   |
+| `AssetMetadataService`          | `services/asset-metadata`   | Same-chain swap asset labels for pending tx                          |
+| `TransactionService`            | `services/transaction`      | Validate swap XDR; submit; save pending keyring tx                   |
+| `TrackTransactionHandler`       | `handlers/cronjob`          | Schedule background status tracking after submit                     |
 
 ## Step-by-step
 

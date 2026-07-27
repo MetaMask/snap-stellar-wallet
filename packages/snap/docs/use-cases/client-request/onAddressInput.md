@@ -2,10 +2,10 @@
 
 Validates a Stellar destination address for Unified Non-EVM Send (as the user types).
 
-| | |
-| --- | --- |
-| **Entry** | `onClientRequest` → `ClientRequestHandler` → `OnAddressInputHandler` |
-| **Method** | `onAddressInput` (`ClientRequestMethod.OnAddressInput`) |
+|            |                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------- |
+| **Entry**  | `onClientRequest` → `ClientRequestHandler` → `OnAddressInputHandler`                                |
+| **Method** | `onAddressInput` (`ClientRequestMethod.OnAddressInput`)                                             |
 | **Source** | [`handlers/clientRequest/onAddressInput.ts`](../../../src/handlers/clientRequest/onAddressInput.ts) |
 
 ## Request / response (shape)
@@ -23,10 +23,10 @@ No account resolution, confirmation UI, or network calls.
 
 ## Participants
 
-| Component | Path | Role in this flow |
-| --- | --- | --- |
-| `ClientRequestHandler` | `handlers/clientRequest` | Routes `onAddressInput` to the handler |
-| `OnAddressInputHandler` | `handlers/clientRequest` | Validates params via Superstruct |
+| Component               | Path                     | Role in this flow                      |
+| ----------------------- | ------------------------ | -------------------------------------- |
+| `ClientRequestHandler`  | `handlers/clientRequest` | Routes `onAddressInput` to the handler |
+| `OnAddressInputHandler` | `handlers/clientRequest` | Validates params via Superstruct       |
 
 ## Step-by-step
 

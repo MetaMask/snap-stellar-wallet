@@ -2,12 +2,12 @@
 
 While a confirmation dialog is open, periodically refresh prices, security scan, and/or rebuild the pending transaction against live on-chain state.
 
-| | |
-| --- | --- |
-| **Entry** | `onCronjob` → `CronjobHandler` → `RefreshConfirmationContextHandler` |
-| **Method** | `refreshConfirmationContext` (`BackgroundEventMethod.RefreshConfirmationContext`) |
+|            |                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| **Entry**  | `onCronjob` → `CronjobHandler` → `RefreshConfirmationContextHandler`                                        |
+| **Method** | `refreshConfirmationContext` (`BackgroundEventMethod.RefreshConfirmationContext`)                           |
 | **Source** | [`handlers/cronjob/refreshConfirmationContext/`](../../../src/handlers/cronjob/refreshConfirmationContext/) |
-| **Gate** | Skipped when wallet locked / inactive — see [cronjob.md](./cronjob.md) |
+| **Gate**   | Skipped when wallet locked / inactive — see [cronjob.md](./cronjob.md)                                      |
 
 Scheduled by `ConfirmationUXController` when a dialog opens with pricing, security scanning, and/or local simulation enabled (e.g. [`confirmSend`](../client-request/confirmSend.md), [`changeTrustOpt`](../client-request/changeTrustOpt.md)).
 
@@ -20,13 +20,13 @@ Scheduled by `ConfirmationUXController` when a dialog opens with pricing, securi
 
 ## Participants
 
-| Component | Path | Role |
-| --- | --- | --- |
-| `RefreshConfirmationContextHandler` | `handlers/cronjob` | Orchestrate refreshers, re-render, reschedule |
-| `ConfirmationPriceRefresher` | `handlers/cronjob/.../priceRefresher` | Spot prices via `PriceService` |
-| `ConfirmationScanRefresher` | `handlers/cronjob/.../scanRefresher` | Blockaid / security scan via `TransactionScanService` |
-| `ConfirmationTransactionRefresher` | `handlers/cronjob/.../transactionRefresher` | Rebuild + re-validate pending tx (live account) |
-| `ConfirmationUXController` | `ui/confirmation` | Apply patched context to the open dialog |
+| Component                           | Path                                        | Role                                                  |
+| ----------------------------------- | ------------------------------------------- | ----------------------------------------------------- |
+| `RefreshConfirmationContextHandler` | `handlers/cronjob`                          | Orchestrate refreshers, re-render, reschedule         |
+| `ConfirmationPriceRefresher`        | `handlers/cronjob/.../priceRefresher`       | Spot prices via `PriceService`                        |
+| `ConfirmationScanRefresher`         | `handlers/cronjob/.../scanRefresher`        | Blockaid / security scan via `TransactionScanService` |
+| `ConfirmationTransactionRefresher`  | `handlers/cronjob/.../transactionRefresher` | Rebuild + re-validate pending tx (live account)       |
+| `ConfirmationUXController`          | `ui/confirmation`                           | Apply patched context to the open dialog              |
 
 ## Refreshers
 

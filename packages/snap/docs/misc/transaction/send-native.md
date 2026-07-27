@@ -2,12 +2,12 @@
 
 Native asset (slip44) send has two use cases, chosen by whether the destination is already funded on-chain.
 
-| | |
-| --- | --- |
-| **Service** | `TransactionService.createValidatedSendTransaction` → `#createValidatedClassicAssetTransfer` |
-| **Builder** | `TransactionBuilder.transfer` → `#send` or `#createAccount` |
-| **Client** | [`onAmountInput`](../../use-cases/client-request/onAmountInput.md), [`confirmSend`](../../use-cases/client-request/confirmSend.md) |
-| **Submit** | [Submit & bad-sequence retry](./submit-sequence-retry.md) |
+|             |                                                                                                                                    |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Service** | `TransactionService.createValidatedSendTransaction` → `#createValidatedClassicAssetTransfer`                                       |
+| **Builder** | `TransactionBuilder.transfer` → `#send` or `#createAccount`                                                                        |
+| **Client**  | [`onAmountInput`](../../use-cases/client-request/onAmountInput.md), [`confirmSend`](../../use-cases/client-request/confirmSend.md) |
+| **Submit**  | [Submit & bad-sequence retry](./submit-sequence-retry.md)                                                                          |
 
 Only **native / slip44** can fund a new account. Classic / SEP-41 sends to an unactivated destination fail earlier (`AccountNotActivatedException` / `InvalidAssetForCreateAccountException`).
 

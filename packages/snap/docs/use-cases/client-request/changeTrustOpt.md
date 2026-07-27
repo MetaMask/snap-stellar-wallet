@@ -2,14 +2,12 @@
 
 Add or remove a classic Stellar trustline for an asset on a managed account.
 
-
-|             |                                                                                                  |
-| ----------- | ------------------------------------------------------------------------------------------------ |
-| **Entry**   | `onClientRequest` → `ClientRequestHandler` → `ChangeTrustOptHandler`                             |
-| **Method**  | `changeTrustOpt` (`ClientRequestMethod.ChangeTrustOpt`)                                          |
-| **Actions** | `add` (opt-in) · `delete` (opt-out, limit forced to `0`)                                         |
+|             |                                                                                                     |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| **Entry**   | `onClientRequest` → `ClientRequestHandler` → `ChangeTrustOptHandler`                                |
+| **Method**  | `changeTrustOpt` (`ClientRequestMethod.ChangeTrustOpt`)                                             |
+| **Actions** | `add` (opt-in) · `delete` (opt-out, limit forced to `0`)                                            |
 | **Source**  | [`handlers/clientRequest/changeTrustOpt.ts`](../../../src/handlers/clientRequest/changeTrustOpt.ts) |
-
 
 ## Request / response (shape)
 
@@ -18,7 +16,7 @@ Add or remove a classic Stellar trustline for an asset on a managed account.
 - `accountId` — keyring account UUID
 - `assetId` — CAIP-19 classic asset
 - `scope` — CAIP-2 chain ID
-- `action` — `"add"`  `"delete"`
+- `action` — `"add"` `"delete"`
 - `limit` — optional; only for `"add"` (nonzero Stellar amount)
 
 **Response**
@@ -30,7 +28,6 @@ Add or remove a classic Stellar trustline for an asset on a managed account.
 User rejection of the confirmation dialog throws `UserRejectedRequestError`.
 
 ## Participants
-
 
 | Component                           | Path                        | Role in this flow                                                    |
 | ----------------------------------- | --------------------------- | -------------------------------------------------------------------- |
@@ -48,9 +45,6 @@ User rejection of the confirmation dialog throws `UserRejectedRequestError`.
 | `RefreshConfirmationContextHandler` | `handlers/cronjob`          | Re-validate tx / fees while dialog is open                           |
 | `TrackTransactionHandler`           | `handlers/cronjob`          | Schedule background status tracking after submit                     |
 
-
-
-
 ## Step-by-step
 
 1. **Route** — `onClientRequest` dispatches to `ChangeTrustOptHandler`.
@@ -61,8 +55,6 @@ User rejection of the confirmation dialog throws `UserRejectedRequestError`.
 6. **Refresh** — After confirm, account is resolved again from the live network; fee must not exceed what the user approved; redundant opt-in returns `{ status: true }` without submit.
 7. **Sign & send** — `Wallet.signTransaction` → `TransactionService.sendTransaction`.
 8. **Post-submit** — Persist pending keyring tx (`ChangeTrustOptIn` / `ChangeTrustOptOut`) and schedule `TrackTransactionHandler`.
-
-
 
 ## Sequence (happy path)
 
@@ -106,6 +98,3 @@ sequenceDiagram
   Handler->>Track: scheduleBackgroundEvent
   Handler-->>Client: { status: true, transactionId }
 ```
-
-
-
