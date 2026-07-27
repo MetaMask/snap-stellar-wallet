@@ -36,7 +36,7 @@ import {
 export class TrackTransactionHandler extends CronjobBaseHandler<TrackTransactionJsonRpcRequest> {
   static async scheduleBackgroundEvent(
     params: TrackTransactionParams,
-    duration: Duration = Duration.TwoSeconds,
+    duration: Duration = Duration.FiveSeconds,
   ): Promise<void> {
     await scheduleBackgroundEvent({
       method: BackgroundEventMethod.TrackTransaction,
