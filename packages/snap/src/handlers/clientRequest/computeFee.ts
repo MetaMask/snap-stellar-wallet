@@ -17,6 +17,8 @@ import type {
 import { BaseClientRequestHandler } from './base';
 import { KnownCaip19Slip44IdMap } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import type { OnChainAccount } from '../../services/on-chain-account';
+import { minimumBalanceStroops } from '../../services/on-chain-account/utils';
 import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
@@ -111,6 +113,8 @@ export class ComputeFeeHandler extends BaseClientRequestHandler<
             ? MultiChainSendErrorCodes.InsufficientBalance
             : MultiChainSendErrorCodes.InsufficientBalanceToCoverFee;
 
+        const reserveAmount = getReserveDisplayAmount(onChainAccount);
+
         throw new TransactionValidationException(error.message, {
           cause: error,
           data: {
@@ -121,10 +125,33 @@ export class ComputeFeeHandler extends BaseClientRequestHandler<
                 : KnownCaip19Slip44IdMap[scope],
             availableAmount: toDisplayBalance(new BigNumber(error.balance)),
             requiredAmount: toDisplayBalance(new BigNumber(error.required)),
+            ...(reserveAmount === undefined ? {} : { reserveAmount }),
           },
         });
       }
       throw error;
     }
+  }
+}
+
+/**
+ * Native (XLM) minimum reserve for the account, in display units.
+ *
+ * @param onChainAccount Resolved on-chain account.
+ * @returns Reserve in display units, or `undefined` when ledger meta is not bound.
+ */
+function getReserveDisplayAmount(
+  onChainAccount: OnChainAccount,
+): string | undefined {
+  try {
+    return toDisplayBalance(
+      minimumBalanceStroops({
+        subentryCount: onChainAccount.subentryCount,
+        numSponsoring: onChainAccount.numSponsoring,
+        numSponsored: onChainAccount.numSponsored,
+      }),
+    );
+  } catch {
+    return undefined;
   }
 }

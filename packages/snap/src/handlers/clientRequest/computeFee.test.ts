@@ -204,6 +204,7 @@ describe('ComputeFeeHandler', () => {
       assetId: KnownCaip19Slip44IdMap[scope],
       availableAmount: '0.00001',
       requiredAmount: '1.25',
+      reserveAmount: '1',
     });
   });
 
@@ -229,6 +230,7 @@ describe('ComputeFeeHandler', () => {
       assetId: KnownCaip19Slip44IdMap[scope],
       availableAmount: '0.00001',
       requiredAmount: '5',
+      reserveAmount: '1',
     });
   });
 
