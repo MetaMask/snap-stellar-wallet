@@ -1830,31 +1830,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@metamask/keyring-snap-sdk@npm:^9.0.2":
-  version: 9.0.2
-  resolution: "@metamask/keyring-snap-sdk@npm:9.0.2"
+"@metamask/keyring-snap-sdk@npm:^9.2.1":
+  version: 9.2.1
+  resolution: "@metamask/keyring-snap-sdk@npm:9.2.1"
   dependencies:
-    "@metamask/keyring-utils": "npm:^3.3.1"
+    "@metamask/keyring-utils": "npm:^4.0.0"
     "@metamask/snaps-sdk": "npm:^11.0.0"
-    "@metamask/superstruct": "npm:^3.1.0"
+    "@metamask/superstruct": "npm:^3.4.1"
     "@metamask/utils": "npm:^11.11.0"
     webextension-polyfill: "npm:^0.12.0"
   peerDependencies:
     "@metamask/keyring-api": ^23.0.0
     "@metamask/providers": ^19.0.0
-  checksum: 10/a3fa4c306b058f484042e4460f8d19d509c4725cb49c40328dd905555bae33e07e29262891500acbcb845891af3721a562a36914286fc876f37668ce63f1bee1
-  languageName: node
-  linkType: hard
-
-"@metamask/keyring-utils@npm:^3.3.1":
-  version: 3.3.1
-  resolution: "@metamask/keyring-utils@npm:3.3.1"
-  dependencies:
-    "@ethereumjs/tx": "npm:^5.4.0"
-    "@metamask/superstruct": "npm:^3.1.0"
-    "@metamask/utils": "npm:^11.11.0"
-    bitcoin-address-validation: "npm:^2.2.3"
-  checksum: 10/d0917b2f634d9eb2f563827739fca00c1675ee90674ec49b2b68afcb604aee843d6c5be5d79e9780fa22d29f71fc876f40b2d3d0ed4cab7f5948937ddd276691
+  checksum: 10/90b01fca9cc1d055b3830e8a7d2503b40421c9ddc4e20b0db25fade73c430ac56bb482f340cd82a08a5013d76e0b8d8265c953b71f5e29be2c5e538d5cedd9e4
   languageName: node
   linkType: hard
 
@@ -2266,7 +2254,7 @@ __metadata:
     "@metamask/auto-changelog": "npm:^6.1.0"
     "@metamask/key-tree": "npm:^10.1.1"
     "@metamask/keyring-api": "npm:^23.7.0"
-    "@metamask/keyring-snap-sdk": "npm:^9.0.2"
+    "@metamask/keyring-snap-sdk": "npm:^9.2.1"
     "@metamask/snaps-cli": "npm:^8.4.0"
     "@metamask/snaps-jest": "npm:^10.1.0"
     "@metamask/snaps-sdk": "npm:^11.1.0"
@@ -2298,14 +2286,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@metamask/superstruct@npm:^3.1.0, @metamask/superstruct@npm:^3.2.1":
-  version: 3.2.1
-  resolution: "@metamask/superstruct@npm:3.2.1"
-  checksum: 10/9e29380f2cf8b129283ccb2b568296d92682b705109ba62dbd7739ffd6a1982fe38c7228cdcf3cbee94dbcdd5fcc1c846ab9d1dd3582167154f914422fcff547
-  languageName: node
-  linkType: hard
-
-"@metamask/superstruct@npm:^3.4.1":
+"@metamask/superstruct@npm:^3.1.0, @metamask/superstruct@npm:^3.2.1, @metamask/superstruct@npm:^3.4.1":
   version: 3.4.1
   resolution: "@metamask/superstruct@npm:3.4.1"
   checksum: 10/d37b5662dc9bbe0d99e06eb951167fa745829ae3abfa103423e9d8c05e8712f1451376f8479d484722e1e1c1d881732da1efddccaca8868b530a786264b903b5

@@ -725,6 +725,7 @@ describe('KeyringHandler', () => {
           metadata: {
             spendableBalance: '10000010',
             minimumReserveBalance: '10000000',
+            decimal: 7,
           },
         },
       });
@@ -752,6 +753,7 @@ describe('KeyringHandler', () => {
           metadata: {
             spendableBalance: '0',
             minimumReserveBalance: '0',
+            decimal: 7,
           },
         },
       });

@@ -7,21 +7,15 @@ import {
   string,
   union,
   optional,
+  number,
 } from '@metamask/superstruct';
 import type { Infer } from '@metamask/superstruct';
 import { BigNumber } from 'bignumber.js';
 
 import type { SpendableBalance } from './api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import { NATIVE_ASSET_SYMBOL, STELLAR_DECIMAL_PLACES } from '../../constants';
 import { toDisplayBalance } from '../../utils';
-
-/**
- * Flip to `true` once MetaMask clients accept balance-entry metadata
- * (spendable/minimum reserve for native; limit/authorized/sponsor for classic).
- * Keep `false` for backward compatibility with older clients.
- */
-export const INCLUDE_KEYRING_BALANCE_METADATA = true;
 
 export const StandardBalanceEntryStruct = object({
   unit: string(),
@@ -36,6 +30,7 @@ export const NativeBalanceEntryStruct = assign(
       object({
         spendableBalance: string(),
         minimumReserveBalance: string(),
+        decimal: number(),
       }),
     ),
   }),
@@ -82,27 +77,20 @@ export type KeyringBalanceByAssetId = Record<
  * @param params.nativeBalance - Total native balance in stroops.
  * @param params.spendableBalance - Spendable native balance in stroops.
  * @param params.minimumReserveBalance - Protocol minimum reserve in stroops.
- * @param includeMetadata - Override for {@link INCLUDE_KEYRING_BALANCE_METADATA}.
  * @returns Balance change entry for the native asset.
  */
-export function toNativeBalanceEntry(
-  params: {
-    nativeBalance: BigNumber;
-    spendableBalance: BigNumber;
-    minimumReserveBalance: BigNumber;
-  },
-  includeMetadata: boolean = INCLUDE_KEYRING_BALANCE_METADATA,
-): KeyringBalanceEntry {
+export function toNativeBalanceEntry(params: {
+  nativeBalance: BigNumber;
+  spendableBalance: BigNumber;
+  minimumReserveBalance: BigNumber;
+}): KeyringBalanceEntry {
   return NativeBalanceEntryStruct.create({
     amount: toDisplayBalance(params.nativeBalance),
-    ...(includeMetadata
-      ? {
-          metadata: {
-            spendableBalance: params.spendableBalance.toFixed(0),
-            minimumReserveBalance: params.minimumReserveBalance.toFixed(0),
-          },
-        }
-      : {}),
+    metadata: {
+      spendableBalance: params.spendableBalance.toFixed(0),
+      minimumReserveBalance: params.minimumReserveBalance.toFixed(0),
+      decimal: STELLAR_DECIMAL_PLACES,
+    },
   });
 }
 
@@ -110,25 +98,19 @@ export function toNativeBalanceEntry(
  * Keyring / sync balance payload for a classic trustline.
  *
  * @param asset - Classic spendable balance entry (visible or tombstone).
- * @param includeMetadata - Override for {@link INCLUDE_KEYRING_BALANCE_METADATA}.
- * @returns Balance change entry with classic metadata when enabled.
+ * @returns Balance change entry with classic metadata.
  */
 export function toClassicBalanceEntry(
   asset: SpendableBalance,
-  includeMetadata: boolean = INCLUDE_KEYRING_BALANCE_METADATA,
 ): KeyringBalanceEntry {
   return ClassicBalanceEntryStruct.create({
     unit: asset.symbol,
     amount: toDisplayBalance(asset.balance, asset.decimals),
-    ...(includeMetadata
-      ? {
-          metadata: {
-            limit: toDisplayBalance(asset.limit ?? new BigNumber(0)),
-            authorized: asset.authorized,
-            sponsor: asset.sponsor,
-          },
-        }
-      : {}),
+    metadata: {
+      limit: toDisplayBalance(asset.limit ?? new BigNumber(0), asset.decimals),
+      authorized: asset.authorized,
+      sponsor: asset.sponsor,
+    },
   });
 }
 
