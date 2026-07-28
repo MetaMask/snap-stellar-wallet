@@ -17,7 +17,7 @@ import {
 import { OnChainAccount } from './OnChainAccount';
 import { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import { NATIVE_ASSET_SYMBOL, STELLAR_DECIMAL_PLACES } from '../../constants';
 import { bufferToUint8Array } from '../../utils/buffer';
 import * as errorUtils from '../../utils/errors';
 import { logger } from '../../utils/logger';
@@ -46,11 +46,25 @@ function expectDefined<ValueType>(value: ValueType | undefined): ValueType {
 const NATIVE_BALANCE_ENTRY = {
   unit: NATIVE_ASSET_SYMBOL,
   amount: '1',
+  metadata: {
+    spendableBalance: '0',
+    minimumReserveBalance: '10000000',
+    decimal: STELLAR_DECIMAL_PLACES,
+  },
 } as const;
 
-const classicBalanceEntry = (unit: string, amount: string) => ({
+const classicBalanceEntry = (
+  unit: string,
+  amount: string,
+  limit = '922337203685.4775807',
+) => ({
   unit,
   amount,
+  metadata: {
+    limit,
+    authorized: true,
+    sponsor: '',
+  },
 });
 
 jest.mock('../../utils/logger');
@@ -890,7 +904,7 @@ describe('OnChainAccountSynchronizeService', () => {
     // 2nd `AccountBalancesUpdated` (after sync 2): USDC becomes not visible → emit 0.
     expect(accountBalancesFromNthBalanceEmit(1)).toStrictEqual({
       [NATIVE]: NATIVE_BALANCE_ENTRY,
-      [USDC_CLASSIC]: classicBalanceEntry('USDC', '0'),
+      [USDC_CLASSIC]: classicBalanceEntry('USDC', '0', '0'),
     });
 
     // 3rd `AccountBalancesUpdated` (after sync 3): EURC visible; USDC already tombstone — omitted.
@@ -904,7 +918,7 @@ describe('OnChainAccountSynchronizeService', () => {
     expect(fourthBalanceSnapshot).toStrictEqual({
       [NATIVE]: NATIVE_BALANCE_ENTRY,
       [EURC_CLASSIC]: classicBalanceEntry('EURC', '10'),
-      [USDC_CLASSIC]: classicBalanceEntry('USDC', '0'),
+      [USDC_CLASSIC]: classicBalanceEntry('USDC', '0', '0'),
     });
 
     const assetListCalls = emitSnapKeyringEventSpy.mock.calls.filter((call) =>

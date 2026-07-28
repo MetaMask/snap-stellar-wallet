@@ -192,7 +192,6 @@ export class OnChainAccountSynchronizeService {
           {
             keyringAccountId,
             balanceEntriesLength: Object.keys(balanceChanges).length,
-            balanceEntries: JSON.stringify(balanceChanges, null, 2),
           },
         );
         assetsPayload ??= {};
