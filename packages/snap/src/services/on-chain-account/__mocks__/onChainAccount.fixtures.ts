@@ -62,6 +62,8 @@ export type MockAssetLine = {
   isAuthorized?: boolean;
   /** Horizon trustline `limit` string; defaults to max trust when omitted. */
   limit?: string;
+  /** Horizon trustline `sponsor` account id when the reserve is sponsored. */
+  sponsor?: string;
 };
 
 export type MockAccountWithBalancesData = {
@@ -124,6 +126,9 @@ export const createMockAccountWithBalances = (
           asset_code: asset.assetCode,
           asset_issuer: asset.assetIssuer,
           is_authorized: asset.isAuthorized !== false,
+          ...(asset.sponsor === undefined || asset.sponsor.length === 0
+            ? {}
+            : { sponsor: asset.sponsor }),
         })),
         {
           balance: inputNativeBalance.toString(),

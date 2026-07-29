@@ -39,6 +39,8 @@ export const SerializableClassicSpendableBalanceStruct = object({
   address: string(),
   authorized: boolean(),
   sponsored: optional(boolean()),
+  /** Horizon trustline sponsor account id when present. */
+  sponsor: optional(string()),
 });
 
 export type SerializableClassicSpendableBalance = Infer<

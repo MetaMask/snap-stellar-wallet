@@ -3,7 +3,12 @@ import type { KeyringEventPayload } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import type { SpendableBalance } from './api';
+import {
+  toClassicBalanceEntry,
+  toNativeBalanceEntry,
+  toStandardBalanceEntry,
+} from './keyringBalance';
+import type { KeyringBalanceByAssetId } from './keyringBalance';
 import { OnChainAccount } from './OnChainAccount';
 import type { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
@@ -12,7 +17,6 @@ import type {
   KnownCaip19Sep41AssetId,
   KnownCaip2ChainId,
 } from '../../api';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import type { ILogger } from '../../utils';
 import {
   createPrefixedLogger,
@@ -20,7 +24,7 @@ import {
   getSnapProvider,
   isClassicAssetId,
   isSep41Id,
-  toDisplayBalance,
+  isSlip44Id,
   trackErrorIfNeeded,
 } from '../../utils';
 import type { StellarAssetMetadata } from '../asset-metadata';
@@ -190,17 +194,16 @@ export class OnChainAccountSynchronizeService {
             balanceEntriesLength: Object.keys(balanceChanges).length,
           },
         );
-        if (assetListChanges !== null) {
-          assetsPayload ??= {};
-          assetsPayload[keyringAccountId] = assetListChanges;
-          this.#logger.debug(
-            'Differences in full snapshots for keyring account - asset list changes',
-            {
-              keyringAccountId,
-              assetListChangesLength: Object.keys(assetListChanges).length,
-            },
-          );
-        }
+        assetsPayload ??= {};
+        assetsPayload[keyringAccountId] = assetListChanges;
+        this.#logger.debug(
+          'Differences in full snapshots for keyring account - asset list changes',
+          {
+            keyringAccountId,
+            added: assetListChanges.added.length,
+            removed: assetListChanges.removed.length,
+          },
+        );
 
         snapshotsToSave[keyringAccountId] =
           synchronizedOnChainAccount.toSerializableFull();
@@ -352,58 +355,41 @@ export class OnChainAccountSynchronizeService {
       return onChainAccount;
     }
 
-    const shouldBackfillAllSep41 = unresolvedSep41AssetIds === undefined;
-
     for (const assetId of persisted.rawAssetIds) {
       if (onChainAccount.getRawAsset(assetId) !== undefined) {
         continue;
       }
 
+      const assetBalanceFromState = persisted.getRawAsset(assetId);
+
       if (isSep41Id(assetId)) {
-        if (
-          !shouldBackfillAllSep41 &&
-          unresolvedSep41AssetIds !== undefined &&
-          !unresolvedSep41AssetIds.has(assetId)
-        ) {
-          continue;
+        // if the step 2 failed completely, unresolvedSep41AssetIds will be undefined,
+        // and we should backfill all SEP-41 asset ids.
+        const shouldBackfillSep41 =
+          unresolvedSep41AssetIds === undefined ||
+          unresolvedSep41AssetIds.has(assetId);
+
+        if (shouldBackfillSep41) {
+          if (assetBalanceFromState !== undefined) {
+            onChainAccount.setAsset(assetId, {
+              balance: new BigNumber(assetBalanceFromState.balance),
+              symbol: assetBalanceFromState.symbol,
+              decimals: assetBalanceFromState.decimals,
+            });
+          }
         }
+      } else if (isClassicAssetId(assetId)) {
+        const shouldBackfillClassic =
+          assetBalanceFromState?.limit !== undefined &&
+          assetBalanceFromState.address !== undefined;
 
-        const assetBalance = persisted.getRawAsset(assetId);
-        if (assetBalance === undefined) {
-          continue;
+        if (shouldBackfillClassic) {
+          onChainAccount.setTombstoneClassicAsset(
+            assetId,
+            assetBalanceFromState,
+          );
         }
-
-        onChainAccount.setAsset(assetId, {
-          balance: new BigNumber(assetBalance.balance),
-          symbol: assetBalance.symbol,
-          decimals: assetBalance.decimals,
-        });
-        continue;
       }
-
-      if (!isClassicAssetId(assetId)) {
-        continue;
-      }
-
-      const persistedEntry = persisted.getRawAsset(assetId);
-      if (
-        persistedEntry?.limit === undefined ||
-        persistedEntry.address === undefined
-      ) {
-        continue;
-      }
-
-      const authorized = persistedEntry.authorized ?? true;
-      onChainAccount.setAsset(assetId, {
-        balance: new BigNumber(0),
-        symbol: persistedEntry.symbol,
-        limit: new BigNumber(0),
-        address: persistedEntry.address,
-        authorized,
-        ...(persistedEntry.sponsored === undefined
-          ? {}
-          : { sponsored: persistedEntry.sponsored }),
-      });
     }
 
     return onChainAccount;
@@ -421,8 +407,8 @@ export class OnChainAccountSynchronizeService {
     stateSnapshotOnChainAccount: OnChainAccount | null,
     synchronizedOnChainAccount: OnChainAccount,
   ): {
-    balanceChanges: Record<string, { unit: string; amount: string }>;
-    assetListChanges: AccountAssetListDelta | null;
+    balanceChanges: KeyringBalanceByAssetId;
+    assetListChanges: AccountAssetListDelta;
   } {
     const nativeAssetId = getSlip44AssetId(synchronizedOnChainAccount.scope);
     const assetIds = new Set<KnownCaip19AssetIdOrSlip44Id>([
@@ -430,7 +416,8 @@ export class OnChainAccountSynchronizeService {
       ...synchronizedOnChainAccount.rawAssetIds,
     ]);
 
-    const balanceChanges: Record<string, { unit: string; amount: string }> = {};
+    const balanceChanges: KeyringBalanceByAssetId =
+      {} as KeyringBalanceByAssetId;
     const addedAssets: AccountAssetListDelta['added'] = [];
     const removedAssets: AccountAssetListDelta['removed'] = [];
 
@@ -474,11 +461,9 @@ export class OnChainAccountSynchronizeService {
       //   onChain view: XLM=9, USDC=30, AQUA trustline, EURC tombstone, SOLBTC=0.
       //   balance payload: XLM=9, USDC=30, AQUA=0.
       //   asset list payload: added XLM only; removed none (state matches on-chain).
-      const isVisibleFromOnChain = this.#isAssetVisible(assetId, onChainEntry);
-      const isVisibleFromState = this.#isAssetVisible(
-        assetId,
-        latestStateEntry,
-      );
+      const isVisibleFromOnChain = synchronizedOnChainAccount.hasAsset(assetId);
+      const isVisibleFromState =
+        stateSnapshotOnChainAccount?.hasAsset(assetId) ?? false;
 
       // Asset list: transition-based add/remove between persisted state and on-chain visibility.
       if (!isVisibleFromState && isVisibleFromOnChain) {
@@ -491,19 +476,27 @@ export class OnChainAccountSynchronizeService {
 
       // Balance: visible assets, plus amount 0 when transitioning from visible → not visible (SEP-41 non-zero → zero; classic trustline removed).
       // Already-not-visible assets that stay not visible are omitted.
+      // Prefer on-chain raw entry (includes tombstones / zero SEP-41); fall back to state only if missing.
       if (isVisibleFromOnChain || isVisibleFromState) {
-        balanceChanges[assetId as string] =
-          assetId === nativeAssetId
-            ? {
-                unit: NATIVE_ASSET_SYMBOL,
-                amount: toDisplayBalance(
-                  synchronizedOnChainAccount.nativeRawBalance,
-                ),
-              }
-            : this.#buildBalancePayloadFromEntries(
-                onChainEntry,
-                latestStateEntry,
-              );
+        const assetEntry = onChainEntry ?? latestStateEntry;
+
+        // Should not happen: assetIds are drawn from on-chain or state raw ids.
+        if (assetEntry === undefined) {
+          continue;
+        }
+
+        if (isSlip44Id(assetId)) {
+          balanceChanges[assetId] = toNativeBalanceEntry({
+            nativeBalance: synchronizedOnChainAccount.nativeRawBalance,
+            spendableBalance: synchronizedOnChainAccount.nativeSpendableBalance,
+            minimumReserveBalance:
+              synchronizedOnChainAccount.minimumReserveBalance,
+          });
+        } else if (isClassicAssetId(assetId)) {
+          balanceChanges[assetId] = toClassicBalanceEntry(assetEntry);
+        } else if (isSep41Id(assetId)) {
+          balanceChanges[assetId] = toStandardBalanceEntry(assetEntry);
+        }
       }
     }
 
@@ -519,40 +512,6 @@ export class OnChainAccountSynchronizeService {
         removed: removedAssets,
       },
     };
-  }
-
-  #buildBalancePayloadFromEntries(
-    onChainEntry: SpendableBalance | undefined,
-    latestStateEntry: SpendableBalance | undefined,
-  ): { unit: string; amount: string } {
-    return {
-      // When an asset was removed this sync, `onChainEntry` may be missing or be a classic tombstone
-      // (`limit` 0). Use the last known symbol from the persisted snapshot when needed.
-      unit: onChainEntry?.symbol ?? latestStateEntry?.symbol ?? '',
-      amount: toDisplayBalance(
-        onChainEntry?.balance ?? new BigNumber(0),
-        onChainEntry?.decimals ?? latestStateEntry?.decimals,
-      ),
-    };
-  }
-
-  #isAssetVisible(
-    assetId: KnownCaip19AssetIdOrSlip44Id,
-    entry: SpendableBalance | undefined,
-  ): boolean {
-    if (!entry) {
-      return false;
-    }
-    if (isSep41Id(assetId)) {
-      return !entry.balance.isZero();
-    }
-    if (isClassicAssetId(assetId)) {
-      if (entry.limit === undefined) {
-        return false;
-      }
-      return entry.limit.gt(0);
-    }
-    return true;
   }
 
   async #emitKeyringEventsSafe(

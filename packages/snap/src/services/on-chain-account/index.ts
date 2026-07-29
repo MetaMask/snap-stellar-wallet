@@ -4,3 +4,4 @@ export * from './OnChainAccount';
 export * from './OnChainAccountRepository';
 export * from './OnChainAccountService';
 export * from './OnChainAccountSynchronizeService';
+export * from './keyringBalance';

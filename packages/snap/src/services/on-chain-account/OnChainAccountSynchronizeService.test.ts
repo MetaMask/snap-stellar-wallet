@@ -17,7 +17,7 @@ import {
 import { OnChainAccount } from './OnChainAccount';
 import { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import { NATIVE_ASSET_SYMBOL, STELLAR_DECIMAL_PLACES } from '../../constants';
 import { bufferToUint8Array } from '../../utils/buffer';
 import * as errorUtils from '../../utils/errors';
 import { logger } from '../../utils/logger';
@@ -36,6 +36,36 @@ import type { ActivatedAccountPair } from '../sync/api';
 
 const isKeyringEmitCall = (call: unknown[], event: KeyringEvent): boolean =>
   (call[1] as KeyringEvent) === event;
+
+function expectDefined<ValueType>(value: ValueType | undefined): ValueType {
+  expect(value).toBeDefined();
+  return value as ValueType;
+}
+
+/** Default mock accounts use subentryCount 0 → minimum balance = 2 × 0.5 XLM. */
+const NATIVE_BALANCE_ENTRY = {
+  unit: NATIVE_ASSET_SYMBOL,
+  amount: '1',
+  metadata: {
+    spendableBalance: '0',
+    minimumReserveBalance: '10000000',
+    decimal: STELLAR_DECIMAL_PLACES,
+  },
+} as const;
+
+const classicBalanceEntry = (
+  unit: string,
+  amount: string,
+  limit = '922337203685.4775807',
+) => ({
+  unit,
+  amount,
+  metadata: {
+    limit,
+    authorized: true,
+    sponsor: '',
+  },
+});
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');
@@ -160,10 +190,8 @@ describe('OnChainAccountSynchronizeService', () => {
     keyringAccountId: string,
   ): OnChainAccountSerializableFull => {
     expect(saveManySpy).toHaveBeenCalledTimes(1);
-    expect(saveManySpy.mock.calls[0]).toBeDefined();
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- narrowed by expect above
-    const payload = saveManySpy.mock.calls[0]![0];
-    return payload[keyringAccountId] as OnChainAccountSerializableFull;
+    const payload = expectDefined(saveManySpy.mock.calls[0])[0];
+    return expectDefined(payload[keyringAccountId]);
   };
 
   const getOnChainAccountServiceSpies = () => ({
@@ -306,7 +334,7 @@ describe('OnChainAccountSynchronizeService', () => {
       expect.objectContaining({
         balances: {
           [keyringAccount.id]: expect.objectContaining({
-            [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
+            [NATIVE]: NATIVE_BALANCE_ENTRY,
             [sep41Id]: { unit: 'USDC', amount: '5' },
           }),
         },
@@ -377,7 +405,7 @@ describe('OnChainAccountSynchronizeService', () => {
       expect.objectContaining({
         balances: {
           [keyringAccount.id]: {
-            [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
+            [NATIVE]: NATIVE_BALANCE_ENTRY,
             [sep41Id]: { unit: 'USDC', amount: '0' },
           },
         },
@@ -500,7 +528,7 @@ describe('OnChainAccountSynchronizeService', () => {
       expect.objectContaining({
         balances: {
           [keyringAccount.id]: {
-            [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
+            [NATIVE]: NATIVE_BALANCE_ENTRY,
           },
         },
       }),
@@ -864,35 +892,33 @@ describe('OnChainAccountSynchronizeService', () => {
         KeyringEventPayload<KeyringEvent.AccountBalancesUpdated>,
       ];
       const row = payload.balances[keyringAccount.id];
-      expect(row).toBeDefined();
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- narrowed by expect above
-      return row!;
+      return expectDefined(row);
     };
 
     // 1st `AccountBalancesUpdated` (after sync 1): USDC trustline at 0 + native (SEP-41 starts at 0 — omitted).
     expect(accountBalancesFromNthBalanceEmit(0)).toStrictEqual({
-      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+      [NATIVE]: NATIVE_BALANCE_ENTRY,
+      [USDC_CLASSIC]: classicBalanceEntry('USDC', '0'),
     });
 
     // 2nd `AccountBalancesUpdated` (after sync 2): USDC becomes not visible → emit 0.
     expect(accountBalancesFromNthBalanceEmit(1)).toStrictEqual({
-      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+      [NATIVE]: NATIVE_BALANCE_ENTRY,
+      [USDC_CLASSIC]: classicBalanceEntry('USDC', '0', '0'),
     });
 
     // 3rd `AccountBalancesUpdated` (after sync 3): EURC visible; USDC already tombstone — omitted.
     expect(accountBalancesFromNthBalanceEmit(2)).toStrictEqual({
-      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
-      [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
+      [NATIVE]: NATIVE_BALANCE_ENTRY,
+      [EURC_CLASSIC]: classicBalanceEntry('EURC', '10'),
     });
 
     // 4th `AccountBalancesUpdated` (after sync 4): stale post–sync-1 baseline → USDC removal emits 0 again.
     const fourthBalanceSnapshot = accountBalancesFromNthBalanceEmit(3);
     expect(fourthBalanceSnapshot).toStrictEqual({
-      [NATIVE]: { unit: NATIVE_ASSET_SYMBOL, amount: '1' },
-      [EURC_CLASSIC]: { unit: 'EURC', amount: '10' },
-      [USDC_CLASSIC]: { unit: 'USDC', amount: '0' },
+      [NATIVE]: NATIVE_BALANCE_ENTRY,
+      [EURC_CLASSIC]: classicBalanceEntry('EURC', '10'),
+      [USDC_CLASSIC]: classicBalanceEntry('USDC', '0', '0'),
     });
 
     const assetListCalls = emitSnapKeyringEventSpy.mock.calls.filter((call) =>
@@ -910,9 +936,7 @@ describe('OnChainAccountSynchronizeService', () => {
         KeyringEventPayload<KeyringEvent.AccountAssetListUpdated>,
       ];
       const row = payload.assets[keyringAccount.id];
-      expect(row).toBeDefined();
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- narrowed by expect above
-      return row!;
+      return expectDefined(row);
     };
 
     // 1st `AccountAssetListUpdated` (after sync 1): USDC trustline becomes visible (limit > 0, balance 0).

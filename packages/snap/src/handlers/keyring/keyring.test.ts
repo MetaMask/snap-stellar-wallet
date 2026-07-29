@@ -705,7 +705,7 @@ describe('KeyringHandler', () => {
       resolveAccountSpy.mockResolvedValue({ account: mockAccount });
       const onChainAccount = createTestOnChainAccount(mockAccount.address, {
         ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-        nativeBalance: 1.000001,
+        nativeBalance: 2.000001,
       });
       jest
         .spyOn(
@@ -719,7 +719,15 @@ describe('KeyringHandler', () => {
       ]);
 
       expect(result).toStrictEqual({
-        [slipId]: { unit: 'XLM', amount: '1.000001' },
+        [slipId]: {
+          unit: 'XLM',
+          amount: '2.000001',
+          metadata: {
+            spendableBalance: '10000010',
+            minimumReserveBalance: '10000000',
+            decimal: 7,
+          },
+        },
       });
     });
 
@@ -739,7 +747,15 @@ describe('KeyringHandler', () => {
       ]);
 
       expect(result).toStrictEqual({
-        [slipId]: { unit: 'XLM', amount: '0' },
+        [slipId]: {
+          unit: 'XLM',
+          amount: '0',
+          metadata: {
+            spendableBalance: '0',
+            minimumReserveBalance: '0',
+            decimal: 7,
+          },
+        },
       });
     });
 
