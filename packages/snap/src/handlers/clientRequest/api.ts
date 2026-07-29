@@ -15,7 +15,6 @@ import {
   nonempty,
   integer,
   min,
-  record,
   coerce,
 } from '@metamask/superstruct';
 import type { JsonRpcRequest } from '@metamask/utils';
@@ -51,7 +50,6 @@ export enum ClientRequestMethod {
   ComputeFee = 'computeFee',
   /** -------------------------------- Stellar Specific -------------------------------- */
   ChangeTrustOpt = 'changeTrustOpt',
-  GetAccountAssetInfo = 'getAccountAssetInfo',
 }
 
 export enum MultiChainSendErrorCodes {
@@ -140,50 +138,6 @@ export const ChangeTrustOptJsonRpcResponseStruct = object({
   status: boolean(),
   transactionId: optional(StellarTransactionHashStruct),
 });
-
-/**
- * Optional per-asset enrichment fields from getAccountAssetInfo.
- * Classic assets use trust-line fields; native XLM uses baseReserve.
- */
-export const AccountAssetInfoExtraStruct = object({
-  limit: optional(string()),
-  authorized: optional(boolean()),
-  sponsored: optional(boolean()),
-  baseReserve: optional(string()),
-});
-
-export type AccountAssetInfoExtra = Infer<typeof AccountAssetInfoExtraStruct>;
-
-const GetAccountAssetInfoParamsStruct = object({
-  accountId: UuidStruct,
-  scope: KnownCaip2ChainIdStruct,
-  assets: array(
-    union([
-      KnownCaip19Sep41AssetStruct,
-      KnownCaip19ClassicAssetStruct,
-      KnownCaip19Slip44IdStruct,
-    ]),
-  ),
-});
-
-/**
- * Validation struct for the getAccountAssetInfo JSON-RPC request.
- */
-export const GetAccountAssetInfoJsonRpcRequestStruct = assign(
-  JsonRpcRequestStruct,
-  object({
-    method: literal(ClientRequestMethod.GetAccountAssetInfo),
-    params: GetAccountAssetInfoParamsStruct,
-  }),
-);
-
-/**
- * Validation struct for the getAccountAssetInfo JSON-RPC response.
- */
-export const GetAccountAssetInfoJsonRpcResponseStruct = record(
-  string(),
-  AccountAssetInfoExtraStruct,
-);
 
 /**
  * Validation struct for the sendTransaction JSON-RPC request.
@@ -441,20 +395,6 @@ export type ChangeTrustOptJsonRpcRequest = Infer<
  */
 export type ChangeTrustOptJsonRpcResponse = Infer<
   typeof ChangeTrustOptJsonRpcResponseStruct
->;
-
-/**
- * Type for the getAccountAssetInfo JSON-RPC request.
- */
-export type GetAccountAssetInfoJsonRpcRequest = Infer<
-  typeof GetAccountAssetInfoJsonRpcRequestStruct
->;
-
-/**
- * Type for the getAccountAssetInfo JSON-RPC response.
- */
-export type GetAccountAssetInfoJsonRpcResponse = Infer<
-  typeof GetAccountAssetInfoJsonRpcResponseStruct
 >;
 
 /**
