@@ -93,7 +93,11 @@ export class AssetMetadataService {
   }
 
   /**
-   * Returns all assets in keyring format for the given asset IDs.
+   * Returns keyring-format metadata for the given asset IDs from snap state only.
+   *
+   * Read-only — does not fetch missing assets or persist. Intended for
+   * `onAssetsLookup` so handlers do not contend with catalog sync. Missing ids
+   * are `null` until filled by `synchronize` / `resolve`.
    *
    * @param assetIds - The asset IDs to look up.
    * @returns A Promise that resolves to all assets metadata for the given asset IDs.
@@ -101,11 +105,13 @@ export class AssetMetadataService {
   async getAssetsMetadataByAssetIds(
     assetIds: KnownCaip19AssetIdOrSlip44Id[],
   ): Promise<KeyringAssetMetadataByAssetId> {
-    this.#logger.debug('Fetching assets metadata by asset ids', { assetIds });
+    this.#logger.debug('Reading assets metadata by asset ids (read-only)', {
+      assetIds,
+    });
 
     const metadataByAssetId = {} as KeyringAssetMetadataByAssetId;
 
-    const list = await this.#fetchAndPersistAssetsByAssetIds(assetIds);
+    const list = await this.#getPersistedOrNativeAssetsByAssetIds(assetIds);
 
     for (const assetId of assetIds) {
       metadataByAssetId[assetId] = null;
@@ -186,6 +192,30 @@ export class AssetMetadataService {
   async synchronize(scope: KnownCaip2ChainId): Promise<void> {
     const tokensMetadata = await this.#getAssetsByChainId(scope);
     await this.#assetMetadataRepository.saveMany(tokensMetadata);
+  }
+
+  /**
+   * Native metadata (computed) + persisted non-native rows only — no network fetch.
+   *
+   * @param assetIds - Requested asset ids.
+   * @returns Known native + snap-state metadata for the requested ids.
+   */
+  async #getPersistedOrNativeAssetsByAssetIds(
+    assetIds: KnownCaip19AssetIdOrSlip44Id[],
+  ): Promise<StellarAssetMetadata[]> {
+    const { nativeAssets: nativeAssetsByChainId, assets: assetsByChainId } =
+      groupAssetsByChainId(assetIds);
+    const result: StellarAssetMetadata[] = [];
+
+    for (const [chainId] of nativeAssetsByChainId) {
+      result.push(getNativeAssetMetadata(chainId));
+    }
+
+    const allNonNativeAssetIds = [...assetsByChainId.values()].flat();
+    const { assets } =
+      await this.#getPersistedAssetMetadata(allNonNativeAssetIds);
+
+    return result.concat(assets);
   }
 
   async #fetchAndPersistAssetsByAssetIds(

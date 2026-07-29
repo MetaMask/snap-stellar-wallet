@@ -29,6 +29,12 @@ const DEFAULT_PRICE_API_BASE_URL = 'https://price.api.cx.metamask.io';
 const DEFAULT_SECURITY_ALERTS_API_BASE_URL =
   'https://security-alerts.api.cx.metamask.io';
 
+const DEFAULT_EXPLORER_MAINNET_BASE_URL =
+  'https://stellar.expert/explorer/public';
+
+const DEFAULT_EXPLORER_TESTNET_BASE_URL =
+  'https://stellar.expert/explorer/testnet';
+
 /**
  * A struct to parse an integer from a string.
  *
@@ -184,12 +190,20 @@ export const AppConfig = create(
       [KnownCaip2ChainId.Mainnet]: {
         rpcUrl: process.env.RPC_URL_MAINNET,
         horizonUrl: process.env.HORIZON_URL_MAINNET,
-        explorerBaseUrl: process.env.EXPLORER_MAINNET_BASE_URL,
+        explorerBaseUrl:
+          process.env.EXPLORER_MAINNET_BASE_URL === ''
+            ? DEFAULT_EXPLORER_MAINNET_BASE_URL
+            : (process.env.EXPLORER_MAINNET_BASE_URL ??
+              DEFAULT_EXPLORER_MAINNET_BASE_URL),
       },
       [KnownCaip2ChainId.Testnet]: {
         rpcUrl: process.env.RPC_URL_TESTNET,
         horizonUrl: process.env.HORIZON_URL_TESTNET,
-        explorerBaseUrl: process.env.EXPLORER_TESTNET_BASE_URL,
+        explorerBaseUrl:
+          process.env.EXPLORER_TESTNET_BASE_URL === ''
+            ? DEFAULT_EXPLORER_TESTNET_BASE_URL
+            : (process.env.EXPLORER_TESTNET_BASE_URL ??
+              DEFAULT_EXPLORER_TESTNET_BASE_URL),
       },
     },
     selectedNetwork: KnownCaip2ChainId.Mainnet,
