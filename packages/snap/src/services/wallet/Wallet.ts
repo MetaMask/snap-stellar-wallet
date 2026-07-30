@@ -8,7 +8,6 @@ import {
   VerifyMessageException,
 } from './exceptions';
 import { bufferToUint8Array } from '../../utils/buffer';
-import { isBase64 } from '../../utils/string';
 import type { Transaction } from '../transaction/Transaction';
 
 /**
@@ -49,14 +48,13 @@ export class Wallet {
    * Signs a given message using the Stellar Signed Message protocol.
    * Please see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0053.md for more details.
    *
-   * @param message - The message to sign.
+   * The message is encoded as UTF-8 before hashing and signing.
+   *
+   * @param message - The UTF-8 message to sign.
    * @param encode - The encoding to use for the signature. Defaults to 'base64'.
    * @returns The signature as a base64 or hex string.
    */
-  signMessage(
-    message: string | Uint8Array,
-    encode: 'hex' | 'base64' = 'base64',
-  ): string {
+  signMessage(message: string, encode: 'hex' | 'base64' = 'base64'): string {
     try {
       const messageBuffer = this.#encodeMessage(message);
 
@@ -74,14 +72,14 @@ export class Wallet {
    * Verifies a given message using the Stellar Signed Message protocol.
    * Please see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0053.md for more details.
    *
-   * @param message - The message to verify.
+   * @param message - The UTF-8 message to verify.
    * @param signature - The base64 encoded signature to verify.
    * @param encode - The encoding to use for the signature. Defaults to 'base64'.
    * @returns `true` if the signature is valid for this signer's public key, `false` if it is not.
    * @throws {VerifyMessageException} If verification cannot be completed (details are not exposed).
    */
   verifyMessage(
-    message: string | Uint8Array,
+    message: string,
     signature: string,
     encode: 'hex' | 'base64' = 'base64',
   ): boolean {
@@ -129,19 +127,19 @@ export class Wallet {
     }
   }
 
-  #encodeMessage(message: string | Uint8Array): Uint8Array {
+  /**
+   * Builds the SEP-0053 signing payload: `"Stellar Signed Message:\n"` + UTF-8
+   * message bytes.
+   *
+   * @param message - The UTF-8 message text.
+   * @returns Prefixed byte sequence to hash and sign.
+   * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0053.md
+   */
+  #encodeMessage(message: string): Uint8Array {
     const messagePrefix = 'Stellar Signed Message:\n';
-    let messageBuffer: Uint8Array;
-    if (typeof message === 'string' && isBase64(message)) {
-      messageBuffer = bufferToUint8Array(message, 'base64');
-    } else if (typeof message === 'string') {
-      messageBuffer = bufferToUint8Array(message, 'utf8');
-    } else {
-      messageBuffer = message;
-    }
     return new Uint8Array([
       ...bufferToUint8Array(messagePrefix),
-      ...messageBuffer,
+      ...bufferToUint8Array(message, 'utf8'),
     ]);
   }
 }

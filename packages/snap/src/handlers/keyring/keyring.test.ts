@@ -968,9 +968,7 @@ describe('KeyringHandler', () => {
         request: {
           method: MultichainMethod.SignMessage,
           params: {
-            message: bufferToUint8Array('Hello, world!', 'utf8').toString(
-              'base64',
-            ),
+            message: 'Hello, world!',
           },
         },
         scope: KnownCaip2ChainId.Mainnet,
@@ -1102,9 +1100,7 @@ describe('KeyringHandler', () => {
         request: {
           method: MultichainMethod.SignMessage,
           params: {
-            message: bufferToUint8Array('Hello, world!', 'utf8').toString(
-              'base64',
-            ),
+            message: 'Hello, world!',
           },
         },
         scope: KnownCaip2ChainId.Mainnet,
