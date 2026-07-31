@@ -1,5 +1,5 @@
 {
-  "locale": "en",
+  "locale": "es",
   "messages": {
     "confirmation.transaction.title": {
       "message": "Transaction request"
@@ -74,13 +74,13 @@
       "message": "You are authorizing a smart contract to act on your behalf. Only approve if you trust this site."
     },
     "confirmation.signAuthEntry.contract": {
-      "message": "Contract ID"
+      "message": "Contract Address"
     },
     "confirmation.signAuthEntry.function": {
       "message": "Function Name"
     },
-    "confirmation.signAuthEntry.parameters": {
-      "message": "Parameters"
+    "confirmation.signAuthEntry.argument": {
+      "message": "Argument {index}"
     },
     "confirmation.signAuthEntry.expiresAt": {
       "message": "Expires at ledger"
@@ -152,7 +152,7 @@
       "message": "It may have expired or your account balance changed. Close this request and try again."
     },
     "confirmation.validationScanErrorTitle": {
-      "message": "Security validation failed"
+      "message": "Security check unavailable"
     },
     "confirmation.validationScanErrorSubtitle": {
       "message": "{reason}"
@@ -290,7 +290,7 @@
       "message": "Clear flags"
     },
     "confirmation.transaction.param.contractId": {
-      "message": "Contract ID"
+      "message": "Contract Address"
     },
     "confirmation.transaction.param.destAmount": {
       "message": "Destination amount"
@@ -315,6 +315,9 @@
     },
     "confirmation.transaction.param.arguments": {
       "message": "Arguments"
+    },
+    "confirmation.transaction.param.argument": {
+      "message": "Argument {index}"
     },
     "confirmation.transaction.param.from": {
       "message": "From"

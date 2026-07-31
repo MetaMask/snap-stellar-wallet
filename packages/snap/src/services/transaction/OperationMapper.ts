@@ -5,6 +5,11 @@ import { BigNumber } from 'bignumber.js';
 
 import { StellarOperationType } from './api';
 import type { Transaction } from './Transaction';
+import {
+  getAddress,
+  getFunctionName,
+  parseScValToReadableJson,
+} from './xdrParser';
 import type { KnownCaip2ChainId } from '../../api';
 import { bufferToUint8Array } from '../../utils';
 
@@ -20,7 +25,8 @@ export type ReadableFieldType =
   | 'text'
   | 'number'
   | 'boolean'
-  | 'json';
+  | 'json'
+  | 'copyable';
 
 /**
  * One labeled value row for operation confirmation UI.
@@ -177,20 +183,16 @@ export class OperationMapper {
           xdr.HostFunctionType.hostFunctionTypeInvokeContract()
         ) {
           const invokeArgs = func.invokeContract();
-          const contractIdHex = bufferToUint8Array(
-            invokeArgs.contractAddress().toXDR(),
-          )
-            .slice(4)
-            .toString('hex');
-          const functionName = invokeArgs.functionName().toString('utf8');
-          rows.push(this.#field('contractId', contractIdHex, 'text'));
+          const contractAddress = getAddress(invokeArgs.contractAddress());
+          const functionName = getFunctionName(invokeArgs.functionName());
+          rows.push(this.#field('contractId', contractAddress, 'copyable'));
           rows.push(this.#field('functionName', functionName, 'text'));
           const args = invokeArgs.args();
           if (args.length > 0) {
             rows.push(
               this.#field(
                 'arguments',
-                args.map((arg) => arg.toXDR('base64')),
+                args.map((arg) => parseScValToReadableJson(arg)),
                 'json',
               ),
             );

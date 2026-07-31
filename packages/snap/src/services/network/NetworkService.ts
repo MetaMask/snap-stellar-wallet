@@ -57,7 +57,10 @@ import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { InvalidInvokeContractStructureException } from '../transaction/exceptions';
 import { Transaction } from '../transaction/Transaction';
 import { assertInvokeHostFunctionSoleOperation } from '../transaction/utils';
-import { extractAssetDataFromContractData } from '../transaction/xdrParser';
+import {
+  extractAssetDataFromContractData,
+  getAddress,
+} from '../transaction/xdrParser';
 
 /**
  * Stellar network access through **Horizon** and **Soroban RPC**: base fee, account loading (full
@@ -386,7 +389,7 @@ export class NetworkService {
 
       return ledgerEntries.entries.map((ledgerEntry) => {
         const contractId = ledgerEntry.val.contractData().contract();
-        const contractAddress = Address.fromScAddress(contractId).toString();
+        const contractAddress = getAddress(contractId);
 
         const extractedAssetData = extractAssetDataFromContractData(
           ledgerEntry.val.contractData(),

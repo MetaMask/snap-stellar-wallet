@@ -1,5 +1,5 @@
 import type { Operation, xdr } from '@stellar/stellar-sdk';
-import { Asset } from '@stellar/stellar-sdk';
+import { Asset, Networks, TransactionBuilder } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
 import {
@@ -12,8 +12,12 @@ import type { MockInvokeHostFunctionArgNativeToScValOptions } from './__mocks__/
 import { XdrParseException } from './exceptions';
 import {
   isSep41TransferInvoke,
+  nativeToReadableJson,
   parseSep41TransferInvoke,
   parseSuccessfulTransactionResult,
+  parseScValToReadableJson,
+  getAddress,
+  getFunctionName,
   TransactionResultType,
   xdrAssetToCaip19,
 } from './xdrParser';
@@ -23,6 +27,7 @@ import {
   toCaip19ClassicAssetId,
   toCaip19Sep41AssetId,
 } from '../../utils';
+import { bufferToUint8Array } from '../../utils/buffer';
 import { caip2ChainIdToNetwork } from '../network/utils';
 
 describe('transaction-xdr-decoder', () => {
@@ -241,6 +246,154 @@ describe('transaction-xdr-decoder', () => {
       );
       expect(() => parseSep41TransferInvoke(operation, scope)).toThrow(
         'Invalid transfer function arguments',
+      );
+    });
+  });
+
+  describe('getAddress', () => {
+    it('converts contract ScAddress to a C-strkey', () => {
+      const contractId =
+        'CBIJBDNZNF4X35BJ4FFZWCDBSCKOP5NB4PLG4SNENRMLAPYG4P5FM6VN';
+      const wrapped = buildMockInvokeHostFunctionTransaction('transfer', [], {
+        contractId,
+      });
+      const op = wrapped
+        .transactionOperations[0] as Operation.InvokeHostFunction;
+      const scAddress = op.func.invokeContract().contractAddress();
+
+      expect(getAddress(scAddress)).toBe(contractId);
+    });
+  });
+
+  describe('getFunctionName', () => {
+    it('returns string function names unchanged', () => {
+      expect(getFunctionName('approve')).toBe('approve');
+    });
+
+    it('decodes byte function names as UTF-8', () => {
+      expect(getFunctionName(bufferToUint8Array('transfer', 'utf8'))).toBe(
+        'transfer',
+      );
+    });
+  });
+
+  describe('parseScValToReadableJson', () => {
+    it('decodes address and i128 ScVals to strkey and decimal strings', () => {
+      const address =
+        'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+      const wrapped = buildMockInvokeHostFunctionTransaction(
+        'swap_exact_amount_in',
+        [address, 12n],
+        {
+          argNativeToScValOptions: [{ type: 'address' }, { type: 'i128' }],
+        },
+      );
+      const op = wrapped
+        .transactionOperations[0] as Operation.InvokeHostFunction;
+      const [addressArg, amountArg] = op.func.invokeContract().args();
+
+      expect(addressArg).toBeDefined();
+      expect(amountArg).toBeDefined();
+      expect(parseScValToReadableJson(addressArg as xdr.ScVal)).toBe(address);
+      expect(parseScValToReadableJson(amountArg as xdr.ScVal)).toBe('12');
+    });
+
+    it('decodes SEP-41 approve args with u32 expiration ledger as a string', () => {
+      const from = accountAddress;
+      const spender = accountAddress;
+      const wrapped = buildMockInvokeHostFunctionTransaction(
+        'approve',
+        [from, spender, 123n, 0],
+        {
+          argNativeToScValOptions: [
+            { type: 'address' },
+            { type: 'address' },
+            { type: 'i128' },
+            { type: 'u32' },
+          ],
+        },
+      );
+      const op = wrapped
+        .transactionOperations[0] as Operation.InvokeHostFunction;
+      const args = op.func.invokeContract().args();
+
+      expect(args).toHaveLength(4);
+      expect(parseScValToReadableJson(args[0] as xdr.ScVal)).toBe(from);
+      expect(parseScValToReadableJson(args[1] as xdr.ScVal)).toBe(spender);
+      expect(parseScValToReadableJson(args[2] as xdr.ScVal)).toBe('123');
+      expect(parseScValToReadableJson(args[3] as xdr.ScVal)).toBe('0');
+    });
+
+    it('keeps non-zero u32 values as decimal strings', () => {
+      const wrapped = buildMockInvokeHostFunctionTransaction(
+        'approve',
+        [accountAddress, accountAddress, 23n, 123333],
+        {
+          argNativeToScValOptions: [
+            { type: 'address' },
+            { type: 'address' },
+            { type: 'i128' },
+            { type: 'u32' },
+          ],
+        },
+      );
+      const op = wrapped
+        .transactionOperations[0] as Operation.InvokeHostFunction;
+      const expirationArg = op.func.invokeContract().args()[3];
+
+      expect(expirationArg).toBeDefined();
+      expect(parseScValToReadableJson(expirationArg as xdr.ScVal)).toBe(
+        '123333',
+      );
+    });
+
+    it('decodes approve args from a real envelope XDR', () => {
+      const envelopeXdr =
+        'AAAAAgAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAMgDpYayAAACcwAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABJbKv015UMxpIkMNjGfee2xjweJ5H/Dh7OzDvLmmlTRoAAAAHYXBwcm92ZQAAAAAEAAAAEgAAAAAAAAAAP0E2QJSc+GJxMnTRfmMMrnZZXknl8DvX1mAEQlMPSLYAAAASAAAAAAAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAAoAAAAAAAAAAAAAAAAAAAB7AAAAAwAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+      const tx = TransactionBuilder.fromXDR(envelopeXdr, Networks.PUBLIC);
+      const op = tx.operations[0] as Operation.InvokeHostFunction;
+      const readableArgs = op.func
+        .invokeContract()
+        .args()
+        .map((arg) => parseScValToReadableJson(arg));
+
+      expect(readableArgs).toStrictEqual([
+        accountAddress,
+        accountAddress,
+        '123',
+        '0',
+      ]);
+    });
+
+    it('returns base64 XDR when scValToNative fails', () => {
+      const scv = {
+        switch: () => {
+          throw new Error('native conversion failed');
+        },
+        toXDR: (format: string) => {
+          expect(format).toBe('base64');
+          return 'fallback-base64-xdr';
+        },
+      } as unknown as xdr.ScVal;
+
+      expect(parseScValToReadableJson(scv)).toBe('fallback-base64-xdr');
+    });
+
+    it('converts bigint, bytes, arrays, and maps for display', () => {
+      expect(nativeToReadableJson(23n)).toBe('23');
+      expect(nativeToReadableJson(new Uint8Array([0xab, 0xcd]))).toBe('abcd');
+      expect(nativeToReadableJson([1n, 'x'])).toBe('["1","x"]');
+      const map = new Map<unknown, unknown>([
+        ['amount', 5n],
+        [10n, true],
+      ]);
+      expect(nativeToReadableJson(map)).toBe(
+        JSON.stringify({ amount: '5', '10': 'true' }),
+      );
+      expect(nativeToReadableJson(null)).toBe('null');
+      expect(nativeToReadableJson(true)).toBe('true');
+      expect(nativeToReadableJson({ nested: 7n })).toBe(
+        JSON.stringify({ nested: '7' }),
       );
     });
   });

@@ -1,5 +1,5 @@
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
-import { Address, scValToNative, xdr } from '@stellar/stellar-sdk';
+import { xdr } from '@stellar/stellar-sdk';
 
 import type { SignAuthEntryRequest, SignAuthEntryResponse } from './api';
 import { SignAuthEntryRequestStruct, SignAuthEntryResponseStruct } from './api';
@@ -7,11 +7,15 @@ import type { AccountResolver } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
+import {
+  getAddress,
+  getFunctionName,
+  parseScValToReadableJson,
+} from '../../services/transaction/xdrParser';
 import type { Wallet } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
-import { bufferToUint8Array } from '../../utils/buffer';
 
 /**
  * Decoded summary of a single Soroban authorized invocation — used both for
@@ -26,8 +30,8 @@ export type ReadableInvocation = {
   /** Function being invoked, or `null` for contract-creation entries. */
   functionName: string | null;
   /**
-   * Decoded function arguments as user-readable JSON strings, in declaration
-   * order. Empty array for contract-creation entries (which carry no args).
+   * Decoded function arguments as display strings, in declaration order.
+   * Empty array for contract-creation entries (which carry no args).
    */
   args: string[];
   /** Nested invocations this authorization also covers. */
@@ -176,10 +180,8 @@ function decodeInvocation(
     case xdr.SorobanAuthorizedFunctionType.sorobanAuthorizedFunctionTypeContractFn(): {
       const contractFn = fn.contractFn();
       functionType = 'invoke';
-      contractAddress = Address.fromScAddress(
-        contractFn.contractAddress(),
-      ).toString();
-      functionName = readFunctionName(contractFn.functionName());
+      contractAddress = getAddress(contractFn.contractAddress());
+      functionName = getFunctionName(contractFn.functionName());
       args = readScVals(contractFn.args());
       break;
     }
@@ -213,56 +215,14 @@ function decodeInvocation(
 }
 
 /**
- * `functionName` is typed `string | Buffer` by the SDK because the XDR
- * field carries raw bytes. Normalize to a UTF-8 string for display.
- *
- * @param fnName - Function name as returned by the SDK.
- * @returns The function name as a UTF-8 string.
- */
-function readFunctionName(fnName: string | Buffer): string {
-  return typeof fnName === 'string' ? fnName : fnName.toString('utf8');
-}
-
-/**
  * Decodes the contract-function `ScVal[]` arguments into a list of
- * user-readable JSON strings. Each value is run through `scValToNative`
- * (the SDK's canonical XDR-to-JS converter) and then JSON-serialized with
- * a replacer that rescues `bigint` and `Uint8Array`/`Buffer` values that
- * `JSON.stringify` cannot represent natively.
+ * user-readable strings via {@link parseScValToReadableJson}.
  *
  * @param scVals - Function arguments as raw `ScVal`s.
- * @returns One JSON string per argument, in declaration order.
+ * @returns One display string per argument, in declaration order.
  */
 function readScVals(scVals: xdr.ScVal[]): string[] {
-  return scVals.map((scv) => {
-    try {
-      return jsonStringifyArgValue(scValToNative(scv));
-    } catch {
-      // Some custom contract types may not have a native projection.
-      // Fall back to the raw XDR base64 so the user still sees something.
-      return scv.toXDR().toString('base64');
-    }
-  });
-}
-
-/**
- * `JSON.stringify` cannot natively serialize `bigint` (used for i128/u128
- * SCVals) or `Uint8Array`/`Buffer` (ScBytes). Render them as their string
- * / hex representations so the dialog never throws on a contract argument.
- *
- * @param value - Native value produced by `scValToNative`.
- * @returns Stable JSON representation suitable for display.
- */
-function jsonStringifyArgValue(value: unknown): string {
-  return JSON.stringify(value, (_key, raw: unknown) => {
-    if (typeof raw === 'bigint') {
-      return raw.toString();
-    }
-    if (raw instanceof Uint8Array) {
-      return bufferToUint8Array(raw).toString('hex');
-    }
-    return raw;
-  });
+  return scVals.map((scv) => parseScValToReadableJson(scv));
 }
 
 /* istanbul ignore next — re-export for tests */

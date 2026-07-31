@@ -632,8 +632,101 @@ describe('OperationMapper', () => {
     expect(keys).toContain('arguments');
     expect(keys).not.toContain('hostFunctionXdrBase64');
 
+    const contractRow = op?.params.find((param) => param.key === 'contractId');
+    expect(contractRow).toStrictEqual({
+      key: 'contractId',
+      value: 'CASUP2OPFVEHCWGP2XLBXOV7DQIQIT42AQISG4MXAZGNLVFFN63X7WRT',
+      type: 'copyable',
+    });
+
     const fnRow = op?.params.find((param) => param.key === 'functionName');
     expect(fnRow?.value).toBe('transfer');
+
+    const argsRow = op?.params.find((param) => param.key === 'arguments');
+    // Numbers round-trip via ScVal as bigint → decimal strings for display.
+    expect(argsRow).toStrictEqual({
+      key: 'arguments',
+      value: ['42', 'hello'],
+      type: 'json',
+    });
+  });
+
+  it('maps invokeHostFunction decoding address and i128 amount args', () => {
+    const tokenA = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+    const recipient =
+      'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO';
+    const contractId =
+      'CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM';
+    const wrapped = buildMockInvokeHostFunctionTransaction(
+      'swap_exact_amount_in',
+      [tokenA, 12n, tokenA, 1n, 23n, recipient],
+      {
+        contractId,
+        networkPassphrase: Networks.PUBLIC,
+        source: {
+          accountId: recipient,
+          sequence: '627',
+        },
+        argNativeToScValOptions: [
+          { type: 'address' },
+          { type: 'i128' },
+          { type: 'address' },
+          { type: 'i128' },
+          { type: 'i128' },
+          { type: 'address' },
+        ],
+      },
+    );
+    const [op] = mapper.mapTransaction(wrapped).operations;
+
+    expect(op?.params).toStrictEqual([
+      { key: 'contractId', value: contractId, type: 'copyable' },
+      {
+        key: 'functionName',
+        value: 'swap_exact_amount_in',
+        type: 'text',
+      },
+      {
+        key: 'arguments',
+        value: [tokenA, '12', tokenA, '1', '23', recipient],
+        type: 'json',
+      },
+    ]);
+  });
+
+  it('maps invokeHostFunction from dialog swap_exact_amount_in XDR', () => {
+    const xdrB64 =
+      'AAAAAgAAAAA/QTZAlJz4YnEydNF+YwyudlleSeXwO9fWYARCUw9ItgAAAMgDpYayAAACcwAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABJbKv015UMxpIkMNjGfee2xjweJ5H/Dh7OzDvLmmlTRoAAAAUc3dhcF9leGFjdF9hbW91bnRfaW4AAAAGAAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcUAAAAKAAAAAAAAAAAAAAAAAAAADAAAABIAAAAAAAAAADuZETgO/piLoKiQDrHP5E82b32+lGvtB3JA9/Yk3xXFAAAACgAAAAAAAAAAAAAAAAAAAAEAAAAKAAAAAAAAAAAAAAAAAAAAFwAAABIAAAAAAAAAAD9BNkCUnPhicTJ00X5jDK52WV5J5fA719ZgBEJTD0i2AAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+    const wrapped = Transaction.fromXdr({
+      xdr: xdrB64,
+      scope: KnownCaip2ChainId.Mainnet,
+    });
+    const [op] = mapper.mapTransaction(wrapped).operations;
+
+    expect(op?.params).toStrictEqual([
+      {
+        key: 'contractId',
+        value: 'CAS3FL6TLZKDGGSISDBWGGPXT3NRR4DYTZD7YOD3HMYO6LTJUVGRVEAM',
+        type: 'copyable',
+      },
+      {
+        key: 'functionName',
+        value: 'swap_exact_amount_in',
+        type: 'text',
+      },
+      {
+        key: 'arguments',
+        value: [
+          'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+          '12',
+          'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+          '1',
+          '23',
+          'GA7UCNSASSOPQYTRGJ2NC7TDBSXHMWK6JHS7AO6X2ZQAIQSTB5ELNFSO',
+        ],
+        type: 'json',
+      },
+    ]);
   });
 
   it('maps invokeHostFunction with zero arguments omits arguments row', () => {

@@ -3,6 +3,7 @@ import {
   Address,
   Box,
   Container,
+  Copyable,
   Heading,
   Icon,
   Section,
@@ -107,7 +108,47 @@ const AddressRow = ({
   );
 };
 
+/**
+ * Renders decoded Soroban args as labeled rows (`Arg 1`, `Arg 2`, …).
+ * All values are {@link Copyable}, including address / contract strkeys.
+ *
+ * @param params - Field value from {@link ReadableOperationField}.
+ * @param params.value - JSON field value (typically `string[]`).
+ * @param params.translate - Translation function.
+ * @returns JSX for the confirmation row value.
+ */
+const JsonParamValue = ({
+  value,
+  translate,
+}: {
+  value: Json;
+  translate: ReturnType<typeof i18n>;
+}): ComponentOrElement => {
+  if (Array.isArray(value)) {
+    return (
+      <Box direction="vertical" alignment="end">
+        {value.map((item, index) => {
+          const display =
+            typeof item === 'string' ? item : JSON.stringify(item);
+          return (
+            <Box key={`arg-${index}`} direction="vertical" alignment="end">
+              <SnapText fontWeight="medium" color="alternative">
+                {translate('confirmation.transaction.param.argument', {
+                  index: (index + 1).toString(),
+                })}
+              </SnapText>
+              <Copyable value={display} />
+            </Box>
+          );
+        })}
+      </Box>
+    );
+  }
+  return <Copyable value={JSON.stringify(value, null, 2)} />;
+};
+
 const RenderReadableParamValue = (params: {
+  translate: ReturnType<typeof i18n>;
   type: string;
   value: Json;
   scope: KnownCaip2ChainId;
@@ -115,7 +156,15 @@ const RenderReadableParamValue = (params: {
   tokenPrices?: ConfirmationBaseProps['tokenPrices'];
   priceLoading?: boolean;
 }): ComponentOrElement | null => {
-  const { type, value, scope, preferences, tokenPrices, priceLoading } = params;
+  const {
+    type,
+    value,
+    scope,
+    preferences,
+    tokenPrices,
+    priceLoading,
+    translate,
+  } = params;
   if (isNullOrUndefined(value)) {
     return null;
   }
@@ -144,8 +193,14 @@ const RenderReadableParamValue = (params: {
       return <AddressRow address={value as string} scope={scope} />;
     case 'amount':
       return <AmountRow amount={value as string} />;
+    case 'copyable':
+      return (
+        <Copyable
+          value={typeof value === 'string' ? value : JSON.stringify(value)}
+        />
+      );
     case 'json':
-      return <SnapText>{JSON.stringify(value, null, 2)}</SnapText>;
+      return <JsonParamValue value={value} translate={translate} />;
     default:
       if (Array.isArray(value)) {
         // eslint-disable-next-line @typescript-eslint/no-base-to-string
@@ -293,6 +348,7 @@ export const ConfirmSignTransaction = ({
                         )}
                       </SnapText>
                       <RenderReadableParamValue
+                        translate={t}
                         type={param.type}
                         value={param.value}
                         scope={scope}

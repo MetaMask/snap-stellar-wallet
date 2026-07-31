@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Container,
+  Copyable,
   Divider,
   Footer,
   Heading,
@@ -15,7 +16,6 @@ import {
 } from '@metamask/snaps-sdk/jsx';
 
 import { ConfirmSignAuthEntryFormNames } from './events';
-import type { KnownCaip2ChainId } from '../../../../api';
 import type {
   ReadableAuthEntry,
   ReadableInvocation,
@@ -49,13 +49,11 @@ export type ConfirmSignAuthEntryProps = Pick<
 // only signal the user gets that more calls exist beneath.
 const InvocationSummary = ({
   invocation,
-  scope,
   translate,
   showHeading,
   showNestedCount,
 }: {
   invocation: ReadableInvocation;
-  scope: KnownCaip2ChainId;
   translate: ReturnType<typeof i18n>;
   showHeading: boolean;
   showNestedCount: boolean;
@@ -82,7 +80,7 @@ const InvocationSummary = ({
           <SnapText fontWeight="medium" color="alternative">
             {translate('confirmation.signAuthEntry.contract')}
           </SnapText>
-          <Address address={`${scope}:${contractAddress}`} truncate />
+          <Copyable value={contractAddress} />
         </Box>
       )}
 
@@ -97,11 +95,15 @@ const InvocationSummary = ({
 
       {args.length > 0 ? (
         <Box direction="vertical">
-          <SnapText fontWeight="medium" color="alternative">
-            {translate('confirmation.signAuthEntry.parameters')}
-          </SnapText>
           {args.map((arg, index) => (
-            <SnapText key={`arg-${index}`}>{arg}</SnapText>
+            <Box key={`arg-${index}`} direction="vertical">
+              <SnapText fontWeight="medium" color="alternative">
+                {translate('confirmation.signAuthEntry.argument', {
+                  index: (index + 1).toString(),
+                })}
+              </SnapText>
+              <Copyable value={arg} />
+            </Box>
           ))}
         </Box>
       ) : null}
@@ -177,7 +179,6 @@ export const ConfirmSignAuthEntry = ({
         <Section>
           <InvocationSummary
             invocation={readableAuthEntry}
-            scope={scope}
             translate={translate}
             showHeading
             showNestedCount={false}
@@ -191,7 +192,6 @@ export const ConfirmSignAuthEntry = ({
                 {index > 0 ? <Divider /> : null}
                 <InvocationSummary
                   invocation={sub}
-                  scope={scope}
                   translate={translate}
                   showHeading
                   showNestedCount

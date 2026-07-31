@@ -223,7 +223,7 @@ describe('SignAuthEntryHandler', () => {
         renderContext: expect.objectContaining({
           readableAuthEntry: expect.objectContaining({
             functionName: 'transfer',
-            args: [JSON.stringify(recipient), JSON.stringify('10')],
+            args: [recipient, '10'],
             subInvocations: [
               expect.objectContaining({
                 functionType: 'invoke',
