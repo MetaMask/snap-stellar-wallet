@@ -6,7 +6,6 @@ import {
   DerivedAccountAddressMismatchException,
 } from './exceptions';
 import { KnownCaip2ChainId } from '../../api';
-import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import {
   generateMockStellarKeyringAccounts,
   mockAccountService,
@@ -14,7 +13,7 @@ import {
 import { MultichainMethod } from '../../handlers/keyring/api';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { getBip32Entropy, getDefaultEntropySource } from '../../utils/snap';
-import { WalletService, getDerivationPath } from '../wallet';
+import { WalletService } from '../wallet';
 import type { Wallet } from '../wallet/Wallet';
 
 jest.mock('../../utils/logger');
@@ -49,149 +48,6 @@ describe('AccountService', () => {
       WalletService.prototype,
       'getWalletResolver',
     ),
-  });
-
-  describe('create', () => {
-    it('creates an account with default options', async () => {
-      const entropySource = 'entropy-source-default';
-      const expectedIndex = 0;
-      const expectedDerivationPath = getDerivationPath(expectedIndex);
-      const { deriveAddressSpy } = getWalletServiceSpies();
-      const { saveSpy, getAllSpy } = getAccountsRepositorySpies();
-      getAllSpy.mockResolvedValue([]);
-      jest.mocked(getDefaultEntropySource).mockResolvedValue(entropySource);
-
-      const result = await accountService.create();
-
-      expect(saveSpy).toHaveBeenCalledWith(result.account);
-      expect(deriveAddressSpy).toHaveBeenCalledWith({
-        entropySource,
-        index: expectedIndex,
-      });
-      expect(result).toStrictEqual({
-        account: {
-          id: expect.any(String),
-          entropySource,
-          derivationPath: expectedDerivationPath,
-          index: expectedIndex,
-          type: KEYRING_ACCOUNT_TYPE,
-          address: expect.any(String),
-          scopes: [KnownCaip2ChainId.Mainnet],
-          methods: ['signMessage', 'signTransaction', 'signAuthEntry'],
-          options: {
-            entropy: {
-              type: 'mnemonic',
-              id: entropySource,
-              derivationPath: expectedDerivationPath,
-              groupIndex: expectedIndex,
-            },
-            exportable: true,
-          },
-        },
-        isNewAccount: true,
-      });
-    });
-
-    it('creates an account with options', async () => {
-      const { saveSpy, getAllSpy } = getAccountsRepositorySpies();
-      getAllSpy.mockResolvedValue([]);
-
-      const result = await accountService.create({
-        entropySource: 'entropy-source-2',
-        index: 1,
-      });
-
-      expect(saveSpy).toHaveBeenCalledWith(result.account);
-      expect(result).toStrictEqual({
-        account: {
-          id: expect.any(String),
-          entropySource: 'entropy-source-2',
-          derivationPath: "m/44'/148'/1'",
-          index: 1,
-          type: KEYRING_ACCOUNT_TYPE,
-          address: expect.any(String),
-          scopes: [KnownCaip2ChainId.Mainnet],
-          methods: [
-            MultichainMethod.SignMessage,
-            MultichainMethod.SignTransaction,
-            MultichainMethod.SignAuthEntry,
-          ],
-          options: {
-            entropy: {
-              type: 'mnemonic',
-              id: 'entropy-source-2',
-              derivationPath: "m/44'/148'/1'",
-              groupIndex: 1,
-            },
-            exportable: true,
-          },
-        },
-        isNewAccount: true,
-      });
-    });
-
-    it('creates an account with lowest unused index', async () => {
-      const { saveSpy, getAllSpy } = getAccountsRepositorySpies();
-      const entropySource = 'entropy-source-2';
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const [_, ...restAccounts] = generateMockStellarKeyringAccounts(
-        3,
-        entropySource,
-      );
-      const expectedIndex = 0;
-      const expectedDerivationPath = getDerivationPath(expectedIndex);
-      getAllSpy.mockResolvedValue(restAccounts);
-
-      const result = await accountService.create({
-        entropySource,
-      });
-
-      expect(saveSpy).toHaveBeenCalledWith(result.account);
-      expect(result).toStrictEqual({
-        account: {
-          id: expect.any(String),
-          entropySource,
-          derivationPath: expectedDerivationPath,
-          index: expectedIndex,
-          type: KEYRING_ACCOUNT_TYPE,
-          address: expect.any(String),
-          scopes: [KnownCaip2ChainId.Mainnet],
-          methods: [
-            MultichainMethod.SignMessage,
-            MultichainMethod.SignTransaction,
-            MultichainMethod.SignAuthEntry,
-          ],
-          options: {
-            entropy: {
-              type: 'mnemonic',
-              id: entropySource,
-              derivationPath: expectedDerivationPath,
-              groupIndex: expectedIndex,
-            },
-            exportable: true,
-          },
-        },
-        isNewAccount: true,
-      });
-    });
-
-    it('returns an existing account if it already exists', async () => {
-      const { getAllSpy, saveSpy } = getAccountsRepositorySpies();
-      const entropySource = 'entropy-source-1';
-      const mockAccounts = generateMockStellarKeyringAccounts(5, entropySource);
-      getAllSpy.mockResolvedValue(mockAccounts);
-
-      const result = await accountService.create({
-        entropySource,
-        index: 0,
-      });
-
-      expect(saveSpy).not.toHaveBeenCalled();
-      expect(result).toStrictEqual({
-        account: mockAccounts[0],
-        isNewAccount: false,
-      });
-    });
   });
 
   describe('batchCreate', () => {
@@ -302,7 +158,10 @@ describe('AccountService', () => {
   describe('delete', () => {
     it('deletes an account', async () => {
       const { deleteSpy } = getAccountsRepositorySpies();
-      const { account } = await accountService.create();
+      const [account] = generateMockStellarKeyringAccounts(
+        1,
+        'entropy-source-1',
+      ) as [StellarKeyringAccount];
 
       await accountService.delete(account.id);
 

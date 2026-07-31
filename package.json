@@ -62,6 +62,7 @@
   },
   "resolutions": {
     "@metamask/snaps-sdk": "11.1.1",
+    "@metamask/snaps-utils": "12.2.0",
     "@stellar/stellar-sdk/axios@npm:1.14.0": "1.18.1",
     "axios/form-data@npm:^4.0.5": "^4.0.6",
     "@metamask/snaps-utils/fast-xml-parser@npm:^5.3.4": "^5.7.0",

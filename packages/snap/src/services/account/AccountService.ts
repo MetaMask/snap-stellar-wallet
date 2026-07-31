@@ -15,7 +15,6 @@ import {
   batchesAll,
   createPrefixedLogger,
   getDefaultEntropySource,
-  getLowestIndex,
   getSnapProvider,
 } from '../../utils';
 import { getDerivationPath } from '../wallet';
@@ -116,68 +115,6 @@ export class AccountService {
     assertSameAddress(address, derivedAddress);
 
     return { account };
-  }
-
-  /**
-   * Creates a Stellar account with the given options.
-   *
-   * @param options - The options for account creation.
-   * @param options.entropySource - The entropy source to use for derivation.
-   * @param options.index - The derivation index to use (defaults to the lowest unused index).
-   * @returns A Promise that resolves to the account and whether it was newly created.
-   * When an account with the same derivation path and entropy source already exists,
-   * that account is returned with `isNewAccount: false` and nothing is persisted.
-   */
-  async create(options?: {
-    entropySource?: EntropySourceId;
-    index?: number;
-  }): Promise<{
-    account: StellarKeyringAccount;
-    isNewAccount: boolean;
-  }> {
-    const accounts = await this.#accountsRepository.getAll();
-
-    const entropySource =
-      options?.entropySource ?? (await getDefaultEntropySource());
-
-    const derivationIndex =
-      options?.index ??
-      this.#getLowestUnusedIndex({
-        entropySource,
-        accounts,
-      });
-
-    /**
-     * Now that we have the `entropySource` and `index` ready,
-     * we need to make sure that they do not correspond to an existing account already.
-     */
-    const sameAccount = accounts.find(
-      (account) =>
-        account.index === derivationIndex &&
-        account.entropySource === entropySource,
-    );
-
-    if (sameAccount) {
-      this.#logger.warn(
-        'An account already exists with the same derivation path and entropy source. Skipping account creation.',
-      );
-      return {
-        account: sameAccount,
-        isNewAccount: false,
-      };
-    }
-
-    const account = await this.#deriveAccount({
-      entropySource,
-      index: derivationIndex,
-    });
-
-    await this.#accountsRepository.save(account);
-
-    return {
-      account,
-      isNewAccount: true,
-    };
   }
 
   /**
@@ -390,36 +327,6 @@ export class AccountService {
       index,
       address,
     });
-  }
-
-  /**
-   * Finds the lowest unused derivation index for the given entropy source.
-   * Indexes are not guaranteed to be contiguous (accounts can be deleted), so this scans
-   * existing accounts and returns the smallest index not yet in use.
-   *
-   * @param options - The parameters for the index search.
-   * @param options.entropySource - The entropy source to scope the search.
-   * @param options.accounts - The existing accounts to check against.
-   * @returns The lowest unused index for that entropy source.
-   */
-  #getLowestUnusedIndex({
-    entropySource,
-    accounts,
-  }: {
-    entropySource: EntropySourceId;
-    accounts: StellarKeyringAccount[];
-  }): number {
-    const sortedIndices: number[] = [];
-    if (accounts.length > 0) {
-      for (const account of accounts) {
-        if (account.entropySource === entropySource) {
-          sortedIndices.push(account.index);
-        }
-      }
-      sortedIndices.sort((first, second) => first - second);
-    }
-
-    return getLowestIndex(sortedIndices);
   }
 
   #toStellarKeyringAccount({

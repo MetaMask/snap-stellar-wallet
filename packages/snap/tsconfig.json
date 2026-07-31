@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "preserve",
+    "moduleResolution": "bundler",
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "skipLibCheck": true,
