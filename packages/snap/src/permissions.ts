@@ -1,4 +1,5 @@
 import { KeyringRpcMethod } from '@metamask/keyring-api';
+import { KeyringSnapRpcMethod } from '@metamask/keyring-api/v2';
 
 import { Environment } from './api';
 import { AppConfig } from './config';
@@ -11,34 +12,45 @@ const allowedOrigins = isDev ? ['http://localhost:3000'] : prodOrigins;
 
 const dappPermissions = isDev
   ? new Set<string>([
-      // Keyring methods
+      // Keyring v2 methods
+      KeyringSnapRpcMethod.GetAccounts,
+      KeyringSnapRpcMethod.GetAccount,
+      KeyringSnapRpcMethod.CreateAccounts,
+      KeyringSnapRpcMethod.DeleteAccount,
+      KeyringSnapRpcMethod.GetAccountBalances,
+      KeyringSnapRpcMethod.SubmitRequest,
+      KeyringSnapRpcMethod.GetAccountTransactions,
+      KeyringSnapRpcMethod.GetAccountAssets,
+      // Keyring v1 methods kept for backwards compatibility — callers using
+      // old method names are still accepted by the permission layer.
       KeyringRpcMethod.ListAccounts,
-      KeyringRpcMethod.GetAccount,
       KeyringRpcMethod.CreateAccount,
-      KeyringRpcMethod.CreateAccounts,
-      KeyringRpcMethod.DeleteAccount,
+      KeyringRpcMethod.FilterAccountChains,
       KeyringRpcMethod.DiscoverAccounts,
-      KeyringRpcMethod.GetAccountBalances,
-      KeyringRpcMethod.SubmitRequest,
       KeyringRpcMethod.ListAccountTransactions,
       KeyringRpcMethod.ListAccountAssets,
     ])
   : new Set<string>([]);
 
 const metamaskPermissions = new Set([
-  // Keyring methods
+  // Keyring v2 methods
+  KeyringSnapRpcMethod.GetAccounts,
+  KeyringSnapRpcMethod.GetAccount,
+  KeyringSnapRpcMethod.CreateAccounts,
+  KeyringSnapRpcMethod.DeleteAccount,
+  KeyringSnapRpcMethod.GetAccountBalances,
+  KeyringSnapRpcMethod.SubmitRequest,
+  KeyringSnapRpcMethod.GetAccountTransactions,
+  KeyringSnapRpcMethod.GetAccountAssets,
+  KeyringSnapRpcMethod.ResolveAccountAddress,
+  KeyringSnapRpcMethod.SetSelectedAccounts,
+  // Keyring v1 methods kept for backwards compatibility — callers using
+  // old method names are still accepted by the permission layer.
   KeyringRpcMethod.ListAccounts,
-  KeyringRpcMethod.GetAccount,
   KeyringRpcMethod.CreateAccount,
-  KeyringRpcMethod.CreateAccounts,
-  KeyringRpcMethod.DeleteAccount,
   KeyringRpcMethod.DiscoverAccounts,
-  KeyringRpcMethod.GetAccountBalances,
-  KeyringRpcMethod.SubmitRequest,
   KeyringRpcMethod.ListAccountTransactions,
   KeyringRpcMethod.ListAccountAssets,
-  KeyringRpcMethod.ResolveAccountAddress,
-  KeyringRpcMethod.SetSelectedAccounts,
 ]);
 
 const metamask = METAMASK_ORIGIN;

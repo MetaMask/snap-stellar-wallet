@@ -1,4 +1,5 @@
 import { KeyringRpcMethod } from '@metamask/keyring-api';
+import { KeyringSnapRpcMethod } from '@metamask/keyring-api/v2';
 import {
   InvalidParamsError,
   SnapError,
@@ -49,13 +50,18 @@ describe('validateResponse', () => {
 
 describe('validateOrigin', () => {
   it.each([
+    KeyringSnapRpcMethod.GetAccounts,
+    KeyringSnapRpcMethod.GetAccount,
+    KeyringSnapRpcMethod.CreateAccounts,
+    KeyringSnapRpcMethod.DeleteAccount,
+    KeyringSnapRpcMethod.GetAccountBalances,
+    KeyringSnapRpcMethod.SubmitRequest,
+    KeyringSnapRpcMethod.GetAccountTransactions,
+    KeyringSnapRpcMethod.GetAccountAssets,
     KeyringRpcMethod.ListAccounts,
-    KeyringRpcMethod.GetAccount,
     KeyringRpcMethod.CreateAccount,
-    KeyringRpcMethod.DeleteAccount,
+    KeyringRpcMethod.FilterAccountChains,
     KeyringRpcMethod.DiscoverAccounts,
-    KeyringRpcMethod.GetAccountBalances,
-    KeyringRpcMethod.SubmitRequest,
     KeyringRpcMethod.ListAccountTransactions,
     KeyringRpcMethod.ListAccountAssets,
   ])('allows method %s for allowed dapps', (method) => {
@@ -65,17 +71,21 @@ describe('validateOrigin', () => {
   });
 
   it.each([
+    KeyringSnapRpcMethod.GetAccounts,
+    KeyringSnapRpcMethod.GetAccount,
+    KeyringSnapRpcMethod.CreateAccounts,
+    KeyringSnapRpcMethod.DeleteAccount,
+    KeyringSnapRpcMethod.GetAccountBalances,
+    KeyringSnapRpcMethod.SubmitRequest,
+    KeyringSnapRpcMethod.GetAccountTransactions,
+    KeyringSnapRpcMethod.GetAccountAssets,
+    KeyringSnapRpcMethod.ResolveAccountAddress,
+    KeyringSnapRpcMethod.SetSelectedAccounts,
     KeyringRpcMethod.ListAccounts,
-    KeyringRpcMethod.GetAccount,
     KeyringRpcMethod.CreateAccount,
-    KeyringRpcMethod.DeleteAccount,
     KeyringRpcMethod.DiscoverAccounts,
-    KeyringRpcMethod.GetAccountBalances,
-    KeyringRpcMethod.SubmitRequest,
     KeyringRpcMethod.ListAccountTransactions,
     KeyringRpcMethod.ListAccountAssets,
-    KeyringRpcMethod.ResolveAccountAddress,
-    KeyringRpcMethod.SetSelectedAccounts,
   ])('allows method %s for metamask', (method) => {
     const origin = METAMASK_ORIGIN;
 
