@@ -1,13 +1,5 @@
 import type { KeyringAccount } from '@metamask/keyring-api';
-import {
-  AccountCreationType,
-  DiscoveredAccountType,
-  KeyringRpcMethod,
-} from '@metamask/keyring-api';
-import {
-  emitSnapKeyringEvent,
-  handleKeyringRequest as handleKeyringRequestV1,
-} from '@metamask/keyring-snap-sdk';
+import { AccountCreationType } from '@metamask/keyring-api';
 import { handleKeyringRequest } from '@metamask/keyring-snap-sdk/v2';
 import { InvalidParamsError } from '@metamask/snaps-sdk';
 import type { JsonRpcRequest } from '@metamask/snaps-sdk';
@@ -43,6 +35,7 @@ import {
   createMockTransactionService,
   generateMockTransactions,
 } from '../../services/transaction/__mocks__/transaction.fixtures';
+import { getDerivationPath } from '../../services/wallet';
 import {
   getSlip44AssetId,
   getDefaultEntropySource,
@@ -57,12 +50,6 @@ jest.mock('../../utils/snap');
 jest.mock('../../utils/requestResponse', () => ({
   ...jest.requireActual('../../utils/requestResponse'),
   validateOrigin: jest.fn(),
-}));
-jest.mock('@metamask/keyring-snap-sdk', () => ({
-  emitSnapKeyringEvent: jest.fn(),
-  handleKeyringRequest: jest.fn(),
-  MethodNotSupportedError: jest.requireActual('@metamask/keyring-snap-sdk')
-    .MethodNotSupportedError,
 }));
 jest.mock('@metamask/keyring-snap-sdk/v2', () => ({
   handleKeyringRequest: jest.fn(),
@@ -147,13 +134,8 @@ describe('KeyringHandler', () => {
       id: '1',
       jsonrpc: '2.0',
     } as JsonRpcRequest;
-    const v1Request = {
-      method: KeyringRpcMethod.ListAccounts,
-      id: '1',
-      jsonrpc: '2.0',
-    } as JsonRpcRequest;
 
-    it('routes Keyring API v2 methods to the v2 dispatcher', async () => {
+    it('routes keyring methods to the v2 dispatcher', async () => {
       jest.mocked(handleKeyringRequest).mockResolvedValue([]);
 
       const result = await keyringHandler.handle(METAMASK_ORIGIN, v2Request);
@@ -162,45 +144,8 @@ describe('KeyringHandler', () => {
         keyringHandler,
         v2Request,
       );
-      expect(handleKeyringRequestV1).not.toHaveBeenCalled();
       expect(result).toStrictEqual([]);
     });
-
-    it.each([KeyringRpcMethod.ListAccounts, KeyringRpcMethod.DiscoverAccounts])(
-      'routes the v1-only method %s to the v1 dispatcher',
-      async (method) => {
-        jest.mocked(handleKeyringRequestV1).mockResolvedValue([]);
-
-        const request = { ...v1Request, method } as JsonRpcRequest;
-        const result = await keyringHandler.handle(METAMASK_ORIGIN, request);
-
-        expect(handleKeyringRequestV1).toHaveBeenCalledWith(
-          keyringHandler,
-          request,
-        );
-        expect(handleKeyringRequest).not.toHaveBeenCalled();
-        expect(result).toStrictEqual([]);
-      },
-    );
-
-    it.each([
-      KeyringRpcMethod.ListAccountAssets,
-      KeyringRpcMethod.ListAccountTransactions,
-    ])(
-      'routes the deprecated v1 alias %s to the v2 dispatcher',
-      async (method) => {
-        jest.mocked(handleKeyringRequest).mockResolvedValue([]);
-
-        const request = { ...v1Request, method } as JsonRpcRequest;
-        await keyringHandler.handle(METAMASK_ORIGIN, request);
-
-        expect(handleKeyringRequest).toHaveBeenCalledWith(
-          keyringHandler,
-          request,
-        );
-        expect(handleKeyringRequestV1).not.toHaveBeenCalled();
-      },
-    );
 
     it('returns null if the dispatcher returns null', async () => {
       jest.mocked(handleKeyringRequest).mockResolvedValue(null);
@@ -275,69 +220,6 @@ describe('KeyringHandler', () => {
     });
   });
 
-  describe('listAccounts (v1)', () => {
-    it('returns the same accounts as getAccounts', async () => {
-      const expectedAccounts = generateMockStellarKeyringAccounts(
-        3,
-        entropySourceId,
-      );
-      const { listAccountsSpy } = getAccountServiceSpies();
-      listAccountsSpy.mockResolvedValue(expectedAccounts);
-
-      expect(await keyringHandler.listAccounts()).toStrictEqual(
-        expectedAccounts.map((account) => toKeyringAccount(account)),
-      );
-    });
-  });
-
-  describe('discoverAccounts (v1)', () => {
-    it('returns the derived account when it is activated on chain', async () => {
-      jest
-        .spyOn(AccountService.prototype, 'deriveKeyringAccount')
-        .mockResolvedValue(mockAccount);
-      jest
-        .spyOn(OnChainAccountService.prototype, 'isAccountActivated')
-        .mockResolvedValue(true);
-
-      const result = await keyringHandler.discoverAccounts(
-        [KnownCaip2ChainId.Mainnet],
-        entropySourceId,
-        0,
-      );
-
-      expect(result).toStrictEqual([
-        {
-          type: DiscoveredAccountType.Bip44,
-          scopes: [KnownCaip2ChainId.Mainnet],
-          derivationPath: mockAccount.derivationPath,
-        },
-      ]);
-    });
-
-    it('returns an empty array when the account has no on-chain activity', async () => {
-      jest
-        .spyOn(AccountService.prototype, 'deriveKeyringAccount')
-        .mockResolvedValue(mockAccount);
-      jest
-        .spyOn(OnChainAccountService.prototype, 'isAccountActivated')
-        .mockResolvedValue(false);
-
-      expect(
-        await keyringHandler.discoverAccounts(
-          [KnownCaip2ChainId.Mainnet],
-          entropySourceId,
-          0,
-        ),
-      ).toStrictEqual([]);
-    });
-
-    it('throws an error if the discovery request is invalid', async () => {
-      await expect(
-        keyringHandler.discoverAccounts([], entropySourceId, 0),
-      ).rejects.toThrow(InvalidParamsError);
-    });
-  });
-
   describe('createAccounts', () => {
     const accountsAt = (...indexes: number[]) =>
       indexes.map((index) =>
@@ -349,7 +231,7 @@ describe('KeyringHandler', () => {
         ),
       );
 
-    it('creates one account for bip44:derive-index without emitting AccountCreated', async () => {
+    it('creates one account for bip44:derive-index', async () => {
       const { batchCreateAccountSpy } = getAccountServiceSpies();
       batchCreateAccountSpy.mockResolvedValue([mockAccount]);
 
@@ -365,7 +247,6 @@ describe('KeyringHandler', () => {
         toIndex: 2,
       });
       expect(result).toStrictEqual([toKeyringAccount(mockAccount)]);
-      expect(jest.mocked(emitSnapKeyringEvent)).not.toHaveBeenCalled();
     });
 
     it('creates accounts for each index in bip44:derive-index-range', async () => {
@@ -390,7 +271,6 @@ describe('KeyringHandler', () => {
       expect(result[2]?.options).toMatchObject({
         entropy: expect.objectContaining({ groupIndex: 3 }),
       });
-      expect(jest.mocked(emitSnapKeyringEvent)).not.toHaveBeenCalled();
     });
 
     it('propagates errors when account creation fails', async () => {
@@ -454,7 +334,7 @@ describe('KeyringHandler', () => {
         keyringHandler.createAccounts({
           type: AccountCreationType.Bip44DerivePath,
           entropySource: entropySourceId,
-          derivationPath: `m/44'/148'/0'`,
+          derivationPath: getDerivationPath(0),
         }),
       ).rejects.toThrow('Unsupported create account option type');
     });
@@ -738,7 +618,7 @@ describe('KeyringHandler', () => {
     it('throws an error if the account address resolution request is invalid', async () => {
       await expect(
         keyringHandler.resolveAccountAddress(KnownCaip2ChainId.Mainnet, {
-          method: 'invalid:method' as MultichainMethod,
+          method: 'invalid:method',
           id: '1',
           jsonrpc: '2.0',
           params: {
@@ -756,7 +636,6 @@ describe('KeyringHandler', () => {
       await keyringHandler.deleteAccount(mockAccountId);
 
       expect(deleteSpy).toHaveBeenCalledWith(mockAccountId);
-      expect(jest.mocked(emitSnapKeyringEvent)).not.toHaveBeenCalled();
     });
 
     it('propagates errors when account deletion fails', async () => {

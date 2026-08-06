@@ -1,4 +1,3 @@
-import { KeyringRpcMethod } from '@metamask/keyring-api';
 import { KeyringSnapRpcMethod } from '@metamask/keyring-api/v2';
 import {
   InvalidParamsError,
@@ -52,22 +51,24 @@ describe('validateOrigin', () => {
   it.each([
     KeyringSnapRpcMethod.GetAccounts,
     KeyringSnapRpcMethod.GetAccount,
-    KeyringSnapRpcMethod.CreateAccounts,
     KeyringSnapRpcMethod.DeleteAccount,
     KeyringSnapRpcMethod.GetAccountBalances,
     KeyringSnapRpcMethod.SubmitRequest,
     KeyringSnapRpcMethod.GetAccountTransactions,
     KeyringSnapRpcMethod.GetAccountAssets,
-    KeyringRpcMethod.ListAccounts,
-    KeyringRpcMethod.CreateAccount,
-    KeyringRpcMethod.FilterAccountChains,
-    KeyringRpcMethod.DiscoverAccounts,
-    KeyringRpcMethod.ListAccountTransactions,
-    KeyringRpcMethod.ListAccountAssets,
   ])('allows method %s for allowed dapps', (method) => {
     const origin = 'http://localhost:3000';
 
     expect(() => validateOrigin(origin, method)).not.toThrow();
+  });
+
+  it('rejects createAccounts for dapps', () => {
+    expect(() =>
+      validateOrigin(
+        'http://localhost:3000',
+        KeyringSnapRpcMethod.CreateAccounts,
+      ),
+    ).toThrow(UnauthorizedError);
   });
 
   it.each([
@@ -81,11 +82,6 @@ describe('validateOrigin', () => {
     KeyringSnapRpcMethod.GetAccountAssets,
     KeyringSnapRpcMethod.ResolveAccountAddress,
     KeyringSnapRpcMethod.SetSelectedAccounts,
-    KeyringRpcMethod.ListAccounts,
-    KeyringRpcMethod.CreateAccount,
-    KeyringRpcMethod.DiscoverAccounts,
-    KeyringRpcMethod.ListAccountTransactions,
-    KeyringRpcMethod.ListAccountAssets,
   ])('allows method %s for metamask', (method) => {
     const origin = METAMASK_ORIGIN;
 
@@ -96,7 +92,7 @@ describe('validateOrigin', () => {
     'rejects unauthorized origin %s',
     (origin) => {
       expect(() =>
-        validateOrigin(origin as string, KeyringRpcMethod.ListAccounts),
+        validateOrigin(origin as string, KeyringSnapRpcMethod.GetAccounts),
       ).toThrow(UnauthorizedError);
     },
   );

@@ -1,4 +1,3 @@
-import { KeyringRpcMethod } from '@metamask/keyring-api';
 import { KeyringSnapRpcMethod } from '@metamask/keyring-api/v2';
 
 import { Environment } from './api';
@@ -12,28 +11,17 @@ const allowedOrigins = isDev ? ['http://localhost:3000'] : prodOrigins;
 
 const dappPermissions = isDev
   ? new Set<string>([
-      // Keyring v2 methods
       KeyringSnapRpcMethod.GetAccounts,
       KeyringSnapRpcMethod.GetAccount,
-      KeyringSnapRpcMethod.CreateAccounts,
       KeyringSnapRpcMethod.DeleteAccount,
       KeyringSnapRpcMethod.GetAccountBalances,
       KeyringSnapRpcMethod.SubmitRequest,
       KeyringSnapRpcMethod.GetAccountTransactions,
       KeyringSnapRpcMethod.GetAccountAssets,
-      // Keyring v1 methods kept for backwards compatibility — callers using
-      // old method names are still accepted by the permission layer.
-      KeyringRpcMethod.ListAccounts,
-      KeyringRpcMethod.CreateAccount,
-      KeyringRpcMethod.FilterAccountChains,
-      KeyringRpcMethod.DiscoverAccounts,
-      KeyringRpcMethod.ListAccountTransactions,
-      KeyringRpcMethod.ListAccountAssets,
     ])
   : new Set<string>([]);
 
 const metamaskPermissions = new Set([
-  // Keyring v2 methods
   KeyringSnapRpcMethod.GetAccounts,
   KeyringSnapRpcMethod.GetAccount,
   KeyringSnapRpcMethod.CreateAccounts,
@@ -44,13 +32,6 @@ const metamaskPermissions = new Set([
   KeyringSnapRpcMethod.GetAccountAssets,
   KeyringSnapRpcMethod.ResolveAccountAddress,
   KeyringSnapRpcMethod.SetSelectedAccounts,
-  // Keyring v1 methods kept for backwards compatibility — callers using
-  // old method names are still accepted by the permission layer.
-  KeyringRpcMethod.ListAccounts,
-  KeyringRpcMethod.CreateAccount,
-  KeyringRpcMethod.DiscoverAccounts,
-  KeyringRpcMethod.ListAccountTransactions,
-  KeyringRpcMethod.ListAccountAssets,
 ]);
 
 const metamask = METAMASK_ORIGIN;
