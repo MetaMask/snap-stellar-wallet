@@ -70,6 +70,7 @@ describe('OperationMapper', () => {
     // Builder `fee` is per operation; total is fee × operation count.
     expect(json.feeStroops).toBe('400');
     expect(json.operationCount).toBe(2);
+    expect(json.authorizations).toStrictEqual([]);
     expect(() => JSON.stringify(json)).not.toThrow();
 
     expect(json.operations[0]).toMatchObject({
@@ -737,6 +738,63 @@ describe('OperationMapper', () => {
     expect(keys).toContain('contractId');
     expect(keys).toContain('functionName');
     expect(keys).not.toContain('arguments');
+  });
+
+  it('maps invokeHostFunction auth as a separate Authorizations section with args', () => {
+    // Mainnet envelope: host `swap` ≠ auth `transfer` (with args).
+    const envelopeXdr =
+      'AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAABhqAAAAAAAAAAZQAAAAEAAAAAAAAAAAAAAABqcybwAAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABJbT82FmuwvpjSEOMSJs8PBDJi20hvk/TyzDLaJU++XcAAAAEc3dhcAAAAAIAAAAKAAAAAAAAAAAAAAAAAJiWgAAAAAoAAAAAAAAAAAAAAAAAiVRAAAAAAQAAAAEAAAAAAAAAAIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUzy04OgscWvgC+vCAAAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAApwdWJsaWNfa2V5AAAAAAANAAAAIIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUAAAADwAAAAlzaWduYXR1cmUAAAAAAAANAAAAQKJCq/0PE6THPsfREBepJMi+4Lqg68QfwGMF8zI7dhXRMTSuTC6Kb3fqqUh1zSKfoC4gSsM6GN0l6ew9Jsp6TgEAAAAAAAAAAdeSi3LCcDzP6vfrn/TvTVBKVai5efybRQ6iyEK00c5hAAAACHRyYW5zZmVyAAAAAwAAABIAAAAAAAAAAIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUAAAAEgAAAAAAAAAA7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9EAAAAKAAAAAAAAAAAAAAAAAJiWgAAAAAAAAAAAAAAAAA==';
+
+    const wrapped = Transaction.fromXdr({
+      xdr: envelopeXdr,
+      scope: KnownCaip2ChainId.Mainnet,
+    });
+    const readable = mapper.mapTransaction(wrapped);
+    const [op] = readable.operations;
+
+    expect(op?.type).toBe('invokeHostFunction');
+    expect(op?.params.map((param) => param.key)).toStrictEqual([
+      'contractId',
+      'functionName',
+      'arguments',
+    ]);
+    expect(op?.params).toStrictEqual(
+      expect.arrayContaining([
+        { key: 'functionName', value: 'swap', type: 'text' },
+      ]),
+    );
+
+    expect(readable.authorizations).toHaveLength(1);
+    expect(
+      readable.authorizations[0]?.params.map((param) => param.key),
+    ).toStrictEqual([
+      'authorizedAddress',
+      'contractId',
+      'functionName',
+      'arguments',
+    ]);
+    expect(readable.authorizations[0]?.params).toStrictEqual([
+      {
+        key: 'authorizedAddress',
+        value: 'GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U',
+        type: 'copyable',
+      },
+      {
+        key: 'contractId',
+        value: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC',
+        type: 'copyable',
+      },
+      { key: 'functionName', value: 'transfer', type: 'text' },
+      {
+        key: 'arguments',
+        value: [
+          'GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U',
+          'GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG',
+          '10000000',
+        ],
+        type: 'json',
+      },
+    ]);
   });
 
   it('maps extendFootprintTtl operation', () => {

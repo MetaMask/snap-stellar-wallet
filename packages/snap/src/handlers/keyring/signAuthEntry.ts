@@ -7,44 +7,21 @@ import type { AccountResolver } from '../accountResolver';
 import { BaseSep43KeyringHandler } from './base';
 import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
-import {
-  getAddress,
-  getFunctionName,
-  parseScValToReadableJson,
-} from '../../services/transaction/xdrParser';
+import type { ReadableAuthorizationJson } from '../../services/transaction';
+import { AuthorizationMapper } from '../../services/transaction';
 import type { Wallet } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
 
 /**
- * Decoded summary of a single Soroban authorized invocation — used both for
- * the root call the user is authorizing and, recursively, for every nested
- * call the same authorization implicitly covers.
- */
-export type ReadableInvocation = {
-  /** `'invoke'` for direct contract calls, `'createContract'` / `'createContractV2'` for deployments. */
-  functionType: 'invoke' | 'createContract' | 'createContractV2';
-  /** Strkey-encoded contract `C…` address being invoked, or `null` for contract-creation entries. */
-  contractAddress: string | null;
-  /** Function being invoked, or `null` for contract-creation entries. */
-  functionName: string | null;
-  /**
-   * Decoded function arguments as display strings, in declaration order.
-   * Empty array for contract-creation entries (which carry no args).
-   */
-  args: string[];
-  /** Nested invocations this authorization also covers. */
-  subInvocations: ReadableInvocation[];
-};
-
-/**
  * Human-readable Soroban auth entry summary rendered in the confirmation
- * dialog. The struct guarantees the preimage parses and is the Soroban
- * authorization variant; this shape extracts only the fields a user can
- * meaningfully verify.
+ * dialog. Invocation details come from {@link AuthorizationMapper}; nonce and
+ * expiry are preimage-only fields.
  */
-export type ReadableAuthEntry = ReadableInvocation & {
+export type ReadableAuthEntry = {
+  /** Flat list: root invocation first, then depth-first sub-invocations. */
+  authorizations: ReadableAuthorizationJson[];
   /** Ledger sequence at which this authorization expires (exclusive). */
   signatureExpirationLedger: number;
   /** Replay-protection nonce. */
@@ -94,7 +71,7 @@ export class SignAuthEntryHandler extends BaseSep43KeyringHandler<
     const { account, wallet } = resolved;
     const { authEntry } = request.request.params;
 
-    const readableAuthEntry = decodeSorobanAuthPreimage(authEntry);
+    const readableAuthEntry = this.#decodeSorobanAuthPreimage(authEntry);
 
     if (!(await this.#confirm(request, account, readableAuthEntry))) {
       throw new UserRejectedRequestError() as unknown as Error;
@@ -137,93 +114,25 @@ export class SignAuthEntryHandler extends BaseSep43KeyringHandler<
       })) === true
     );
   }
-}
 
-/**
- * Decodes a SEP-43 `signAuthEntry` payload into the user-facing summary.
- * The struct has already validated that the input parses as
- * `HashIdPreimage.envelopeTypeSorobanAuthorization`, so the cast is safe.
- *
- * @param authEntry - Base64-encoded `HashIdPreimage` XDR.
- * @returns Fields displayed in the confirmation dialog.
- */
-function decodeSorobanAuthPreimage(authEntry: string): ReadableAuthEntry {
-  const preimage = xdr.HashIdPreimage.fromXDR(authEntry, 'base64');
-  const sorobanAuth = preimage.sorobanAuthorization();
+  /**
+   * Decodes a SEP-43 `signAuthEntry` payload into the user-facing summary.
+   * The struct has already validated that the input parses as
+   * `HashIdPreimage.envelopeTypeSorobanAuthorization`, so the cast is safe.
+   *
+   * @param authEntry - Base64-encoded `HashIdPreimage` XDR.
+   * @returns Fields displayed in the confirmation dialog.
+   */
+  #decodeSorobanAuthPreimage(authEntry: string): ReadableAuthEntry {
+    const preimage = xdr.HashIdPreimage.fromXDR(authEntry, 'base64');
+    const sorobanAuth = preimage.sorobanAuthorization();
 
-  return {
-    ...decodeInvocation(sorobanAuth.invocation()),
-    signatureExpirationLedger: sorobanAuth.signatureExpirationLedger(),
-    nonce: sorobanAuth.nonce().toString(),
-  };
-}
-
-/**
- * Recursively decodes a single Soroban authorized invocation (the root call
- * or any nested sub-invocation) into a UI-friendly shape. The same data
- * matters at every depth: which contract, which function, what arguments,
- * what's nested below.
- *
- * @param invocation - The `SorobanAuthorizedInvocation` to decode.
- * @returns A {@link ReadableInvocation} for display.
- */
-function decodeInvocation(
-  invocation: xdr.SorobanAuthorizedInvocation,
-): ReadableInvocation {
-  const fn = invocation.function();
-
-  let functionType: ReadableInvocation['functionType'];
-  let contractAddress: string | null;
-  let functionName: string | null;
-  let args: string[];
-  switch (fn.switch()) {
-    case xdr.SorobanAuthorizedFunctionType.sorobanAuthorizedFunctionTypeContractFn(): {
-      const contractFn = fn.contractFn();
-      functionType = 'invoke';
-      contractAddress = getAddress(contractFn.contractAddress());
-      functionName = getFunctionName(contractFn.functionName());
-      args = readScVals(contractFn.args());
-      break;
-    }
-    case xdr.SorobanAuthorizedFunctionType.sorobanAuthorizedFunctionTypeCreateContractHostFn():
-      functionType = 'createContract';
-      contractAddress = null;
-      functionName = null;
-      args = [];
-      break;
-    case xdr.SorobanAuthorizedFunctionType.sorobanAuthorizedFunctionTypeCreateContractV2HostFn():
-      functionType = 'createContractV2';
-      contractAddress = null;
-      functionName = null;
-      args = [];
-      break;
-    /* istanbul ignore next — exhaustive switch over an SDK enum */
-    default:
-      functionType = 'invoke';
-      contractAddress = null;
-      functionName = null;
-      args = [];
+    return {
+      authorizations: new AuthorizationMapper().mapInvocation(
+        sorobanAuth.invocation(),
+      ),
+      signatureExpirationLedger: sorobanAuth.signatureExpirationLedger(),
+      nonce: sorobanAuth.nonce().toString(),
+    };
   }
-
-  return {
-    functionType,
-    contractAddress,
-    functionName,
-    args,
-    subInvocations: invocation.subInvocations().map(decodeInvocation),
-  };
 }
-
-/**
- * Decodes the contract-function `ScVal[]` arguments into a list of
- * user-readable strings via {@link parseScValToReadableJson}.
- *
- * @param scVals - Function arguments as raw `ScVal`s.
- * @returns One display string per argument, in declaration order.
- */
-function readScVals(scVals: xdr.ScVal[]): string[] {
-  return scVals.map((scv) => parseScValToReadableJson(scv));
-}
-
-/* istanbul ignore next — re-export for tests */
-export { decodeSorobanAuthPreimage };

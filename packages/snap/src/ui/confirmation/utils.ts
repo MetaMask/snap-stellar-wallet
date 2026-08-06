@@ -1,5 +1,5 @@
 import type { GetPreferencesResult } from '@metamask/snaps-sdk';
-import type { CaipAccountId } from '@metamask/utils';
+import type { CaipAccountId, Json } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
 import { FetchStatus } from './api';
@@ -8,6 +8,7 @@ import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
+import { ReadableOperationField } from '../../services/transaction/OperationMapper';
 import { parseOperationAssetReferenceSafe } from '../../services/transaction/utils';
 import { TransactionScanValidationType } from '../../services/transaction-scan';
 import type { TransactionScanResult } from '../../services/transaction-scan';
@@ -391,4 +392,19 @@ export function resolveAssetDisplay(
     symbol: assetCode,
     link: getClassicAssetExplorerUrl(assetReference),
   };
+}
+
+/**
+ * Gets a parameter from a list of ReadableOperationField.
+ *
+ * @param params - The parameters to search through.
+ * @param key - The key of the parameter to get.
+ * @returns The value of the parameter, or `null` if the parameter is not found.
+ */
+export function getParam<Response extends Json>(
+  params: ReadableOperationField[],
+  key: string,
+): Response | null {
+  const value = params.find((param) => param.key === key)?.value;
+  return (value ?? null) as Response | null;
 }

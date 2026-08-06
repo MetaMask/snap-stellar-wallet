@@ -168,13 +168,24 @@ describe('SignAuthEntryHandler', () => {
       expect.objectContaining({
         renderContext: expect.objectContaining({
           readableAuthEntry: expect.objectContaining({
-            functionType: 'invoke',
-            functionName: 'transfer',
             signatureExpirationLedger: 1_000_000,
             nonce: '123456789',
-            args: [],
-            subInvocations: [],
-            contractAddress: expect.stringMatching(/^C[A-Z2-7]+$/u),
+            authorizations: [
+              {
+                params: [
+                  {
+                    key: 'contractId',
+                    value: expect.stringMatching(/^C[A-Z2-7]+$/u),
+                    type: 'copyable',
+                  },
+                  {
+                    key: 'functionName',
+                    value: 'transfer',
+                    type: 'text',
+                  },
+                ],
+              },
+            ],
           }),
         }),
       }),
@@ -222,15 +233,40 @@ describe('SignAuthEntryHandler', () => {
       expect.objectContaining({
         renderContext: expect.objectContaining({
           readableAuthEntry: expect.objectContaining({
-            functionName: 'transfer',
-            args: [recipient, '10'],
-            subInvocations: [
-              expect.objectContaining({
-                functionType: 'invoke',
-                functionName: 'approve',
-                args: [],
-                subInvocations: [],
-              }),
+            authorizations: [
+              {
+                params: [
+                  {
+                    key: 'contractId',
+                    value: expect.stringMatching(/^C[A-Z2-7]+$/u),
+                    type: 'copyable',
+                  },
+                  {
+                    key: 'functionName',
+                    value: 'transfer',
+                    type: 'text',
+                  },
+                  {
+                    key: 'arguments',
+                    value: [recipient, '10'],
+                    type: 'json',
+                  },
+                ],
+              },
+              {
+                params: [
+                  {
+                    key: 'contractId',
+                    value: expect.stringMatching(/^C[A-Z2-7]+$/u),
+                    type: 'copyable',
+                  },
+                  {
+                    key: 'functionName',
+                    value: 'approve',
+                    type: 'text',
+                  },
+                ],
+              },
             ],
           }),
         }),

@@ -5,6 +5,7 @@ import {
 import { FetchStatus } from './api';
 import {
   ConfirmationBanner,
+  getParam,
   isFetchInProgress,
   formatOrigin,
   isLocalTransactionValidationFailed,
@@ -13,6 +14,8 @@ import {
   resolveConfirmationBanner,
   shouldDisableConfirmation,
 } from './utils';
+import { FieldType } from '../../services/transaction';
+import type { ReadableOperationField } from '../../services/transaction';
 import { TransactionScanValidationType } from '../../services/transaction-scan';
 
 const warningScan = {
@@ -286,6 +289,40 @@ describe('confirmation utils', () => {
           transactionsFetchStatus: undefined,
         }),
       ).toBe(ConfirmationBanner.None);
+    });
+  });
+
+  describe('getParam', () => {
+    const params: ReadableOperationField[] = [
+      { key: 'contractId', value: 'CABC123', type: FieldType.copyable },
+      { key: 'functionName', value: 'transfer', type: FieldType.text },
+      {
+        key: 'arguments',
+        value: ['GABC', '100'],
+        type: FieldType.json,
+      },
+      { key: 'optional', value: null, type: FieldType.text },
+    ];
+
+    it('returns the value for a matching key', () => {
+      expect(getParam(params, 'functionName')).toBe('transfer');
+      expect(getParam(params, 'contractId')).toBe('CABC123');
+    });
+
+    it('returns json values unchanged', () => {
+      expect(getParam(params, 'arguments')).toStrictEqual(['GABC', '100']);
+    });
+
+    it('returns null when the key is missing', () => {
+      expect(getParam(params, 'authorizedAddress')).toBeNull();
+    });
+
+    it('returns null when the field value is null', () => {
+      expect(getParam(params, 'optional')).toBeNull();
+    });
+
+    it('returns null for an empty params list', () => {
+      expect(getParam([], 'functionName')).toBeNull();
     });
   });
 });

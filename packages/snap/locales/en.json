@@ -73,26 +73,26 @@
     "confirmation.signAuthEntry.warning": {
       "message": "You are authorizing a smart contract to act on your behalf. Only approve if you trust this site."
     },
-    "confirmation.signAuthEntry.contract": {
-      "message": "Contract Address"
-    },
-    "confirmation.signAuthEntry.function": {
-      "message": "Function Name"
-    },
-    "confirmation.signAuthEntry.argument": {
-      "message": "Argument {index}"
-    },
     "confirmation.signAuthEntry.expiresAt": {
       "message": "Expires at ledger"
     },
     "confirmation.signAuthEntry.nonce": {
       "message": "Nonce"
     },
-    "confirmation.signAuthEntry.subInvocations": {
-      "message": "Nested authorizations"
+    "confirmation.authorization.heading": {
+      "message": "Authorizations"
     },
-    "confirmation.signAuthEntry.createContract": {
-      "message": "Deploy contract"
+    "confirmation.authorization.authorizedAddress": {
+      "message": "Authorized address"
+    },
+    "confirmation.invocation.contractAddress": {
+      "message": "Contract Address"
+    },
+    "confirmation.invocation.functionName": {
+      "message": "Function"
+    },
+    "confirmation.invocation.argument": {
+      "message": "Argument {index}"
     },
     "confirmation.account": {
       "message": "Account"
@@ -318,6 +318,9 @@
     },
     "confirmation.transaction.param.argument": {
       "message": "Argument {index}"
+    },
+    "confirmation.transaction.param.authorizedAddress": {
+      "message": "Authorized address"
     },
     "confirmation.transaction.param.from": {
       "message": "From"

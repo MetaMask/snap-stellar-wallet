@@ -6,3 +6,6 @@ export * from './TransactionAlert';
 export * from './TransactionValidationAlert';
 export * from './ConfirmationAlerts';
 export * from './ConfirmationFooter';
+export * from './Authorizations';
+export * from './InvocationSummary';
+export * from './JsonParamsSummary';

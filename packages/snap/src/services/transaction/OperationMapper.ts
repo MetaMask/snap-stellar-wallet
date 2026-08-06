@@ -16,17 +16,20 @@ import { bufferToUint8Array } from '../../utils';
 /**
  * Semantic hint for how a confirmation row should be rendered.
  */
-export type ReadableFieldType =
-  | 'address'
-  | 'asset'
-  | 'assetWithAmount'
-  | 'amount'
-  | 'price'
-  | 'text'
-  | 'number'
-  | 'boolean'
-  | 'json'
-  | 'copyable';
+export const FieldType = {
+  address: 'address',
+  asset: 'asset',
+  assetWithAmount: 'assetWithAmount',
+  amount: 'amount',
+  price: 'price',
+  text: 'text',
+  number: 'number',
+  boolean: 'boolean',
+  json: 'json',
+  copyable: 'copyable',
+} as const;
+
+export type FieldType = (typeof FieldType)[keyof typeof FieldType];
 
 /**
  * One labeled value row for operation confirmation UI.
@@ -34,7 +37,7 @@ export type ReadableFieldType =
 export type ReadableOperationField = {
   key: string;
   value: Json;
-  type: ReadableFieldType;
+  type: FieldType;
 };
 
 /**
@@ -60,6 +63,18 @@ export type ReadableOperationJson = {
 };
 
 /**
+ * One Soroban authorization entry for the confirmation dialog (own section,
+ * parallel to {@link ReadableOperationJson} for `invokeHostFunction`).
+ */
+export type ReadableAuthorizationJson = {
+  params: ReadableAuthorizationParams[];
+};
+
+export type ReadableAuthorizationParams = ReadableOperationField & {
+  key: 'authorizedAddress' | 'contractId' | 'functionName' | 'arguments';
+};
+
+/**
  * Transaction-level envelope plus per-operation summaries.
  */
 export type ReadableTransactionJson = {
@@ -70,6 +85,11 @@ export type ReadableTransactionJson = {
   feeSourceAccount: string;
   memo: string | null;
   operations: ReadableOperationJson[];
+  /**
+   * Auth entries from `invokeHostFunction` ops. Rendered as a separate
+   * "Authorizations" section — not nested under the host-function params.
+   */
+  authorizations: ReadableAuthorizationJson[];
 };
 
 const SOROBAN_OPERATION_TYPES = new Set<string>([
@@ -115,9 +135,169 @@ function accountAuthFlagsMaskToText(flags: number): string[] {
 /* eslint-enable no-bitwise */
 
 /**
+ * Abstract class for mapping operations to readable JSON.
+ */
+class AbstractOperationMapper {
+  protected field(
+    key: string,
+    value: Json,
+    type: FieldType,
+  ): ReadableOperationField {
+    let normalizedValue: Json = value;
+    if (type === FieldType.amount) {
+      normalizedValue = this.normalizeAmount(value);
+    } else if (type === FieldType.assetWithAmount && Array.isArray(value)) {
+      const [asset, amount] = value as [Json, Json];
+      normalizedValue = [asset, this.normalizeAmount(amount)];
+    }
+    return { key, value: normalizedValue, type };
+  }
+
+  protected normalizeAmount(value: Json): Json {
+    if (typeof value === 'string' && /^-?\d+(\.\d+)?$/u.test(value)) {
+      return new BigNumber(value).toFixed();
+    }
+    return value;
+  }
+}
+
+export class AuthorizationMapper extends AbstractOperationMapper {
+  /**
+   * Collects Soroban auth entries into dialog sections (root invocation +
+   * nested sub-invocations flattened).
+   *
+   * @param entries - Soroban authorization entries from `invokeHostFunction`.
+   * @returns Authorization summaries for the confirmation UI.
+   */
+  mapAuthorizations(
+    entries: readonly xdr.SorobanAuthorizationEntry[],
+  ): ReadableAuthorizationJson[] {
+    const authorizations: ReadableAuthorizationJson[] = [];
+    for (const entry of entries) {
+      try {
+        authorizations.push(
+          ...this.mapInvocation(
+            entry.rootInvocation(),
+            this.#getAuthAddress(entry),
+          ),
+        );
+      } catch {
+        // Skip malformed auth entries; host-function section still renders.
+      }
+    }
+    return authorizations;
+  }
+
+  /**
+   * Maps one authorized invocation tree into flat confirmation sections.
+   * Used by transaction auth entries and SEP-43 `signAuthEntry` preimages.
+   *
+   * @param invocation - Root or nested `SorobanAuthorizedInvocation`.
+   * @param authAddress - Credential address when known; otherwise `null`.
+   * @returns One section per invocation (root first, then depth-first subs).
+   */
+  mapInvocation(
+    invocation: xdr.SorobanAuthorizedInvocation,
+    authAddress: string | null = null,
+  ): ReadableAuthorizationJson[] {
+    const authorizations: ReadableAuthorizationJson[] = [];
+    this.#appendInvocationAuthorizations(
+      authorizations,
+      invocation,
+      authAddress,
+    );
+    return authorizations;
+  }
+
+  #appendInvocationAuthorizations(
+    authorizations: ReadableAuthorizationJson[],
+    invocation: xdr.SorobanAuthorizedInvocation,
+    authAddress: string | null,
+  ): void {
+    const params = this.#mapAuthorizedInvocationParams(
+      invocation,
+      authAddress,
+    ) as ReadableAuthorizationParams[];
+
+    if (params.length > 0) {
+      authorizations.push({ params });
+    }
+    for (const sub of invocation.subInvocations()) {
+      this.#appendInvocationAuthorizations(authorizations, sub, authAddress);
+    }
+  }
+
+  #mapAuthorizedInvocationParams(
+    invocation: xdr.SorobanAuthorizedInvocation,
+    authAddress: string | null,
+  ): ReadableOperationField[] {
+    const rows: ReadableOperationField[] = [];
+    if (authAddress !== null) {
+      rows.push(
+        this.field('authorizedAddress', authAddress, FieldType.copyable),
+      );
+    }
+
+    const fn = invocation.function();
+    switch (fn.switch()) {
+      case xdr.SorobanAuthorizedFunctionType.sorobanAuthorizedFunctionTypeContractFn(): {
+        const contractFn = fn.contractFn();
+        rows.push(
+          this.field(
+            'contractId',
+            getAddress(contractFn.contractAddress()),
+            FieldType.copyable,
+          ),
+        );
+        rows.push(
+          this.field(
+            'functionName',
+            getFunctionName(contractFn.functionName()),
+            FieldType.text,
+          ),
+        );
+        const args = contractFn.args();
+        if (args.length > 0) {
+          rows.push(
+            this.field(
+              'arguments',
+              args.map((arg) => parseScValToReadableJson(arg)),
+              FieldType.json,
+            ),
+          );
+        }
+        break;
+      }
+      case xdr.SorobanAuthorizedFunctionType.sorobanAuthorizedFunctionTypeCreateContractHostFn():
+        rows.push(this.field('functionName', 'createContract', FieldType.text));
+        break;
+      case xdr.SorobanAuthorizedFunctionType.sorobanAuthorizedFunctionTypeCreateContractV2HostFn():
+        rows.push(
+          this.field('functionName', 'createContractV2', FieldType.text),
+        );
+        break;
+      default:
+        rows.push(this.field('functionName', 'authorization', FieldType.text));
+    }
+    return rows;
+  }
+
+  #getAuthAddress(entry: xdr.SorobanAuthorizationEntry): string | null {
+    const credentials = entry.credentials();
+    if (
+      credentials.switch() !==
+      xdr.SorobanCredentialsType.sorobanCredentialsAddress()
+    ) {
+      return null;
+    }
+    return getAddress(credentials.address().address());
+  }
+}
+
+/**
  * Maps Stellar {@link Operation} values to plain JSON-friendly objects for signing UX.
  */
-export class OperationMapper {
+export class OperationMapper extends AbstractOperationMapper {
   /**
    * Builds a readable summary for every operation in the wrapped transaction.
    *
@@ -128,9 +308,11 @@ export class OperationMapper {
     const { sourceAccount } = transaction;
     const operations = transaction.transactionOperations.map(
       (sdkOperation, index) =>
-        this.mapOperation(sdkOperation, index, sourceAccount),
+        this.#mapOperation(sdkOperation, index, sourceAccount),
     );
-
+    const authorizations = this.#mapAuthorizations(
+      transaction.transactionOperations,
+    );
     return {
       scope: transaction.scope,
       feeStroops: transaction.totalFee.toFixed(0),
@@ -139,7 +321,26 @@ export class OperationMapper {
       feeSourceAccount: transaction.feeSourceAccount,
       memo: transaction.getMemo(),
       operations,
+      authorizations,
     };
+  }
+
+  #mapAuthorizations(
+    operations: readonly Operation[],
+  ): ReadableAuthorizationJson[] {
+    const authMapper = new AuthorizationMapper();
+    const authorizations: ReadableAuthorizationJson[] = [];
+    for (const operation of operations) {
+      if (operation.type !== StellarOperationType.InvokeHostFunction) {
+        continue;
+      }
+      const { auth } = operation;
+      if (!auth || auth.length === 0) {
+        continue;
+      }
+      authorizations.push(...authMapper.mapAuthorizations(auth));
+    }
+    return authorizations;
   }
 
   /**
@@ -150,7 +351,7 @@ export class OperationMapper {
    * @param transactionSource - Transaction source when `operation.source` is omitted.
    * @returns Serializable operation summary.
    */
-  mapOperation(
+  #mapOperation(
     operation: Operation,
     index: number,
     transactionSource: string,
@@ -178,6 +379,7 @@ export class OperationMapper {
       const rows: ReadableOperationField[] = [];
       try {
         const { func } = hostOp;
+
         if (
           func?.switch() ===
           xdr.HostFunctionType.hostFunctionTypeInvokeContract()
@@ -185,12 +387,14 @@ export class OperationMapper {
           const invokeArgs = func.invokeContract();
           const contractAddress = getAddress(invokeArgs.contractAddress());
           const functionName = getFunctionName(invokeArgs.functionName());
-          rows.push(this.#field('contractId', contractAddress, 'copyable'));
-          rows.push(this.#field('functionName', functionName, 'text'));
+          rows.push(
+            this.field('contractId', contractAddress, FieldType.copyable),
+          );
+          rows.push(this.field('functionName', functionName, FieldType.text));
           const args = invokeArgs.args();
           if (args.length > 0) {
             rows.push(
-              this.#field(
+              this.field(
                 'arguments',
                 args.map((arg) => parseScValToReadableJson(arg)),
                 'json',
@@ -203,10 +407,10 @@ export class OperationMapper {
       }
       if (rows.length === 0) {
         rows.push(
-          this.#field(
+          this.field(
             'note',
             'Soroban invokeHostFunction; review contract call on a block explorer or dedicated UI.',
-            'text',
+            FieldType.text,
           ),
         );
       }
@@ -214,16 +418,16 @@ export class OperationMapper {
     }
     if (operation.type === StellarOperationType.ExtendFootprintTtl) {
       const extendOp = operation;
-      return [this.#field('extendTo', extendOp.extendTo, 'number')];
+      return [this.field('extendTo', extendOp.extendTo, FieldType.number)];
     }
     if (operation.type === StellarOperationType.RestoreFootprint) {
-      return [this.#field('note', 'Soroban restoreFootprint.', 'text')];
+      return [this.field('note', 'Soroban restoreFootprint.', FieldType.text)];
     }
     return [
-      this.#field(
+      this.field(
         'note',
         'Soroban operation; expand separately if needed.',
-        'text',
+        FieldType.text,
       ),
     ];
   }
@@ -233,22 +437,26 @@ export class OperationMapper {
       case StellarOperationType.Payment: {
         const payment = operation;
         return [
-          this.#field('destination', payment.destination, 'address'),
-          this.#field(
+          this.field('destination', payment.destination, FieldType.address),
+          this.field(
             'asset',
             [payment.asset.toString(), payment.amount],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
         ];
       }
       case StellarOperationType.CreateAccount: {
         const createAccount = operation;
         return [
-          this.#field('destination', createAccount.destination, 'address'),
-          this.#field(
+          this.field(
+            'destination',
+            createAccount.destination,
+            FieldType.address,
+          ),
+          this.field(
             'startingBalance',
             createAccount.startingBalance,
-            'amount',
+            FieldType.amount,
           ),
         ];
       }
@@ -257,96 +465,104 @@ export class OperationMapper {
         return [
           // we don't use assetWithAmount here because the line is not necessarily a classic asset
           // and we are not sending amount here.
-          this.#field('line', this.#formatTrustLine(changeTrust.line), 'text'),
-          this.#field('limit', changeTrust.limit, 'amount'),
+          this.field(
+            'line',
+            this.#formatTrustLine(changeTrust.line),
+            FieldType.text,
+          ),
+          this.field('limit', changeTrust.limit, FieldType.amount),
         ];
       }
       case StellarOperationType.AccountMerge: {
         const accountMerge = operation;
         return [
-          this.#field('destination', accountMerge.destination, 'address'),
+          this.field(
+            'destination',
+            accountMerge.destination,
+            FieldType.address,
+          ),
         ];
       }
       case StellarOperationType.PathPaymentStrictReceive: {
         const pathReceive = operation;
 
         return [
-          this.#field(
+          this.field(
             'sendAsset',
             [pathReceive.sendAsset.toString(), pathReceive.sendMax],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
-          this.#field('destination', pathReceive.destination, 'address'),
-          this.#field(
+          this.field('destination', pathReceive.destination, FieldType.address),
+          this.field(
             'destAsset',
             [pathReceive.destAsset.toString(), pathReceive.destAmount],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
-          this.#field(
+          this.field(
             'path',
             pathReceive.path.map((asset) => asset.toString()),
-            'json',
+            FieldType.json,
           ),
         ];
       }
       case StellarOperationType.PathPaymentStrictSend: {
         const pathSend = operation;
         return [
-          this.#field(
+          this.field(
             'sendAsset',
             [pathSend.sendAsset.toString(), pathSend.sendAmount],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
-          this.#field('destination', pathSend.destination, 'address'),
-          this.#field(
+          this.field('destination', pathSend.destination, FieldType.address),
+          this.field(
             'destAsset',
             [pathSend.destAsset.toString(), pathSend.destMin],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
 
-          this.#field(
+          this.field(
             'path',
             pathSend.path.map((asset) => asset.toString()),
-            'json',
+            FieldType.json,
           ),
         ];
       }
       case StellarOperationType.ManageSellOffer: {
         const sellOffer = operation;
         return [
-          this.#field(
+          this.field(
             'selling',
             [sellOffer.selling.toString(), sellOffer.amount],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
-          this.#field('buying', sellOffer.buying.toString(), 'asset'),
-          this.#field('price', sellOffer.price, 'price'),
-          this.#field('offerId', sellOffer.offerId, 'text'),
+          this.field('buying', sellOffer.buying.toString(), FieldType.asset),
+          this.field('price', sellOffer.price, FieldType.price),
+          this.field('offerId', sellOffer.offerId, FieldType.text),
         ];
       }
       case StellarOperationType.ManageBuyOffer: {
         const buyOffer = operation;
         return [
-          this.#field(
+          this.field(
             'buying',
             [buyOffer.buying.toString(), buyOffer.buyAmount],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
-          this.#field('selling', buyOffer.selling.toString(), 'asset'),
-          this.#field('price', buyOffer.price, 'price'),
-          this.#field('offerId', buyOffer.offerId, 'text'),
+          this.field('selling', buyOffer.selling.toString(), FieldType.asset),
+          this.field('price', buyOffer.price, FieldType.price),
+          this.field('offerId', buyOffer.offerId, FieldType.text),
         ];
       }
       case StellarOperationType.CreatePassiveSellOffer: {
         const passiveOffer = operation;
         return [
-          this.#field(
+          this.field(
             'selling',
             [passiveOffer.selling.toString(), passiveOffer.amount],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
-          this.#field('buying', passiveOffer.buying.toString(), 'asset'),
-          this.#field('price', passiveOffer.price, 'price'),
+          this.field('buying', passiveOffer.buying.toString(), FieldType.asset),
+          this.field('price', passiveOffer.price, FieldType.price),
         ];
       }
       case StellarOperationType.SetOptions: {
@@ -354,49 +570,71 @@ export class OperationMapper {
         const rows: ReadableOperationField[] = [];
         if (setOptions.inflationDest !== undefined) {
           rows.push(
-            this.#field('inflationDest', setOptions.inflationDest, 'address'),
+            this.field(
+              'inflationDest',
+              setOptions.inflationDest,
+              FieldType.address,
+            ),
           );
         }
         if (setOptions.clearFlags !== undefined) {
           rows.push(
-            this.#field(
+            this.field(
               'clearFlags',
               accountAuthFlagsMaskToText(setOptions.clearFlags),
-              'text',
+              FieldType.text,
             ),
           );
         }
         if (setOptions.setFlags !== undefined) {
           rows.push(
-            this.#field(
+            this.field(
               'setFlags',
               accountAuthFlagsMaskToText(setOptions.setFlags),
-              'text',
+              FieldType.text,
             ),
           );
         }
         if (setOptions.masterWeight !== undefined) {
           rows.push(
-            this.#field('masterWeight', setOptions.masterWeight, 'number'),
+            this.field(
+              'masterWeight',
+              setOptions.masterWeight,
+              FieldType.number,
+            ),
           );
         }
         if (setOptions.lowThreshold !== undefined) {
           rows.push(
-            this.#field('lowThreshold', setOptions.lowThreshold, 'number'),
+            this.field(
+              'lowThreshold',
+              setOptions.lowThreshold,
+              FieldType.number,
+            ),
           );
         }
         if (setOptions.medThreshold !== undefined) {
           rows.push(
-            this.#field('medThreshold', setOptions.medThreshold, 'number'),
+            this.field(
+              'medThreshold',
+              setOptions.medThreshold,
+              FieldType.number,
+            ),
           );
         }
         if (setOptions.highThreshold !== undefined) {
           rows.push(
-            this.#field('highThreshold', setOptions.highThreshold, 'number'),
+            this.field(
+              'highThreshold',
+              setOptions.highThreshold,
+              FieldType.number,
+            ),
           );
         }
         if (setOptions.homeDomain !== undefined) {
-          rows.push(this.#field('homeDomain', setOptions.homeDomain, 'text'));
+          rows.push(
+            this.field('homeDomain', setOptions.homeDomain, FieldType.text),
+          );
         }
         if ('signer' in setOptions && setOptions.signer !== undefined) {
           // SDK Signer is a union of disjoint interfaces; cast to Record for key-based branching.
@@ -406,40 +644,44 @@ export class OperationMapper {
           >;
           if ('ed25519PublicKey' in signer) {
             rows.push(
-              this.#field(
+              this.field(
                 'signerEd25519',
                 signer.ed25519PublicKey as string,
-                'address',
+                FieldType.address,
               ),
             );
           } else if ('sha256Hash' in signer) {
             rows.push(
-              this.#field(
+              this.field(
                 'signerSha256Hash',
                 bufferToUint8Array(signer.sha256Hash as Buffer).toString('hex'),
-                'text',
+                FieldType.text,
               ),
             );
           } else if ('preAuthTx' in signer) {
             rows.push(
-              this.#field(
+              this.field(
                 'signerPreAuthTx',
                 bufferToUint8Array(signer.preAuthTx as Buffer).toString('hex'),
-                'text',
+                FieldType.text,
               ),
             );
           } else if ('ed25519SignedPayload' in signer) {
             rows.push(
-              this.#field(
+              this.field(
                 'signerSignedPayload',
                 signer.ed25519SignedPayload as string,
-                'text',
+                FieldType.text,
               ),
             );
           }
           if (signer.weight !== undefined) {
             rows.push(
-              this.#field('signerWeight', Number(signer.weight), 'number'),
+              this.field(
+                'signerWeight',
+                Number(signer.weight),
+                FieldType.number,
+              ),
             );
           }
         }
@@ -448,15 +690,15 @@ export class OperationMapper {
       case StellarOperationType.AllowTrust: {
         const allowTrustOp = operation;
         const rows: ReadableOperationField[] = [
-          this.#field('trustor', allowTrustOp.trustor, 'address'),
-          this.#field('assetCode', allowTrustOp.assetCode, 'text'),
+          this.field('trustor', allowTrustOp.trustor, FieldType.address),
+          this.field('assetCode', allowTrustOp.assetCode, FieldType.text),
         ];
         if (allowTrustOp.authorize !== undefined) {
           const auth = allowTrustOp.authorize;
           if (typeof auth === 'boolean') {
-            rows.push(this.#field('authorize', auth, 'boolean'));
+            rows.push(this.field('authorize', auth, FieldType.boolean));
           } else {
-            rows.push(this.#field('authorize', String(auth), 'text'));
+            rows.push(this.field('authorize', String(auth), FieldType.text));
           }
         }
         return rows;
@@ -464,48 +706,52 @@ export class OperationMapper {
       case StellarOperationType.ManageData: {
         const manageDataOp = operation;
         return [
-          this.#field('name', manageDataOp.name, 'text'),
-          this.#field(
+          this.field('name', manageDataOp.name, FieldType.text),
+          this.field(
             'valueBase64',
             manageDataOp.value
               ? bufferToUint8Array(manageDataOp.value).toString('base64')
               : null,
-            'text',
+            FieldType.text,
           ),
         ];
       }
       case StellarOperationType.BumpSequence: {
         const bumpSequence = operation;
-        return [this.#field('bumpTo', bumpSequence.bumpTo, 'text')];
+        return [this.field('bumpTo', bumpSequence.bumpTo, FieldType.text)];
       }
       case StellarOperationType.Inflation:
         return [];
       case StellarOperationType.CreateClaimableBalance: {
         const createCb = operation;
         return [
-          this.#field(
+          this.field(
             'asset',
             [createCb.asset.toString(), createCb.amount],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
-          this.#field(
+          this.field(
             'claimants',
             createCb.claimants.map((claimant) => ({
               destination: claimant.destination,
-              predicate: OperationMapper.#formatPredicate(claimant.predicate),
+              predicate: this.#formatPredicate(claimant.predicate),
             })),
-            'json',
+            FieldType.json,
           ),
         ];
       }
       case StellarOperationType.ClaimClaimableBalance: {
         const claimCb = operation;
-        return [this.#field('balanceId', claimCb.balanceId, 'text')];
+        return [this.field('balanceId', claimCb.balanceId, FieldType.text)];
       }
       case StellarOperationType.BeginSponsoringFutureReserves: {
         const beginSponsor = operation;
         return [
-          this.#field('sponsoredId', beginSponsor.sponsoredId, 'address'),
+          this.field(
+            'sponsoredId',
+            beginSponsor.sponsoredId,
+            FieldType.address,
+          ),
         ];
       }
       case StellarOperationType.EndSponsoringFutureReserves:
@@ -515,17 +761,17 @@ export class OperationMapper {
       case StellarOperationType.Clawback: {
         const clawback = operation;
         return [
-          this.#field(
+          this.field(
             'asset',
             [clawback.asset.toString(), clawback.amount],
-            'assetWithAmount',
+            FieldType.assetWithAmount,
           ),
-          this.#field('from', clawback.from, 'address'),
+          this.field('from', clawback.from, FieldType.address),
         ];
       }
       case StellarOperationType.ClawbackClaimableBalance: {
         const clawbackCb = operation;
-        return [this.#field('balanceId', clawbackCb.balanceId, 'text')];
+        return [this.field('balanceId', clawbackCb.balanceId, FieldType.text)];
       }
       case StellarOperationType.SetTrustLineFlags: {
         const trustFlags = operation;
@@ -547,53 +793,60 @@ export class OperationMapper {
           clearFlagLabels.push('clawbackEnabled');
         }
         const rows: ReadableOperationField[] = [
-          this.#field('trustor', trustFlags.trustor, 'address'),
-          this.#field('asset', trustFlags.asset.toString(), 'asset'),
+          this.field('trustor', trustFlags.trustor, FieldType.address),
+          this.field('asset', trustFlags.asset.toString(), FieldType.asset),
         ];
         if (setFlagLabels.length > 0) {
-          rows.push(this.#field('setFlags', setFlagLabels, 'text'));
+          rows.push(this.field('setFlags', setFlagLabels, FieldType.text));
         }
         if (clearFlagLabels.length > 0) {
-          rows.push(this.#field('clearFlags', clearFlagLabels, 'text'));
+          rows.push(this.field('clearFlags', clearFlagLabels, FieldType.text));
         }
         return rows;
       }
       case StellarOperationType.LiquidityPoolDeposit: {
         const poolDeposit = operation;
         return [
-          this.#field('liquidityPoolId', poolDeposit.liquidityPoolId, 'text'),
-          this.#field('maxAmountA', poolDeposit.maxAmountA, 'amount'),
-          this.#field('maxAmountB', poolDeposit.maxAmountB, 'amount'),
-          this.#field('minPrice', poolDeposit.minPrice, 'price'),
-          this.#field('maxPrice', poolDeposit.maxPrice, 'price'),
+          this.field(
+            'liquidityPoolId',
+            poolDeposit.liquidityPoolId,
+            FieldType.text,
+          ),
+          this.field('maxAmountA', poolDeposit.maxAmountA, FieldType.amount),
+          this.field('maxAmountB', poolDeposit.maxAmountB, FieldType.amount),
+          this.field('minPrice', poolDeposit.minPrice, FieldType.price),
+          this.field('maxPrice', poolDeposit.maxPrice, FieldType.price),
         ];
       }
       case StellarOperationType.LiquidityPoolWithdraw: {
         const poolWithdraw = operation;
         return [
-          this.#field('liquidityPoolId', poolWithdraw.liquidityPoolId, 'text'),
-          this.#field('amount', poolWithdraw.amount, 'amount'),
-          this.#field('minAmountA', poolWithdraw.minAmountA, 'amount'),
-          this.#field('minAmountB', poolWithdraw.minAmountB, 'amount'),
+          this.field(
+            'liquidityPoolId',
+            poolWithdraw.liquidityPoolId,
+            FieldType.text,
+          ),
+          this.field('amount', poolWithdraw.amount, FieldType.amount),
+          this.field('minAmountA', poolWithdraw.minAmountA, FieldType.amount),
+          this.field('minAmountB', poolWithdraw.minAmountB, FieldType.amount),
         ];
       }
       case StellarOperationType.InvokeHostFunction:
       case StellarOperationType.ExtendFootprintTtl:
       case StellarOperationType.RestoreFootprint:
         return [
-          this.#field(
+          this.field(
             'note',
             'Soroban operation; use non-classic mapping path.',
-            'text',
+            FieldType.text,
           ),
         ];
       default: {
-        const unknownOp = operation;
         return [
-          this.#field(
+          this.field(
             'note',
-            `Unhandled or newer operation type "${unknownOp.type}".`,
-            'text',
+            `Unhandled or newer operation type.`,
+            FieldType.text,
           ),
         ];
       }
@@ -607,25 +860,25 @@ export class OperationMapper {
         offerId: string;
       };
       return [
-        this.#field('seller', revokeOffer.seller, 'address'),
-        this.#field('offerId', revokeOffer.offerId, 'text'),
+        this.field('seller', revokeOffer.seller, 'address'),
+        this.field('offerId', revokeOffer.offerId, 'text'),
       ];
     }
     if ('balanceId' in operation && !('account' in operation)) {
       const revokeCb = operation as { balanceId: string };
-      return [this.#field('balanceId', revokeCb.balanceId, 'text')];
+      return [this.field('balanceId', revokeCb.balanceId, 'text')];
     }
     if ('liquidityPoolId' in operation && !('account' in operation)) {
       const revokePool = operation as { liquidityPoolId: string };
       return [
-        this.#field('liquidityPoolId', revokePool.liquidityPoolId, 'text'),
+        this.field('liquidityPoolId', revokePool.liquidityPoolId, 'text'),
       ];
     }
     if ('account' in operation && 'name' in operation) {
       const revokeData = operation as { account: string; name: string };
       return [
-        this.#field('account', revokeData.account, 'address'),
-        this.#field('name', revokeData.name, 'text'),
+        this.field('account', revokeData.account, 'address'),
+        this.field('name', revokeData.name, 'text'),
       ];
     }
     if ('account' in operation && 'signer' in operation) {
@@ -634,8 +887,8 @@ export class OperationMapper {
         signer: unknown;
       };
       return [
-        this.#field('account', revokeSigner.account, 'address'),
-        this.#field('signer', JSON.stringify(revokeSigner.signer), 'text'),
+        this.field('account', revokeSigner.account, 'address'),
+        this.field('signer', JSON.stringify(revokeSigner.signer), 'text'),
       ];
     }
     if ('account' in operation && 'asset' in operation) {
@@ -649,48 +902,17 @@ export class OperationMapper {
           ? asset.getLiquidityPoolId()
           : asset.toString();
       return [
-        this.#field('account', revokeTrust.account, 'address'),
-        this.#field('asset', assetLabel, 'asset'),
+        this.field('account', revokeTrust.account, 'address'),
+        this.field('asset', assetLabel, 'asset'),
       ];
     }
     if ('account' in operation) {
       const revokeAccount = operation as { account: string };
-      return [this.#field('account', revokeAccount.account, 'address')];
+      return [this.field('account', revokeAccount.account, 'address')];
     }
     return [
-      this.#field('note', 'revokeSponsorship shape not recognized.', 'text'),
+      this.field('note', 'revokeSponsorship shape not recognized.', 'text'),
     ];
-  }
-
-  #field(
-    key: string,
-    value: Json,
-    type: ReadableFieldType,
-  ): ReadableOperationField {
-    let normalizedValue: Json = value;
-    if (type === 'amount') {
-      normalizedValue = OperationMapper.#normalizeStellarAmount(value);
-    } else if (type === 'assetWithAmount' && Array.isArray(value)) {
-      const [asset, amount] = value as [Json, Json];
-      normalizedValue = [
-        asset,
-        OperationMapper.#normalizeStellarAmount(amount),
-      ];
-    }
-    return { key, value: normalizedValue, type };
-  }
-
-  /**
-   * Strips trailing zeros from Stellar amount strings; passes other values through.
-   *
-   * @param value - Field value as produced by the Stellar SDK operation.
-   * @returns Normalized amount string, or the original value when not numeric.
-   */
-  static #normalizeStellarAmount(value: Json): Json {
-    if (typeof value === 'string' && /^-?\d+(\.\d+)?$/u.test(value)) {
-      return new BigNumber(value).toFixed();
-    }
-    return value;
   }
 
   #formatTrustLine(line: Asset | LiquidityPoolAsset): string {
@@ -700,7 +922,7 @@ export class OperationMapper {
     return line.toString();
   }
 
-  static #formatPredicate(predicate: xdr.ClaimPredicate): string {
+  #formatPredicate(predicate: xdr.ClaimPredicate): string {
     try {
       const type = predicate.switch();
       if (type === xdr.ClaimPredicateType.claimPredicateUnconditional()) {
@@ -720,7 +942,7 @@ export class OperationMapper {
         const left = preds[0];
         const right = preds[1];
         if (left && right) {
-          return `(${OperationMapper.#formatPredicate(left)} AND ${OperationMapper.#formatPredicate(right)})`;
+          return `(${this.#formatPredicate(left)} AND ${this.#formatPredicate(right)})`;
         }
       }
       if (type === xdr.ClaimPredicateType.claimPredicateOr()) {
@@ -728,14 +950,12 @@ export class OperationMapper {
         const left = preds[0];
         const right = preds[1];
         if (left && right) {
-          return `(${OperationMapper.#formatPredicate(left)} OR ${OperationMapper.#formatPredicate(right)})`;
+          return `(${this.#formatPredicate(left)} OR ${this.#formatPredicate(right)})`;
         }
       }
       if (type === xdr.ClaimPredicateType.claimPredicateNot()) {
         const inner = predicate.notPredicate();
-        return inner
-          ? `NOT ${OperationMapper.#formatPredicate(inner)}`
-          : 'NOT(null)';
+        return inner ? `NOT ${this.#formatPredicate(inner)}` : 'NOT(null)';
       }
     } catch {
       // Fall through

@@ -5,8 +5,6 @@ import {
   Box,
   Button,
   Container,
-  Copyable,
-  Divider,
   Footer,
   Heading,
   Icon,
@@ -16,14 +14,12 @@ import {
 } from '@metamask/snaps-sdk/jsx';
 
 import { ConfirmSignAuthEntryFormNames } from './events';
-import type {
-  ReadableAuthEntry,
-  ReadableInvocation,
-} from '../../../../handlers/keyring/signAuthEntry';
+import type { ReadableAuthEntry } from '../../../../handlers/keyring/signAuthEntry';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
 import type { ConfirmationBaseProps } from '../../api';
+import { Authorizations } from '../../components/Authorizations';
 import { NetworkRow } from '../../components/Network';
 import { getAccountName } from '../../utils';
 
@@ -33,91 +29,6 @@ export type ConfirmSignAuthEntryProps = Pick<
 > & {
   readableAuthEntry: ReadableAuthEntry;
   account: StellarKeyringAccount;
-};
-
-// Vertical, full-width summary of one Soroban authorized invocation. Used both
-// for the root call the user is authorizing and recursively (one level deep)
-// for any nested calls. Layout follows Freighter: function name as a heading
-// at the top, then Contract ID, Function Name, Parameters stacked vertically
-// so long values (G/C addresses, i128 amounts) never get squeezed into a
-// right-aligned column and wrap badly.
-//
-// `showNestedCount` controls whether to render a "Nested authorizations: N"
-// row inside this card. Disabled for the root and direct sub-invocations
-// (whose children we expand into their own card right below) and enabled
-// only for deeper nesting where we don't recurse — there the count is the
-// only signal the user gets that more calls exist beneath.
-const InvocationSummary = ({
-  invocation,
-  translate,
-  showHeading,
-  showNestedCount,
-}: {
-  invocation: ReadableInvocation;
-  translate: ReturnType<typeof i18n>;
-  showHeading: boolean;
-  showNestedCount: boolean;
-}): ComponentOrElement => {
-  const { contractAddress, functionName, args, subInvocations } = invocation;
-
-  return (
-    <Box direction="vertical">
-      {showHeading && functionName !== null ? (
-        <Heading size="md">{functionName}</Heading>
-      ) : null}
-
-      {contractAddress === null ? (
-        <Box direction="vertical">
-          <SnapText fontWeight="medium" color="alternative">
-            {translate('confirmation.signAuthEntry.contract')}
-          </SnapText>
-          <SnapText>
-            {translate('confirmation.signAuthEntry.createContract')}
-          </SnapText>
-        </Box>
-      ) : (
-        <Box direction="vertical">
-          <SnapText fontWeight="medium" color="alternative">
-            {translate('confirmation.signAuthEntry.contract')}
-          </SnapText>
-          <Copyable value={contractAddress} />
-        </Box>
-      )}
-
-      {functionName === null ? null : (
-        <Box direction="vertical">
-          <SnapText fontWeight="medium" color="alternative">
-            {translate('confirmation.signAuthEntry.function')}
-          </SnapText>
-          <SnapText>{functionName}</SnapText>
-        </Box>
-      )}
-
-      {args.length > 0 ? (
-        <Box direction="vertical">
-          {args.map((arg, index) => (
-            <Box key={`arg-${index}`} direction="vertical">
-              <SnapText fontWeight="medium" color="alternative">
-                {translate('confirmation.signAuthEntry.argument', {
-                  index: (index + 1).toString(),
-                })}
-              </SnapText>
-              <Copyable value={arg} />
-            </Box>
-          ))}
-        </Box>
-      ) : null}
-
-      {showNestedCount && subInvocations.length > 0 ? (
-        <Box direction="vertical">
-          <SnapText fontWeight="medium" color="alternative">
-            {translate('confirmation.signAuthEntry.subInvocations')}
-          </SnapText>
-          <SnapText>{String(subInvocations.length)}</SnapText>
-        </Box>
-      ) : null}
-    </Box>
-  );
 };
 
 export const ConfirmSignAuthEntry = ({
@@ -131,7 +42,8 @@ export const ConfirmSignAuthEntry = ({
   const translate = i18n(locale);
   const { address } = account;
   const addressCaip10 = getAccountName(scope, address);
-  const { subInvocations } = readableAuthEntry;
+  const { authorizations, nonce, signatureExpirationLedger } =
+    readableAuthEntry;
 
   return (
     <Container>
@@ -174,31 +86,22 @@ export const ConfirmSignAuthEntry = ({
             scope={scope}
             locale={locale as Locale}
           />
+          <Box alignment="space-between" direction="horizontal">
+            <SnapText fontWeight="medium" color="alternative">
+              {translate('confirmation.signAuthEntry.expiresAt')}
+            </SnapText>
+            <SnapText>{String(signatureExpirationLedger)}</SnapText>
+          </Box>
+          <Box alignment="space-between" direction="horizontal">
+            <SnapText fontWeight="medium" color="alternative">
+              {translate('confirmation.signAuthEntry.nonce')}
+            </SnapText>
+            <SnapText>{nonce}</SnapText>
+          </Box>
         </Section>
 
-        <Section>
-          <InvocationSummary
-            invocation={readableAuthEntry}
-            translate={translate}
-            showHeading
-            showNestedCount={false}
-          />
-        </Section>
-
-        {subInvocations.length > 0 ? (
-          <Section>
-            {subInvocations.map((sub, index) => (
-              <Box key={`sub-${index}`} direction="vertical">
-                {index > 0 ? <Divider /> : null}
-                <InvocationSummary
-                  invocation={sub}
-                  translate={translate}
-                  showHeading
-                  showNestedCount
-                />
-              </Box>
-            ))}
-          </Section>
+        {authorizations.length > 0 ? (
+          <Authorizations locale={locale} authorizations={authorizations} />
         ) : null}
       </Box>
       <Footer>
