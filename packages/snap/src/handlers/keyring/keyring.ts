@@ -1,7 +1,5 @@
 import type {
   CreateAccountOptions as KeyringApiCreateAccountOptions,
-  DiscoveredAccount,
-  EntropySourceId,
   KeyringAccount,
   KeyringRequest,
   Pagination,
@@ -9,29 +7,23 @@ import type {
   Transaction,
   Balance,
 } from '@metamask/keyring-api';
-import type { Keyring } from '@metamask/keyring-api';
 import {
   AccountCreationType,
   assertCreateAccountOptionIsSupported,
-  DiscoveredAccountType,
 } from '@metamask/keyring-api';
-import { KeyringRpcMethod } from '@metamask/keyring-api';
 import type { KeyringSnapRpc } from '@metamask/keyring-api/v2';
-import { KeyringSnapRpcMethod } from '@metamask/keyring-api/v2';
-import { handleKeyringRequest as handleKeyringRequestV1 } from '@metamask/keyring-snap-sdk';
 import { handleKeyringRequest } from '@metamask/keyring-snap-sdk/v2';
 import { InvalidParamsError } from '@metamask/snaps-sdk';
 import type { Json, JsonRpcRequest } from '@metamask/snaps-sdk';
-import type { CaipAssetTypeOrId } from '@metamask/utils';
-
 import type {
-  GetAccountRequest,
-  MultichainMethod,
-  ResolveAccountAddressJsonRpcRequest,
-} from './api';
+  CaipAssetType,
+  CaipAssetTypeOrId,
+  CaipChainId,
+} from '@metamask/utils';
+
+import type { GetAccountRequest, MultichainMethod } from './api';
 import {
   DeleteAccountRequestStruct,
-  DiscoverAccountsStruct,
   GetAccountRequestStruct,
   ListAccountTransactionsRequestStruct,
   MultichainMethodStruct,
@@ -46,6 +38,7 @@ import type {
   KnownCaip2ChainId,
 } from '../../api';
 import { AppConfig } from '../../config';
+import { SUPPORTED_SCOPES } from '../../constants';
 import type {
   AccountService,
   StellarKeyringAccount,
@@ -75,29 +68,7 @@ import {
 } from '../../utils';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
 
-/**
- * Methods routed to the Keyring API v2 dispatcher. Everything else falls back
- * to the v1 dispatcher, which MetaMask still uses for `keyring_listAccounts`
- * (account resync) and `keyring_discoverAccounts` (discovery).
- */
-const V2_METHODS = new Set<string>([
-  ...Object.values(KeyringSnapRpcMethod),
-  // The v2 dispatcher also accepts these deprecated v1 method names.
-  KeyringRpcMethod.ListAccountAssets,
-  KeyringRpcMethod.ListAccountTransactions,
-]);
-
-/**
- * `getAccountBalances` and `resolveAccountAddress` are omitted from the
- * implemented type because they intentionally narrow their parameters to the
- * Stellar scopes and asset IDs. The Keyring API declares them as function-typed
- * properties, so their parameters are checked contravariantly and a narrower
- * type is rejected. Both are validated at runtime by `validateRequest`.
- */
-export class KeyringHandler implements Omit<
-  KeyringSnapRpc,
-  'getAccountBalances' | 'resolveAccountAddress'
-> {
+export class KeyringHandler implements KeyringSnapRpc {
   readonly #logger: ILogger;
 
   readonly #accountService: AccountService;
@@ -136,12 +107,7 @@ export class KeyringHandler implements Omit<
           method: request.method,
         });
         validateOrigin(origin, request.method);
-        const keyringRequestResult = V2_METHODS.has(request.method)
-          ? await handleKeyringRequest(
-              this as unknown as KeyringSnapRpc,
-              request,
-            )
-          : await handleKeyringRequestV1(this as unknown as Keyring, request);
+        const keyringRequestResult = await handleKeyringRequest(this, request);
         this.#logger.debug('Keyring request handled', {
           origin,
           method: request.method,
@@ -168,16 +134,6 @@ export class KeyringHandler implements Omit<
   }
 
   /**
-   * Keyring API v1 alias of {@link getAccounts}. MetaMask still calls
-   * `keyring_listAccounts` when resyncing Snap accounts.
-   *
-   * @returns The keyring accounts.
-   */
-  async listAccounts(): Promise<KeyringAccount[]> {
-    return this.getAccounts();
-  }
-
-  /**
    * Batch account creation for the Snap keyring v2 path (no `AccountCreated` events).
    *
    * @param options - BIP-44 derive-index or derive-index-range options from the keyring API.
@@ -201,9 +157,7 @@ export class KeyringHandler implements Omit<
         index: options.groupIndex,
       });
 
-      if (
-        !(await this.#hasOnChainActivity(account, [AppConfig.selectedNetwork]))
-      ) {
+      if (!(await this.#hasOnChainActivity(account, SUPPORTED_SCOPES))) {
         return [];
       }
     }
@@ -314,34 +268,6 @@ export class KeyringHandler implements Omit<
     };
   }
 
-  async discoverAccounts(
-    scopes: KnownCaip2ChainId[],
-    entropySource: EntropySourceId,
-    groupIndex: number,
-  ): Promise<DiscoveredAccount[]> {
-    validateRequest(
-      { scopes, entropySource, groupIndex },
-      DiscoverAccountsStruct,
-    );
-
-    const account = await this.#accountService.deriveKeyringAccount({
-      entropySource,
-      index: groupIndex,
-    });
-
-    if (!(await this.#hasOnChainActivity(account, scopes))) {
-      return [];
-    }
-
-    return [
-      {
-        type: DiscoveredAccountType.Bip44,
-        scopes,
-        derivationPath: account.derivationPath,
-      },
-    ];
-  }
-
   /**
    * Checks whether the given account is activated on any of the given scopes.
    *
@@ -367,9 +293,12 @@ export class KeyringHandler implements Omit<
 
   async getAccountBalances(
     accountId: string,
-    assets: KnownCaip19AssetIdOrSlip44Id[],
-  ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, Balance>> {
-    validateRequest({ accountId, assets }, GetAccountBalancesRequestStruct);
+    assets: CaipAssetType[],
+  ): Promise<Record<CaipAssetType, Balance>> {
+    const { assets: knownAssets } = validateRequest(
+      { accountId, assets },
+      GetAccountBalancesRequestStruct,
+    );
 
     const scope = AppConfig.selectedNetwork;
     const assetBalances = {} as Record<KnownCaip19AssetIdOrSlip44Id, Balance>;
@@ -381,14 +310,14 @@ export class KeyringHandler implements Omit<
 
     // If the account is not activated or not yet synced, return the native asset with zero balance
     if (onChainAccount === null) {
-      const nativeAssetId = assets.find(isSlip44Id);
+      const nativeAssetId = knownAssets.find(isSlip44Id);
       if (nativeAssetId !== undefined) {
         assetBalances[nativeAssetId] = getDefaultBalanceEntry();
       }
       return assetBalances;
     }
 
-    for (const assetId of assets) {
+    for (const assetId of knownAssets) {
       const asset = onChainAccount.getAsset(assetId);
       // Skip when the asset is not visible (tombstone, zero SEP-41, or missing entry).
       if (asset === undefined) {
@@ -411,10 +340,10 @@ export class KeyringHandler implements Omit<
   }
 
   async resolveAccountAddress(
-    scope: KnownCaip2ChainId,
-    request: ResolveAccountAddressJsonRpcRequest,
+    scope: CaipChainId,
+    request: JsonRpcRequest,
   ): Promise<ResolvedAccountAddress | null> {
-    validateRequest(
+    const { scope: knownScope, request: sep43Request } = validateRequest(
       {
         request,
         scope,
@@ -424,10 +353,10 @@ export class KeyringHandler implements Omit<
 
     try {
       const { account } = await this.#accountService.resolveAccount({
-        scope,
-        accountAddress: request.params.opts.address,
+        scope: knownScope,
+        accountAddress: sep43Request.params.opts.address,
       });
-      return { address: `${scope}:${account.address}` };
+      return { address: `${knownScope}:${account.address}` };
     } catch (error: unknown) {
       // Return `null` signals "this snap does not
       // own the requested address" so MetaMask's routing layer will fallback to

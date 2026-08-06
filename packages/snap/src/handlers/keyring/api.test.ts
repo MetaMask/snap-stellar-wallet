@@ -3,7 +3,6 @@ import { assert, StructError } from '@metamask/superstruct';
 import {
   CreateAccountOptionsStruct,
   ResolveAccountAddressRequestStruct,
-  DiscoverAccountsStruct,
   ListAccountTransactionsRequestStruct,
   MultichainMethod,
   MultichainMethodStruct,
@@ -175,56 +174,6 @@ describe('ResolveAccountAddressRequestStruct', () => {
     expect(() => assert(request, ResolveAccountAddressRequestStruct)).toThrow(
       StructError,
     );
-  });
-});
-
-describe('DiscoverAccountsStruct', () => {
-  it('accepts a valid discoverAccounts request', () => {
-    const request = {
-      scopes: [KnownCaip2ChainId.Mainnet],
-      entropySource: 'entropy-source-1',
-      groupIndex: 0,
-    };
-    expect(() => assert(request, DiscoverAccountsStruct)).not.toThrow();
-  });
-
-  it('accepts multiple scopes', () => {
-    const request = {
-      scopes: [KnownCaip2ChainId.Mainnet, KnownCaip2ChainId.Testnet],
-      entropySource: 'entropy-source-1',
-      groupIndex: 0,
-    };
-    expect(() => assert(request, DiscoverAccountsStruct)).not.toThrow();
-  });
-
-  it.each([
-    {
-      scopes: [],
-      entropySource: 'entropy-source-1',
-      groupIndex: 1,
-    },
-    {
-      scopes: [KnownCaip2ChainId.Mainnet],
-      entropySource: 'entropy-source-1',
-      groupIndex: 1.5,
-    },
-    {
-      scopes: [KnownCaip2ChainId.Mainnet],
-      entropySource: 'entropy-source-1',
-      groupIndex: -1,
-    },
-    {
-      scopes: [KnownCaip2ChainId.Mainnet],
-      entropySource: 'entropy-source-1',
-      groupIndex: '0',
-    },
-    {
-      scopes: 'invalid-chain-id' as KnownCaip2ChainId,
-      entropySource: 'entropy-source-1',
-      groupIndex: 0,
-    },
-  ])('rejects an invalid discoverAccounts request', (request) => {
-    expect(() => assert(request, DiscoverAccountsStruct)).toThrow(StructError);
   });
 });
 

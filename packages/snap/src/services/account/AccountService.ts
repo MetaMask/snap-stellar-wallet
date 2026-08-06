@@ -7,8 +7,7 @@ import type { StellarKeyringAccount, StellarDerivationPath } from './api';
 import { AccountNotFoundException } from './exceptions';
 import { assertSameAddress } from './utils';
 import type { StellarAddress, KnownCaip2ChainId } from '../../api';
-import { AppConfig } from '../../config';
-import { KEYRING_ACCOUNT_TYPE } from '../../constants';
+import { KEYRING_ACCOUNT_TYPE, SUPPORTED_SCOPES } from '../../constants';
 import { MultichainMethod } from '../../handlers/keyring/api';
 import type { ILogger } from '../../utils';
 import {
@@ -349,8 +348,8 @@ export class AccountService {
       index,
       type: KEYRING_ACCOUNT_TYPE,
       address,
-      // Only selected network is supported for now
-      scopes: [AppConfig.selectedNetwork],
+      // The snap manifest's keyring capabilities are the source of truth.
+      scopes: SUPPORTED_SCOPES,
       options: {
         entropy: {
           type: 'mnemonic',
