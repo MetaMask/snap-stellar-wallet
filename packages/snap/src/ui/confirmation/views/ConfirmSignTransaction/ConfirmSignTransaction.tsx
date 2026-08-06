@@ -9,6 +9,7 @@ import {
   Text as SnapText,
   Tooltip,
   Divider,
+  Copyable,
 } from '@metamask/snaps-sdk/jsx';
 import type { Json } from '@metamask/utils';
 import { isNullOrUndefined } from '@metamask/utils';
@@ -98,23 +99,6 @@ const AssetParam = ({
   );
 };
 
-const AddressRow = ({
-  address,
-  scope,
-}: {
-  address: string;
-  scope: KnownCaip2ChainId;
-}): ComponentOrElement => {
-  return (
-    <Address
-      address={getAccountName(scope, address)}
-      truncate
-      displayName
-      avatar
-    />
-  );
-};
-
 const RenderReadableParamValue = (params: {
   locale: string;
   type: string;
@@ -151,7 +135,7 @@ const RenderReadableParamValue = (params: {
     case 'asset':
       return <AssetParam scope={scope} assetReference={value as string} />;
     case 'address':
-      return <AddressRow address={value as string} scope={scope} />;
+      return <Copyable value={value as string} />;
     case 'amount':
       return <AmountRow amount={value as string} />;
     default:
@@ -335,18 +319,6 @@ export const ConfirmSignTransaction = ({
             const showInvocationSummary =
               isInvokeHostFunction &&
               (contractAddress !== null || functionName !== null);
-            const operationParams: ReadableOperationField[] = [
-              ...(operationJson.explicitSource
-                ? [
-                    {
-                      key: 'source',
-                      value: operationJson.explicitSource as Json,
-                      type: 'address' as const,
-                    },
-                  ]
-                : []),
-              ...operationJson.params,
-            ];
 
             return (
               <Box
@@ -359,6 +331,14 @@ export const ConfirmSignTransaction = ({
                     `confirmation.transaction.${operationJson.type.toLowerCase()}` as LocalizedMessage,
                   )}
                 </Heading>
+                {operationJson.explicitSource ? (
+                  <Box direction="vertical">
+                    <SnapText fontWeight="medium" color="alternative">
+                      {t('confirmation.transaction.param.source')}
+                    </SnapText>
+                    <Copyable value={operationJson.explicitSource} />
+                  </Box>
+                ) : null}
                 {showInvocationSummary ? (
                   <InvocationSummary
                     locale={locale}
@@ -368,7 +348,7 @@ export const ConfirmSignTransaction = ({
                   />
                 ) : (
                   <ReadableParamsList
-                    params={operationParams}
+                    params={operationJson.params}
                     locale={locale}
                     scope={scope}
                     preferences={preferences}
