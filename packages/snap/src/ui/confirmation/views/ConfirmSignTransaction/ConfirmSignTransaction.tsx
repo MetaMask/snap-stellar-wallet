@@ -318,12 +318,18 @@ export const ConfirmSignTransaction = ({
           {readableTransaction.operations.map((operationJson, index) => {
             const isInvokeHostFunction =
               operationJson.type === StellarOperationType.InvokeHostFunction;
-            const contractAddress = getParam(
+            const contractAddress = getParam<string | null>(
               operationJson.params,
               'contractId',
             );
-            const functionName = getParam(operationJson.params, 'functionName');
-            const args = getParam(operationJson.params, 'arguments');
+            const functionName = getParam<string | null>(
+              operationJson.params,
+              'functionName',
+            );
+            const args = getParam<Json | null>(
+              operationJson.params,
+              'arguments',
+            );
             // Decoded invoke → InvocationSummary; fallback `note` (and other
             // undecoded host fns) → generic param rows.
             const showInvocationSummary =
