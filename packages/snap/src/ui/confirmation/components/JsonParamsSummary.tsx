@@ -1,6 +1,6 @@
-import { ComponentOrElement } from '@metamask/snaps-sdk';
+import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import { Box, Copyable, Text as SnapText } from '@metamask/snaps-sdk/jsx';
-import { Json } from '@metamask/utils';
+import type { Json } from '@metamask/utils';
 
 import { i18n } from '../../../utils';
 
@@ -8,9 +8,9 @@ import { i18n } from '../../../utils';
  * Renders decoded Soroban args as labeled rows (`Arg 1`, `Arg 2`, …).
  * All values are {@link Copyable}, including address / contract strkeys.
  *
- * @param params - Field value from {@link ReadableOperationField}.
- * @param params.value - JSON field value (typically `string[]`).
- * @param params.locale - Translation function.
+ * @param props - Component props.
+ * @param props.value - JSON field value (typically `string[]`).
+ * @param props.locale - Locale to use for translation.
  * @returns JSX for the confirmation row value.
  */
 export const JsonParamsSummary = ({

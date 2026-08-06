@@ -8,7 +8,7 @@ import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
-import { ReadableOperationField } from '../../services/transaction/OperationMapper';
+import type { ReadableOperationField } from '../../services/transaction/OperationMapper';
 import { parseOperationAssetReferenceSafe } from '../../services/transaction/utils';
 import { TransactionScanValidationType } from '../../services/transaction-scan';
 import type { TransactionScanResult } from '../../services/transaction-scan';
