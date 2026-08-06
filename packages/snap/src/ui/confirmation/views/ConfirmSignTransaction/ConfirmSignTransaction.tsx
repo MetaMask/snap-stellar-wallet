@@ -318,6 +318,17 @@ export const ConfirmSignTransaction = ({
           {readableTransaction.operations.map((operationJson, index) => {
             const isInvokeHostFunction =
               operationJson.type === StellarOperationType.InvokeHostFunction;
+            const contractAddress = getParam(
+              operationJson.params,
+              'contractId',
+            );
+            const functionName = getParam(operationJson.params, 'functionName');
+            const args = getParam(operationJson.params, 'arguments');
+            // Decoded invoke → InvocationSummary; fallback `note` (and other
+            // undecoded host fns) → generic param rows.
+            const showInvocationSummary =
+              isInvokeHostFunction &&
+              (contractAddress !== null || functionName !== null);
             const operationParams: ReadableOperationField[] = [
               ...(operationJson.explicitSource
                 ? [
@@ -342,18 +353,12 @@ export const ConfirmSignTransaction = ({
                     `confirmation.transaction.${operationJson.type.toLowerCase()}` as LocalizedMessage,
                   )}
                 </Heading>
-                {isInvokeHostFunction ? (
+                {showInvocationSummary ? (
                   <InvocationSummary
                     locale={locale}
-                    contractAddress={getParam(
-                      operationJson.params,
-                      'contractId',
-                    )}
-                    functionName={getParam(
-                      operationJson.params,
-                      'functionName',
-                    )}
-                    args={getParam(operationJson.params, 'arguments')}
+                    contractAddress={contractAddress}
+                    functionName={functionName}
+                    args={args}
                   />
                 ) : (
                   <ReadableParamsList
