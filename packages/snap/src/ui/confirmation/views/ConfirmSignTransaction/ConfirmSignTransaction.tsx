@@ -331,14 +331,15 @@ export const ConfirmSignTransaction = ({
                     `confirmation.transaction.${operationJson.type.toLowerCase()}` as LocalizedMessage,
                   )}
                 </Heading>
-                {operationJson.explicitSource ? (
+                {/* Source - only show if it's not the same as the signer account address */}
+                {operationJson.source === address ? null : (
                   <Box direction="vertical">
                     <SnapText fontWeight="medium" color="alternative">
                       {t('confirmation.transaction.param.source')}
                     </SnapText>
-                    <Copyable value={operationJson.explicitSource} />
+                    <Copyable value={operationJson.source} />
                   </Box>
-                ) : null}
+                )}
                 {showInvocationSummary ? (
                   <InvocationSummary
                     locale={locale}
