@@ -279,14 +279,14 @@ export const ConfirmSignTransaction = ({
             price={feePrice}
             tokenPricesFetchStatus={tokenPricesFetchStatus}
           />
-          {[readableTransaction.memo].filter(Boolean).map((memo) => (
-            <Box alignment="space-between" direction="horizontal">
-              <SnapText fontWeight="medium" color="alternative">
-                {t('confirmation.memo')}
-              </SnapText>
-              <SnapText>{memo}</SnapText>
-            </Box>
-          ))}
+          <Box alignment="space-between" direction="horizontal">
+            <SnapText fontWeight="medium" color="alternative">
+              {t('confirmation.memo')}
+            </SnapText>
+            <SnapText>
+              {readableTransaction.memo ?? t('confirmation.memo.none')}
+            </SnapText>
+          </Box>
         </Section>
 
         {/* Authorizations */}
