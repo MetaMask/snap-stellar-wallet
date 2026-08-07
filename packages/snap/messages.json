@@ -14,15 +14,6 @@
   "confirmation.estimatedChanges.receive": {
     "message": "You receive"
   },
-  "confirmation.estimatedChanges.sendOther": {
-    "message": "Send"
-  },
-  "confirmation.estimatedChanges.receiveOther": {
-    "message": "Receive"
-  },
-  "confirmation.estimatedChanges.account": {
-    "message": "Account"
-  },
   "confirmation.origin": {
     "message": "Request from"
   },
