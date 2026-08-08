@@ -92,15 +92,6 @@ export const ResolveAccountAddressRequestStruct = object({
 });
 
 /**
- * Validation struct for the discoverAccounts request.
- */
-export const DiscoverAccountsStruct = object({
-  scopes: nonempty(array(KnownCaip2ChainIdStruct)),
-  entropySource: nonempty(string()),
-  groupIndex: min(integer(), 0),
-});
-
-/**
  * Optional bag accepted by both SEP-43 sign methods.
  *
  * - `networkPassphrase`, when provided, must map to Stellar mainnet via

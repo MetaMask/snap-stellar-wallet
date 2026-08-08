@@ -1,41 +1,29 @@
-import {
-  AccountCreationType,
-  assertCreateAccountOptionIsSupported,
-  DiscoveredAccountType,
-  KeyringEvent,
-} from '@metamask/keyring-api';
 import type {
   CreateAccountOptions as KeyringApiCreateAccountOptions,
-  DiscoveredAccount,
-  EntropySourceId,
-  Keyring,
   KeyringAccount,
   KeyringRequest,
-  KeyringResponse,
   Pagination,
   ResolvedAccountAddress,
   Transaction,
   Balance,
 } from '@metamask/keyring-api';
 import {
-  emitSnapKeyringEvent,
-  handleKeyringRequest,
-  MethodNotSupportedError,
-} from '@metamask/keyring-snap-sdk';
+  AccountCreationType,
+  assertCreateAccountOptionIsSupported,
+} from '@metamask/keyring-api';
+import type { KeyringSnapRpc } from '@metamask/keyring-api/v2';
+import { handleKeyringRequest } from '@metamask/keyring-snap-sdk/v2';
 import { InvalidParamsError } from '@metamask/snaps-sdk';
 import type { Json, JsonRpcRequest } from '@metamask/snaps-sdk';
-import type { CaipAssetTypeOrId } from '@metamask/utils';
-
 import type {
-  CreateAccountOptions,
-  GetAccountRequest,
-  ResolveAccountAddressJsonRpcRequest,
-  MultichainMethod,
-} from './api';
+  CaipAssetType,
+  CaipAssetTypeOrId,
+  CaipChainId,
+} from '@metamask/utils';
+
+import type { GetAccountRequest, MultichainMethod } from './api';
 import {
-  CreateAccountOptionsStruct,
   DeleteAccountRequestStruct,
-  DiscoverAccountsStruct,
   GetAccountRequestStruct,
   ListAccountTransactionsRequestStruct,
   MultichainMethodStruct,
@@ -45,16 +33,12 @@ import {
   GetAccountBalancesRequestStruct,
 } from './api';
 import type { IKeyringRequestHandler } from './base';
-import {
-  KeyringAccountRollbackException,
-  KeyringEmitAccountCreatedEventException,
-  KeyringEmitAccountDeletedEventException,
-} from './exceptions';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
 } from '../../api';
 import { AppConfig } from '../../config';
+import { SUPPORTED_SCOPES } from '../../constants';
 import type {
   AccountService,
   StellarKeyringAccount,
@@ -76,7 +60,6 @@ import {
   createPrefixedLogger,
   Duration,
   getSlip44AssetId,
-  getSnapProvider,
   isClassicAssetId,
   isSlip44Id,
   validateOrigin,
@@ -85,7 +68,7 @@ import {
 } from '../../utils';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
 
-export class KeyringHandler implements Keyring {
+export class KeyringHandler implements KeyringSnapRpc {
   readonly #logger: ILogger;
 
   readonly #accountService: AccountService;
@@ -136,46 +119,18 @@ export class KeyringHandler implements Keyring {
     return result;
   }
 
-  async listAccounts(): Promise<KeyringAccount[]> {
-    const accounts = await this.#accountService.listAccounts();
-    return accounts.map((account) => this.#toKeyringAccount(account));
-  }
-
-  async getAccount(
-    accountId: GetAccountRequest,
-  ): Promise<KeyringAccount | undefined> {
+  async getAccount(accountId: GetAccountRequest): Promise<KeyringAccount> {
     validateRequest(accountId, GetAccountRequestStruct);
     const account = await this.#accountService.findById(accountId);
-    return account ? this.#toKeyringAccount(account) : undefined;
+    if (!account) {
+      throw new AccountNotFoundException(accountId);
+    }
+    return this.#toKeyringAccount(account);
   }
 
-  async createAccount(options?: CreateAccountOptions): Promise<KeyringAccount> {
-    validateRequest(options, CreateAccountOptionsStruct);
-
-    const { account, isNewAccount } =
-      await this.#accountService.create(options);
-
-    if (isNewAccount) {
-      try {
-        await this.#emitCreatedAccountEvent(account, options);
-      } catch (error: unknown) {
-        // Rollback if the event emission fails, e.g user rejected the account creation
-        try {
-          await this.#accountService.delete(account.id);
-        } catch (deleteError: unknown) {
-          // A more specific exception for the delete operation
-          throw new KeyringAccountRollbackException(account.id, {
-            cause: deleteError,
-          });
-        }
-
-        throw new KeyringEmitAccountCreatedEventException({
-          cause: error,
-        });
-      }
-    }
-
-    return this.#toKeyringAccount(account);
+  async getAccounts(): Promise<KeyringAccount[]> {
+    const accounts = await this.#accountService.listAccounts();
+    return accounts.map((account) => this.#toKeyringAccount(account));
   }
 
   /**
@@ -190,66 +145,39 @@ export class KeyringHandler implements Keyring {
     assertCreateAccountOptionIsSupported(options, [
       `${AccountCreationType.Bip44DeriveIndex}`,
       `${AccountCreationType.Bip44DeriveIndexRange}`,
+      `${AccountCreationType.Bip44Discover}`,
     ] as const);
 
-    let accounts: KeyringAccount[] = [];
-
-    if (options.type === AccountCreationType.Bip44DeriveIndex) {
-      const { account } = await this.#accountService.create({
+    // For discovery, only create the account if it has on-chain activity. No
+    // activity means we've reached the end of the discoverable accounts, so we
+    // return nothing and the client stops discovering.
+    if (options.type === AccountCreationType.Bip44Discover) {
+      const account = await this.#accountService.deriveKeyringAccount({
         entropySource: options.entropySource,
         index: options.groupIndex,
       });
-      accounts.push(this.#toKeyringAccount(account));
-    } else {
-      const createdAccounts = await this.#accountService.batchCreate({
-        entropySource: options.entropySource,
-        fromIndex: options.range.from,
-        toIndex: options.range.to,
-      });
-      accounts = createdAccounts.map((account) =>
-        this.#toKeyringAccount(account),
-      );
+
+      if (!(await this.#hasOnChainActivity(account, SUPPORTED_SCOPES))) {
+        return [];
+      }
     }
 
-    return accounts;
-  }
+    let range;
+    if (options.type === AccountCreationType.Bip44DeriveIndexRange) {
+      range = options.range;
+    } else {
+      // Bip44DeriveIndex | Bip44Discover — a single group index. Ranges are
+      // inclusive, so `from` and `to` are the same.
+      range = { from: options.groupIndex, to: options.groupIndex };
+    }
 
-  /**
-   * Emits the account-created event to the wallet.
-   * This triggers the wallet to prompt the user to add the account.
-   * If the user accepts, the account is added; if the user rejects, an error is thrown.
-   *
-   * @param account - The account to emit the event for.
-   * @param options - The options for the account creation.
-   * @returns A Promise that resolves when the event is emitted.
-   */
-  async #emitCreatedAccountEvent(
-    account: StellarKeyringAccount,
-    options?: CreateAccountOptions,
-  ): Promise<void> {
-    const keyringAccount = this.#toKeyringAccount(account);
-    await emitSnapKeyringEvent(getSnapProvider(), KeyringEvent.AccountCreated, {
-      /**
-       * We can't pass the `keyringAccount` object because it contains the index
-       * and the Snaps SDK does not allow extra properties.
-       */
-      account: keyringAccount,
-      /**
-       * Skip account creation confirmation dialogs to make it look like a native
-       * account creation flow.
-       */
-      displayConfirmation: false,
-      /**
-       * Internal options to MetaMask that include a correlation ID. We need
-       * to also emit this ID to the Snap keyring.
-       * Must be nested under `metamask` (keyring API). Do not spread
-       * `options.metamask` onto params or `correlationId` ends up at
-       * `params.correlationId` and fails validation (`never`).
-       */
-      ...(options?.metamask?.correlationId === undefined
-        ? {}
-        : { metamask: { correlationId: options.metamask.correlationId } }),
+    const createdAccounts = await this.#accountService.batchCreate({
+      entropySource: options.entropySource,
+      fromIndex: range.from,
+      toIndex: range.to,
     });
+
+    return createdAccounts.map((account) => this.#toKeyringAccount(account));
   }
 
   #toKeyringAccount(account: StellarKeyringAccount): KeyringAccount {
@@ -264,7 +192,7 @@ export class KeyringHandler implements Keyring {
     };
   }
 
-  async listAccountAssets(accountId: string): Promise<CaipAssetTypeOrId[]> {
+  async getAccountAssets(accountId: string): Promise<CaipAssetTypeOrId[]> {
     validateRequest(accountId, ListAccountAssetsRequestStruct);
 
     const scope = AppConfig.selectedNetwork;
@@ -283,7 +211,7 @@ export class KeyringHandler implements Keyring {
     return onChainAccount.assetIds;
   }
 
-  async listAccountTransactions(
+  async getAccountTransactions(
     accountId: string,
     pagination: Pagination,
   ): Promise<{
@@ -340,21 +268,17 @@ export class KeyringHandler implements Keyring {
     };
   }
 
-  async discoverAccounts(
+  /**
+   * Checks whether the given account is activated on any of the given scopes.
+   *
+   * @param account - The derived account to check.
+   * @param scopes - The scopes to check for on-chain activity.
+   * @returns Whether the account is activated on at least one scope.
+   */
+  async #hasOnChainActivity(
+    account: StellarKeyringAccount,
     scopes: KnownCaip2ChainId[],
-    entropySource: EntropySourceId,
-    groupIndex: number,
-  ): Promise<DiscoveredAccount[]> {
-    validateRequest(
-      { scopes, entropySource, groupIndex },
-      DiscoverAccountsStruct,
-    );
-
-    const account = await this.#accountService.deriveKeyringAccount({
-      entropySource,
-      index: groupIndex,
-    });
-
+  ): Promise<boolean> {
     const activityOnScopes = await Promise.all(
       scopes.map(async (scope) =>
         this.#onChainAccountService.isAccountActivated({
@@ -364,26 +288,17 @@ export class KeyringHandler implements Keyring {
       ),
     );
 
-    const isActivated = activityOnScopes.some((active) => active);
-
-    if (!isActivated) {
-      return [];
-    }
-
-    return [
-      {
-        type: DiscoveredAccountType.Bip44,
-        scopes,
-        derivationPath: account.derivationPath,
-      },
-    ];
+    return activityOnScopes.some((active) => active);
   }
 
   async getAccountBalances(
     accountId: string,
-    assets: KnownCaip19AssetIdOrSlip44Id[],
-  ): Promise<Record<KnownCaip19AssetIdOrSlip44Id, Balance>> {
-    validateRequest({ accountId, assets }, GetAccountBalancesRequestStruct);
+    assets: CaipAssetType[],
+  ): Promise<Record<CaipAssetType, Balance>> {
+    const { assets: knownAssets } = validateRequest(
+      { accountId, assets },
+      GetAccountBalancesRequestStruct,
+    );
 
     const scope = AppConfig.selectedNetwork;
     const assetBalances = {} as Record<KnownCaip19AssetIdOrSlip44Id, Balance>;
@@ -395,14 +310,14 @@ export class KeyringHandler implements Keyring {
 
     // If the account is not activated or not yet synced, return the native asset with zero balance
     if (onChainAccount === null) {
-      const nativeAssetId = assets.find(isSlip44Id);
+      const nativeAssetId = knownAssets.find(isSlip44Id);
       if (nativeAssetId !== undefined) {
         assetBalances[nativeAssetId] = getDefaultBalanceEntry();
       }
       return assetBalances;
     }
 
-    for (const assetId of assets) {
+    for (const assetId of knownAssets) {
       const asset = onChainAccount.getAsset(assetId);
       // Skip when the asset is not visible (tombstone, zero SEP-41, or missing entry).
       if (asset === undefined) {
@@ -425,10 +340,10 @@ export class KeyringHandler implements Keyring {
   }
 
   async resolveAccountAddress(
-    scope: KnownCaip2ChainId,
-    request: ResolveAccountAddressJsonRpcRequest,
+    scope: CaipChainId,
+    request: JsonRpcRequest,
   ): Promise<ResolvedAccountAddress | null> {
-    validateRequest(
+    const { scope: knownScope, request: sep43Request } = validateRequest(
       {
         request,
         scope,
@@ -438,10 +353,10 @@ export class KeyringHandler implements Keyring {
 
     try {
       const { account } = await this.#accountService.resolveAccount({
-        scope,
-        accountAddress: request.params.opts.address,
+        scope: knownScope,
+        accountAddress: sep43Request.params.opts.address,
       });
-      return { address: `${scope}:${account.address}` };
+      return { address: `${knownScope}:${account.address}` };
     } catch (error: unknown) {
       // Return `null` signals "this snap does not
       // own the requested address" so MetaMask's routing layer will fallback to
@@ -454,39 +369,8 @@ export class KeyringHandler implements Keyring {
     }
   }
 
-  async filterAccountChains(_id: string, _chains: string[]): Promise<string[]> {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- MethodNotSupportedError is the keyring snap error surface
-    throw new MethodNotSupportedError('filterAccountChains');
-  }
-
-  async updateAccount(_account: KeyringAccount): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/only-throw-error -- MethodNotSupportedError is the keyring snap error surface
-    throw new MethodNotSupportedError('updateAccount');
-  }
-
   async deleteAccount(accountId: string): Promise<void> {
     validateRequest(accountId, DeleteAccountRequestStruct);
-
-    const { account } = await this.#accountService.resolveAccount({
-      accountId,
-    });
-
-    try {
-      // The delete event is idempotent, so it is safe to emit it even if the
-      // account does not exist.
-      // @see https://github.com/MetaMask/accounts/blob/main/packages/keyring-api/README.md?plain=1#L162
-      await emitSnapKeyringEvent(
-        getSnapProvider(),
-        KeyringEvent.AccountDeleted,
-        {
-          id: account.id,
-        },
-      );
-    } catch (error: unknown) {
-      throw new KeyringEmitAccountDeletedEventException({
-        cause: error,
-      });
-    }
 
     await this.#accountService.delete(accountId);
   }
@@ -518,11 +402,7 @@ export class KeyringHandler implements Keyring {
     }
   }
 
-  async submitRequest(request: KeyringRequest): Promise<KeyringResponse> {
-    return { pending: false, result: await this.#handleSubmitRequest(request) };
-  }
-
-  async #handleSubmitRequest(request: KeyringRequest): Promise<Json> {
+  async submitRequest(request: KeyringRequest): Promise<Json> {
     const { method } = request.request;
 
     this.#assertMethodIsValid(method);
