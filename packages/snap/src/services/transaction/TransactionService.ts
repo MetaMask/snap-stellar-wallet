@@ -402,15 +402,46 @@ export class TransactionService {
       onChainAccount,
     );
 
-    this.validateTransaction(transaction, onChainAccount, {
-      expectedOPTypes: [
-        SupportedOperations.Payment,
-        SupportedOperations.PathPayment,
-        SupportedOperations.InvokeHostFunction,
-        SupportedOperations.ChangeTrust,
-      ],
-      preloadedAccounts,
-    });
+    try {
+      this.validateTransaction(transaction, onChainAccount, {
+        expectedOPTypes: [
+          SupportedOperations.Payment,
+          SupportedOperations.PathPayment,
+          SupportedOperations.InvokeHostFunction,
+          SupportedOperations.ChangeTrust,
+        ],
+        preloadedAccounts,
+      });
+    } catch (error) {
+      if (
+        error instanceof InsufficientBalanceException &&
+        isSlip44Id(error.assetId)
+      ) {
+        // Swap envelopes can split the source amount across multiple native
+        // debits. Report the amount available before any operation is applied
+        // instead of the remainder at whichever debit failed.
+        const availableBalance = onChainAccount.nativeSpendableBalance.minus(
+          transaction.totalFee,
+        );
+
+        // The simulator applies the fee first, then debits sequentially, so
+        // `error.balance` is the spendable remainder when the debit failed.
+        // Debits already applied = availableBalance - error.balance; adding
+        // the failing debit yields the total native the envelope needs up to
+        // the failure point, keeping `required` consistent with `balance`.
+        const requiredBalance = availableBalance
+          .minus(error.balance)
+          .plus(error.required);
+
+        throw new InsufficientBalanceException(
+          availableBalance.toString(),
+          requiredBalance.toString(),
+          error.assetId,
+        );
+      }
+
+      throw error;
+    }
 
     return transaction;
   }
