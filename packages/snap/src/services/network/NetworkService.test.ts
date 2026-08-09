@@ -266,6 +266,19 @@ describe('NetworkService', () => {
         networkService.loadOnChainAccount(testAddress, scope),
       ).rejects.toThrow(NetworkServiceException);
     });
+
+    it('throws NetworkServiceException when Horizon returns a malformed balance line', async () => {
+      const { loadAccountSpy } = getHorizonClientSpies();
+      loadAccountSpy.mockResolvedValue({
+        accountId: () => testAddress,
+        sequenceNumber: () => '1',
+        balances: [{ balance: 100, asset_type: 'native' }],
+      } as unknown as StellarHorizon.AccountResponse);
+
+      await expect(
+        networkService.loadOnChainAccount(testAddress, scope),
+      ).rejects.toThrow('Invalid Horizon account response');
+    });
   });
 
   describe('loadOnChainAccountWithCache', () => {
@@ -569,6 +582,23 @@ describe('NetworkService', () => {
 
       assetsSpy.mockRestore();
     });
+
+    it('throws NetworkServiceException when Horizon omits the assets records', async () => {
+      const call = jest.fn().mockResolvedValue({});
+      const assetsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'assets')
+        .mockReturnValue({
+          forCode: jest.fn().mockReturnValue({
+            forIssuer: jest.fn().mockReturnValue({ call }),
+          }),
+        } as never);
+
+      await expect(
+        networkService.getClassicAssetData(classicAssetId, scope),
+      ).rejects.toThrow('Invalid Horizon assets response');
+
+      assetsSpy.mockRestore();
+    });
   });
 
   describe('pollTransaction', () => {
@@ -703,6 +733,24 @@ describe('NetworkService', () => {
 
       transactionsSpy.mockRestore();
     });
+
+    it('throws NetworkServiceException when Horizon omits the ledger outcome', async () => {
+      const call = jest.fn().mockResolvedValue({});
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
+
+      await expect(
+        networkService.getHorizonTransactionInclusionStatus(
+          testTransactionHash,
+          scope,
+        ),
+      ).rejects.toThrow('Invalid Horizon transaction response');
+
+      transactionsSpy.mockRestore();
+    });
   });
 
   describe('getTransaction', () => {
@@ -741,6 +789,23 @@ describe('NetworkService', () => {
       await expect(
         networkService.getTransaction(testTransactionHash, scope),
       ).rejects.toThrow(TransactionNotFoundException);
+
+      transactionsSpy.mockRestore();
+    });
+
+    it('throws NetworkServiceException when the Horizon record omits the envelope', async () => {
+      const { envelope_xdr: _omitted, ...recordWithoutEnvelope } =
+        buildMockHorizonTransactionRecord();
+      const call = jest.fn().mockResolvedValue(recordWithoutEnvelope);
+      const transactionsSpy = jest
+        .spyOn(StellarHorizon.Server.prototype, 'transactions')
+        .mockReturnValue({
+          transaction: jest.fn().mockReturnValue({ call }),
+        } as never);
+
+      await expect(
+        networkService.getTransaction(testTransactionHash, scope),
+      ).rejects.toThrow('Invalid Horizon transaction response');
 
       transactionsSpy.mockRestore();
     });
@@ -1004,6 +1069,22 @@ describe('NetworkService', () => {
           order: 'asc',
         }),
       ).rejects.toThrow(NetworkServiceException);
+
+      transactionsSpy.mockRestore();
+    });
+
+    it('throws NetworkServiceException when the Horizon page omits the records', async () => {
+      const call = jest.fn().mockResolvedValue({});
+      const transactionsSpy = mockHorizonAccountTransactions(call);
+
+      await expect(
+        networkService.getTransactions({
+          accountAddress: generateStellarAddress(),
+          lastScanToken: '',
+          scope,
+          order: 'asc',
+        }),
+      ).rejects.toThrow('Invalid Horizon transactions response');
 
       transactionsSpy.mockRestore();
     });

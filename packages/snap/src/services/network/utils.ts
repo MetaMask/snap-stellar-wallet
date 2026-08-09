@@ -1,7 +1,10 @@
+import type { Struct } from '@metamask/superstruct';
+import { assert } from '@metamask/superstruct';
 import { ensureError } from '@metamask/utils';
 import { Networks, NotFoundError } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { NetworkServiceException } from './exceptions';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { BASE_FEE } from '../../constants';
@@ -12,6 +15,26 @@ const StellarNetwork: Record<KnownCaip2ChainId, Networks> = {
   [KnownCaip2ChainId.Mainnet]: Networks.PUBLIC,
   [KnownCaip2ChainId.Testnet]: Networks.TESTNET,
 };
+
+/**
+ * Validates the fields the snap consumes from a Horizon response.
+ *
+ * @param response - Response returned by the Horizon client.
+ * @param struct - Validation struct for the consumed fields.
+ * @param message - Message of the thrown exception.
+ * @throws {NetworkServiceException} When `response` does not match `struct`.
+ */
+export function assertNetworkResponse<Validated>(
+  response: unknown,
+  struct: Struct<Validated>,
+  message: string,
+): void {
+  try {
+    assert(response, struct);
+  } catch (error: unknown) {
+    throw new NetworkServiceException(message, { cause: error });
+  }
+}
 
 /**
  * Returns the Stellar network passphrase for the given scope (e.g. for transaction building).

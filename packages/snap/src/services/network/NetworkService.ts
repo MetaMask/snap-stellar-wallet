@@ -8,7 +8,14 @@ import {
 } from '@stellar/stellar-sdk';
 
 import type { AssetDataResponse } from './api';
-import { KnownRpcError } from './api';
+import {
+  HorizonAccountResponseStruct,
+  HorizonAssetPageStruct,
+  HorizonTransactionInclusionStruct,
+  HorizonTransactionPageStruct,
+  HorizonTransactionRecordStruct,
+  KnownRpcError,
+} from './api';
 import {
   AccountNotActivatedException,
   NetworkServiceException,
@@ -25,6 +32,7 @@ import {
   StellarRouterContract,
 } from './MultiCall';
 import {
+  assertNetworkResponse,
   baseInclusionFee,
   isAccountNotFoundError,
   sep41MulticallCellToBalance,
@@ -163,7 +171,7 @@ export class NetworkService {
    * @param transactionHash - Transaction hash from submission (hex).
    * @param scope - CAIP-2 chain id (Horizon endpoint).
    * @returns `pending` when the tx is not yet available (404); `success` / `failed` when present.
-   * @throws {NetworkServiceException} When Horizon returns a non-404 error.
+   * @throws {NetworkServiceException} When Horizon returns a non-404 error or an invalid record.
    */
   async getHorizonTransactionInclusionStatus(
     transactionHash: string,
@@ -175,6 +183,11 @@ export class NetworkService {
         .transactions()
         .transaction(transactionHash)
         .call();
+      assertNetworkResponse(
+        record,
+        HorizonTransactionInclusionStruct,
+        'Invalid Horizon transaction response',
+      );
       return record.successful ? 'success' : 'failed';
     } catch (error: unknown) {
       if (error instanceof NotFoundError) {
@@ -225,7 +238,7 @@ export class NetworkService {
    * @param scope - The CAIP-2 chain ID.
    * @returns A Promise that resolves to a {@link OnChainAccount} backed by Horizon's account response.
    * @throws {AccountNotActivatedException} If the account does not exist on the network.
-   * @throws {NetworkServiceException} If loading fails for another reason (e.g. network error).
+   * @throws {NetworkServiceException} If loading fails for another reason (e.g. network error) or the response is invalid.
    */
   async loadOnChainAccount(
     accountAddress: string,
@@ -233,10 +246,13 @@ export class NetworkService {
   ): Promise<OnChainAccount> {
     try {
       const client = this.#getHorizonClient(scope);
-      return OnChainAccount.fromHorizon(
-        await client.loadAccount(accountAddress),
-        scope,
+      const response = await client.loadAccount(accountAddress);
+      assertNetworkResponse(
+        response,
+        HorizonAccountResponseStruct,
+        'Invalid Horizon account response',
       );
+      return OnChainAccount.fromHorizon(response, scope);
     } catch (error: unknown) {
       if (isAccountNotFoundError(error, accountAddress)) {
         throw new AccountNotActivatedException(accountAddress, scope, {
@@ -428,7 +444,7 @@ export class NetworkService {
    * @param assetId - CAIP-19 classic asset id (`…/asset:CODE-ISSUER`).
    * @param scope - The CAIP-2 chain ID.
    * @returns for the classic asset.
-   * @throws {NetworkServiceException} When Horizon returns no entry for this asset or the request fails.
+   * @throws {NetworkServiceException} When Horizon returns no entry for this asset, the response is invalid, or the request fails.
    */
   async getClassicAssetData(
     assetId: KnownCaip19ClassicAssetId,
@@ -444,9 +460,13 @@ export class NetworkService {
         .forCode(assetCode)
         .forIssuer(assetIssuer)
         .call();
+      assertNetworkResponse(
+        assetData,
+        HorizonAssetPageStruct,
+        'Invalid Horizon assets response',
+      );
 
       if (
-        !assetData ||
         assetData.records.length === 0 ||
         assetData.records[0]?.asset_code !== assetCode ||
         assetData.records[0]?.asset_issuer !== assetIssuer
@@ -753,7 +773,7 @@ export class NetworkService {
    * @param scope - CAIP-2 network scope used to choose the Horizon client and decode envelope XDR.
    * @returns The mapped {@link Transaction}.
    * @throws {TransactionNotFoundException} When Horizon reports the transaction is not found.
-   * @throws {NetworkServiceException} When the transaction cannot be fetched or mapped for another reason.
+   * @throws {NetworkServiceException} When the transaction cannot be fetched, fails validation, or cannot be mapped.
    */
   async getTransaction(
     transactionHash: string,
@@ -765,6 +785,11 @@ export class NetworkService {
         .transactions()
         .transaction(transactionHash)
         .call();
+      assertNetworkResponse(
+        result,
+        HorizonTransactionRecordStruct,
+        'Invalid Horizon transaction response',
+      );
       return this.#toTransaction(result, scope);
     } catch (error: unknown) {
       if (error instanceof NotFoundError) {
@@ -839,6 +864,11 @@ export class NetworkService {
         .limit(pageSize)
         .includeFailed(includeFailed)
         .call();
+      assertNetworkResponse(
+        initialTransactionsResponse,
+        HorizonTransactionPageStruct,
+        'Invalid Horizon transactions response',
+      );
 
       let transactions = this.#toTransactions(
         initialTransactionsResponse.records,
@@ -857,6 +887,11 @@ export class NetworkService {
         currentResponse.records.length === pageSize
       ) {
         currentResponse = await currentResponse.next();
+        assertNetworkResponse(
+          currentResponse,
+          HorizonTransactionPageStruct,
+          'Invalid Horizon transactions response',
+        );
 
         if (currentResponse.records.length === 0) {
           break;
