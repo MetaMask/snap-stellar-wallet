@@ -7,7 +7,7 @@ import type { StellarKeyringAccount, StellarDerivationPath } from './api';
 import { AccountNotFoundException } from './exceptions';
 import { assertSameAddress } from './utils';
 import type { StellarAddress, KnownCaip2ChainId } from '../../api';
-import { KEYRING_ACCOUNT_TYPE, SUPPORTED_SCOPES } from '../../constants';
+import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import { MultichainMethod } from '../../handlers/keyring/api';
 import type { ILogger } from '../../utils';
 import {
@@ -16,6 +16,7 @@ import {
   getDefaultEntropySource,
   getSnapProvider,
 } from '../../utils';
+import { getSupportScopes } from '../../utils/scopes';
 import { getDerivationPath } from '../wallet';
 import type { WalletService } from '../wallet';
 
@@ -349,7 +350,7 @@ export class AccountService {
       type: KEYRING_ACCOUNT_TYPE,
       address,
       // The snap manifest's keyring capabilities are the source of truth.
-      scopes: SUPPORTED_SCOPES,
+      scopes: getSupportScopes(),
       options: {
         entropy: {
           type: 'mnemonic',

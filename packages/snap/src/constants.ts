@@ -1,15 +1,13 @@
 import { XlmAccountType } from '@metamask/keyring-api';
 
-import type { KnownCaip2ChainId } from './api';
 import snapManifest from '../snap.manifest.json';
 
 /**
  * Scopes supported by this snap for account creation and discovery. The snap
  * manifest's `endowment:keyring` capabilities are the source of truth.
  */
-export const SUPPORTED_SCOPES = snapManifest.initialPermissions[
-  'endowment:keyring'
-].capabilities.scopes as KnownCaip2ChainId[];
+export const SUPPORTED_SCOPES =
+  snapManifest.initialPermissions['endowment:keyring'].capabilities.scopes;
 
 /**
  * The base reserve for the Stellar network.

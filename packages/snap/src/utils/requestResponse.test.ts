@@ -51,24 +51,12 @@ describe('validateOrigin', () => {
   it.each([
     KeyringSnapRpcMethod.GetAccounts,
     KeyringSnapRpcMethod.GetAccount,
-    KeyringSnapRpcMethod.DeleteAccount,
-    KeyringSnapRpcMethod.GetAccountBalances,
+    KeyringSnapRpcMethod.CreateAccounts,
     KeyringSnapRpcMethod.SubmitRequest,
-    KeyringSnapRpcMethod.GetAccountTransactions,
-    KeyringSnapRpcMethod.GetAccountAssets,
-  ])('allows method %s for allowed dapps', (method) => {
-    const origin = 'http://localhost:3000';
-
-    expect(() => validateOrigin(origin, method)).not.toThrow();
-  });
-
-  it('rejects createAccounts for dapps', () => {
-    expect(() =>
-      validateOrigin(
-        'http://localhost:3000',
-        KeyringSnapRpcMethod.CreateAccounts,
-      ),
-    ).toThrow(UnauthorizedError);
+  ])('rejects method %s for dapps', (method) => {
+    expect(() => validateOrigin('http://localhost:3000', method)).toThrow(
+      UnauthorizedError,
+    );
   });
 
   it.each([

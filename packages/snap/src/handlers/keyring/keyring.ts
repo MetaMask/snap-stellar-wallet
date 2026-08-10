@@ -38,7 +38,6 @@ import type {
   KnownCaip2ChainId,
 } from '../../api';
 import { AppConfig } from '../../config';
-import { SUPPORTED_SCOPES } from '../../constants';
 import type {
   AccountService,
   StellarKeyringAccount,
@@ -66,6 +65,7 @@ import {
   validateRequest,
   withCatchAndThrowSnapError,
 } from '../../utils';
+import { getSupportScopes } from '../../utils/scopes';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
 
 export class KeyringHandler implements KeyringSnapRpc {
@@ -157,7 +157,7 @@ export class KeyringHandler implements KeyringSnapRpc {
         index: options.groupIndex,
       });
 
-      if (!(await this.#hasOnChainActivity(account, SUPPORTED_SCOPES))) {
+      if (!(await this.#hasOnChainActivity(account, getSupportScopes()))) {
         return [];
       }
     }
