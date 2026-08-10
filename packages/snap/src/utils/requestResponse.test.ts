@@ -1,3 +1,4 @@
+import { KeyringRpcMethod } from '@metamask/keyring-api';
 import { KeyringSnapRpcMethod } from '@metamask/keyring-api/v2';
 import {
   InvalidParamsError,
@@ -57,6 +58,17 @@ describe('validateOrigin', () => {
     expect(() => validateOrigin('http://localhost:3000', method)).toThrow(
       UnauthorizedError,
     );
+  });
+
+  it.each([
+    KeyringSnapRpcMethod.GetAccounts,
+    KeyringSnapRpcMethod.GetAccount,
+    KeyringSnapRpcMethod.SubmitRequest,
+    KeyringRpcMethod.ListAccountAssets,
+  ])('rejects method %s for the connected dapp origin', (method) => {
+    expect(() =>
+      validateOrigin('https://portfolio.metamask.io', method),
+    ).toThrow(UnauthorizedError);
   });
 
   it.each([
