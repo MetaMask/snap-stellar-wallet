@@ -18,6 +18,7 @@ import { KnownCaip19Slip44IdMap } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import {
   InsufficientBalanceException,
+  InsufficientBalanceToCoverBaseReserveException,
   InsufficientBalanceToCoverFeeException,
 } from '../../services/transaction';
 import type { TransactionService } from '../../services/transaction/TransactionService';
@@ -102,7 +103,8 @@ export class ComputeFeeHandler extends BaseClientRequestHandler<
       if (
         (error instanceof InsufficientBalanceException &&
           isSlip44Id(error.assetId)) ||
-        error instanceof InsufficientBalanceToCoverFeeException
+        error instanceof InsufficientBalanceToCoverFeeException ||
+        error instanceof InsufficientBalanceToCoverBaseReserveException
       ) {
         return [
           {
