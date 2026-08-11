@@ -11,7 +11,7 @@ import { SUPPORTED_SCOPES } from '../constants';
  * @returns The supported scopes.
  * @throws When the manifest declares a scope that is not a known chain id.
  */
-export function getSupportScopes(): KnownCaip2ChainId[] {
+export function getSupportedScopes(): KnownCaip2ChainId[] {
   // Make sure the manifest only declares scopes this snap knows about.
   assert(SUPPORTED_SCOPES, array(KnownCaip2ChainIdStruct));
   return SUPPORTED_SCOPES;

@@ -16,7 +16,7 @@ import {
   getDefaultEntropySource,
   getSnapProvider,
 } from '../../utils';
-import { getSupportScopes } from '../../utils/scopes';
+import { getSupportedScopes } from '../../utils/scopes';
 import { getDerivationPath } from '../wallet';
 import type { WalletService } from '../wallet';
 
@@ -350,7 +350,7 @@ export class AccountService {
       type: KEYRING_ACCOUNT_TYPE,
       address,
       // The snap manifest's keyring capabilities are the source of truth.
-      scopes: getSupportScopes(),
+      scopes: getSupportedScopes(),
       options: {
         entropy: {
           type: 'mnemonic',

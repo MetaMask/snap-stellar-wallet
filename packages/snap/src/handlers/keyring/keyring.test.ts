@@ -129,7 +129,7 @@ describe('KeyringHandler', () => {
   });
 
   describe('handle', () => {
-    const v2Request = {
+    const request = {
       method: 'keyring_getAccounts',
       id: '1',
       jsonrpc: '2.0',
@@ -138,11 +138,11 @@ describe('KeyringHandler', () => {
     it('routes keyring methods to the v2 dispatcher', async () => {
       jest.mocked(handleKeyringRequest).mockResolvedValue([]);
 
-      const result = await keyringHandler.handle(METAMASK_ORIGIN, v2Request);
+      const result = await keyringHandler.handle(METAMASK_ORIGIN, request);
 
       expect(handleKeyringRequest).toHaveBeenCalledWith(
         keyringHandler,
-        v2Request,
+        request,
       );
       expect(result).toStrictEqual([]);
     });
@@ -150,7 +150,7 @@ describe('KeyringHandler', () => {
     it('returns null if the dispatcher returns null', async () => {
       jest.mocked(handleKeyringRequest).mockResolvedValue(null);
 
-      const result = await keyringHandler.handle(METAMASK_ORIGIN, v2Request);
+      const result = await keyringHandler.handle(METAMASK_ORIGIN, request);
 
       expect(result).toBeNull();
     });
@@ -181,10 +181,8 @@ describe('KeyringHandler', () => {
         InvalidParamsError,
       );
     });
-  });
 
-  describe('getAccount (v2 semantics)', () => {
-    it('throws for an unknown account id instead of returning undefined', async () => {
+    it('throws for an unknown account id', async () => {
       const { findByIdSpy } = getAccountServiceSpies();
       findByIdSpy.mockResolvedValue(undefined);
 

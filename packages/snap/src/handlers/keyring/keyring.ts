@@ -65,7 +65,7 @@ import {
   validateRequest,
   withCatchAndThrowSnapError,
 } from '../../utils';
-import { getSupportScopes } from '../../utils/scopes';
+import { getSupportedScopes } from '../../utils/scopes';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
 
 export class KeyringHandler implements KeyringSnapRpc {
@@ -157,7 +157,7 @@ export class KeyringHandler implements KeyringSnapRpc {
         index: options.groupIndex,
       });
 
-      if (!(await this.#hasOnChainActivity(account, getSupportScopes()))) {
+      if (!(await this.#hasOnChainActivity(account, getSupportedScopes()))) {
         return [];
       }
     }

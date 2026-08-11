@@ -19,7 +19,7 @@ import {
   UrlStruct,
   KnownCaip2ChainId,
 } from './api';
-import { getSupportScopes } from './utils/scopes';
+import { getSupportedScopes } from './utils/scopes';
 
 const DEFAULT_TOKEN_API_BASE_URL = 'https://tokens.api.cx.metamask.io';
 
@@ -78,7 +78,7 @@ const networkConfigStruct = object({
  * If the selected network is empty, it returns the default selected network.
  */
 const selectedNetworkStruct = coerce(
-  defaulted(enums(getSupportScopes()), KnownCaip2ChainId.Mainnet),
+  defaulted(enums(getSupportedScopes()), KnownCaip2ChainId.Mainnet),
   string(),
   (value: string) => (value === '' ? undefined : value.toLowerCase()),
 );
