@@ -160,7 +160,8 @@ export const SpotPriceStruct = type({
   high1d: optional(nullable(min(number(), 0))),
   low1d: optional(nullable(min(number(), 0))),
   circulatingSupply: optional(nullable(min(number(), 0))),
-  dilutedMarketCap: optional(nullable(min(number(), 0))),
+  // Fully diluted market cap can be negative from the Price API.
+  dilutedMarketCap: optional(nullable(number())),
   marketCapPercentChange1d: optional(nullable(number())),
   priceChange1d: optional(nullable(number())),
   pricePercentChange1h: optional(nullable(number())),

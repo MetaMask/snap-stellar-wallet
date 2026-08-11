@@ -125,6 +125,15 @@ describe('price-api structs', () => {
         assert({ id: 'xlm', price: -0.01 }, SpotPriceStruct),
       ).toThrow(StructError);
     });
+
+    it('accepts negative dilutedMarketCap', () => {
+      expect(() =>
+        assert(
+          { id: 'xlm', price: 0.12, dilutedMarketCap: -1 },
+          SpotPriceStruct,
+        ),
+      ).not.toThrow();
+    });
   });
 
   describe('GetSpotPricesResponseStruct', () => {
