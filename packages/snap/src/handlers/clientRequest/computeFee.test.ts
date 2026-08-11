@@ -20,6 +20,7 @@ import {
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import {
   InsufficientBalanceException,
+  InsufficientBalanceToCoverBaseReserveException,
   InsufficientBalanceToCoverFeeException,
   TransactionService,
 } from '../../services/transaction';
@@ -42,7 +43,7 @@ describe('ComputeFeeHandler', () => {
     jest.restoreAllMocks();
   });
 
-  function setup({ subentryCount = 0 }: { subentryCount?: number } = {}) {
+  function setup() {
     const wallet = getTestWallet();
     const account = generateStellarKeyringAccount(
       accountId,
@@ -54,7 +55,6 @@ describe('ComputeFeeHandler', () => {
       ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
       nativeBalance: 10,
       assets: [],
-      subentryCount,
     });
     const onChainAccount = new OnChainAccount(
       mockRawAccount,
@@ -186,9 +186,10 @@ describe('ComputeFeeHandler', () => {
     );
   });
 
-  // The mock account has no subentries, so its minimum reserve is the 2 base
-  // reserves (1 XLM) that get added to the required amount below.
-  it('returns the required native fee plus the minimum reserve when balance is insufficient to cover fees', async () => {
+  // Reported amount is nativeRawBalance + (required - balance) so clients that
+  // only compare against total balance still see a shortfall that includes locks.
+  // Mock account nativeRawBalance is 10 XLM (100000000 stroops).
+  it('returns nativeRawBalance plus the shortfall when balance is insufficient to cover fees', async () => {
     const { handler, request, createValidatedSwapTransaction } = setup();
     createValidatedSwapTransaction.mockRejectedValueOnce(
       new InsufficientBalanceToCoverFeeException('100', '12500000'),
@@ -202,14 +203,15 @@ describe('ComputeFeeHandler', () => {
         asset: {
           unit: NATIVE_ASSET_SYMBOL,
           type: KnownCaip19Slip44IdMap[scope],
-          amount: '2.25',
+          // 100000000 + (12500000 - 100) = 112499900 stroops
+          amount: '11.24999',
           fungible: true,
         },
       },
     ]);
   });
 
-  it('returns the required native amount plus the minimum reserve when native balance is insufficient for the swap', async () => {
+  it('returns nativeRawBalance plus the shortfall when native balance is insufficient for the swap', async () => {
     const { handler, request, createValidatedSwapTransaction } = setup();
     createValidatedSwapTransaction.mockRejectedValueOnce(
       new InsufficientBalanceException(
@@ -227,18 +229,38 @@ describe('ComputeFeeHandler', () => {
         asset: {
           unit: NATIVE_ASSET_SYMBOL,
           type: KnownCaip19Slip44IdMap[scope],
-          amount: '6',
+          // 100000000 + (50000000 - 100) = 149999900 stroops
+          amount: '14.99999',
           fungible: true,
         },
       },
     ]);
   });
 
-  it('scales the reported reserve with the account subentry count', async () => {
-    // 5 trustlines -> (2 + 5) base reserves -> 3.5 XLM on top of 0.99125 XLM.
-    const { handler, request, createValidatedSwapTransaction } = setup({
-      subentryCount: 5,
-    });
+  it('returns nativeRawBalance plus the shortfall for InsufficientBalanceToCoverBaseReserveException', async () => {
+    const { handler, request, createValidatedSwapTransaction } = setup();
+    createValidatedSwapTransaction.mockRejectedValueOnce(
+      new InsufficientBalanceToCoverBaseReserveException('999900', '5000000'),
+    );
+
+    const result = await handler.handle(request);
+
+    expect(result).toStrictEqual([
+      {
+        type: FeeType.Base,
+        asset: {
+          unit: NATIVE_ASSET_SYMBOL,
+          type: KnownCaip19Slip44IdMap[scope],
+          // 100000000 + (5000000 - 999900) = 104000100 stroops
+          amount: '10.40001',
+          fungible: true,
+        },
+      },
+    ]);
+  });
+
+  it('reports nativeRawBalance plus required minus balance for any spendable shortfall', async () => {
+    const { handler, request, createValidatedSwapTransaction } = setup();
     createValidatedSwapTransaction.mockRejectedValueOnce(
       new InsufficientBalanceException(
         '5095615',
@@ -255,7 +277,8 @@ describe('ComputeFeeHandler', () => {
         asset: {
           unit: NATIVE_ASSET_SYMBOL,
           type: KnownCaip19Slip44IdMap[scope],
-          amount: '4.49125',
+          // 100000000 + (9912500 - 5095615) = 104816885 stroops
+          amount: '10.4816885',
           fungible: true,
         },
       },
