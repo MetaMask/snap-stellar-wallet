@@ -82,7 +82,7 @@ describe('SignMessageHandler', () => {
     request: {
       method: MultichainMethod.SignMessage,
       params: {
-        message: btoa('hello stellar'),
+        message: 'hello stellar',
         ...overrides,
       },
     },
@@ -95,11 +95,18 @@ describe('SignMessageHandler', () => {
 
     const result = await handler.handle(buildRequest(mockAccount.id));
 
-    const expected = wallet.signMessage(btoa('hello stellar'));
+    const expected = wallet.signMessage('hello stellar');
     expect(result).toStrictEqual({
       signedMessage: expected,
       signerAddress: wallet.address,
     });
+    expect(renderConfirmationDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        renderContext: expect.objectContaining({
+          message: 'hello stellar',
+        }),
+      }),
+    );
   });
 
   it('returns error -4 when user rejects', async () => {
@@ -170,7 +177,7 @@ describe('SignMessageHandler', () => {
     expect(renderConfirmationDialog).not.toHaveBeenCalled();
   });
 
-  it('signs a non-base64 string as UTF-8 text', async () => {
+  it('signs and displays the UTF-8 message as given', async () => {
     const { handler, mockAccount, wallet, renderConfirmationDialog } =
       setupHandler();
     renderConfirmationDialog.mockResolvedValue(true);
@@ -185,6 +192,13 @@ describe('SignMessageHandler', () => {
       signedMessage: expected,
       signerAddress: wallet.address,
     });
+    expect(renderConfirmationDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        renderContext: expect.objectContaining({
+          message: utf8Message,
+        }),
+      }),
+    );
   });
 
   it('ignores opts.address: signer is always determined by the keyring account UUID', async () => {
@@ -200,7 +214,7 @@ describe('SignMessageHandler', () => {
       buildRequest(mockAccount.id, { opts: { address: otherAddress } }),
     );
 
-    const expected = wallet.signMessage(btoa('hello stellar'));
+    const expected = wallet.signMessage('hello stellar');
     expect(result).toStrictEqual({
       signedMessage: expected,
       signerAddress: wallet.address,

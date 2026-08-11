@@ -1,6 +1,6 @@
 # Use case: `signMessage`
 
-SEP-43: confirm and sign an arbitrary message (UTF-8 or base64 bytes).
+SEP-43: confirm and sign an arbitrary UTF-8 message.
 
 |              |                                                                                   |
 | ------------ | --------------------------------------------------------------------------------- |
@@ -27,19 +27,19 @@ Wire format follows **SEP-43** `signMessage` (via keyring `submitRequest`):
 
 Local validators: [`handlers/keyring/api.ts`](../../../src/handlers/keyring/api.ts) (`SignMessageRequestStruct` / `SignMessageResponseStruct`).
 
+This snap accepts **UTF-8 text only** for `message` (non-empty). Base64-encoded binary payloads are not auto-detected.
+
 ## How signing works
 
 Signing follows the **Stellar Signed Message** protocol ([SEP-0053](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0053.md)), implemented in [`Wallet.signMessage`](../../../src/services/wallet/Wallet.ts):
 
-1. **Interpret `message`** (SEP-43 allows UTF-8 text or base64-encoded bytes):
-   - If the string is valid base64 → decode to raw bytes.
-   - Otherwise → treat as UTF-8 text.
+1. **Interpret `message`** — always as UTF-8 text (string → UTF-8 bytes).
 2. **Build the payload** — prepend the fixed prefix `Stellar Signed Message:\n`, then append the message bytes.
 3. **Hash** — SHA-256 over that byte sequence.
 4. **Sign** — Ed25519 sign the digest with the account’s keypair.
 5. **Return** — base64-encoded signature as `signedMessage` (SEP-43 response).
 
-The confirmation UI decodes base64 `message` to UTF-8 for display when possible, but **what gets signed** always follows the rules above (same detection as step 1).
+The confirmation UI shows the UTF-8 `message` string as given — the same content that gets signed.
 
 **References**
 
@@ -51,8 +51,8 @@ The confirmation UI decodes base64 `message` to UTF-8 for display when possible,
 ## Step-by-step
 
 1. Resolve keyring account + wallet for the signer.
-2. Show confirmation (message shown as UTF-8 when base64; signing still uses SEP-0053 rules above).
-3. On approve → `Wallet.signMessage` (SEP-0053) → return `signedMessage` + `signerAddress`.
+2. Show confirmation with the UTF-8 message text.
+3. On approve → `Wallet.signMessage` (SEP-0053, UTF-8) → return `signedMessage` + `signerAddress`.
 4. On reject → SEP-43 error envelope.
 
 ```mermaid
@@ -63,11 +63,11 @@ sequenceDiagram
   participant Wallet
 
   Dapp->>Handler: signMessage (SEP-43 via keyring submitRequest)
-  Handler->>UI: confirmation dialog
+  Handler->>UI: confirmation dialog (UTF-8 message)
   alt user rejects
     Handler-->>Dapp: SEP-43 error envelope
   else user confirms
-    Handler->>Wallet: signMessage (SEP-0053)
+    Handler->>Wallet: signMessage (SEP-0053, UTF-8)
     Handler-->>Dapp: SEP-43 success (signedMessage, signerAddress)
   end
 ```

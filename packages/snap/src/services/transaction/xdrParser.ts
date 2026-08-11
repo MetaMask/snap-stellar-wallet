@@ -1,3 +1,4 @@
+import type { Json } from '@metamask/utils';
 import type { Operation } from '@stellar/stellar-sdk';
 import {
   Asset,
@@ -175,6 +176,31 @@ export function parseSuccessfulTransactionResult(
 }
 
 /**
+ * Converts an XDR {@link xdr.ScAddress} to a Stellar strkey string (`G…` / `C…`).
+ *
+ * @param scAddress - Contract or account address from invoke / auth XDR.
+ * @returns Strkey-encoded address.
+ */
+export function getAddress(scAddress: xdr.ScAddress): string {
+  return Address.fromScAddress(scAddress).toString();
+}
+
+/**
+ * Normalizes a Soroban contract function name (`SCSymbol`) to a UTF-8 string.
+ *
+ * The SDK types `functionName()` as `string | Buffer` because the XDR field is
+ * raw bytes.
+ *
+ * @param fnName - Value from `invokeContract().functionName()` / auth `contractFn`.
+ * @returns UTF-8 function name.
+ */
+export function getFunctionName(fnName: string | Uint8Array): string {
+  return typeof fnName === 'string'
+    ? fnName
+    : bufferToUint8Array(fnName).toString('utf8');
+}
+
+/**
  * Returns whether the operation invokes a contract `transfer(from, to, amount)`.
  *
  * @param op - Parsed `invokeHostFunction` operation.
@@ -187,7 +213,7 @@ export function isSep41TransferInvoke(
   if (func?.switch().name !== 'hostFunctionTypeInvokeContract') {
     return false;
   }
-  return func.invokeContract().functionName().toString() === 'transfer';
+  return getFunctionName(func.invokeContract().functionName()) === 'transfer';
 }
 
 /**
@@ -212,7 +238,7 @@ export function parseSep41TransferInvoke(
       throw new XdrParseException('Not an invoke contract operation');
     }
     const ic = func.invokeContract();
-    if (ic.functionName().toString() !== 'transfer') {
+    if (getFunctionName(ic.functionName()) !== 'transfer') {
       throw new XdrParseException('Contract is not a transfer function');
     }
 
@@ -226,7 +252,7 @@ export function parseSep41TransferInvoke(
       throw new XdrParseException('Invalid transfer function arguments');
     }
 
-    const contractAddr = Address.fromScAddress(ic.contractAddress()).toString();
+    const contractAddr = getAddress(ic.contractAddress());
 
     const fromNative = scValToNative(args[0]);
     const toNative = scValToNative(args[1]);
@@ -299,6 +325,9 @@ export function xdrAssetToCaip19(
 /**
  * Parses a XDR value from a string, bigint, or number.
  *
+ * Use this when the ScVal is known to be a **non-negative numeric amount**
+ * (e.g. SEP-41 `transfer` amount).
+ *
  * @param value - The value to parse.
  * @returns The parsed amount in BigNumber.
  * @throws {XdrParseException} If the value is not a valid native value.
@@ -317,6 +346,91 @@ export function parseScValToNative(value: string | bigint | number): BigNumber {
     throw new XdrParseException(`Invalid native value: ${value}`);
   }
   return amountBn;
+}
+
+/**
+ * Decodes a Soroban `ScVal` into a confirmation display string.
+ *
+ * Addresses become strkey strings (`G…` / `C…`), i128/u128 amounts and other
+ * primitives become unquoted decimal/text, and nested values become JSON —
+ * so callers can render contract arguments without further formatting.
+ *
+ * @param scv - Raw contract argument.
+ * @returns Display string, or base64 XDR when native conversion fails.
+ */
+export function parseScValToReadableJson(scv: xdr.ScVal): string {
+  try {
+    return nativeToReadableJson(scValToNative(scv));
+  } catch {
+    // If the ScVal cannot be converted to a native value, return the base64 XDR representation.
+    return scv.toXDR('base64');
+  }
+}
+
+/**
+ * Converts `scValToNative` output into a confirmation display string.
+ *
+ * Primitives (including address strkeys and numeric amounts) are unquoted;
+ * arrays/maps/objects are JSON-encoded.
+ *
+ * @param value - Native value produced by `scValToNative`.
+ * @returns Display string for UX.
+ */
+export function nativeToReadableJson(value: unknown): string {
+  const json = toReadableJsonValue(value);
+  if (typeof json === 'string') {
+    return json;
+  }
+  return JSON.stringify(json);
+}
+
+/**
+ * Recursively converts native ScVal output into {@link Json} with string leaves.
+ *
+ * @param value - Native value produced by `scValToNative`.
+ * @returns JSON-safe structure used by {@link nativeToReadableJson}.
+ */
+function toReadableJsonValue(value: unknown): Json {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean'
+  ) {
+    return String(value);
+  }
+  if (value instanceof Uint8Array) {
+    return bufferToUint8Array(value).toString('hex');
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => toReadableJsonValue(item));
+  }
+  if (value instanceof Map) {
+    return Object.fromEntries(
+      [...value.entries()].map(([key, entry]) => {
+        const jsonKey = toReadableJsonValue(key);
+        return [
+          typeof jsonKey === 'string' ? jsonKey : JSON.stringify(jsonKey),
+          toReadableJsonValue(entry),
+        ];
+      }),
+    );
+  }
+  if (typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        toReadableJsonValue(entry),
+      ]),
+    );
+  }
+  // scValToNative should not produce symbols/functions; drop rather than stringify.
+  return null;
 }
 
 /**

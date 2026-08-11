@@ -92,15 +92,6 @@ export const ResolveAccountAddressRequestStruct = object({
 });
 
 /**
- * Validation struct for the discoverAccounts request.
- */
-export const DiscoverAccountsStruct = object({
-  scopes: nonempty(array(KnownCaip2ChainIdStruct)),
-  entropySource: nonempty(string()),
-  groupIndex: min(integer(), 0),
-});
-
-/**
  * Optional bag accepted by both SEP-43 sign methods.
  *
  * - `networkPassphrase`, when provided, must map to Stellar mainnet via
@@ -145,9 +136,9 @@ export type Sep43ErrorEnvelope = Infer<typeof Sep43ErrorEnvelopeStruct>;
 /**
  * Validation struct for the signMessage request.
  *
- * Params follow the SEP-43 `SignMessage` shape: per spec, `message` may be
- * either a base64-encoded byte string or arbitrary UTF-8 text. The wallet
- * detects which at sign time and signs the corresponding bytes.
+ * Params follow the SEP-43 `SignMessage` shape. This snap accepts UTF-8 text
+ * only: the confirmation UI displays the string as given, and signing encodes
+ * it as UTF-8 per SEP-0053 (no base64 auto-detection).
  */
 export const SignMessageRequestStruct = assign(
   KeyringRequestStruct,
@@ -155,7 +146,7 @@ export const SignMessageRequestStruct = assign(
     request: object({
       method: literal(MultichainMethod.SignMessage),
       params: object({
-        message: nonempty(union([base64(string()), Utf8StringStruct])),
+        message: nonempty(Utf8StringStruct),
         opts: optional(Sep43OptsStruct),
       }),
     }),

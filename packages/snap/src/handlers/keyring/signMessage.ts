@@ -10,8 +10,6 @@ import type { Wallet } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
-import { bufferToUint8Array } from '../../utils';
-import { isBase64 } from '../../utils/string';
 
 /**
  * SEP-43 `signMessage` keyring handler.
@@ -20,6 +18,9 @@ import { isBase64 } from '../../utils/string';
  * {@link ConfirmationUXController}. Returns the SEP-43 response shape
  * (`signedMessage`, `signerAddress`, optional `error`) and never throws to the
  * dapp — failures are wrapped in the `error` envelope by the base.
+ *
+ * The snap accepts UTF-8 text only: the confirmation UI shows the string as
+ * given, and {@link Wallet.signMessage} signs those UTF-8 bytes per SEP-0053.
  *
  * @see https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0043.md
  */
@@ -89,26 +90,11 @@ export class SignMessageHandler extends BaseSep43KeyringHandler<
         scope: request.scope,
         renderContext: {
           account,
-          message: this.#getUtf8Message(message),
+          message,
         },
         origin: request.origin,
         interfaceKey: ConfirmationInterfaceKey.SignMessage,
       })) === true
     );
-  }
-
-  /**
-   * Resolves the message to a UTF-8 string for display in the confirmation
-   * dialog. SEP-43 accepts either base64-encoded bytes or UTF-8 text — we
-   * mirror the wallet's detection so the user sees the same content that
-   * gets signed.
-   *
-   * @param message - The raw message string from the request.
-   * @returns The message interpreted as UTF-8 text for the UI.
-   */
-  #getUtf8Message(message: string): string {
-    return isBase64(message)
-      ? bufferToUint8Array(message, 'base64').toString('utf8')
-      : message;
   }
 }

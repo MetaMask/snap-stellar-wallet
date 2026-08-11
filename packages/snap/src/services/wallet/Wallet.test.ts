@@ -34,14 +34,6 @@ describe('Wallet', () => {
       expect(signature.length).toBeGreaterThan(0);
     });
 
-    it('matches string and UTF-8 bytes for the same logical message', () => {
-      const wallet = getTestWallet({ seed });
-      const text = 'hello stellar';
-      const asString = wallet.signMessage(text);
-      const asBytes = wallet.signMessage(new TextEncoder().encode(text));
-      expect(asString).toStrictEqual(asBytes);
-    });
-
     // https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0053.md
     describe('SEP-0053 reference vectors', () => {
       const sep0053Secret =
@@ -50,24 +42,6 @@ describe('Wallet', () => {
       const sep0053Wallet = new Wallet(Keypair.fromSecret(sep0053Secret));
 
       it.each([
-        {
-          message: bufferToUint8Array('Hello, World!', 'utf8'),
-          signature:
-            'fO5dbYhXUhBMhe6kId/cuVq/AfEnHRHEvsP8vXh03M1uLpi5e46yO2Q8rEBzu3feXQewcQE5GArp88u6ePK6BA==',
-        },
-        {
-          message: bufferToUint8Array('こんにちは、世界！', 'utf8'),
-          signature:
-            'CDU265Xs8y3OWbB/56H9jPgUss5G9A0qFuTqH2zs2YDgTm+++dIfmAEceFqB7bhfN3am59lCtDXrCtwH2k1GBA==',
-        },
-        {
-          message: bufferToUint8Array(
-            '2zZDP1sa1BVBfLP7TeeMk3sUbaxAkUhBhDiNdrksaFo=',
-            'base64',
-          ),
-          signature:
-            'VA1+7hefNwv2NKScH6n+Sljj15kLAge+M2wE7fzFOf+L0MMbssA1mwfJZRyyrhBORQRle10X1Dxpx+UOI4EbDQ==',
-        },
         {
           message: 'Hello, World!',
           signature:
@@ -81,17 +55,11 @@ describe('Wallet', () => {
         {
           message: '2zZDP1sa1BVBfLP7TeeMk3sUbaxAkUhBhDiNdrksaFo=',
           signature:
-            'VA1+7hefNwv2NKScH6n+Sljj15kLAge+M2wE7fzFOf+L0MMbssA1mwfJZRyyrhBORQRle10X1Dxpx+UOI4EbDQ==',
+            'w2d2NipRh5bdv5SMfQnGRkj5AvZTjLRklACHObR11M5rNORxv0wmZG2o68gm1+12vVDcWptPZf3FjRTtx1qUBA==',
         },
       ])(
         'verifies each reference case with verifyMessage',
-        ({
-          message,
-          signature,
-        }: {
-          message: string | Uint8Array;
-          signature: string;
-        }) => {
+        ({ message, signature }: { message: string; signature: string }) => {
           // verify hex signature
           const hexSignature = bufferToUint8Array(signature, 'base64').toString(
             'hex',

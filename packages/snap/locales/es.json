@@ -1,5 +1,5 @@
 {
-  "locale": "en",
+  "locale": "es",
   "messages": {
     "confirmation.transaction.title": {
       "message": "Transaction request"
@@ -73,32 +73,35 @@
     "confirmation.signAuthEntry.warning": {
       "message": "You are authorizing a smart contract to act on your behalf. Only approve if you trust this site."
     },
-    "confirmation.signAuthEntry.contract": {
-      "message": "Contract ID"
-    },
-    "confirmation.signAuthEntry.function": {
-      "message": "Function Name"
-    },
-    "confirmation.signAuthEntry.parameters": {
-      "message": "Parameters"
-    },
     "confirmation.signAuthEntry.expiresAt": {
       "message": "Expires at ledger"
     },
     "confirmation.signAuthEntry.nonce": {
       "message": "Nonce"
     },
-    "confirmation.signAuthEntry.subInvocations": {
-      "message": "Nested authorizations"
+    "confirmation.authorization.heading": {
+      "message": "Authorizations"
     },
-    "confirmation.signAuthEntry.createContract": {
-      "message": "Deploy contract"
+    "confirmation.authorization.authorizedAddress": {
+      "message": "Authorized address"
+    },
+    "confirmation.invocation.contractAddress": {
+      "message": "Contract Address"
+    },
+    "confirmation.invocation.functionName": {
+      "message": "Function"
+    },
+    "confirmation.invocation.argument": {
+      "message": "Argument {index}"
     },
     "confirmation.account": {
       "message": "Account"
     },
     "confirmation.memo": {
       "message": "Memo"
+    },
+    "confirmation.memo.none": {
+      "message": "None"
     },
     "confirmation.asset": {
       "message": "Asset"
@@ -152,7 +155,7 @@
       "message": "It may have expired or your account balance changed. Close this request and try again."
     },
     "confirmation.validationScanErrorTitle": {
-      "message": "Security validation failed"
+      "message": "Security check unavailable"
     },
     "confirmation.validationScanErrorSubtitle": {
       "message": "{reason}"
@@ -290,7 +293,7 @@
       "message": "Clear flags"
     },
     "confirmation.transaction.param.contractId": {
-      "message": "Contract ID"
+      "message": "Contract Address"
     },
     "confirmation.transaction.param.destAmount": {
       "message": "Destination amount"
@@ -315,6 +318,12 @@
     },
     "confirmation.transaction.param.arguments": {
       "message": "Arguments"
+    },
+    "confirmation.transaction.param.argument": {
+      "message": "Argument {index}"
+    },
+    "confirmation.transaction.param.authorizedAddress": {
+      "message": "Authorized address"
     },
     "confirmation.transaction.param.from": {
       "message": "From"
