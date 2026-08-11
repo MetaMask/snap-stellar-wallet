@@ -14,7 +14,6 @@ import {
   TransactionValidationException,
 } from '../../services/transaction/exceptions';
 import { HttpException } from '../../utils';
-import type { StellarSnapExceptionOptions } from '../../utils/errors';
 import { StellarSnapException } from '../../utils/errors';
 
 export class KeyringException extends StellarSnapException {}
@@ -130,25 +129,4 @@ export function toSep43Error(error: unknown): Sep43Error {
   }
 
   return new Sep43Error({ code: Sep43ErrorCode.Internal });
-}
-
-export class KeyringAccountRollbackException extends KeyringException {
-  constructor(accountId: string, options?: StellarSnapExceptionOptions) {
-    super(
-      `Failed to rollback account creation for account ${accountId}`,
-      options,
-    );
-  }
-}
-
-export class KeyringEmitAccountCreatedEventException extends KeyringException {
-  constructor(options?: StellarSnapExceptionOptions) {
-    super('Failed to emit account created event', options);
-  }
-}
-
-export class KeyringEmitAccountDeletedEventException extends KeyringException {
-  constructor(options?: StellarSnapExceptionOptions) {
-    super('Failed to emit account deleted event', options);
-  }
 }

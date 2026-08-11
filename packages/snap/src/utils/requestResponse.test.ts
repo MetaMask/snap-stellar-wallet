@@ -1,4 +1,5 @@
 import { KeyringRpcMethod } from '@metamask/keyring-api';
+import { KeyringSnapRpcMethod } from '@metamask/keyring-api/v2';
 import {
   InvalidParamsError,
   SnapError,
@@ -49,33 +50,38 @@ describe('validateResponse', () => {
 
 describe('validateOrigin', () => {
   it.each([
-    KeyringRpcMethod.ListAccounts,
-    KeyringRpcMethod.GetAccount,
-    KeyringRpcMethod.CreateAccount,
-    KeyringRpcMethod.DeleteAccount,
-    KeyringRpcMethod.DiscoverAccounts,
-    KeyringRpcMethod.GetAccountBalances,
-    KeyringRpcMethod.SubmitRequest,
-    KeyringRpcMethod.ListAccountTransactions,
-    KeyringRpcMethod.ListAccountAssets,
-  ])('allows method %s for allowed dapps', (method) => {
-    const origin = 'http://localhost:3000';
-
-    expect(() => validateOrigin(origin, method)).not.toThrow();
+    KeyringSnapRpcMethod.GetAccounts,
+    KeyringSnapRpcMethod.GetAccount,
+    KeyringSnapRpcMethod.CreateAccounts,
+    KeyringSnapRpcMethod.SubmitRequest,
+  ])('rejects method %s for dapps', (method) => {
+    expect(() => validateOrigin('http://localhost:3000', method)).toThrow(
+      UnauthorizedError,
+    );
   });
 
   it.each([
-    KeyringRpcMethod.ListAccounts,
-    KeyringRpcMethod.GetAccount,
-    KeyringRpcMethod.CreateAccount,
-    KeyringRpcMethod.DeleteAccount,
-    KeyringRpcMethod.DiscoverAccounts,
-    KeyringRpcMethod.GetAccountBalances,
-    KeyringRpcMethod.SubmitRequest,
-    KeyringRpcMethod.ListAccountTransactions,
+    KeyringSnapRpcMethod.GetAccounts,
+    KeyringSnapRpcMethod.GetAccount,
+    KeyringSnapRpcMethod.SubmitRequest,
     KeyringRpcMethod.ListAccountAssets,
-    KeyringRpcMethod.ResolveAccountAddress,
-    KeyringRpcMethod.SetSelectedAccounts,
+  ])('rejects method %s for the connected dapp origin', (method) => {
+    expect(() =>
+      validateOrigin('https://portfolio.metamask.io', method),
+    ).toThrow(UnauthorizedError);
+  });
+
+  it.each([
+    KeyringSnapRpcMethod.GetAccounts,
+    KeyringSnapRpcMethod.GetAccount,
+    KeyringSnapRpcMethod.CreateAccounts,
+    KeyringSnapRpcMethod.DeleteAccount,
+    KeyringSnapRpcMethod.GetAccountBalances,
+    KeyringSnapRpcMethod.SubmitRequest,
+    KeyringSnapRpcMethod.GetAccountTransactions,
+    KeyringSnapRpcMethod.GetAccountAssets,
+    KeyringSnapRpcMethod.ResolveAccountAddress,
+    KeyringSnapRpcMethod.SetSelectedAccounts,
   ])('allows method %s for metamask', (method) => {
     const origin = METAMASK_ORIGIN;
 
@@ -86,7 +92,7 @@ describe('validateOrigin', () => {
     'rejects unauthorized origin %s',
     (origin) => {
       expect(() =>
-        validateOrigin(origin as string, KeyringRpcMethod.ListAccounts),
+        validateOrigin(origin as string, KeyringSnapRpcMethod.GetAccounts),
       ).toThrow(UnauthorizedError);
     },
   );
