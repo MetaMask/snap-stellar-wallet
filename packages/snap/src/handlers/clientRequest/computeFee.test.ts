@@ -42,7 +42,7 @@ describe('ComputeFeeHandler', () => {
     jest.restoreAllMocks();
   });
 
-  function setup() {
+  function setup({ subentryCount = 0 }: { subentryCount?: number } = {}) {
     const wallet = getTestWallet();
     const account = generateStellarKeyringAccount(
       accountId,
@@ -54,6 +54,7 @@ describe('ComputeFeeHandler', () => {
       ...DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
       nativeBalance: 10,
       assets: [],
+      subentryCount,
     });
     const onChainAccount = new OnChainAccount(
       mockRawAccount,
@@ -185,7 +186,9 @@ describe('ComputeFeeHandler', () => {
     );
   });
 
-  it('returns the required native fee when balance is insufficient to cover fees', async () => {
+  // The mock account has no subentries, so its minimum reserve is the 2 base
+  // reserves (1 XLM) that get added to the required amount below.
+  it('returns the required native fee plus the minimum reserve when balance is insufficient to cover fees', async () => {
     const { handler, request, createValidatedSwapTransaction } = setup();
     createValidatedSwapTransaction.mockRejectedValueOnce(
       new InsufficientBalanceToCoverFeeException('100', '12500000'),
@@ -199,14 +202,14 @@ describe('ComputeFeeHandler', () => {
         asset: {
           unit: NATIVE_ASSET_SYMBOL,
           type: KnownCaip19Slip44IdMap[scope],
-          amount: '1.25',
+          amount: '2.25',
           fungible: true,
         },
       },
     ]);
   });
 
-  it('returns the required native fee when native balance is insufficient for the swap', async () => {
+  it('returns the required native amount plus the minimum reserve when native balance is insufficient for the swap', async () => {
     const { handler, request, createValidatedSwapTransaction } = setup();
     createValidatedSwapTransaction.mockRejectedValueOnce(
       new InsufficientBalanceException(
@@ -224,7 +227,35 @@ describe('ComputeFeeHandler', () => {
         asset: {
           unit: NATIVE_ASSET_SYMBOL,
           type: KnownCaip19Slip44IdMap[scope],
-          amount: '5',
+          amount: '6',
+          fungible: true,
+        },
+      },
+    ]);
+  });
+
+  it('scales the reported reserve with the account subentry count', async () => {
+    // 5 trustlines -> (2 + 5) base reserves -> 3.5 XLM on top of 0.99125 XLM.
+    const { handler, request, createValidatedSwapTransaction } = setup({
+      subentryCount: 5,
+    });
+    createValidatedSwapTransaction.mockRejectedValueOnce(
+      new InsufficientBalanceException(
+        '5095615',
+        '9912500',
+        KnownCaip19Slip44IdMap[scope],
+      ),
+    );
+
+    const result = await handler.handle(request);
+
+    expect(result).toStrictEqual([
+      {
+        type: FeeType.Base,
+        asset: {
+          unit: NATIVE_ASSET_SYMBOL,
+          type: KnownCaip19Slip44IdMap[scope],
+          amount: '4.49125',
           fungible: true,
         },
       },

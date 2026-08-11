@@ -110,7 +110,13 @@ export class ComputeFeeHandler extends BaseClientRequestHandler<
             asset: {
               unit: NATIVE_ASSET_SYMBOL,
               type: KnownCaip19Slip44IdMap[scope],
-              amount: toDisplayBalance(new BigNumber(error.required)),
+              // We account for the minimum reserve balance in the fee calculation since the clients do not.
+              // This is a workaround to avoid the clients failing at sign time before we actually display the reserve balance in the swaps/send UI.
+              amount: toDisplayBalance(
+                new BigNumber(error.required).plus(
+                  onChainAccount.minimumReserveBalance,
+                ),
+              ),
               fungible: true as const,
             },
           },
