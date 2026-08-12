@@ -18,6 +18,7 @@ import { KnownCaip19Slip44IdMap } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import {
   InsufficientBalanceException,
+  InsufficientBalanceToCoverBaseReserveException,
   InsufficientBalanceToCoverFeeException,
 } from '../../services/transaction';
 import type { TransactionService } from '../../services/transaction/TransactionService';
@@ -102,7 +103,8 @@ export class ComputeFeeHandler extends BaseClientRequestHandler<
       if (
         (error instanceof InsufficientBalanceException &&
           isSlip44Id(error.assetId)) ||
-        error instanceof InsufficientBalanceToCoverFeeException
+        error instanceof InsufficientBalanceToCoverFeeException ||
+        error instanceof InsufficientBalanceToCoverBaseReserveException
       ) {
         return [
           {
@@ -110,7 +112,15 @@ export class ComputeFeeHandler extends BaseClientRequestHandler<
             asset: {
               unit: NATIVE_ASSET_SYMBOL,
               type: KnownCaip19Slip44IdMap[scope],
-              amount: toDisplayBalance(new BigNumber(error.required)),
+              // We account for the spendable balance in the returned required balance since the clients do not.
+              // This is a workaround to avoid the clients failing at sign time before we actually display the reserve balance in the swaps/send UI.
+              amount: toDisplayBalance(
+                onChainAccount.nativeRawBalance.plus(
+                  new BigNumber(error.required).minus(
+                    new BigNumber(error.balance),
+                  ),
+                ),
+              ),
               fungible: true as const,
             },
           },
