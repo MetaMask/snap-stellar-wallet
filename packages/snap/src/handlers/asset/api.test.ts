@@ -1,11 +1,11 @@
 import { assert, StructError } from '@metamask/superstruct';
 
-import { OnAssetsLookupRequestStruct } from './api';
 import {
   NATIVE,
   USDC_CLASSIC,
   USDC_SEP41,
 } from '../../services/asset-metadata/__mocks__/assets.fixtures';
+import { OnAssetsLookupRequestStruct } from './api';
 
 describe('OnAssetsLookupRequestStruct', () => {
   it.each([

@@ -11,7 +11,6 @@ import {
 } from '@metamask/snaps-sdk/jsx';
 import { parseCaipAssetType } from '@metamask/utils';
 
-import { ConfirmSignChangeTrustOptOutFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { StellarAssetMetadata } from '../../../../services/asset-metadata';
 import type { Locale } from '../../../../utils';
@@ -36,6 +35,7 @@ import {
   requiresMaliciousAcknowledgement,
   shouldDisableConfirmation,
 } from '../../utils';
+import { ConfirmSignChangeTrustOptOutFormNames } from './events';
 
 export type ConfirmSignChangeTrustOptOutProps = ConfirmationBaseProps &
   ContextWithPrices & {

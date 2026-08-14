@@ -1,8 +1,8 @@
 import type { DialogResult } from '@metamask/snaps-sdk';
 
-import { AccountActivationPrompt } from './AccountActivationPrompt';
 import { createInterface, showDialog } from '../../../../utils';
 import { getLocale } from '../../utils';
+import { AccountActivationPrompt } from './AccountActivationPrompt';
 
 /**
  * Renders the account activation prompt.

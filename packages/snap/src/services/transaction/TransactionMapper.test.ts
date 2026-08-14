@@ -7,6 +7,19 @@ import {
 import type { Horizon } from '@stellar/stellar-sdk';
 import { Networks } from '@stellar/stellar-sdk';
 
+import { KnownCaip2ChainId } from '../../api';
+import { NATIVE_ASSET_SYMBOL } from '../../constants';
+import {
+  getSlip44AssetId,
+  removeTrailingZeros,
+  toCaip19ClassicAssetId,
+  toCaip19Sep41AssetId,
+  toDisplayBalance,
+} from '../../utils';
+import { logger } from '../../utils/logger';
+import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
+import type { StellarAssetMetadata } from '../asset-metadata/api';
+import { toStellarAssetMetadata } from '../asset-metadata/utils';
 import {
   addChangeTrustResponse,
   removeChangeTrustResponse,
@@ -32,19 +45,6 @@ import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
 import { Transaction } from './Transaction';
 import { TransactionMapper } from './TransactionMapper';
 import * as transactionUtils from './utils';
-import { KnownCaip2ChainId } from '../../api';
-import { NATIVE_ASSET_SYMBOL } from '../../constants';
-import {
-  getSlip44AssetId,
-  removeTrailingZeros,
-  toCaip19ClassicAssetId,
-  toCaip19Sep41AssetId,
-  toDisplayBalance,
-} from '../../utils';
-import { logger } from '../../utils/logger';
-import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
-import type { StellarAssetMetadata } from '../asset-metadata/api';
-import { toStellarAssetMetadata } from '../asset-metadata/utils';
 
 jest.mock('../../utils/logger');
 

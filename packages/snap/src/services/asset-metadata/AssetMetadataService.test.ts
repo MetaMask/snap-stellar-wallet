@@ -1,13 +1,13 @@
+import { AssetType, KnownCaip2ChainId } from '../../api';
+import type { KnownCaip19AssetId } from '../../api';
+import { NATIVE_ASSET_NAME, NATIVE_ASSET_SYMBOL } from '../../constants';
+import { buildUrl, getSlip44AssetId, logger } from '../../utils';
+import type { NetworkService } from '../network';
 import type { StellarAssetMetadata } from './api';
 import type { AssetMetadataRepository } from './AssetMetadataRepository';
 import { AssetMetadataService } from './AssetMetadataService';
-import { AssetType, KnownCaip2ChainId } from '../../api';
-import type { KnownCaip19AssetId } from '../../api';
-import { buildUrl, getSlip44AssetId, logger } from '../../utils';
-import type { NetworkService } from '../network';
-import { TokenApiClient } from './token-api/TokenApiClient';
-import { NATIVE_ASSET_NAME, NATIVE_ASSET_SYMBOL } from '../../constants';
 import type { TokenMetadata } from './token-api/api';
+import { TokenApiClient } from './token-api/TokenApiClient';
 
 /** Mainnet classic USDC (matches CAIP-19 pattern used across Stellar fixtures). */
 const MAINNET_CLASSIC_USDC =

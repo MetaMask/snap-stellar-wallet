@@ -1,10 +1,10 @@
 import type { Struct } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
 
+import type { ILogger } from '../../utils';
 import { BaseHandler } from '../base';
 import type { CronjobJsonRpcRequest } from './api';
 import { CronjobJsonRpcRequestStruct } from './api';
-import type { ILogger } from '../../utils';
 
 export abstract class CronjobBaseHandler<
   RequestType extends Json,

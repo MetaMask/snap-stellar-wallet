@@ -1,5 +1,19 @@
 import { BigNumber } from 'bignumber.js';
 
+import type { KnownCaip2ChainId } from '../../api';
+import { xlmIcon } from '../../ui/images';
+import type { ILogger } from '../../utils';
+import {
+  createPrefixedLogger,
+  toCaip19ClassicAssetId,
+  toCaip19Sep41AssetId,
+  trackErrorIfNeeded,
+} from '../../utils';
+import { toDisplayBalance } from '../../utils/currency';
+import { getIconUrl } from '../asset-metadata/utils';
+import { TransactionExpireException } from '../transaction/exceptions';
+import { Transaction } from '../transaction/Transaction';
+import { assertTransactionTimeBound } from '../transaction/utils';
 import {
   AssetChangeDirection,
   StellarClassicAssetDetailsStruct,
@@ -17,20 +31,6 @@ import type {
   TransactionScanValidation,
 } from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
-import type { KnownCaip2ChainId } from '../../api';
-import { xlmIcon } from '../../ui/images';
-import type { ILogger } from '../../utils';
-import {
-  createPrefixedLogger,
-  toCaip19ClassicAssetId,
-  toCaip19Sep41AssetId,
-  trackErrorIfNeeded,
-} from '../../utils';
-import { toDisplayBalance } from '../../utils/currency';
-import { getIconUrl } from '../asset-metadata/utils';
-import { TransactionExpireException } from '../transaction/exceptions';
-import { Transaction } from '../transaction/Transaction';
-import { assertTransactionTimeBound } from '../transaction/utils';
 
 export class TransactionScanService {
   readonly #securityAlertsApiClient: SecurityAlertsApiClient;

@@ -1,6 +1,3 @@
-import { createConfirmationDataContext } from './__fixtures__/context.fixtures';
-import { ConfirmationContextRefresherKey } from './api';
-import { ConfirmationScanRefresher } from './scanRefresher';
 import { KnownCaip2ChainId } from '../../../api';
 import type { TransactionScanService } from '../../../services/transaction-scan';
 import {
@@ -13,6 +10,9 @@ import {
   FetchStatus,
 } from '../../../ui/confirmation/api';
 import { logger } from '../../../utils/logger';
+import { createConfirmationDataContext } from './__fixtures__/context.fixtures';
+import { ConfirmationContextRefresherKey } from './api';
+import { ConfirmationScanRefresher } from './scanRefresher';
 
 describe('ConfirmationScanRefresher', () => {
   const scope = KnownCaip2ChainId.Mainnet;

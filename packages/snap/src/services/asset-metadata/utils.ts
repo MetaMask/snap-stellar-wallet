@@ -2,7 +2,6 @@ import type { AssetMetadata } from '@metamask/snaps-sdk';
 import { assert } from '@metamask/superstruct';
 import { parseCaipAssetType } from '@metamask/utils';
 
-import type { StellarAssetMetadata } from './api';
 import type {
   AssetType,
   KnownCaip2ChainId,
@@ -18,6 +17,7 @@ import {
   STELLAR_DECIMAL_PLACES,
 } from '../../constants';
 import { buildUrl, getSlip44AssetId, isSlip44Id } from '../../utils';
+import type { StellarAssetMetadata } from './api';
 
 /**
  * Returns the icon URL for a given asset ID.

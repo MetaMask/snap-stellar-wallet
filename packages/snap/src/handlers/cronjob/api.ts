@@ -24,9 +24,9 @@ import {
   StellarTransactionHashStruct,
   UuidStruct,
 } from '../../api';
-import { ConfirmationContextRefresherKeyStruct } from './refreshConfirmationContext/api';
 import { AppConfig } from '../../config';
 import { ConfirmationInterfaceKeyStruct } from '../../ui/confirmation/api';
+import { ConfirmationContextRefresherKeyStruct } from './refreshConfirmationContext/api';
 
 /**
  * Interface for the client request handler.

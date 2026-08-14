@@ -1,9 +1,5 @@
 import { Keypair, Networks } from '@stellar/stellar-sdk';
 
-import { MultichainMethod } from './api';
-import type { SignMessageRequest } from './api';
-import { Sep43ErrorCode } from './exceptions';
-import { SignMessageHandler } from './signMessage';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
@@ -13,6 +9,10 @@ import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { logger } from '../../utils/logger';
 import { AccountResolver } from '../accountResolver';
+import { MultichainMethod } from './api';
+import type { SignMessageRequest } from './api';
+import { Sep43ErrorCode } from './exceptions';
+import { SignMessageHandler } from './signMessage';
 
 jest.mock('../../utils/logger');
 

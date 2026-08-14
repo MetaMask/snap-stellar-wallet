@@ -1,5 +1,7 @@
 import { assert, StructError } from '@metamask/superstruct';
 
+import { KnownCaip2ChainId } from '../../api';
+import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import {
   BackgroundEventMethod,
   BackgroundEventMethodStruct,
@@ -11,8 +13,6 @@ import {
   SyncAssetsParamsStruct,
   TrackTransactionJsonRpcRequestStruct,
 } from './api';
-import { KnownCaip2ChainId } from '../../api';
-import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 
 describe('Cronjob API structs', () => {
   const jsonRpcBase = {

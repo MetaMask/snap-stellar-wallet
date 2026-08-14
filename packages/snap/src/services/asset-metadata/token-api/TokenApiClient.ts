@@ -1,14 +1,5 @@
 import { array } from '@metamask/superstruct';
 
-import type {
-  TokenMetadataByAssetIdsResponse,
-  TokenMetadataByChainIdResponse,
-} from './api';
-import {
-  TokenMetadataByAssetIdsResponseStruct,
-  TokenMetadataByChainIdResponseStruct,
-} from './api';
-import { TokenApiException } from './exceptions';
 import {
   KnownCaip19AssetIdOrSlip44IdStruct,
   KnownCaip2ChainIdStruct,
@@ -28,6 +19,15 @@ import {
   InvalidHttpResponseException,
   normalizeHttpException,
 } from '../../../utils/errors';
+import type {
+  TokenMetadataByAssetIdsResponse,
+  TokenMetadataByChainIdResponse,
+} from './api';
+import {
+  TokenMetadataByAssetIdsResponseStruct,
+  TokenMetadataByChainIdResponseStruct,
+} from './api';
+import { TokenApiException } from './exceptions';
 
 export class TokenApiClient {
   readonly #fetch: typeof globalThis.fetch;

@@ -1,7 +1,7 @@
+import type { Serializable } from '../../utils/serialization';
 import type { ICache } from './api';
 import { useCacheUntil } from './useCacheUntil';
 import type { CacheUntilOptions, ResultWithExpiry } from './useCacheUntil';
-import type { Serializable } from '../../utils/serialization';
 
 jest.mock('../../utils/logger');
 

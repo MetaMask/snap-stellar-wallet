@@ -8,15 +8,6 @@ import { BigNumber } from 'bignumber.js';
 
 import type { KnownCaip19Sep41AssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
-import {
-  createMockAccountWithBalances,
-  DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-  horizonSource,
-  mockOnChainAccountService,
-} from './__mocks__/onChainAccount.fixtures';
-import { OnChainAccount } from './OnChainAccount';
-import { OnChainAccountRepository } from './OnChainAccountRepository';
-import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 import { NATIVE_ASSET_SYMBOL, STELLAR_DECIMAL_PLACES } from '../../constants';
 import { bufferToUint8Array } from '../../utils/buffer';
 import * as errorUtils from '../../utils/errors';
@@ -33,6 +24,15 @@ import {
 } from '../asset-metadata/__mocks__/assets.fixtures';
 import { NetworkService } from '../network';
 import type { ActivatedAccountPair } from '../sync/api';
+import {
+  createMockAccountWithBalances,
+  DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  horizonSource,
+  mockOnChainAccountService,
+} from './__mocks__/onChainAccount.fixtures';
+import { OnChainAccount } from './OnChainAccount';
+import { OnChainAccountRepository } from './OnChainAccountRepository';
+import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 
 const isKeyringEmitCall = (call: unknown[], event: KeyringEvent): boolean =>
   (call[1] as KeyringEvent) === event;

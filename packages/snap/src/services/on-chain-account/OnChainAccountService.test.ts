@@ -2,15 +2,6 @@ import { hexToBytes } from '@metamask/utils';
 import { Keypair } from '@stellar/stellar-sdk';
 
 import { KnownCaip2ChainId } from '../../api';
-import {
-  createMockAccountWithBalances,
-  DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
-  horizonSource,
-  mockOnChainAccountService,
-} from './__mocks__/onChainAccount.fixtures';
-import { OnChainAccount } from './OnChainAccount';
-import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
-import { OnChainAccountSynchronizeService } from './OnChainAccountSynchronizeService';
 import { bufferToUint8Array } from '../../utils/buffer';
 import {
   generateMockStellarKeyringAccounts,
@@ -22,6 +13,15 @@ import {
   generateStellarAddress,
   getTestWallet,
 } from '../wallet/__mocks__/wallet.fixtures';
+import {
+  createMockAccountWithBalances,
+  DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
+  horizonSource,
+  mockOnChainAccountService,
+} from './__mocks__/onChainAccount.fixtures';
+import { OnChainAccount } from './OnChainAccount';
+import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
+import { OnChainAccountSynchronizeService } from './OnChainAccountSynchronizeService';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');

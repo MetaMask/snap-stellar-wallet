@@ -1,9 +1,6 @@
 import { FeeType, TransactionType } from '@metamask/keyring-api';
 import { Networks } from '@stellar/stellar-sdk';
 
-import { ClientRequestMethod } from './api';
-import type { SignAndSendTransactionJsonRpcRequest } from './api';
-import { SignAndSendTransactionHandler } from './signAndSendTransaction';
 import { KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import { AccountService } from '../../services/account';
@@ -38,6 +35,9 @@ import { logger } from '../../utils/logger';
 import * as snapUtils from '../../utils/snap';
 import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
+import { ClientRequestMethod } from './api';
+import type { SignAndSendTransactionJsonRpcRequest } from './api';
+import { SignAndSendTransactionHandler } from './signAndSendTransaction';
 
 jest.mock('@metamask/keyring-snap-sdk', () => ({
   emitSnapKeyringEvent: jest.fn(),

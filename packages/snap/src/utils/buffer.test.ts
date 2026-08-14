@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals -- Buffer is asserted in Node test runtime only */
 import { bufferToUint8Array } from './buffer';
 
 describe('bufferToUint8Array', () => {
@@ -36,4 +35,3 @@ describe('bufferToUint8Array', () => {
     ).toThrow('Invalid buffer');
   });
 });
-/* eslint-enable no-restricted-globals */

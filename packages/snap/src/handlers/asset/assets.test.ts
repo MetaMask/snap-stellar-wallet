@@ -3,7 +3,6 @@ import type {
   FungibleAssetMarketData,
 } from '@metamask/snaps-sdk';
 
-import { AssetsHandler } from './assets';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import {
   createMockAssetMetadataService,
@@ -12,6 +11,7 @@ import {
 } from '../../services/asset-metadata/__mocks__/assets.fixtures';
 import { createMockPriceService } from '../../services/price/__mocks__/price.fixtures';
 import { logger } from '../../utils/logger';
+import { AssetsHandler } from './assets';
 
 jest.mock('../../utils/logger');
 

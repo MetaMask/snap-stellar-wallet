@@ -2,8 +2,8 @@ import type { ComponentOrElement } from '@metamask/snaps-sdk';
 import { Box, Copyable, Text as SnapText } from '@metamask/snaps-sdk/jsx';
 import type { Json } from '@metamask/utils';
 
-import { JsonParamsSummary } from './JsonParamsSummary';
 import { i18n } from '../../../utils';
+import { JsonParamsSummary } from './JsonParamsSummary';
 
 export type InvocationSummaryProps = {
   locale: string;

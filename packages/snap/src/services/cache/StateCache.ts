@@ -1,10 +1,10 @@
 import { assert } from '@metamask/utils';
 
-import type { ICache, CacheEntry } from './api';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { Serializable } from '../../utils/serialization';
 import type { IStateManager } from '../state/IStateManager';
+import type { ICache, CacheEntry } from './api';
 
 /**
  * The whole cache store.

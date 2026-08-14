@@ -1,11 +1,6 @@
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 import { xdr } from '@stellar/stellar-sdk';
 
-import type { SignAuthEntryRequest, SignAuthEntryResponse } from './api';
-import { SignAuthEntryRequestStruct, SignAuthEntryResponseStruct } from './api';
-import type { AccountResolver } from '../accountResolver';
-import { BaseSep43KeyringHandler } from './base';
-import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
 import type { ReadableAuthorizationJson } from '../../services/transaction';
 import { AuthorizationMapper } from '../../services/transaction';
@@ -13,6 +8,11 @@ import type { Wallet } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
+import type { AccountResolver } from '../accountResolver';
+import type { SignAuthEntryRequest, SignAuthEntryResponse } from './api';
+import { SignAuthEntryRequestStruct, SignAuthEntryResponseStruct } from './api';
+import { BaseSep43KeyringHandler } from './base';
+import type { Sep43Error } from './exceptions';
 
 /**
  * Human-readable Soroban auth entry summary rendered in the confirmation

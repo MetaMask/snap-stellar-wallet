@@ -4,13 +4,13 @@ import {
   TransactionType,
 } from '@metamask/keyring-api';
 
+import { KnownCaip2ChainId } from '../../api';
+import type { StellarKeyringAccount } from '../account/api';
 import { KeyringTransactionBuilderException } from './exceptions';
 import {
   KeyringTransactionBuilder,
   KeyringTransactionType,
 } from './KeyringTransactionBuilder';
-import { KnownCaip2ChainId } from '../../api';
-import type { StellarKeyringAccount } from '../account/api';
 
 describe('KeyringTransactionBuilder', () => {
   const mockNow = new Date('2026-01-15T00:00:00.000Z').getTime();

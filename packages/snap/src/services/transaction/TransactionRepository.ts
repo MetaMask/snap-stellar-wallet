@@ -3,14 +3,14 @@ import { groupBy } from 'lodash';
 import sortBy from 'lodash/sortBy';
 import uniqBy from 'lodash/uniqBy';
 
+import type { KnownCaip2ChainId } from '../../api';
+import type { State } from '../state/State';
 import type { StellarKeyringTransaction } from './api';
 import {
   isPendingTransactionStatus,
   shouldDropPendingTransaction,
   toKeyringTransactions,
 } from './utils';
-import type { KnownCaip2ChainId } from '../../api';
-import type { State } from '../state/State';
 
 export type TransactionStateValue = {
   transactions: Record<string, StellarKeyringTransaction[]>;

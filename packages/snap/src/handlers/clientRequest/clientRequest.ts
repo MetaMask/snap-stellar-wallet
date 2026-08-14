@@ -2,12 +2,12 @@ import { MethodNotFoundError } from '@metamask/snaps-sdk';
 import type { Json, JsonRpcRequest } from '@metamask/utils';
 import { ensureError } from '@metamask/utils';
 
-import type { ClientRequestMethod } from './api';
-import { ClientRequestMethodStruct } from './api';
-import type { IClientRequestHandler } from './base';
 import { withCatchAndThrowSnapError } from '../../utils';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
+import type { ClientRequestMethod } from './api';
+import { ClientRequestMethodStruct } from './api';
+import type { IClientRequestHandler } from './base';
 
 export class ClientRequestHandler {
   readonly #logger: ILogger;

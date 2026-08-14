@@ -1,6 +1,13 @@
 import type { Operation } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import type {
+  KnownCaip19ClassicAssetId,
+  KnownCaip19Sep41AssetId,
+  KnownCaip2ChainId,
+} from '../../api';
+import { isClassicAssetId, isSep41Id } from '../../utils';
+import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { StellarOperationType } from './api';
 import {
   InsufficientBalanceToCoverFeeException,
@@ -29,13 +36,6 @@ import {
   assertTransactionScope,
   assertTransactionSourceAccount,
 } from './utils';
-import type {
-  KnownCaip19ClassicAssetId,
-  KnownCaip19Sep41AssetId,
-  KnownCaip2ChainId,
-} from '../../api';
-import { isClassicAssetId, isSep41Id } from '../../utils';
-import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 
 /**
  * Supported operation types in MetaMask.

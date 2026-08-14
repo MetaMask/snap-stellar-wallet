@@ -1,10 +1,10 @@
-import type { SyncAssetsJsonRpcRequest } from './api';
-import { SyncAssetsJsonRpcRequestStruct } from './api';
-import { CronjobBaseHandler } from './base';
 import { KnownCaip2ChainId } from '../../api';
 import type { SynchronizeService } from '../../services/sync/SynchronizeService';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
+import type { SyncAssetsJsonRpcRequest } from './api';
+import { SyncAssetsJsonRpcRequestStruct } from './api';
+import { CronjobBaseHandler } from './base';
 
 export class SyncAssetsHandler extends CronjobBaseHandler<SyncAssetsJsonRpcRequest> {
   readonly #synchronizeService: SynchronizeService;

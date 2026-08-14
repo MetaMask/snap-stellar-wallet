@@ -1,10 +1,10 @@
 import { cloneDeep } from 'lodash';
 
-import type { AssetMetadataState, StellarAssetMetadata } from './api';
-import { AssetMetadataRepository } from './AssetMetadataRepository';
 import { AssetType, KnownCaip2ChainId } from '../../api';
 import type { KnownCaip19AssetId } from '../../api';
 import type { IStateManager } from '../state/IStateManager';
+import type { AssetMetadataState, StellarAssetMetadata } from './api';
+import { AssetMetadataRepository } from './AssetMetadataRepository';
 
 const classicId =
   'stellar:testnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN' as KnownCaip19AssetId;

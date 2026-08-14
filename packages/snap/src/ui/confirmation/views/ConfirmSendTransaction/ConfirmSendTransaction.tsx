@@ -11,7 +11,6 @@ import {
   Tooltip,
 } from '@metamask/snaps-sdk/jsx';
 
-import { ConfirmSendTransactionFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
@@ -34,6 +33,7 @@ import {
   requiresMaliciousAcknowledgement,
   shouldDisableConfirmation,
 } from '../../utils';
+import { ConfirmSendTransactionFormNames } from './events';
 
 export type ConfirmSendTransactionProps = ConfirmationBaseProps &
   ContextWithPrices & {

@@ -20,12 +20,14 @@ A **Snap** is a plugin for MetaMask created by Consensys. This Stellar Wallet Sn
 Snaps are untrusted JavaScript programs that execute in a sandboxed environment running [Secure ECMAScript (SES)](https://github.com/endojs/endo/tree/master/packages/ses). This environment is **heavily restricted** compared to normal JavaScript.
 
 **What's NOT Available:**
+
 - **No DOM** — No `document`, `window`, or browser APIs
 - **No Node.js built-ins** — No `fs`, `path`, `crypto` (unless polyfilled), `process`, etc.
 - **No unrestricted network access** — `fetch` requires the `endowment:network-access` permission
 - **No platform-specific APIs** — Environment is designed to be fully virtualizable
 
 **Available Globals:**
+
 - **`snap`** — The Snaps API global for making requests to MetaMask
 - **`ethereum`** — EIP-1193 provider (requires `endowment:ethereum-provider` permission)
 - **Standard JS globals** — `Promise`, `Error`, `Math`, `Set`, `Reflect`, `Map`, `Array`, etc.
@@ -41,6 +43,7 @@ Snaps are untrusted JavaScript programs that execute in a sandboxed environment 
 **SES Restrictions:**
 
 SES (Secure ECMAScript) is a hardened JavaScript subset that:
+
 - Prevents Snaps from polluting the global environment
 - Prevents access to sensitive APIs without explicit permission
 - Isolates Snap code from other parts of the application
@@ -62,8 +65,8 @@ The `snap` global provides the `snap.request()` method to call [Snaps API method
 
 ```typescript
 await snap.request({
-  method: "snap_notify",
-  params: { type: "inApp", message: "Hello, world!" },
+  method: 'snap_notify',
+  params: { type: 'inApp', message: 'Hello, world!' },
 });
 ```
 
@@ -72,6 +75,7 @@ await snap.request({
 Snaps can call Wallet JSON-RPC methods using the `ethereum` global (requires `endowment:ethereum-provider` permission). **Important:** The `ethereum` global in Snaps is read-only—it cannot write to the blockchain or initiate transactions.
 
 **Blocked methods** (cannot be called from Snaps):
+
 - `wallet_requestPermissions`, `wallet_revokePermissions`
 - `wallet_addEthereumChain`, `wallet_switchEthereumChain`
 - `wallet_watchAsset`, `wallet_registerOnboarding`, `wallet_scanQRCode`
@@ -88,12 +92,15 @@ Snaps expose custom methods to dapps via the `onRpcRequest` entry point. This re
 ```
 
 ```typescript
-export const onRpcRequest: OnRpcRequestHandler = async ({ origin, request }) => {
+export const onRpcRequest: OnRpcRequestHandler = async ({
+  origin,
+  request,
+}) => {
   switch (request.method) {
-    case "hello":
-      return "world!";
+    case 'hello':
+      return 'world!';
     default:
-      throw new Error("Method not found.");
+      throw new Error('Method not found.');
   }
 };
 ```
@@ -114,6 +121,7 @@ In **`packages/snap`**, `BigNumber` from `bignumber.js` is available as a **glob
 ## Linting + Formatting
 
 **After each code generation**, run the linter to fix formatting and style issues:
+
 ```bash
 yarn lint:fix
 ```
@@ -121,16 +129,19 @@ yarn lint:fix
 ## Running Tests
 
 To run all tests:
+
 ```bash
 yarn test
 ```
 
 To run tests for a specific file:
+
 ```bash
 yarn test -- "<file path>"
 ```
 
 Example:
+
 ```bash
 yarn test -- "packages/snap/src/services/send/FeeCalculatorService.test.ts"
 ```
@@ -140,11 +151,12 @@ yarn test -- "packages/snap/src/services/send/FeeCalculatorService.test.ts"
 Test names should skip "should" and start directly with the verb.
 
 **Good:**
+
 - `it('returns empty array when no transactions exist', ...)`
 - `it('throws error for invalid address', ...)`
 - `it('calculates fee using feeLimit fallback when simulation fails', ...)`
 
 **Bad:**
+
 - `it('should return empty array when no transactions exist', ...)`
 - `it('should throw error for invalid address', ...)`
-

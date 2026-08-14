@@ -1,11 +1,5 @@
 import type { Json } from '@metamask/utils';
 
-import { ConfirmationContextRefresherKey } from './api';
-import type {
-  ConfirmationContextRefreshResult,
-  ConfirmationDataContext,
-  IConfirmationContextRefresher,
-} from './api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';
 import type { PriceService } from '../../../services/price';
 import type { ContextWithPrices } from '../../../ui/confirmation/api';
@@ -15,6 +9,12 @@ import {
 } from '../../../ui/confirmation/api';
 import type { ILogger } from '../../../utils/logger';
 import { createPrefixedLogger } from '../../../utils/logger';
+import { ConfirmationContextRefresherKey } from './api';
+import type {
+  ConfirmationContextRefreshResult,
+  ConfirmationDataContext,
+  IConfirmationContextRefresher,
+} from './api';
 
 /**
  * Refreshes token spot prices in the confirmation dialog context.
