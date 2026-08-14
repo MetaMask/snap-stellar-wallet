@@ -12,7 +12,7 @@ import type {
   SnapsProvider,
   UpdateInterfaceResult,
 } from '@metamask/snaps-sdk';
-import { ensureError } from '@metamask/utils';
+import { ensureError, hasProperty } from '@metamask/utils';
 
 import { StellarSnapException } from './errors';
 import { logger } from './logger';
@@ -265,9 +265,9 @@ function isInterfaceNotFoundError(error: unknown): boolean {
   } else if (
     typeof error === 'object' &&
     error !== null &&
-    'message' in error
+    hasProperty(error, 'message')
   ) {
-    message = (error.message as string).toLowerCase();
+    message = String(error.message).toLowerCase();
   } else {
     message = String(error).toLowerCase();
   }

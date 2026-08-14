@@ -209,7 +209,7 @@ export const ConfirmSignTransaction = ({
   scan,
   scanFetchStatus = FetchStatus.Initial,
 }: ConfirmSignTransactionProps): ComponentOrElement => {
-  const t = i18n(locale);
+  const translate = i18n(locale);
   const { address } = account;
   const addressCaip10 = getAccountName(scope, address);
   const priceLoading = tokenPricesFetchStatus === FetchStatus.Fetching;
@@ -233,7 +233,7 @@ export const ConfirmSignTransaction = ({
         ) : null}
         <Box alignment="center" center>
           <Box>{null}</Box>
-          <Heading size="lg">{t('confirmation.signTransaction.title')}</Heading>
+          <Heading size="lg">{translate('confirmation.signTransaction.title')}</Heading>
           <Box>{null}</Box>
         </Box>
 
@@ -250,9 +250,9 @@ export const ConfirmSignTransaction = ({
             <Box alignment="space-between" direction="horizontal">
               <Box direction="horizontal" alignment="start">
                 <SnapText fontWeight="medium" color="alternative">
-                  {t('confirmation.origin')}
+                  {translate('confirmation.origin')}
                 </SnapText>
-                <Tooltip content={t('confirmation.origin.tooltip')}>
+                <Tooltip content={translate('confirmation.origin.tooltip')}>
                   <Icon name="question" color="muted" />
                 </Tooltip>
               </Box>
@@ -261,7 +261,7 @@ export const ConfirmSignTransaction = ({
           ) : null}
           <Box alignment="space-between" direction="horizontal">
             <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.account')}
+              {translate('confirmation.account')}
             </SnapText>
             <Address address={addressCaip10} truncate displayName avatar />
           </Box>
@@ -281,10 +281,10 @@ export const ConfirmSignTransaction = ({
           />
           <Box alignment="space-between" direction="horizontal">
             <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.memo')}
+              {translate('confirmation.memo')}
             </SnapText>
             <SnapText>
-              {readableTransaction.memo ?? t('confirmation.memo.none')}
+              {readableTransaction.memo ?? translate('confirmation.memo.none')}
             </SnapText>
           </Box>
         </Section>
@@ -327,7 +327,7 @@ export const ConfirmSignTransaction = ({
                 direction="vertical"
               >
                 <Heading>
-                  {t(
+                  {translate(
                     `confirmation.transaction.${operationJson.type.toLowerCase()}` as LocalizedMessage,
                   )}
                 </Heading>
@@ -335,7 +335,7 @@ export const ConfirmSignTransaction = ({
                 {operationJson.source === address ? null : (
                   <Box direction="vertical">
                     <SnapText fontWeight="medium" color="alternative">
-                      {t('confirmation.transaction.param.source')}
+                      {translate('confirmation.transaction.param.source')}
                     </SnapText>
                     <Copyable value={operationJson.source} />
                   </Box>

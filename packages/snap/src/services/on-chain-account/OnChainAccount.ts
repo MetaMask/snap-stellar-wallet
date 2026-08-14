@@ -1,3 +1,4 @@
+import { hasProperty } from '@metamask/utils';
 import type { Horizon } from '@stellar/stellar-sdk';
 import { Account as StellarAccount } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
@@ -488,9 +489,9 @@ export class OnChainAccount {
         );
         const limit = toSmallestUnit(new BigNumber(balance.limit ?? 0));
         const sponsorId =
-          'sponsor' in balance &&
-          typeof (balance as { sponsor?: string }).sponsor === 'string'
-            ? (balance as { sponsor?: string }).sponsor
+          hasProperty(balance, 'sponsor') &&
+          typeof balance.sponsor === 'string'
+            ? balance.sponsor
             : undefined;
         const sponsored = sponsorId !== undefined && sponsorId.length > 0;
         balances.push({

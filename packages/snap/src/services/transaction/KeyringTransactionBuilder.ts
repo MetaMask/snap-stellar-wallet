@@ -4,6 +4,7 @@ import {
   TransactionType,
 } from '@metamask/keyring-api';
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
+import { hasProperty } from '@metamask/utils';
 
 import { KeyringTransactionBuilderException } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';
@@ -243,17 +244,21 @@ export class KeyringTransactionBuilder {
     const status = request.status ?? TransactionStatus.Unconfirmed;
 
     // if the request has from and to, it is a pending classic swap transaction
-    if ('from' in request) {
+    if (hasProperty(request, 'from')) {
+      const swapRequest = request as Extract<
+        PendingTransactionRequest,
+        { from: KeyringTransaction['from'] }
+      >;
       return this.#buildKeyringTransaction({
-        type: request.transactionType,
+        type: swapRequest.transactionType,
         id: txId,
         account,
         scope,
-        from: request.from,
-        to: request.to,
+        from: swapRequest.from,
+        to: swapRequest.to,
         status,
         timestamp,
-        fees: request.fees ?? [],
+        fees: swapRequest.fees ?? [],
       });
     }
 

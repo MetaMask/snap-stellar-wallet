@@ -34,32 +34,32 @@ export const MaliciousAcknowledgementScreen = ({
   locale,
   acknowledged = false,
 }: MaliciousAcknowledgementScreenProps): ComponentOrElement => {
-  const t = i18n(locale);
+  const translate = i18n(locale);
 
   return (
     <Container>
       <Box>
         <Box alignment="center" center>
-          <Heading size="lg">{t('confirmation.maliciousAck.title')}</Heading>
+          <Heading size="lg">{translate('confirmation.maliciousAck.title')}</Heading>
         </Box>
-        <Banner title={t('confirmation.maliciousAck.title')} severity="danger">
-          <SnapText>{t('confirmation.maliciousAck.description')}</SnapText>
+        <Banner title={translate('confirmation.maliciousAck.title')} severity="danger">
+          <SnapText>{translate('confirmation.maliciousAck.description')}</SnapText>
         </Banner>
         <Checkbox
           name={MaliciousAcknowledgementFormNames.Acknowledge}
-          label={t('confirmation.maliciousAck.checkbox')}
+          label={translate('confirmation.maliciousAck.checkbox')}
           checked={acknowledged}
         />
       </Box>
       <Footer>
         <Button name={MaliciousAcknowledgementFormNames.Back}>
-          {t('confirmation.maliciousAck.back')}
+          {translate('confirmation.maliciousAck.back')}
         </Button>
         <Button
           name={MaliciousAcknowledgementFormNames.Proceed}
           disabled={!acknowledged}
         >
-          {t('confirmation.maliciousAck.proceed')}
+          {translate('confirmation.maliciousAck.proceed')}
         </Button>
       </Footer>
     </Container>

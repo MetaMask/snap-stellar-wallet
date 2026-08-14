@@ -1,4 +1,4 @@
-import { parseCaipAssetType } from '@metamask/utils';
+import { hasProperty, parseCaipAssetType } from '@metamask/utils';
 import type { xdr, OperationOptions } from '@stellar/stellar-sdk';
 import {
   Account,
@@ -349,8 +349,8 @@ export class TransactionBuilder {
       );
 
       // Clone the transaction operations
-      if ('tx' in rawTransaction) {
-        const tx = rawTransaction.tx as xdr.Transaction;
+      if (hasProperty(rawTransaction, 'tx')) {
+        const { tx } = rawTransaction as { tx: xdr.Transaction };
         tx.operations().forEach((op) => builder.addOperation(op));
       } else {
         throw new TransactionBuilderException(
