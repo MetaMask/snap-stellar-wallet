@@ -26,11 +26,13 @@
     "import-x/no-nodejs-modules": {
       "count": 1
     },
-    "n/no-process-env": {
-      "count": 1
-    },
     "no-restricted-globals": {
       "count": 27
+    }
+  },
+  "packages/snap/src/api/url.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
     }
   },
   "packages/snap/src/handlers/accountResolver.test.ts": {
@@ -111,20 +113,32 @@
   "packages/snap/src/handlers/keyring/keyring.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 2
+    },
+    "n/no-unsupported-features/node-builtins": {
+      "count": 2
     }
   },
   "packages/snap/src/handlers/keyring/signAuthEntry.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    },
+    "n/no-unsupported-features/node-builtins": {
       "count": 1
     }
   },
   "packages/snap/src/handlers/keyring/signMessage.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 1
+    },
+    "n/no-unsupported-features/node-builtins": {
+      "count": 1
     }
   },
   "packages/snap/src/handlers/keyring/signTransaction.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    },
+    "n/no-unsupported-features/node-builtins": {
       "count": 1
     }
   },
@@ -152,6 +166,9 @@
   "packages/snap/src/services/asset-metadata/AssetMetadataService.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 1
+    },
+    "jest/unbound-method": {
+      "count": 4
     }
   },
   "packages/snap/src/services/asset-metadata/__mocks__/assets.fixtures.ts": {
@@ -166,6 +183,11 @@
   },
   "packages/snap/src/services/cache/StateCache.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/cache/StateCache.ts": {
+    "no-restricted-syntax": {
       "count": 1
     }
   },
@@ -184,6 +206,11 @@
       "count": 4
     }
   },
+  "packages/snap/src/services/network/utils.ts": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
   "packages/snap/src/services/on-chain-account/OnChainAccount.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 3
@@ -195,9 +222,17 @@
       "count": 1
     }
   },
+  "packages/snap/src/services/on-chain-account/OnChainAccount.ts": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
   "packages/snap/src/services/on-chain-account/OnChainAccountService.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 1
+    },
+    "n/no-unsupported-features/node-builtins": {
+      "count": 3
     }
   },
   "packages/snap/src/services/on-chain-account/OnChainAccountSynchronizeService.test.ts": {
@@ -209,6 +244,9 @@
     },
     "jsdoc/require-returns": {
       "count": 2
+    },
+    "n/no-unsupported-features/node-builtins": {
+      "count": 1
     }
   },
   "packages/snap/src/services/on-chain-account/__mocks__/onChainAccount.fixtures.ts": {
@@ -234,6 +272,9 @@
   "packages/snap/src/services/sync/SynchronizeService.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 1
+    },
+    "n/no-sync": {
+      "count": 3
     }
   },
   "packages/snap/src/services/transaction-scan/SecurityAlertsApiClient.test.ts": {
@@ -246,9 +287,29 @@
       "count": 1
     }
   },
+  "packages/snap/src/services/transaction/KeyringTransactionBuilder.ts": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/transaction/OperationMapper.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/transaction/OperationMapper.ts": {
+    "no-restricted-syntax": {
+      "count": 18
+    }
+  },
   "packages/snap/src/services/transaction/TransactionBuilder.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 2
+    }
+  },
+  "packages/snap/src/services/transaction/TransactionBuilder.ts": {
+    "no-restricted-syntax": {
+      "count": 1
     }
   },
   "packages/snap/src/services/transaction/TransactionMapper.test.ts": {
@@ -276,9 +337,44 @@
       "count": 5
     }
   },
+  "packages/snap/src/services/wallet/WalletService.test.ts": {
+    "n/no-unsupported-features/node-builtins": {
+      "count": 3
+    }
+  },
   "packages/snap/src/services/wallet/__mocks__/wallet.fixtures.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 2
+    }
+  },
+  "packages/snap/src/ui/confirmation/components/ConfirmationFooter.tsx": {
+    "id-length": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/ui/confirmation/components/EstimatedChanges/EstimatedChanges.tsx": {
+    "id-length": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/ui/confirmation/views/ConfirmSendTransaction/ConfirmSendTransaction.tsx": {
+    "id-length": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/ui/confirmation/views/ConfirmSignChangeTrustOptIn/ConfirmSignChangeTrustOptIn.tsx": {
+    "id-length": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/ui/confirmation/views/ConfirmSignChangeTrustOptOut/ConfirmSignChangeTrustOptOut.tsx": {
+    "id-length": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/ui/confirmation/views/ConfirmSignTransaction/ConfirmSignTransaction.tsx": {
+    "id-length": {
+      "count": 1
     }
   },
   "packages/snap/src/ui/confirmation/views/MaliciousAcknowledgement/MaliciousAcknowledgementScreen.test.tsx": {
@@ -286,9 +382,29 @@
       "count": 3
     }
   },
+  "packages/snap/src/ui/confirmation/views/MaliciousAcknowledgement/MaliciousAcknowledgementScreen.tsx": {
+    "id-length": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/utils/__mocks__/snap.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
   "packages/snap/src/utils/async.test.ts": {
     "@typescript-eslint/explicit-function-return-type": {
       "count": 6
+    }
+  },
+  "packages/snap/src/utils/logger.ts": {
+    "no-restricted-syntax": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/utils/snap.ts": {
+    "no-restricted-syntax": {
+      "count": 1
     }
   }
 }
