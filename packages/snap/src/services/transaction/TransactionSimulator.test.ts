@@ -11,6 +11,28 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { KnownCaip2ChainId } from '../../api';
+import {
+  ACCOUNT_REQUIRES_MEMO,
+  MEMO_REQUIRED_KEY,
+  STELLAR_DECIMAL_PLACES,
+} from '../../constants';
+import { caip2ChainIdToNetwork } from '../network/utils';
+import {
+  createMockAccountWithBalances,
+  horizonSource,
+} from '../on-chain-account/__mocks__/onChainAccount.fixtures';
+import type { MockAccountWithBalancesData } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
+import { OnChainAccount } from '../on-chain-account/OnChainAccount';
+import {
+  generateStellarAddress,
+  getTestWallet,
+} from '../wallet/__mocks__/wallet.fixtures';
+import {
+  buildMockClassicTransaction,
+  buildMockInvokeHostFunctionTransaction,
+} from './__mocks__/transaction.fixtures';
+import type { BuildMockTransactionOptions } from './__mocks__/transaction.fixtures';
 import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverBaseReserveException,
@@ -32,28 +54,6 @@ import {
   SupportedOperations,
   TransactionSimulator,
 } from './TransactionSimulator';
-import { KnownCaip2ChainId } from '../../api';
-import {
-  ACCOUNT_REQUIRES_MEMO,
-  MEMO_REQUIRED_KEY,
-  STELLAR_DECIMAL_PLACES,
-} from '../../constants';
-import { caip2ChainIdToNetwork } from '../network/utils';
-import {
-  createMockAccountWithBalances,
-  horizonSource,
-} from '../on-chain-account/__mocks__/onChainAccount.fixtures';
-import type { MockAccountWithBalancesData } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
-import { OnChainAccount } from '../on-chain-account/OnChainAccount';
-import {
-  buildMockClassicTransaction,
-  buildMockInvokeHostFunctionTransaction,
-} from './__mocks__/transaction.fixtures';
-import type { BuildMockTransactionOptions } from './__mocks__/transaction.fixtures';
-import {
-  generateStellarAddress,
-  getTestWallet,
-} from '../wallet/__mocks__/wallet.fixtures';
 
 const SEP41_ASSET_MAINNET =
   'stellar:pubnet/sep41:CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J' as const;

@@ -1,5 +1,3 @@
-import { BackgroundEventMethod } from './api';
-import { SyncAccountsHandler } from './syncAccounts';
 import { AppConfig } from '../../config';
 import type {
   AccountService,
@@ -9,6 +7,8 @@ import { generateMockStellarKeyringAccounts } from '../../services/account/__moc
 import type { SynchronizeService } from '../../services/sync/SynchronizeService';
 import { Duration } from '../../utils';
 import { logger } from '../../utils/logger';
+import { BackgroundEventMethod } from './api';
+import { SyncAccountsHandler } from './syncAccounts';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');

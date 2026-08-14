@@ -11,12 +11,6 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import {
-  InvalidAssetForCreateAccountException,
-  TransactionBuilderException,
-} from './exceptions';
-import { Transaction } from './Transaction';
-import { assertAssetScopeMatch, caip19ToStellarAsset } from './utils';
 import type {
   KnownCaip2ChainId,
   KnownCaip19AssetIdOrSlip44Id,
@@ -35,6 +29,12 @@ import {
 import type { ILogger } from '../../utils';
 import { baseInclusionFee, caip2ChainIdToNetwork } from '../network/utils';
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
+import {
+  InvalidAssetForCreateAccountException,
+  TransactionBuilderException,
+} from './exceptions';
+import { Transaction } from './Transaction';
+import { assertAssetScopeMatch, caip19ToStellarAsset } from './utils';
 
 /**
  * Builds Stellar transactions (e.g. change trust, create account) and rebuilds existing

@@ -21,18 +21,6 @@ import type {
   CaipChainId,
 } from '@metamask/utils';
 
-import type { GetAccountRequest, MultichainMethod } from './api';
-import {
-  DeleteAccountRequestStruct,
-  GetAccountRequestStruct,
-  ListAccountTransactionsRequestStruct,
-  MultichainMethodStruct,
-  ResolveAccountAddressRequestStruct,
-  SetSelectedAccountsRequestStruct,
-  ListAccountAssetsRequestStruct,
-  GetAccountBalancesRequestStruct,
-} from './api';
-import type { IKeyringRequestHandler } from './base';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
@@ -67,6 +55,18 @@ import {
 } from '../../utils';
 import { getSupportedScopes } from '../../utils/scopes';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
+import type { GetAccountRequest, MultichainMethod } from './api';
+import {
+  DeleteAccountRequestStruct,
+  GetAccountRequestStruct,
+  ListAccountTransactionsRequestStruct,
+  MultichainMethodStruct,
+  ResolveAccountAddressRequestStruct,
+  SetSelectedAccountsRequestStruct,
+  ListAccountAssetsRequestStruct,
+  GetAccountBalancesRequestStruct,
+} from './api';
+import type { IKeyringRequestHandler } from './base';
 
 export class KeyringHandler implements KeyringSnapRpc {
   readonly #logger: ILogger;

@@ -2,6 +2,15 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { Account, Keypair } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import type { KnownCaip19Sep41AssetId } from '../../api';
+import { KnownCaip2ChainId } from '../../api';
+import { ACCOUNT_REQUIRES_MEMO, MEMO_REQUIRED_KEY } from '../../constants';
+import {
+  getSlip44AssetId,
+  toCaip19ClassicAssetId,
+  toSmallestUnit,
+} from '../../utils';
+import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
 import {
   createMockAccountWithBalances,
   DEFAULT_MOCK_ACCOUNT_WITH_BALANCES,
@@ -20,15 +29,6 @@ import type {
 } from './OnChainAccountSerializable';
 import { OnChainAccountSerializableFullStruct } from './OnChainAccountSerializable';
 import { calculateSpendableBalance, minimumBalanceStroops } from './utils';
-import type { KnownCaip19Sep41AssetId } from '../../api';
-import { KnownCaip2ChainId } from '../../api';
-import { ACCOUNT_REQUIRES_MEMO, MEMO_REQUIRED_KEY } from '../../constants';
-import {
-  getSlip44AssetId,
-  toCaip19ClassicAssetId,
-  toSmallestUnit,
-} from '../../utils';
-import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
 
 function expectDefined<ValueType>(value: ValueType | undefined): ValueType {
   expect(value).toBeDefined();

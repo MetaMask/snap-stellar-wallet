@@ -10,9 +10,9 @@ import {
   Text as SnapText,
 } from '@metamask/snaps-sdk/jsx';
 
-import { MaliciousAcknowledgementFormNames } from './constants';
 import { i18n } from '../../../../utils';
 import type { ConfirmationBaseProps } from '../../api';
+import { MaliciousAcknowledgementFormNames } from './constants';
 
 export type MaliciousAcknowledgementScreenProps = {
   locale: ConfirmationBaseProps['locale'];
@@ -40,10 +40,17 @@ export const MaliciousAcknowledgementScreen = ({
     <Container>
       <Box>
         <Box alignment="center" center>
-          <Heading size="lg">{translate('confirmation.maliciousAck.title')}</Heading>
+          <Heading size="lg">
+            {translate('confirmation.maliciousAck.title')}
+          </Heading>
         </Box>
-        <Banner title={translate('confirmation.maliciousAck.title')} severity="danger">
-          <SnapText>{translate('confirmation.maliciousAck.description')}</SnapText>
+        <Banner
+          title={translate('confirmation.maliciousAck.title')}
+          severity="danger"
+        >
+          <SnapText>
+            {translate('confirmation.maliciousAck.description')}
+          </SnapText>
         </Banner>
         <Checkbox
           name={MaliciousAcknowledgementFormNames.Acknowledge}

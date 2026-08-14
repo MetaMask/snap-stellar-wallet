@@ -1,11 +1,5 @@
 import type { Json } from '@metamask/utils';
 
-import { ConfirmationContextRefresherKey } from './api';
-import type {
-  ConfirmationContextRefreshResult,
-  ConfirmationDataContext,
-  IConfirmationContextRefresher,
-} from './api';
 import type {
   TransactionScanEstimatedChanges,
   TransactionScanResult,
@@ -19,6 +13,12 @@ import {
 } from '../../../ui/confirmation/api';
 import type { ILogger } from '../../../utils/logger';
 import { createPrefixedLogger } from '../../../utils/logger';
+import { ConfirmationContextRefresherKey } from './api';
+import type {
+  ConfirmationContextRefreshResult,
+  ConfirmationDataContext,
+  IConfirmationContextRefresher,
+} from './api';
 
 type SecurityScanContext = ConfirmationDataContext & ContextWithSecurityScan;
 

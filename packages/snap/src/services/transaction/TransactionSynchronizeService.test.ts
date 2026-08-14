@@ -9,17 +9,6 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { Keypair, Networks } from '@stellar/stellar-sdk';
 
 import { KnownCaip2ChainId } from '../../api';
-import { sep41SendTransactionResponse } from './__mocks__/horizon-transaction-responses.fixtures';
-import {
-  buildMockClassicTransaction,
-  generateMockTransactions,
-} from './__mocks__/transaction.fixtures';
-import type { StellarKeyringTransaction } from './api';
-import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
-import { Transaction } from './Transaction';
-import { TransactionMapper } from './TransactionMapper';
-import { TransactionRepository } from './TransactionRepository';
-import { TransactionSynchronizeService } from './TransactionSynchronizeService';
 import { toCaip19Sep41AssetId } from '../../utils';
 import { logger } from '../../utils/logger';
 import { getSnapProvider } from '../../utils/snap';
@@ -37,6 +26,17 @@ import {
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { State } from '../state/State';
 import type { ActivatedAccountPair } from '../sync/api';
+import { sep41SendTransactionResponse } from './__mocks__/horizon-transaction-responses.fixtures';
+import {
+  buildMockClassicTransaction,
+  generateMockTransactions,
+} from './__mocks__/transaction.fixtures';
+import type { StellarKeyringTransaction } from './api';
+import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
+import { Transaction } from './Transaction';
+import { TransactionMapper } from './TransactionMapper';
+import { TransactionRepository } from './TransactionRepository';
+import { TransactionSynchronizeService } from './TransactionSynchronizeService';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');

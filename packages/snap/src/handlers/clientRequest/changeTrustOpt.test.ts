@@ -3,9 +3,6 @@ import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { ClientRequestMethod, ChangeTrustOptAction } from './api';
-import type { ChangeTrustOptJsonRpcRequest } from './api';
-import { ChangeTrustOptHandler } from './changeTrustOpt';
 import { KnownCaip2ChainId } from '../../api';
 import type { KnownCaip19ClassicAssetId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
@@ -51,6 +48,9 @@ import { logger } from '../../utils/logger';
 import * as snapUtils from '../../utils/snap';
 import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
+import { ClientRequestMethod, ChangeTrustOptAction } from './api';
+import type { ChangeTrustOptJsonRpcRequest } from './api';
+import { ChangeTrustOptHandler } from './changeTrustOpt';
 
 jest.mock('../../utils/logger');
 jest.mock('@metamask/keyring-snap-sdk', () => ({

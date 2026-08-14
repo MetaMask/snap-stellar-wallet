@@ -9,18 +9,26 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 if (environment === 'local' || environment === 'test') {
   manifest.initialConnections['http://localhost:3000'] = {};
   if (manifest.initialPermissions?.['endowment:keyring']?.allowedOrigins) {
-    if (!manifest.initialPermissions['endowment:keyring'].allowedOrigins.includes('http://localhost:3000')) {
-      manifest.initialPermissions['endowment:keyring'].allowedOrigins.push('http://localhost:3000');
+    if (
+      !manifest.initialPermissions['endowment:keyring'].allowedOrigins.includes(
+        'http://localhost:3000',
+      )
+    ) {
+      manifest.initialPermissions['endowment:keyring'].allowedOrigins.push(
+        'http://localhost:3000',
+      );
     }
   }
 
   // Add endowment:rpc permission for local/dev mode
   manifest.initialPermissions['endowment:rpc'] = {
     dapps: true,
-    snaps: false
+    snaps: false,
   };
 
-  console.log('Added localhost entries and endowment:rpc to snap.manifest.json for local development');
+  console.log(
+    'Added localhost entries and endowment:rpc to snap.manifest.json for local development',
+  );
 } else {
   // Production mode - remove local-only settings
   let changed = false;
@@ -33,7 +41,8 @@ if (environment === 'local' || environment === 'test') {
 
   // Remove localhost from keyring allowedOrigins
   if (manifest.initialPermissions?.['endowment:keyring']?.allowedOrigins) {
-    const origins = manifest.initialPermissions['endowment:keyring'].allowedOrigins;
+    const origins =
+      manifest.initialPermissions['endowment:keyring'].allowedOrigins;
     const index = origins.indexOf('http://localhost:3000');
     if (index > -1) {
       origins.splice(index, 1);
@@ -48,9 +57,10 @@ if (environment === 'local' || environment === 'test') {
   }
 
   if (changed) {
-    console.log('Removed local-only settings from snap.manifest.json for production');
+    console.log(
+      'Removed local-only settings from snap.manifest.json for production',
+    );
   }
 }
 
-fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-
+fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);

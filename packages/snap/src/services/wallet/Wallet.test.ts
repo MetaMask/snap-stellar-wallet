@@ -1,10 +1,10 @@
 import { hexToBytes } from '@metamask/utils';
 import { hash, Keypair } from '@stellar/stellar-sdk';
 
-import { getTestWallet } from './__mocks__/wallet.fixtures';
-import { Wallet } from './Wallet';
 import { bufferToUint8Array } from '../../utils/buffer';
 import { buildMockClassicTransaction } from '../transaction/__mocks__/transaction.fixtures';
+import { getTestWallet } from './__mocks__/wallet.fixtures';
+import { Wallet } from './Wallet';
 
 jest.mock('../../utils/logger');
 

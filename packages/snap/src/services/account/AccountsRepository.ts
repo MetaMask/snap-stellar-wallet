@@ -1,9 +1,9 @@
 import { cloneDeep } from 'lodash';
 
-import type { KeyringAccountState, StellarKeyringAccount } from './api';
 import type { KnownCaip2ChainId } from '../../api';
 import { isSameStr } from '../../utils/assert';
 import type { IStateManager } from '../state/IStateManager';
+import type { KeyringAccountState, StellarKeyringAccount } from './api';
 
 /**
  * Persists and retrieves Stellar keyring accounts in snap state.

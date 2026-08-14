@@ -1,19 +1,6 @@
 import { FeeType } from '@metamask/keyring-api';
 import { BigNumber } from 'bignumber.js';
 
-import type {
-  ComputeFeeJsonRpcRequest,
-  ComputeFeeJsonRpcResponse,
-} from './api';
-import {
-  ComputeFeeJsonRpcRequestStruct,
-  ComputeFeeJsonRpcResponseStruct,
-} from './api';
-import type {
-  AccountResolver,
-  ResolvedActivatedAccount,
-} from '../accountResolver';
-import { BaseClientRequestHandler } from './base';
 import { KnownCaip19Slip44IdMap } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import {
@@ -26,6 +13,19 @@ import { isSlip44Id } from '../../utils';
 import { toDisplayBalance } from '../../utils/currency';
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
+import type {
+  AccountResolver,
+  ResolvedActivatedAccount,
+} from '../accountResolver';
+import type {
+  ComputeFeeJsonRpcRequest,
+  ComputeFeeJsonRpcResponse,
+} from './api';
+import {
+  ComputeFeeJsonRpcRequestStruct,
+  ComputeFeeJsonRpcResponseStruct,
+} from './api';
+import { BaseClientRequestHandler } from './base';
 
 export class ComputeFeeHandler extends BaseClientRequestHandler<
   ComputeFeeJsonRpcRequest,

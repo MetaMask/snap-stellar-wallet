@@ -1,12 +1,12 @@
 import { BigNumber } from 'bignumber.js';
 
+import { NATIVE_ASSET_SYMBOL, STELLAR_DECIMAL_PLACES } from '../../constants';
 import {
   getDefaultBalanceEntry,
   toClassicBalanceEntry,
   toNativeBalanceEntry,
   toStandardBalanceEntry,
 } from './keyringBalance';
-import { NATIVE_ASSET_SYMBOL, STELLAR_DECIMAL_PLACES } from '../../constants';
 
 describe('toNativeBalanceEntry', () => {
   it('formats amount in display units and keeps spendable/reserve metadata in stroops', () => {

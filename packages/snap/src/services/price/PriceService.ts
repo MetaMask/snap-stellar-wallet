@@ -8,6 +8,7 @@ import { parseCaipAssetType } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 import { pick } from 'lodash';
 
+import { AppConfig } from '../../config';
 import {
   createPrefixedLogger,
   getFiatTicker,
@@ -28,7 +29,6 @@ import type {
   VsCurrencyParam,
 } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
-import { AppConfig } from '../../config';
 
 /**
  * Time window tokens passed to the Price API for multichain historical snapshots.

@@ -1,12 +1,3 @@
-import type {
-  TrackTransactionJsonRpcRequest,
-  TrackTransactionParams,
-} from './api';
-import {
-  BackgroundEventMethod,
-  TrackTransactionJsonRpcRequestStruct,
-} from './api';
-import { CronjobBaseHandler } from './base';
 import type { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { METAMASK_ORIGIN } from '../../constants';
@@ -26,6 +17,15 @@ import {
   scheduleBackgroundEvent,
   trackTransactionFinalized,
 } from '../../utils/snap';
+import type {
+  TrackTransactionJsonRpcRequest,
+  TrackTransactionParams,
+} from './api';
+import {
+  BackgroundEventMethod,
+  TrackTransactionJsonRpcRequestStruct,
+} from './api';
+import { CronjobBaseHandler } from './base';
 
 /**
  * Tracks transaction settlement via Horizon. Each cron run fetches the transaction once

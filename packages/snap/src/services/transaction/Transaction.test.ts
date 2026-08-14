@@ -12,9 +12,9 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { KnownCaip2ChainId } from '../../api';
 import { TransactionDeserializationException } from './exceptions';
 import { Transaction } from './Transaction';
-import { KnownCaip2ChainId } from '../../api';
 
 describe('Transaction', () => {
   it('reports operationCount equal to transactionOperations length for a classic transaction', () => {

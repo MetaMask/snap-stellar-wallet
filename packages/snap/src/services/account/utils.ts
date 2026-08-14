@@ -1,6 +1,6 @@
-import { DerivedAccountAddressMismatchException } from './exceptions';
 import type { StellarAddress } from '../../api';
 import { isSameStr } from '../../utils';
+import { DerivedAccountAddressMismatchException } from './exceptions';
 
 /**
  * Asserts two Stellar strkeys refer to the same account (case-insensitive).

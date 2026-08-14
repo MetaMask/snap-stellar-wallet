@@ -1,18 +1,15 @@
 import type { DialogResult } from '@metamask/snaps-sdk';
 
-import { FetchStatus } from './api';
-import type { ConfirmationInterfaceKey, ContextWithPrices } from './api';
-import {
-  formatFeeData,
-  formatOrigin,
-  getPreferencesWithFallback,
-} from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import type {
   ChangeTrustOptJsonRpcRequest,
   ConfirmSendJsonRpcRequest,
 } from '../../handlers/clientRequest/api';
+import {
+  ConfirmationContextRefresherKey,
+  RefreshConfirmationContextHandler,
+} from '../../handlers/cronjob/refreshConfirmationContext';
 import type {
   SecurityScanRequest,
   TransactionScanResult,
@@ -27,12 +24,15 @@ import {
   updateInterfaceIfExists,
 } from '../../utils';
 import { xlmIcon } from '../images';
+import { FetchStatus } from './api';
+import type { ConfirmationInterfaceKey, ContextWithPrices } from './api';
+import {
+  formatFeeData,
+  formatOrigin,
+  getPreferencesWithFallback,
+} from './utils';
 import { renderConfirmationView } from './views/render';
 import type { ConfirmationViewProps } from './views/render';
-import {
-  ConfirmationContextRefresherKey,
-  RefreshConfirmationContextHandler,
-} from '../../handlers/cronjob/refreshConfirmationContext';
 
 type ConfirmationRenderOptions = {
   // Fetch external token spot prices.

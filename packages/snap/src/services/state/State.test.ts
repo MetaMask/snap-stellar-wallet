@@ -3,8 +3,8 @@
 import { BigNumber } from 'bignumber.js';
 import { cloneDeep } from 'lodash';
 
-import { State } from './State';
 import { getSnapProvider } from '../../utils/snap';
+import { State } from './State';
 
 jest.mock('../../utils/snap');
 

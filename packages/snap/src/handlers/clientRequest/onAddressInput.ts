@@ -1,5 +1,6 @@
 import type { Json, JsonRpcRequest } from '@metamask/utils';
 
+import { validateRequest } from '../../utils';
 import type {
   OnAddressInputJsonRpcRequest,
   OnAddressInputJsonRpcResponse,
@@ -9,7 +10,6 @@ import {
   OnAddressInputJsonRpcRequestStruct,
 } from './api';
 import type { IClientRequestHandler } from './base';
-import { validateRequest } from '../../utils';
 
 export class OnAddressInputHandler implements IClientRequestHandler {
   /**

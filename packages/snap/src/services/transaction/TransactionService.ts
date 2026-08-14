@@ -1,22 +1,5 @@
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 
-import { InsufficientBalanceException } from './exceptions';
-import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
-import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
-import { Transaction } from './Transaction';
-import type { TransactionBuilder } from './TransactionBuilder';
-import { TransactionMapper } from './TransactionMapper';
-import type { TransactionRepository } from './TransactionRepository';
-import {
-  SupportedOperations,
-  TransactionSimulator,
-} from './TransactionSimulator';
-import type { TransactionSimulatorOptions } from './TransactionSimulator';
-import { TransactionSynchronizeService } from './TransactionSynchronizeService';
-import {
-  assertTransactionScope,
-  emitAccountTransactionsUpdated,
-} from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19ClassicAssetId,
@@ -37,6 +20,23 @@ import {
 import type { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import type { ActivatedAccountPair } from '../sync/api';
 import type { Wallet } from '../wallet';
+import { InsufficientBalanceException } from './exceptions';
+import type { KeyringTransactionRequest } from './KeyringTransactionBuilder';
+import { KeyringTransactionBuilder } from './KeyringTransactionBuilder';
+import { Transaction } from './Transaction';
+import type { TransactionBuilder } from './TransactionBuilder';
+import { TransactionMapper } from './TransactionMapper';
+import type { TransactionRepository } from './TransactionRepository';
+import {
+  SupportedOperations,
+  TransactionSimulator,
+} from './TransactionSimulator';
+import type { TransactionSimulatorOptions } from './TransactionSimulator';
+import { TransactionSynchronizeService } from './TransactionSynchronizeService';
+import {
+  assertTransactionScope,
+  emitAccountTransactionsUpdated,
+} from './utils';
 
 export class TransactionService {
   readonly #logger: ILogger;

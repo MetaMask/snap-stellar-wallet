@@ -1,8 +1,8 @@
 import type { ComponentOrElement } from '@metamask/snaps-sdk';
 
-import { ConfirmationFooter } from './ConfirmationFooter';
 import { i18n } from '../../../utils';
 import { MaliciousAcknowledgementFormNames } from '../views/MaliciousAcknowledgement/constants';
+import { ConfirmationFooter } from './ConfirmationFooter';
 
 const translate = i18n('en');
 

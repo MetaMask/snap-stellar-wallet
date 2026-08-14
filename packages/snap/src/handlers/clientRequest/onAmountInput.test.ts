@@ -1,9 +1,6 @@
 import { InvalidParamsError } from '@metamask/snaps-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { ClientRequestMethod, MultiChainSendErrorCodes } from './api';
-import type { OnAmountInputJsonRpcRequest } from './api';
-import { OnAmountInputHandler } from './onAmountInput';
 import { KnownCaip2ChainId } from '../../api';
 import type {
   KnownCaip19ClassicAssetId,
@@ -43,6 +40,9 @@ import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { logger } from '../../utils/logger';
 import { AccountResolver } from '../accountResolver';
+import { ClientRequestMethod, MultiChainSendErrorCodes } from './api';
+import type { OnAmountInputJsonRpcRequest } from './api';
+import { OnAmountInputHandler } from './onAmountInput';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');

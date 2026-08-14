@@ -9,6 +9,7 @@ console.log('[preinstalled-snap] - attempt to build preinstalled snap');
 
 /**
  * Read the contents of a file and return as a string.
+ *
  * @param {string} filePath - Path to file.
  * @returns {string} File as utf-8 string.
  */

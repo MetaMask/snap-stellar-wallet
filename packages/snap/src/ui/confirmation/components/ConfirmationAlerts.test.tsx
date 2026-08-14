@@ -1,4 +1,3 @@
-import { ConfirmationAlerts } from './ConfirmationAlerts';
 import {
   defaultPreferences as preferences,
   getProps,
@@ -6,6 +5,7 @@ import {
   maliciousScan,
 } from '../__fixtures__/confirmation.fixtures';
 import { FetchStatus } from '../api';
+import { ConfirmationAlerts } from './ConfirmationAlerts';
 
 describe('ConfirmationAlerts', () => {
   it('renders the validation banner when re-validation reports an error', () => {

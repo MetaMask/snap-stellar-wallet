@@ -2,16 +2,6 @@ import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 import { ensureError } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
-import type {
-  ConfirmSendJsonRpcRequest,
-  ConfirmSendJsonRpcResponse,
-} from './api';
-import {
-  ConfirmSendJsonRpcRequestStruct,
-  ConfirmSendJsonRpcResponseStruct,
-  MultiChainSendErrorCodes,
-} from './api';
-import { assertRefreshedTransactionFeeNotHigher } from './utils';
 import type { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
@@ -19,6 +9,7 @@ import type {
   AssetMetadataService,
   StellarAssetMetadata,
 } from '../../services/asset-metadata';
+import { AccountNotActivatedException } from '../../services/network';
 import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverFeeException,
@@ -29,8 +20,11 @@ import type {
   Transaction,
   TransactionService,
 } from '../../services/transaction';
+import { AssetChangeDirection } from '../../services/transaction-scan';
+import type { TransactionScanEstimatedChanges } from '../../services/transaction-scan';
 import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
+import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import {
   hasDecimals,
   isSlip44Id,
@@ -46,12 +40,18 @@ import type {
   AccountResolver,
   ResolvedActivatedAccount,
 } from '../accountResolver';
-import { BaseClientRequestHandler } from './base';
-import { AccountNotActivatedException } from '../../services/network';
-import { AssetChangeDirection } from '../../services/transaction-scan';
-import type { TransactionScanEstimatedChanges } from '../../services/transaction-scan';
-import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
+import type {
+  ConfirmSendJsonRpcRequest,
+  ConfirmSendJsonRpcResponse,
+} from './api';
+import {
+  ConfirmSendJsonRpcRequestStruct,
+  ConfirmSendJsonRpcResponseStruct,
+  MultiChainSendErrorCodes,
+} from './api';
+import { BaseClientRequestHandler } from './base';
+import { assertRefreshedTransactionFeeNotHigher } from './utils';
 
 /**
  * Confirms and submits a send transaction for Unified Non-EVM Send.

@@ -12,13 +12,13 @@ import {
   xdr,
 } from '@stellar/stellar-sdk';
 
+import { KnownCaip2ChainId } from '../../api';
 import {
   buildMockClassicTransaction,
   buildMockInvokeHostFunctionTransaction,
 } from './__mocks__/transaction.fixtures';
 import { OperationMapper } from './OperationMapper';
 import { Transaction } from './Transaction';
-import { KnownCaip2ChainId } from '../../api';
 
 /**
  * Builds a Transaction wrapper from raw SDK operations for types the fixture builder doesn't cover.

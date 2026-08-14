@@ -3,25 +3,6 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { Account as StellarAccount } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import type { SpendableBalance } from './api';
-import {
-  OnChainAccountBalanceNotAvailableException,
-  OnChainAccountException,
-  OnChainAccountMetadataNotAvailableException,
-} from './exceptions';
-import type {
-  OnChainAccountMinimalSerializable,
-  OnChainAccountSerializable,
-  OnChainAccountSerializableFull,
-  SerializableSpendableBalance,
-} from './OnChainAccountSerializable';
-import {
-  OnChainAccountMinimalSerializableStruct,
-  OnChainAccountSerializableFullStruct,
-  SerializableClassicSpendableBalanceStruct,
-  SerializableSep41SpendableBalanceStruct,
-} from './OnChainAccountSerializable';
-import { calculateSpendableBalance, minimumBalanceStroops } from './utils';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19ClassicAssetId,
@@ -42,6 +23,25 @@ import {
   toCaip19ClassicAssetId,
   toSmallestUnit,
 } from '../../utils';
+import type { SpendableBalance } from './api';
+import {
+  OnChainAccountBalanceNotAvailableException,
+  OnChainAccountException,
+  OnChainAccountMetadataNotAvailableException,
+} from './exceptions';
+import type {
+  OnChainAccountMinimalSerializable,
+  OnChainAccountSerializable,
+  OnChainAccountSerializableFull,
+  SerializableSpendableBalance,
+} from './OnChainAccountSerializable';
+import {
+  OnChainAccountMinimalSerializableStruct,
+  OnChainAccountSerializableFullStruct,
+  SerializableClassicSpendableBalanceStruct,
+  SerializableSep41SpendableBalanceStruct,
+} from './OnChainAccountSerializable';
+import { calculateSpendableBalance, minimumBalanceStroops } from './utils';
 
 /**
  * SDK {@link StellarAccount} plus optional {@link OnChainAccountSerializable} hydration.
@@ -489,8 +489,7 @@ export class OnChainAccount {
         );
         const limit = toSmallestUnit(new BigNumber(balance.limit ?? 0));
         const sponsorId =
-          hasProperty(balance, 'sponsor') &&
-          typeof balance.sponsor === 'string'
+          hasProperty(balance, 'sponsor') && typeof balance.sponsor === 'string'
             ? balance.sponsor
             : undefined;
         const sponsored = sponsorId !== undefined && sponsorId.length > 0;

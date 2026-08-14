@@ -3,10 +3,6 @@ import { SLIP10Node } from '@metamask/key-tree';
 import { hexToBytes } from '@metamask/utils';
 import { Keypair as StellarKeypair } from '@stellar/stellar-sdk';
 
-import type { StellarKeyringAccount } from '../account';
-import { KeyDerivationException } from './exceptions';
-import { getDerivationPath } from './utils';
-import { Wallet } from './Wallet';
 import { STELLAR_CURVE } from '../../constants';
 import {
   bufferToUint8Array,
@@ -14,7 +10,11 @@ import {
   rethrowIfInstanceElseThrow,
   StellarSnapException,
 } from '../../utils';
+import type { StellarKeyringAccount } from '../account';
 import { assertSameAddress } from '../account/utils';
+import { KeyDerivationException } from './exceptions';
+import { getDerivationPath } from './utils';
+import { Wallet } from './Wallet';
 
 type Slip10KeyMaterial = {
   privateKey?: string;

@@ -9,18 +9,9 @@ import { hexToBytes } from '@metamask/utils';
 import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { TransactionScopeNotMatchException } from './exceptions';
-import { KeyringTransactionType } from './KeyringTransactionBuilder';
-import { TransactionBuilder } from './TransactionBuilder';
 import type { KnownCaip19ClassicAssetId } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { getSlip44AssetId, getSnapProvider } from '../../utils';
-import {
-  buildMockClassicTransaction,
-  buildMockInvokeHostFunctionTransaction,
-  createMockTransactionService,
-  generateMockTransactions,
-} from './__mocks__/transaction.fixtures';
 import { generateMockStellarKeyringAccounts } from '../account/__mocks__/account.fixtures';
 import type { StellarKeyringAccount } from '../account/api';
 import {
@@ -40,6 +31,15 @@ import {
 } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
 import { getTestWallet } from '../wallet/__mocks__/wallet.fixtures';
 import type { Wallet } from '../wallet/Wallet';
+import {
+  buildMockClassicTransaction,
+  buildMockInvokeHostFunctionTransaction,
+  createMockTransactionService,
+  generateMockTransactions,
+} from './__mocks__/transaction.fixtures';
+import { TransactionScopeNotMatchException } from './exceptions';
+import { KeyringTransactionType } from './KeyringTransactionBuilder';
+import { TransactionBuilder } from './TransactionBuilder';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');

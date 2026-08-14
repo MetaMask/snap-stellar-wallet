@@ -3,22 +3,9 @@ import type { CaipAssetType } from '@metamask/utils';
 import { parseCaipAssetType } from '@metamask/utils';
 
 import type {
-  SignAndSendTransactionJsonRpcRequest,
-  SignAndSendTransactionJsonRpcResponse,
-} from './api';
-import {
-  SignAndSendTransactionJsonRpcRequestStruct,
-  SignAndSendTransactionJsonRpcResponseStruct,
-} from './api';
-import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
 } from '../../api';
-import type {
-  AccountResolver,
-  ResolvedActivatedAccount,
-} from '../accountResolver';
-import { BaseClientRequestHandler } from './base';
 import { METAMASK_ORIGIN, STELLAR_DECIMAL_PLACES } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
 import type {
@@ -44,7 +31,20 @@ import {
 import { createPrefixedLogger } from '../../utils/logger';
 import type { ILogger } from '../../utils/logger';
 import { trackTransactionSubmitted } from '../../utils/snap';
+import type {
+  AccountResolver,
+  ResolvedActivatedAccount,
+} from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
+import type {
+  SignAndSendTransactionJsonRpcRequest,
+  SignAndSendTransactionJsonRpcResponse,
+} from './api';
+import {
+  SignAndSendTransactionJsonRpcRequestStruct,
+  SignAndSendTransactionJsonRpcResponseStruct,
+} from './api';
+import { BaseClientRequestHandler } from './base';
 
 type SwapAssetIds = {
   sourceAssetId: KnownCaip19AssetIdOrSlip44Id;

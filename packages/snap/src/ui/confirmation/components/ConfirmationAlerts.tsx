@@ -1,9 +1,9 @@
 import type { ComponentOrElement } from '@metamask/snaps-sdk';
 
-import { TransactionAlert } from './TransactionAlert';
-import { TransactionValidationAlert } from './TransactionValidationAlert';
 import type { ConfirmationBaseProps, FetchStatus } from '../api';
 import { ConfirmationBanner, resolveConfirmationBanner } from '../utils';
+import { TransactionAlert } from './TransactionAlert';
+import { TransactionValidationAlert } from './TransactionValidationAlert';
 
 type ConfirmationAlertsProps = {
   preferences: ConfirmationBaseProps['preferences'];

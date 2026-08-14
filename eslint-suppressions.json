@@ -1,0 +1,36 @@
+{
+  "eslint.config.mjs": {
+    "n/no-unsupported-features/node-builtins": {
+      "count": 1
+    }
+  },
+  "packages/snap/scripts/build-preinstalled-snap.js": {
+    "n/no-sync": {
+      "count": 2
+    }
+  },
+  "packages/snap/scripts/populate-en-locale.js": {
+    "n/no-sync": {
+      "count": 1
+    }
+  },
+  "packages/snap/scripts/update-manifest-local.js": {
+    "n/no-process-env": {
+      "count": 1
+    },
+    "n/no-sync": {
+      "count": 2
+    }
+  },
+  "packages/snap/snap.config.ts": {
+    "import-x/no-nodejs-modules": {
+      "count": 1
+    },
+    "n/no-process-env": {
+      "count": 1
+    },
+    "no-restricted-globals": {
+      "count": 27
+    }
+  }
+}

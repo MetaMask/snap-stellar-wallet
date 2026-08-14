@@ -1,12 +1,6 @@
 import type { Json } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
-import { ConfirmationContextRefresherKey } from './api';
-import type {
-  ConfirmationContextRefreshResult,
-  ConfirmationDataContext,
-  IConfirmationContextRefresher,
-} from './api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
 import type {
   Transaction,
@@ -29,6 +23,12 @@ import {
   ChangeTrustOptAction,
   ClientRequestMethod,
 } from '../../clientRequest/api';
+import { ConfirmationContextRefresherKey } from './api';
+import type {
+  ConfirmationContextRefreshResult,
+  ConfirmationDataContext,
+  IConfirmationContextRefresher,
+} from './api';
 
 type TransactionValidationContext = ConfirmationDataContext &
   ContextWithTransactionValidation &

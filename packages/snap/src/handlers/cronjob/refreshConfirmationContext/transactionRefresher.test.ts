@@ -1,8 +1,5 @@
 import { Networks } from '@stellar/stellar-sdk';
 
-import { createConfirmationDataContext } from './__fixtures__/context.fixtures';
-import { ConfirmationContextRefresherKey } from './api';
-import { ConfirmationTransactionRefresher } from './transactionRefresher';
 import { KnownCaip2ChainId } from '../../../api';
 import type { AssetMetadataService } from '../../../services/asset-metadata';
 import type { TransactionService } from '../../../services/transaction';
@@ -16,6 +13,9 @@ import {
   ChangeTrustOptAction,
   ClientRequestMethod,
 } from '../../clientRequest/api';
+import { createConfirmationDataContext } from './__fixtures__/context.fixtures';
+import { ConfirmationContextRefresherKey } from './api';
+import { ConfirmationTransactionRefresher } from './transactionRefresher';
 
 jest.mock('../../../utils/logger');
 

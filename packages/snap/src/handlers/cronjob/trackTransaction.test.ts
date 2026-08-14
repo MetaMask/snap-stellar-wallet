@@ -1,7 +1,5 @@
 import { TransactionStatus } from '@metamask/keyring-api';
 
-import { BackgroundEventMethod } from './api';
-import { TrackTransactionHandler } from './trackTransaction';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { KEYRING_ACCOUNT_TYPE, METAMASK_ORIGIN } from '../../constants';
@@ -22,6 +20,8 @@ import {
   scheduleBackgroundEvent,
   trackTransactionFinalized,
 } from '../../utils/snap';
+import { BackgroundEventMethod } from './api';
+import { TrackTransactionHandler } from './trackTransaction';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap', () => {
