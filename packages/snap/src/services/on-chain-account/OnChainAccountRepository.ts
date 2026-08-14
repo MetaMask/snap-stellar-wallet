@@ -1,12 +1,12 @@
 import { cloneDeep } from 'lodash';
 
+import type { KnownCaip2ChainId } from '../../api';
+import type { IStateManager } from '../state/IStateManager';
 import type {
   OnChainAccountSnapshotsByKeyringId,
   OnChainAccountState,
 } from './api';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
-import type { KnownCaip2ChainId } from '../../api';
-import type { IStateManager } from '../state/IStateManager';
 
 export class OnChainAccountRepository {
   readonly #state: IStateManager<OnChainAccountState>;

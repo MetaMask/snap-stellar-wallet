@@ -1,3 +1,13 @@
+import { KnownCaip2ChainId } from '../../api';
+import { MultichainMethod } from '../../handlers/keyring/api';
+import { mockBip32Node } from '../../utils/__mocks__/fixtures';
+import { getBip32Entropy, getDefaultEntropySource } from '../../utils/snap';
+import { WalletService } from '../wallet';
+import type { Wallet } from '../wallet/Wallet';
+import {
+  generateMockStellarKeyringAccounts,
+  mockAccountService,
+} from './__mocks__/account.fixtures';
 import type { AccountService } from './AccountService';
 import { AccountsRepository } from './AccountsRepository';
 import type { StellarKeyringAccount } from './api';
@@ -5,16 +15,6 @@ import {
   AccountNotFoundException,
   DerivedAccountAddressMismatchException,
 } from './exceptions';
-import { KnownCaip2ChainId } from '../../api';
-import {
-  generateMockStellarKeyringAccounts,
-  mockAccountService,
-} from './__mocks__/account.fixtures';
-import { MultichainMethod } from '../../handlers/keyring/api';
-import { mockBip32Node } from '../../utils/__mocks__/fixtures';
-import { getBip32Entropy, getDefaultEntropySource } from '../../utils/snap';
-import { WalletService } from '../wallet';
-import type { Wallet } from '../wallet/Wallet';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');

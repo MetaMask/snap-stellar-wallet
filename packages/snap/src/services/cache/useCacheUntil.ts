@@ -1,7 +1,7 @@
-import type { ICache } from './api';
 import { createPrefixedLogger, logger } from '../../utils/logger';
 import { serialize } from '../../utils/serialization';
 import type { Serializable } from '../../utils/serialization';
+import type { ICache } from './api';
 
 const cacheLogger = createPrefixedLogger(logger, 'useCache');
 

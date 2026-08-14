@@ -14,7 +14,6 @@ import {
 import type { Json } from '@metamask/utils';
 import { isNullOrUndefined } from '@metamask/utils';
 
-import { ConfirmSignTransactionFormNames } from './events';
 import type { KnownCaip2ChainId } from '../../../../api';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type {
@@ -43,6 +42,7 @@ import {
   resolveAssetDisplay,
   shouldDisableConfirmation,
 } from '../../utils';
+import { ConfirmSignTransactionFormNames } from './events';
 
 export type ConfirmSignTransactionProps = Omit<
   ConfirmationBaseProps,

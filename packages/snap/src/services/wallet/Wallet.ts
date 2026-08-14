@@ -1,14 +1,14 @@
 import { hash } from '@stellar/stellar-sdk';
 import type { Keypair } from '@stellar/stellar-sdk';
 
+import { bufferToUint8Array } from '../../utils/buffer';
+import type { Transaction } from '../transaction/Transaction';
 import {
   SignAuthEntryException,
   SignMessageException,
   SignTransactionException,
   VerifyMessageException,
 } from './exceptions';
-import { bufferToUint8Array } from '../../utils/buffer';
-import type { Transaction } from '../transaction/Transaction';
 
 /**
  * Signing-only handle: Stellar SDK keypair for transaction and SEP-53 message signing.

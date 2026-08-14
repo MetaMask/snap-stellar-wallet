@@ -1,16 +1,5 @@
 import { assert } from '@metamask/superstruct';
 
-import {
-  StellarTransactionScanResponseStruct,
-  ScanTransactionRequestStruct,
-} from './api';
-import type {
-  ScanTransactionRequest,
-  SecurityAlertsMetadata,
-  SecurityAlertsApiRequest,
-  StellarTransactionScanResponse,
-} from './api';
-import { TransactionScanException } from './exceptions';
 import { KnownCaip2ChainId, UrlStruct } from '../../api';
 import type { AnyErrorConstructor } from '../../utils';
 import { buildUrl, rethrowIfInstanceElseThrow } from '../../utils';
@@ -23,6 +12,17 @@ import {
   InvalidHttpResponseException,
   normalizeHttpException,
 } from '../../utils/errors';
+import {
+  StellarTransactionScanResponseStruct,
+  ScanTransactionRequestStruct,
+} from './api';
+import type {
+  ScanTransactionRequest,
+  SecurityAlertsMetadata,
+  SecurityAlertsApiRequest,
+  StellarTransactionScanResponse,
+} from './api';
+import { TransactionScanException } from './exceptions';
 
 const SCOPE_TO_SECURITY_ALERTS_CHAIN: Record<
   KnownCaip2ChainId,

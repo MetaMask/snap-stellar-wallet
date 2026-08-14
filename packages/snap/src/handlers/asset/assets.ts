@@ -10,12 +10,12 @@ import type {
 } from '@metamask/snaps-sdk';
 import { assert } from '@metamask/superstruct';
 
-import { OnAssetsLookupRequestStruct } from './api';
 import type { AssetMetadataService } from '../../services/asset-metadata/AssetMetadataService';
 import type { PriceService } from '../../services/price/PriceService';
 import { withCatchAndThrowSnapError } from '../../utils/errors';
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
+import { OnAssetsLookupRequestStruct } from './api';
 
 export class AssetsHandler {
   readonly #logger: ILogger;

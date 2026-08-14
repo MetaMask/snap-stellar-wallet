@@ -26,21 +26,21 @@ import type {
   KeyringAccountId,
   StellarKeyringAccount,
 } from '../account';
+import type { StellarAssetMetadata } from '../asset-metadata';
+import { TransactionNotFoundException } from '../network';
+import type { NetworkService } from '../network';
+import type { ActivatedAccountPair } from '../sync/api';
 import type { StellarKeyringTransaction } from './api';
 import { TransactionOrder } from './api';
 import type { Transaction } from './Transaction';
 import type { TransactionMapper } from './TransactionMapper';
 import type { TransactionRepository } from './TransactionRepository';
-import type { StellarAssetMetadata } from '../asset-metadata';
-import { TransactionNotFoundException } from '../network';
-import type { NetworkService } from '../network';
 import {
   emitAccountTransactionsUpdated,
   isPendingTransactionStatus,
   shouldDropPendingTransaction,
   toKeyringTransactions,
 } from './utils';
-import type { ActivatedAccountPair } from '../sync/api';
 
 /**
  * Mutable state shared across fetch, map, and persist steps within one sync run.

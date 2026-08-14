@@ -4,9 +4,9 @@ import type {
 } from '@metamask/snaps-sdk';
 import { Box, Skeleton, Text as SnapText } from '@metamask/snaps-sdk/jsx';
 
+import { formatFiat, tokenToFiat } from '../../../utils';
 import { AssetIcon } from './AssetIcon';
 import { AssetText } from './AssetText';
-import { formatFiat, tokenToFiat } from '../../../utils';
 
 type AssetProps = {
   symbol: string;

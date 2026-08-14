@@ -2,9 +2,9 @@ import type { MutexInterface } from 'async-mutex';
 import { Mutex } from 'async-mutex';
 import { unset } from 'lodash';
 
-import type { IStateManager } from './IStateManager';
 import { safeMerge, getState, setState, updateState } from '../../utils';
 import type { Serializable } from '../../utils';
+import type { IStateManager } from './IStateManager';
 
 export type StateConfig<TValue extends Record<string, Serializable>> = {
   encrypted: boolean;

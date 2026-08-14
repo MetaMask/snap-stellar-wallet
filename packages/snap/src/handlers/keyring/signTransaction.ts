@@ -1,13 +1,5 @@
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 
-import type { SignTransactionRequest, SignTransactionResponse } from './api';
-import {
-  SignTransactionRequestStruct,
-  SignTransactionResponseStruct,
-} from './api';
-import type { AccountResolver } from '../accountResolver';
-import { BaseSep43KeyringHandler } from './base';
-import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
 import { OperationMapper, Transaction } from '../../services/transaction';
 import {
@@ -19,6 +11,14 @@ import type { ContextWithPrices } from '../../ui/confirmation/api';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
+import type { AccountResolver } from '../accountResolver';
+import type { SignTransactionRequest, SignTransactionResponse } from './api';
+import {
+  SignTransactionRequestStruct,
+  SignTransactionResponseStruct,
+} from './api';
+import { BaseSep43KeyringHandler } from './base';
+import type { Sep43Error } from './exceptions';
 
 /**
  * SEP-43 `signTransaction` keyring handler.

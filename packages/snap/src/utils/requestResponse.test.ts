@@ -7,12 +7,12 @@ import {
 } from '@metamask/snaps-sdk';
 import { string, object } from '@metamask/superstruct';
 
+import { METAMASK_ORIGIN } from '../constants';
 import {
   validateRequest,
   validateResponse,
   validateOrigin,
 } from './requestResponse';
-import { METAMASK_ORIGIN } from '../constants';
 
 const TestStruct = object({
   url: string(),

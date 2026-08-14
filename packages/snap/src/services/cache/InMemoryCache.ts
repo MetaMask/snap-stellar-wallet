@@ -1,8 +1,8 @@
 import { assert } from '@metamask/utils';
 
-import type { ICache, CacheEntry } from './api';
 import type { ILogger } from '../../utils/logger';
 import type { Serializable } from '../../utils/serialization';
+import type { ICache, CacheEntry } from './api';
 
 /**
  * A simple in-memory cache implementation supporting TTL (Time To Live) functionality.

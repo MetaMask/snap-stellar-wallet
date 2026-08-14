@@ -4,11 +4,11 @@ import type {
 } from '@metamask/snaps-sdk';
 import { Box, Text as SnapText } from '@metamask/snaps-sdk/jsx';
 
-import { Asset } from './Asset';
 import { i18n } from '../../../utils/i18n';
 import { xlmIcon } from '../../images';
 import { FetchStatus } from '../api';
 import type { FeeData } from '../api';
+import { Asset } from './Asset';
 
 type FeesProps = {
   fee: FeeData;

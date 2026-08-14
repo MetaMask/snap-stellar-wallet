@@ -1,4 +1,3 @@
-import { EstimatedChanges } from './EstimatedChanges';
 import { AssetChangeDirection } from '../../../../services/transaction-scan';
 import { xlmIcon } from '../../../images';
 import {
@@ -6,6 +5,7 @@ import {
   getType,
 } from '../../__fixtures__/confirmation.fixtures';
 import { FetchStatus } from '../../api';
+import { EstimatedChanges } from './EstimatedChanges';
 
 function collectImageSources(node: unknown): unknown[] {
   if (!node || typeof node !== 'object') {

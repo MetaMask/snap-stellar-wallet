@@ -1,21 +1,6 @@
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 import { ensureError } from '@metamask/utils';
 
-import type {
-  ChangeTrustOptJsonRpcRequest,
-  ChangeTrustOptJsonRpcResponse,
-} from './api';
-import {
-  ChangeTrustOptAction,
-  ChangeTrustOptJsonRpcRequestStruct,
-  ChangeTrustOptJsonRpcResponseStruct,
-} from './api';
-import { assertRefreshedTransactionFeeNotHigher } from './utils';
-import type {
-  AccountResolver,
-  ResolvedActivatedAccount,
-} from '../accountResolver';
-import { BaseClientRequestHandler } from './base';
 import { METAMASK_ORIGIN } from '../../constants';
 import type { StellarKeyringAccount } from '../../services/account';
 import type {
@@ -43,7 +28,22 @@ import {
   trackTransactionApproved,
   trackTransactionRejected,
 } from '../../utils/snap';
+import type {
+  AccountResolver,
+  ResolvedActivatedAccount,
+} from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
+import type {
+  ChangeTrustOptJsonRpcRequest,
+  ChangeTrustOptJsonRpcResponse,
+} from './api';
+import {
+  ChangeTrustOptAction,
+  ChangeTrustOptJsonRpcRequestStruct,
+  ChangeTrustOptJsonRpcResponseStruct,
+} from './api';
+import { BaseClientRequestHandler } from './base';
+import { assertRefreshedTransactionFeeNotHigher } from './utils';
 
 export class ChangeTrustOptHandler extends BaseClientRequestHandler<
   ChangeTrustOptJsonRpcRequest,

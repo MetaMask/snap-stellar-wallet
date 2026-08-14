@@ -1,4 +1,3 @@
-import { TransactionAlert } from './TransactionAlert';
 import { TransactionScanValidationType } from '../../../services/transaction-scan';
 import {
   defaultPreferences as preferences,
@@ -6,6 +5,7 @@ import {
   getType,
 } from '../__fixtures__/confirmation.fixtures';
 import { FetchStatus } from '../api';
+import { TransactionAlert } from './TransactionAlert';
 
 describe('TransactionAlert', () => {
   it('renders a scan-in-progress banner while fetching', () => {

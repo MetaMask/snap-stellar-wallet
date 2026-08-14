@@ -1,14 +1,3 @@
-import { BackgroundEventMethod } from '../api';
-import {
-  confirmationContextRequestParams,
-  createConfirmationDataContext,
-} from './__fixtures__/context.fixtures';
-import type {
-  ConfirmationContextRefreshResult,
-  IConfirmationContextRefresher,
-} from './api';
-import { ConfirmationContextRefresherKey } from './api';
-import { RefreshConfirmationContextHandler } from './handler';
 import {
   ConfirmationInterfaceKey,
   FetchStatus,
@@ -20,6 +9,17 @@ import {
   getInterfaceContextIfExists,
   scheduleBackgroundEvent,
 } from '../../../utils/snap';
+import { BackgroundEventMethod } from '../api';
+import {
+  confirmationContextRequestParams,
+  createConfirmationDataContext,
+} from './__fixtures__/context.fixtures';
+import type {
+  ConfirmationContextRefreshResult,
+  IConfirmationContextRefresher,
+} from './api';
+import { ConfirmationContextRefresherKey } from './api';
+import { RefreshConfirmationContextHandler } from './handler';
 
 jest.mock('../../../utils/logger');
 jest.mock('../../../utils/snap', () => {

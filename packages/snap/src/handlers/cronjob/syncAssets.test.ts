@@ -1,8 +1,8 @@
-import { BackgroundEventMethod } from './api';
-import { SyncAssetsHandler } from './syncAssets';
 import { KnownCaip2ChainId } from '../../api';
 import type { SynchronizeService } from '../../services/sync/SynchronizeService';
 import { logger } from '../../utils/logger';
+import { BackgroundEventMethod } from './api';
+import { SyncAssetsHandler } from './syncAssets';
 
 jest.mock('../../utils/logger');
 

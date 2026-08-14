@@ -1,6 +1,6 @@
+import { KnownCaip2ChainId } from '../../api';
 import { ConfirmationInterfaceKey } from './api';
 import { ConfirmationUXController } from './controller';
-import { KnownCaip2ChainId } from '../../api';
 
 describe('ConfirmationUXController', () => {
   it('throws when transaction scanning is enabled without a security scan request', async () => {

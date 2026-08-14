@@ -2,10 +2,6 @@ import type { EntropySourceId } from '@metamask/keyring-api';
 import { getSelectedAccounts } from '@metamask/keyring-snap-sdk';
 import { InvalidParamsError } from '@metamask/snaps-sdk';
 
-import type { AccountsRepository } from './AccountsRepository';
-import type { StellarKeyringAccount, StellarDerivationPath } from './api';
-import { AccountNotFoundException } from './exceptions';
-import { assertSameAddress } from './utils';
 import type { StellarAddress, KnownCaip2ChainId } from '../../api';
 import { KEYRING_ACCOUNT_TYPE } from '../../constants';
 import { MultichainMethod } from '../../handlers/keyring/api';
@@ -19,6 +15,10 @@ import {
 import { getSupportedScopes } from '../../utils/scopes';
 import { getDerivationPath } from '../wallet';
 import type { WalletService } from '../wallet';
+import type { AccountsRepository } from './AccountsRepository';
+import type { StellarKeyringAccount, StellarDerivationPath } from './api';
+import { AccountNotFoundException } from './exceptions';
+import { assertSameAddress } from './utils';
 
 /**
  * Manages Stellar keyring accounts: creation, resolution from state, derivation checks, and persistence.

@@ -2,12 +2,12 @@ import { TransactionStatus } from '@metamask/keyring-api';
 
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
+import { getSnapProvider } from '../../utils/snap';
+import { State } from '../state/State';
 import { generateMockTransactions } from './__mocks__/transaction.fixtures';
 import type { StellarKeyringTransaction } from './api';
 import type { TransactionStateValue } from './TransactionRepository';
 import { TransactionRepository } from './TransactionRepository';
-import { getSnapProvider } from '../../utils/snap';
-import { State } from '../state/State';
 
 jest.mock('../../utils/snap');
 

@@ -1,5 +1,8 @@
 import { assert, StructError } from '@metamask/superstruct';
 
+import { KnownCaip2ChainId } from '../../api';
+import type { StellarKeyringAccount } from '../../services/account';
+import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
 import {
   CreateAccountOptionsStruct,
   ResolveAccountAddressRequestStruct,
@@ -13,9 +16,6 @@ import {
   SignTransactionRequestStruct,
   SignTransactionResponseStruct,
 } from './api';
-import { KnownCaip2ChainId } from '../../api';
-import type { StellarKeyringAccount } from '../../services/account';
-import { generateMockStellarKeyringAccounts } from '../../services/account/__mocks__/account.fixtures';
 
 const mockAccounts = generateMockStellarKeyringAccounts(1, 'entropy-source-1');
 const account = mockAccounts[0] as StellarKeyringAccount;

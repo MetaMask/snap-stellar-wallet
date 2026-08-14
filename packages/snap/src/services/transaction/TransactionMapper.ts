@@ -2,6 +2,20 @@ import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 import { TransactionStatus, TransactionType } from '@metamask/keyring-api';
 import { Asset } from '@stellar/stellar-sdk';
 
+import type {
+  KnownCaip19AssetIdOrSlip44Id,
+  KnownCaip19Sep41AssetId,
+  KnownCaip2ChainId,
+} from '../../api';
+import type { ILogger } from '../../utils';
+import {
+  createPrefixedLogger,
+  removeTrailingZeros,
+  stellarAssetToCaip19,
+  toDisplayBalance,
+} from '../../utils';
+import type { StellarKeyringAccount } from '../account/api';
+import type { StellarAssetMetadata } from '../asset-metadata';
 import { StellarOperationType } from './api';
 import { TransactionMapperException } from './exceptions';
 import type {
@@ -28,20 +42,6 @@ import {
   parseSuccessfulTransactionResult,
   TransactionResultType,
 } from './xdrParser';
-import type {
-  KnownCaip19AssetIdOrSlip44Id,
-  KnownCaip19Sep41AssetId,
-  KnownCaip2ChainId,
-} from '../../api';
-import type { ILogger } from '../../utils';
-import {
-  createPrefixedLogger,
-  removeTrailingZeros,
-  stellarAssetToCaip19,
-  toDisplayBalance,
-} from '../../utils';
-import type { StellarKeyringAccount } from '../account/api';
-import type { StellarAssetMetadata } from '../asset-metadata';
 
 export class TransactionMapper {
   readonly #keyringTransactionBuilder: KeyringTransactionBuilder;

@@ -1,5 +1,11 @@
 import { Networks } from '@stellar/stellar-sdk';
 
+import { KnownCaip2ChainId } from '../../api';
+import { xlmIcon } from '../../ui/images';
+import { toCaip19ClassicAssetId, toCaip19Sep41AssetId } from '../../utils';
+import { logger } from '../../utils/logger';
+import { getIconUrl } from '../asset-metadata/utils';
+import { buildMockClassicTransaction } from '../transaction/__mocks__/transaction.fixtures';
 import {
   insufficientBalanceResponse,
   noTrustlineResponse,
@@ -17,12 +23,6 @@ import {
 import type { StellarTransactionScanResponse } from './api';
 import type { SecurityAlertsApiClient } from './SecurityAlertsApiClient';
 import { TransactionScanService } from './TransactionScanService';
-import { KnownCaip2ChainId } from '../../api';
-import { xlmIcon } from '../../ui/images';
-import { toCaip19ClassicAssetId, toCaip19Sep41AssetId } from '../../utils';
-import { logger } from '../../utils/logger';
-import { getIconUrl } from '../asset-metadata/utils';
-import { buildMockClassicTransaction } from '../transaction/__mocks__/transaction.fixtures';
 
 jest.mock('../../utils/logger');
 

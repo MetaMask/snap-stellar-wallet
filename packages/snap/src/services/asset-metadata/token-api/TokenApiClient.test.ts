@@ -1,4 +1,3 @@
-import { TokenApiClient } from './TokenApiClient';
 import { KnownCaip2ChainId } from '../../../api';
 import { buildUrl } from '../../../utils';
 import {
@@ -6,6 +5,7 @@ import {
   HttpResponseException,
   InvalidHttpResponseException,
 } from '../../../utils/errors';
+import { TokenApiClient } from './TokenApiClient';
 
 const baseUrl = 'https://tokens.test';
 

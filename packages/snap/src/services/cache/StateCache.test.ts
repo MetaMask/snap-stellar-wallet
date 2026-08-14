@@ -1,10 +1,10 @@
 /* eslint-disable jest/prefer-strict-equal */
 
+import { logger } from '../../utils/logger';
+import type { IStateManager } from '../state';
 import { InMemoryState } from './InMemoryState';
 import type { StateValue } from './StateCache';
 import { StateCache } from './StateCache';
-import { logger } from '../../utils/logger';
-import type { IStateManager } from '../state';
 
 jest.mock('../../utils/logger');
 

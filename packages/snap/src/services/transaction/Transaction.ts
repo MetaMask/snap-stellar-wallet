@@ -10,15 +10,15 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import type { KnownCaip2ChainId } from '../../api';
+import { bufferToUint8Array } from '../../utils';
+import { caip2ChainIdToNetwork, networkToCaip2ChainId } from '../network/utils';
 import { StellarOperationType } from './api';
 import {
   TransactionDeserializationException,
   TransactionServiceException,
 } from './exceptions';
 import { parseExpirationMaxTime } from './utils';
-import type { KnownCaip2ChainId } from '../../api';
-import { bufferToUint8Array } from '../../utils';
-import { caip2ChainIdToNetwork, networkToCaip2ChainId } from '../network/utils';
 
 /**
  * Wrapper around a Stellar transaction. Exposes fees, operation metadata, and network/scope

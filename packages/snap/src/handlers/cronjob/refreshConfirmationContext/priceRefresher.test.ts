@@ -1,11 +1,11 @@
-import { createConfirmationDataContext } from './__fixtures__/context.fixtures';
-import { ConfirmationPriceRefresher } from './priceRefresher';
 import { KnownCaip2ChainId } from '../../../api';
 import type { PriceService } from '../../../services/price';
 import { FetchStatus } from '../../../ui/confirmation/api';
 import type { ContextWithPrices } from '../../../ui/confirmation/api';
 import { getSlip44AssetId } from '../../../utils';
 import { logger } from '../../../utils/logger';
+import { createConfirmationDataContext } from './__fixtures__/context.fixtures';
+import { ConfirmationPriceRefresher } from './priceRefresher';
 
 jest.mock('../../../utils/logger');
 

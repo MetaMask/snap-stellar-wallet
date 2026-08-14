@@ -1,6 +1,7 @@
 import { assert, StructError } from '@metamask/superstruct';
 import { cloneDeep, set } from 'lodash';
 
+import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from '../api';
 import {
   ExchangeRateStruct,
   FiatExchangeRatesResponseStruct,
@@ -11,7 +12,6 @@ import {
   SpotPriceStruct,
 } from './api';
 import type { SpotPricesResponse } from './api';
-import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from '../api';
 
 const stellarClassicUsdc =
   'stellar:testnet/asset:USDC-GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN' as const;

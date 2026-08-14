@@ -5,9 +5,6 @@ import {
 import { Networks } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { ClientRequestMethod, MultiChainSendErrorCodes } from './api';
-import type { ConfirmSendJsonRpcRequest } from './api';
-import { ConfirmSendHandler } from './confirmSend';
 import { KnownCaip2ChainId } from '../../api';
 import type {
   KnownCaip19ClassicAssetId,
@@ -36,6 +33,7 @@ import {
   mockOnChainAccountService,
 } from '../../services/on-chain-account/__mocks__/onChainAccount.fixtures';
 import { TransactionService } from '../../services/transaction';
+import { AssetChangeDirection } from '../../services/transaction-scan';
 import {
   buildMockClassicTransaction,
   createMockTransactionService,
@@ -47,7 +45,6 @@ import {
   XdrParseException,
 } from '../../services/transaction/exceptions';
 import { KeyringTransactionType } from '../../services/transaction/KeyringTransactionBuilder';
-import { AssetChangeDirection } from '../../services/transaction-scan';
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
@@ -57,6 +54,9 @@ import { logger } from '../../utils/logger';
 import * as snapUtils from '../../utils/snap';
 import { AccountResolver } from '../accountResolver';
 import { TrackTransactionHandler } from '../cronjob/trackTransaction';
+import { ClientRequestMethod, MultiChainSendErrorCodes } from './api';
+import type { ConfirmSendJsonRpcRequest } from './api';
+import { ConfirmSendHandler } from './confirmSend';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');

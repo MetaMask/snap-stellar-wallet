@@ -1,7 +1,6 @@
 import type { InputChangeEvent } from '@metamask/snaps-sdk';
 import type { Json } from '@metamask/utils';
 
-import { MaliciousAcknowledgementFormNames } from './constants';
 import type {
   UserInputUiEventHandler,
   UserInputUiEventHandlerContext,
@@ -10,6 +9,7 @@ import { resolveInterface, updateInterfaceIfExists } from '../../../../utils';
 import type { ConfirmationInterfaceKey, FetchStatus } from '../../api';
 import { shouldDisableConfirmation } from '../../utils';
 import { renderConfirmationView } from '../render';
+import { MaliciousAcknowledgementFormNames } from './constants';
 
 /**
  * Re-renders the interface with a patched context.

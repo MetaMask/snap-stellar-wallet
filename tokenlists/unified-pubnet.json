@@ -189,7 +189,7 @@
       "decimals": 7
     },
     {
-      "code":"VEUR",
+      "code": "VEUR",
       "issuer": "GDXLSLCOPPHTWOQXLLKSVN4VN3G67WD2ENU7UMVAROEYVJLSPSEWXIZN",
       "contract": "CDHNIO6IJ7EBFUDVALSE347YYNV3RKFB3Y5NZ3W4RH4QP4IS56MGSI5E",
       "name": "VNX EURO",
@@ -198,9 +198,9 @@
       "decimals": 7
     },
     {
-      "code":"MXNe",
+      "code": "MXNe",
       "issuer": "GCQCNWT22JDLENQAVIE6DRJGHWAQ6EX2H5ABGPV55EJUPPZM5UA7KHZR",
-      "contract":"CAPW7JXJ6H6SGJ5MVM25356FAYOVT3ICZUIZRT4KGZHLUNMTWNMUI3RM",
+      "contract": "CAPW7JXJ6H6SGJ5MVM25356FAYOVT3ICZUIZRT4KGZHLUNMTWNMUI3RM",
       "name": "Real MXN",
       "symbol": "MXNE",
       "icon": "https://assets.coingecko.com/coins/images/54735/thumb/mxne-logo-200.png?1741253834",
@@ -216,7 +216,7 @@
     },
     {
       "code": "EURCV",
-      "issuer":"GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G",
+      "issuer": "GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G",
       "contract": "CANKBYNNAYKEZXLB655F2UPNTAZFK5HILZUXL7ZTFR3NF6LKDSVY7KFH",
       "name": "EUR CoinVertible",
       "icon": "https://assets.coingecko.com/coins/images/33415/thumb/eurcv_%281%29.png?1701752017",
@@ -225,7 +225,7 @@
     {
       "code": "KTB",
       "issuer": "GCRYUGD5NVARGXT56XEZI5CIFCQETYHAPQQTHO2O3IQZTHDH4LATMYWC",
-      "contract":"CBAECV6UVDS6ZKPMC63MUYY4V7Q3KTHR7NLUFGVVGK7K3AQT475QTETP",
+      "contract": "CBAECV6UVDS6ZKPMC63MUYY4V7Q3KTHR7NLUFGVVGK7K3AQT475QTETP",
       "name": "Etherfuse KTB",
       "icon": "https://assets.coingecko.com/coins/images/102172092/thumb/KTB_Image.png?1771517177",
       "decimals": 7
@@ -258,7 +258,7 @@
       "code": "GBPSAFO",
       "issuer": "",
       "contract": "CAGYRRKPFSWKM6SJOE4QAAVYMOSHMDS5WOQ4T5A2E6XNCU7LZZKUNQKP",
-      "name": "Spiko Amundi Overnight Swap Fund (GBP)", 
+      "name": "Spiko Amundi Overnight Swap Fund (GBP)",
       "icon": "https://assets.coingecko.com/coins/images/102172592/thumb/Fund_gbpSAFO.png?1774104818",
       "decimals": 5
     },
@@ -272,7 +272,7 @@
     },
     {
       "code": "SOLVBTC",
-      "issuer":"",
+      "issuer": "",
       "contract": "CBIJBDNZNF4X35BJ4FFZWCDBSCKOP5NB4PLG4SNENRMLAPYG4P5FM6VN",
       "name": "Solv Protocol BTC",
       "icon": "https://assets.coingecko.com/coins/images/36800/thumb/solvBTC.png?1719810684",
@@ -280,7 +280,7 @@
     },
     {
       "code": "XSOLVBTC",
-      "issuer":"",
+      "issuer": "",
       "contract": "CAUP7NFABXE5TJRL3FKTPMWRLC7IAXYDCTHQRFSCLR5TMGKHOOQO772J",
       "name": "Solv Protocol Staked BTC",
       "icon": "https://assets.coingecko.com/coins/images/39384/thumb/xSolvBTC.png?1744170824",
@@ -297,7 +297,7 @@
     },
     {
       "code": "EUTBL",
-      "issuer": "",      
+      "issuer": "",
       "contract": "CBGV2QFQBBGEQRUKUMCPO3SZOHDDYO6SCP5CH6TW7EALKVHCXTMWDDOF",
       "name": "Spiko EU T-Bills Money Market Fund",
       "icon": "https://assets.coingecko.com/coins/images/39657/thumb/EUTBL.png?1723517425",

@@ -12,13 +12,13 @@ import {
   Tooltip,
 } from '@metamask/snaps-sdk/jsx';
 
-import { ConfirmSignMessageFormNames } from './events';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Locale } from '../../../../utils';
 import { i18n } from '../../../../utils';
 import type { ConfirmationBaseProps } from '../../api';
 import { NetworkRow } from '../../components/Network';
 import { getAccountName } from '../../utils';
+import { ConfirmSignMessageFormNames } from './events';
 
 export type ConfirmSignMessageProps = Pick<
   ConfirmationBaseProps,

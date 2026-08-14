@@ -7,20 +7,6 @@ import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 import { groupBy } from 'lodash';
 
-import { StellarOperationType } from './api';
-import type { StellarKeyringTransaction } from './api';
-import {
-  InvalidInvokeContractStructureException,
-  RequiresMemoException,
-  TransactionExpireException,
-  TransactionScopeNotMatchException,
-  TransactionValidationException,
-} from './exceptions';
-import type {
-  ReadableOperationField,
-  ReadableTransactionJson,
-} from './OperationMapper';
-import type { Transaction } from './Transaction';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip2ChainId,
@@ -36,6 +22,20 @@ import {
   parseClassicAssetCodeIssuer,
   toCaip19ClassicAssetId,
 } from '../../utils';
+import { StellarOperationType } from './api';
+import type { StellarKeyringTransaction } from './api';
+import {
+  InvalidInvokeContractStructureException,
+  RequiresMemoException,
+  TransactionExpireException,
+  TransactionScopeNotMatchException,
+  TransactionValidationException,
+} from './exceptions';
+import type {
+  ReadableOperationField,
+  ReadableTransactionJson,
+} from './OperationMapper';
+import type { Transaction } from './Transaction';
 
 /**
  * Returns the Stellar asset for the given CAIP-19 asset ID.

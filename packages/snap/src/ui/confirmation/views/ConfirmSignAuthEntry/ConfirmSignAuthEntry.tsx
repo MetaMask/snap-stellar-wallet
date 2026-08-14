@@ -13,7 +13,6 @@ import {
   Tooltip,
 } from '@metamask/snaps-sdk/jsx';
 
-import { ConfirmSignAuthEntryFormNames } from './events';
 import type { ReadableAuthEntry } from '../../../../handlers/keyring/signAuthEntry';
 import type { StellarKeyringAccount } from '../../../../services/account';
 import type { Locale } from '../../../../utils';
@@ -22,6 +21,7 @@ import type { ConfirmationBaseProps } from '../../api';
 import { Authorizations } from '../../components/Authorizations';
 import { NetworkRow } from '../../components/Network';
 import { getAccountName } from '../../utils';
+import { ConfirmSignAuthEntryFormNames } from './events';
 
 export type ConfirmSignAuthEntryProps = Pick<
   ConfirmationBaseProps,
