@@ -40,6 +40,7 @@ import {
   getSlip44AssetId,
   getDefaultEntropySource,
   Duration,
+  uuid,
 } from '../../utils';
 import { bufferToUint8Array } from '../../utils/buffer';
 import { logger } from '../../utils/logger';
@@ -978,7 +979,7 @@ describe('KeyringHandler', () => {
 
     it('throws InvalidParamsError when a valid-looking id does not belong to this keyring', async () => {
       const { findByIdsSpy } = getAccountServiceSpies();
-      const unknownId = globalThis.crypto.randomUUID();
+      const unknownId = uuid();
       findByIdsSpy.mockResolvedValue([]);
 
       await expect(
@@ -990,7 +991,7 @@ describe('KeyringHandler', () => {
 
     it('throws InvalidParamsError when only a subset of the ids exist', async () => {
       const { findByIdsSpy } = getAccountServiceSpies();
-      const unknownId = globalThis.crypto.randomUUID();
+      const unknownId = uuid();
       findByIdsSpy.mockResolvedValue([mockAccount]);
 
       await expect(

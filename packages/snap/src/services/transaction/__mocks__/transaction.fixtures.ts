@@ -14,7 +14,7 @@ import {
 
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../../api';
 import { KnownCaip2ChainId } from '../../../api';
-import { getSlip44AssetId, logger } from '../../../utils';
+import { getSlip44AssetId, logger, uuid } from '../../../utils';
 import { mockAccountService } from '../../account/__mocks__/account.fixtures';
 import { createMemoryCache } from '../../cache/__mocks__/cache.fixtures';
 import { NetworkService } from '../../network';
@@ -107,7 +107,7 @@ export function generateMockTransactions(
 
     return {
       type: overrides.type ?? TransactionType.Send,
-      id: overrides.id ?? globalThis.crypto.randomUUID(),
+      id: overrides.id ?? uuid(),
       from: [
         {
           address: overrides.fromAddress ?? generateStellarAddress(),
@@ -138,7 +138,7 @@ export function generateMockTransactions(
       ],
       chain: scope,
       status: overrides.status ?? TransactionStatus.Unconfirmed,
-      account: overrides.account ?? globalThis.crypto.randomUUID(),
+      account: overrides.account ?? uuid(),
       timestamp,
       fees: overrides.fees ?? [],
     };

@@ -1,4 +1,4 @@
-import { hasProperty, parseCaipAssetType } from '@metamask/utils';
+import { parseCaipAssetType } from '@metamask/utils';
 import type { xdr, OperationOptions } from '@stellar/stellar-sdk';
 import {
   Account,
@@ -348,9 +348,11 @@ export class TransactionBuilder {
         },
       );
 
-      // Clone the transaction operations
-      if (hasProperty(rawTransaction, 'tx')) {
-        const { tx } = rawTransaction as { tx: xdr.Transaction };
+      // Clone the transaction operations.
+      // `tx` is a prototype getter on Stellar TransactionBase (not an own
+      // property), so hasProperty / Object.hasOwn cannot detect it.
+      const { tx } = rawTransaction as unknown as { tx?: xdr.Transaction };
+      if (tx) {
         tx.operations().forEach((op) => builder.addOperation(op));
       } else {
         throw new TransactionBuilderException(

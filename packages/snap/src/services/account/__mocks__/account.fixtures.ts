@@ -1,7 +1,7 @@
 import { KnownCaip2ChainId } from '../../../api';
 import { KEYRING_ACCOUNT_TYPE } from '../../../constants';
 import { MultichainMethod } from '../../../handlers/keyring/api';
-import { logger } from '../../../utils/logger';
+import { logger, uuid } from '../../../utils';
 import { State } from '../../state/State';
 import { WalletService, getDerivationPath } from '../../wallet';
 import { generateStellarAddress } from '../../wallet/__mocks__/wallet.fixtures';
@@ -40,7 +40,7 @@ export const generateMockStellarKeyringAccounts = (
 ): StellarKeyringAccount[] =>
   Array.from({ length: count }, (_, index) =>
     generateStellarKeyringAccount(
-      globalThis.crypto.randomUUID(),
+      uuid(),
       generateStellarAddress(),
       entropySource,
       index,

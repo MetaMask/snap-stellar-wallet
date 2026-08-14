@@ -329,9 +329,9 @@ describe('SynchronizeService', () => {
     ) as [StellarKeyringAccount];
     const onChainAccount = buildOnChainAccount(account);
 
-    let releaseFirstSync!: () => void;
+    let releaseFirst!: () => void;
     const firstSyncGate = new Promise<void>((resolve) => {
-      releaseFirstSync = resolve;
+      releaseFirst = resolve;
     });
     let signalEntered!: () => void;
     const enteredFirstSync = new Promise<void>((resolve) => {
@@ -354,7 +354,7 @@ describe('SynchronizeService', () => {
     expect(transactionSynchronizeSpy).not.toHaveBeenCalled();
     expect(scheduleBackgroundEventMock).not.toHaveBeenCalled();
 
-    releaseFirstSync();
+    releaseFirst();
     await firstSync;
 
     expect(onChainSynchronizeSpy).toHaveBeenCalledTimes(1);
@@ -375,9 +375,9 @@ describe('SynchronizeService', () => {
     ) as [StellarKeyringAccount, StellarKeyringAccount];
     const firstOnChainAccount = buildOnChainAccount(firstAccount);
 
-    let releaseFirstSync!: () => void;
+    let releaseFirst!: () => void;
     const firstSyncGate = new Promise<void>((resolve) => {
-      releaseFirstSync = resolve;
+      releaseFirst = resolve;
     });
     let signalEntered!: () => void;
     const enteredFirstSync = new Promise<void>((resolve) => {
@@ -404,7 +404,7 @@ describe('SynchronizeService', () => {
       duration: Duration.TwoSeconds,
     });
 
-    releaseFirstSync();
+    releaseFirst();
     await firstSync;
 
     expect(onChainSynchronizeSpy).toHaveBeenCalledTimes(1);
@@ -420,9 +420,9 @@ describe('SynchronizeService', () => {
     ) as [StellarKeyringAccount, StellarKeyringAccount];
     const firstOnChainAccount = buildOnChainAccount(firstAccount);
 
-    let releaseFirstSync!: () => void;
+    let releaseFirst!: () => void;
     const firstSyncGate = new Promise<void>((resolve) => {
-      releaseFirstSync = resolve;
+      releaseFirst = resolve;
     });
     let signalEntered!: () => void;
     const enteredFirstSync = new Promise<void>((resolve) => {
@@ -447,7 +447,7 @@ describe('SynchronizeService', () => {
       duration: Duration.TwoSeconds,
     });
 
-    releaseFirstSync();
+    releaseFirst();
     await firstSync;
   });
 

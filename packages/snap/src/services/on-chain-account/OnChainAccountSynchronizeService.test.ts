@@ -18,9 +18,8 @@ import { OnChainAccount } from './OnChainAccount';
 import { OnChainAccountRepository } from './OnChainAccountRepository';
 import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 import { NATIVE_ASSET_SYMBOL, STELLAR_DECIMAL_PLACES } from '../../constants';
-import { bufferToUint8Array } from '../../utils/buffer';
+import { bufferToUint8Array, logger, uuid } from '../../utils';
 import * as errorUtils from '../../utils/errors';
-import { logger } from '../../utils/logger';
 import type { StellarKeyringAccount } from '../account';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
 import {
@@ -211,7 +210,7 @@ describe('OnChainAccountSynchronizeService', () => {
   const setupOnChainAccountWithBalance = (entropySource: string) => {
     const signer = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
     const keyringAccount = generateStellarKeyringAccount(
-      globalThis.crypto.randomUUID(),
+      uuid(),
       signer.publicKey(),
       entropySource,
       0,

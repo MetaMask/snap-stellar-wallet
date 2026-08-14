@@ -52,26 +52,38 @@ function createCachedRow(
 }
 
 function createService(deps: {
-  repo?: Partial<AssetMetadataRepository>;
-  network?: Partial<NetworkService>;
+  repo?: Partial<{
+    getByAssetIds: jest.Mock;
+    saveMany: jest.Mock;
+    getByAssetType: jest.Mock;
+    getAll: jest.Mock;
+    getByAssetId: jest.Mock;
+  }>;
+  network?: Partial<{
+    getSep41AssetsData: jest.Mock;
+    getClassicAssetData: jest.Mock;
+  }>;
 }) {
-  const defaults = {
-    getByAssetIds: jest.fn().mockResolvedValue([]),
-    saveMany: jest.fn().mockResolvedValue(undefined),
-    getByAssetType: jest.fn().mockResolvedValue([]),
-    getAll: jest.fn().mockResolvedValue([]),
-    getByAssetId: jest.fn().mockResolvedValue(null),
-  };
+  const getByAssetIds =
+    deps.repo?.getByAssetIds ?? jest.fn().mockResolvedValue([]);
+  const saveMany =
+    deps.repo?.saveMany ?? jest.fn().mockResolvedValue(undefined);
+  const getSep41AssetsData =
+    deps.network?.getSep41AssetsData ?? jest.fn().mockResolvedValue([]);
+  const getClassicAssetData = deps.network?.getClassicAssetData ?? jest.fn();
 
   const repo = {
-    ...defaults,
-    ...deps.repo,
+    getByAssetIds,
+    saveMany,
+    getByAssetType:
+      deps.repo?.getByAssetType ?? jest.fn().mockResolvedValue([]),
+    getAll: deps.repo?.getAll ?? jest.fn().mockResolvedValue([]),
+    getByAssetId: deps.repo?.getByAssetId ?? jest.fn().mockResolvedValue(null),
   } as unknown as AssetMetadataRepository;
 
   const network = {
-    getSep41AssetsData: jest.fn().mockResolvedValue([]),
-    getClassicAssetData: jest.fn(),
-    ...deps.network,
+    getSep41AssetsData,
+    getClassicAssetData,
   } as unknown as NetworkService;
 
   (TokenApiClient as jest.Mock).mockImplementation(() => ({
@@ -87,18 +99,10 @@ function createService(deps: {
 
   return {
     service,
-    getByAssetIds: repo.getByAssetIds as jest.MockedFunction<
-      AssetMetadataRepository['getByAssetIds']
-    >,
-    saveMany: repo.saveMany as jest.MockedFunction<
-      AssetMetadataRepository['saveMany']
-    >,
-    getSep41AssetsData: network.getSep41AssetsData as jest.MockedFunction<
-      NetworkService['getSep41AssetsData']
-    >,
-    getClassicAssetData: network.getClassicAssetData as jest.MockedFunction<
-      NetworkService['getClassicAssetData']
-    >,
+    getByAssetIds,
+    saveMany,
+    getSep41AssetsData,
+    getClassicAssetData,
   };
 }
 

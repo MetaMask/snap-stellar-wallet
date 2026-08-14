@@ -8,8 +8,8 @@ import {
 } from './__mocks__/wallet.fixtures';
 import { KeyDerivationException } from './exceptions';
 import { WalletService } from './WalletService';
+import { bufferToUint8Array, uuid } from '../../utils';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
-import { bufferToUint8Array } from '../../utils/buffer';
 import { StellarSnapException } from '../../utils/errors';
 import { getBip32Entropy } from '../../utils/snap';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
@@ -187,7 +187,7 @@ describe('WalletService', () => {
     it('returns a wallet whose address matches the keyring row', async () => {
       const kp = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
       const account = generateStellarKeyringAccount(
-        globalThis.crypto.randomUUID(),
+        uuid(),
         kp.publicKey(),
         'entropy-source-1',
         0,
@@ -200,7 +200,7 @@ describe('WalletService', () => {
 
     it('throws DerivedAccountAddressMismatchException when derivation does not match stored address', async () => {
       const account = generateStellarKeyringAccount(
-        globalThis.crypto.randomUUID(),
+        uuid(),
         generateStellarAddress(),
         'entropy-source-1',
         0,
@@ -217,7 +217,7 @@ describe('WalletService', () => {
         .mockRejectedValue(new Error('something went wrong'));
       const kp = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
       const account = generateStellarKeyringAccount(
-        globalThis.crypto.randomUUID(),
+        uuid(),
         kp.publicKey(),
         'entropy-source-1',
         0,
