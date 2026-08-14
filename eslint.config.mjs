@@ -176,6 +176,7 @@ const config = createConfig([
       'jest/no-alias-methods': 'error',
       'jest/no-commented-out-tests': 'error',
       'jest/no-disabled-tests': 'error',
+      'jest/no-mocks-import': 'off',
     },
     settings: {
       node: {
@@ -349,20 +350,6 @@ const config = createConfig([
     files: ['packages/wallet-framework-docs/site/docusaurus.config.ts'],
     rules: {
       'n/no-process-env': 'off',
-    },
-  },
-  {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/__mocks__/*.ts'],
-    extends: [base, typescript, jest],
-    rules: {
-      '@typescript-eslint/unbound-method': 'off',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      'jest/no-mocks-import': 'off',
-      'jsdoc/require-jsdoc': 'off',
-      'jsdoc/require-returns': 'off',
-      'jsdoc/require-param-description': 'off',
-      'jest/unbound-method': 'off',
-      'import-x/order': 'off',
     },
   },
 ]);

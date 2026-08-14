@@ -26,7 +26,7 @@ import { Transaction } from './Transaction';
  * @param ops - SDK operations to include in the transaction.
  * @returns A wrapped Transaction ready for mapper tests.
  */
-function buildRawOpTransaction(...ops: any[]): Transaction {
+function buildRawOpTransaction(...ops: xdr.Operation[]): Transaction {
   const kp = Keypair.random();
   const account = new Account(kp.publicKey(), '1');
   const builder = new StellarTransactionBuilder(account, {
@@ -228,7 +228,6 @@ describe('OperationMapper', () => {
   });
 
   it('maps setOptions with sha256Hash signer to hex text row', () => {
-    // eslint-disable-next-line no-restricted-globals -- SDK requires Buffer for sha256Hash
     const hashBuf = Buffer.alloc(32, 0xab);
     const wrapped = buildRawOpTransaction(
       Operation.setOptions({

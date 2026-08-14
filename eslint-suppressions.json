@@ -32,5 +32,263 @@
     "no-restricted-globals": {
       "count": 27
     }
+  },
+  "packages/snap/src/handlers/accountResolver.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/asset/assets.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/clientRequest/api.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/clientRequest/changeTrustOpt.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/clientRequest/computeFee.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/clientRequest/confirmSend.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/handlers/clientRequest/onAmountInput.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/handlers/clientRequest/signAndSendTransaction.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/cronjob/refreshConfirmationContext/handler.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/cronjob/refreshConfirmationContext/priceRefresher.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/cronjob/refreshConfirmationContext/scanRefresher.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/handlers/cronjob/refreshConfirmationContext/transactionRefresher.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/handlers/cronjob/syncAccounts.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/cronjob/syncAssets.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/cronjob/trackTransaction.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/keyring/keyring.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/handlers/keyring/signAuthEntry.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/keyring/signMessage.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/handlers/keyring/signTransaction.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/account/AccountService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/account/__mocks__/account.fixtures.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/asset-metadata/AssetMetadataRepository.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    },
+    "jsdoc/require-param-description": {
+      "count": 1
+    },
+    "jsdoc/require-returns": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/asset-metadata/AssetMetadataService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/asset-metadata/__mocks__/assets.fixtures.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/asset-metadata/token-api/TokenApiClient.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/cache/StateCache.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/cache/useCache.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 4
+    }
+  },
+  "packages/snap/src/services/cache/useCacheUntil.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/network/NetworkService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 4
+    }
+  },
+  "packages/snap/src/services/on-chain-account/OnChainAccount.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 3
+    },
+    "jsdoc/require-param-description": {
+      "count": 2
+    },
+    "jsdoc/require-returns": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/on-chain-account/OnChainAccountService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/on-chain-account/OnChainAccountSynchronizeService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 10
+    },
+    "jsdoc/require-param-description": {
+      "count": 5
+    },
+    "jsdoc/require-returns": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/on-chain-account/__mocks__/onChainAccount.fixtures.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/price/PriceService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 4
+    }
+  },
+  "packages/snap/src/services/price/__mocks__/price.fixtures.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/price/price-api/PriceApiClient.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/sync/SynchronizeService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/transaction-scan/SecurityAlertsApiClient.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/transaction-scan/TransactionScanService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 1
+    }
+  },
+  "packages/snap/src/services/transaction/TransactionBuilder.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/transaction/TransactionMapper.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/transaction/TransactionRepository.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 3
+    }
+  },
+  "packages/snap/src/services/transaction/TransactionService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 3
+    }
+  },
+  "packages/snap/src/services/transaction/TransactionSynchronizeService.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/services/transaction/__mocks__/transaction.fixtures.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 5
+    }
+  },
+  "packages/snap/src/services/wallet/__mocks__/wallet.fixtures.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 2
+    }
+  },
+  "packages/snap/src/ui/confirmation/views/MaliciousAcknowledgement/MaliciousAcknowledgementScreen.test.tsx": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 3
+    }
+  },
+  "packages/snap/src/utils/async.test.ts": {
+    "@typescript-eslint/explicit-function-return-type": {
+      "count": 6
+    }
   }
 }
