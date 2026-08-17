@@ -12,13 +12,13 @@ import {
   xdr,
 } from '@stellar/stellar-sdk';
 
+import { KnownCaip2ChainId } from '../../api';
 import {
   buildMockClassicTransaction,
   buildMockInvokeHostFunctionTransaction,
 } from './__mocks__/transaction.fixtures';
 import { OperationMapper } from './OperationMapper';
 import { Transaction } from './Transaction';
-import { KnownCaip2ChainId } from '../../api';
 
 /**
  * Builds a Transaction wrapper from raw SDK operations for types the fixture builder doesn't cover.
@@ -228,7 +228,6 @@ describe('OperationMapper', () => {
   });
 
   it('maps setOptions with sha256Hash signer to hex text row', () => {
-    // eslint-disable-next-line no-restricted-globals -- SDK requires Buffer for sha256Hash
     const hashBuf = Buffer.alloc(32, 0xab);
     const wrapped = buildRawOpTransaction(
       Operation.setOptions({

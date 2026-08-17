@@ -1,9 +1,5 @@
 import { Address, Keypair, Networks, hash, xdr } from '@stellar/stellar-sdk';
 
-import { MultichainMethod } from './api';
-import type { SignAuthEntryRequest } from './api';
-import { Sep43ErrorCode } from './exceptions';
-import { SignAuthEntryHandler } from './signAuthEntry';
 import { KnownCaip2ChainId } from '../../api';
 import { AccountService } from '../../services/account';
 import { generateStellarKeyringAccount } from '../../services/account/__mocks__/account.fixtures';
@@ -14,6 +10,10 @@ import type { ConfirmationUXController } from '../../ui/confirmation/controller'
 import { bufferToUint8Array } from '../../utils/buffer';
 import { logger } from '../../utils/logger';
 import { AccountResolver } from '../accountResolver';
+import { MultichainMethod } from './api';
+import type { SignAuthEntryRequest } from './api';
+import { Sep43ErrorCode } from './exceptions';
+import { SignAuthEntryHandler } from './signAuthEntry';
 
 jest.mock('../../utils/logger');
 

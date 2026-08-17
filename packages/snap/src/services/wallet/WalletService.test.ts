@@ -2,18 +2,18 @@ import { SLIP10Node } from '@metamask/key-tree';
 import { hexToBytes } from '@metamask/utils';
 import { Keypair } from '@stellar/stellar-sdk';
 
-import {
-  getTestWallet,
-  generateStellarAddress,
-} from './__mocks__/wallet.fixtures';
-import { KeyDerivationException } from './exceptions';
-import { WalletService } from './WalletService';
 import { mockBip32Node } from '../../utils/__mocks__/fixtures';
 import { bufferToUint8Array } from '../../utils/buffer';
 import { StellarSnapException } from '../../utils/errors';
 import { getBip32Entropy } from '../../utils/snap';
 import { generateStellarKeyringAccount } from '../account/__mocks__/account.fixtures';
 import { DerivedAccountAddressMismatchException } from '../account/exceptions';
+import {
+  getTestWallet,
+  generateStellarAddress,
+} from './__mocks__/wallet.fixtures';
+import { KeyDerivationException } from './exceptions';
+import { WalletService } from './WalletService';
 
 jest.mock('../../utils/snap');
 

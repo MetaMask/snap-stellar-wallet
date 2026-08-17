@@ -5,12 +5,12 @@ import {
 } from '@metamask/keyring-api';
 import type { Transaction as KeyringTransaction } from '@metamask/keyring-api';
 
-import { KeyringTransactionBuilderException } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api/asset';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import { getSlip44AssetId, toDisplayBalance } from '../../utils';
 import type { StellarKeyringAccount } from '../account/api';
+import { KeyringTransactionBuilderException } from './exceptions';
 
 export enum KeyringTransactionType {
   Swap = 'swap',

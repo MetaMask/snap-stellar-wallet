@@ -1,18 +1,18 @@
 import type { CaipAssetType } from '@metamask/utils';
 
-import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from './api';
-import { HISTORICAL_PRICE_TIME_PERIODS, PriceService } from './PriceService';
-import type { HistoricalPriceTimePeriod } from './PriceService';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { AppConfig } from '../../config';
 import { logger, serialize } from '../../utils';
+import { createMemoryCache } from '../cache/__mocks__/cache.fixtures';
+import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from './api';
 import type {
   FiatExchangeRatesResponse,
   GetHistoricalPricesResponse,
   SpotPrice,
 } from './price-api/api';
 import { PriceApiClient } from './price-api/PriceApiClient';
-import { createMemoryCache } from '../cache/__mocks__/cache.fixtures';
+import { HISTORICAL_PRICE_TIME_PERIODS, PriceService } from './PriceService';
+import type { HistoricalPriceTimePeriod } from './PriceService';
 
 jest.mock('../../utils/logger');
 

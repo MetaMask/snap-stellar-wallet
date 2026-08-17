@@ -1,10 +1,10 @@
 import type { JsonRpcRequest } from '@metamask/snaps-sdk';
 
+import { withCatchAndThrowSnapError } from '../../utils';
+import { getClientStatus } from '../../utils/snap';
 import type { BackgroundEventMethod, ICronjobRequestHandler } from './api';
 import { BackgroundEventMethodStruct } from './api';
 import { CronjobMethodNotFoundError } from './exceptions';
-import { withCatchAndThrowSnapError } from '../../utils';
-import { getClientStatus } from '../../utils/snap';
 
 export class CronjobHandler {
   readonly #handlers: Record<BackgroundEventMethod, ICronjobRequestHandler>;

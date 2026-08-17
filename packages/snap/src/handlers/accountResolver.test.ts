@@ -1,12 +1,5 @@
 import { KnownCaip2ChainId } from '../api';
 import {
-  AccountResolver,
-  DEFAULT_RESOLVE_ACCOUNT_OPTIONS,
-  RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE,
-  RESOLVE_ACCOUNT_KEYRING_AND_WALLET,
-  ResolveAccountSource,
-} from './accountResolver';
-import {
   AccountService,
   DerivedAccountAddressMismatchException,
 } from '../services/account';
@@ -27,6 +20,13 @@ import {
   generateStellarAddress,
   getTestWallet,
 } from '../services/wallet/__mocks__/wallet.fixtures';
+import {
+  AccountResolver,
+  DEFAULT_RESOLVE_ACCOUNT_OPTIONS,
+  RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE,
+  RESOLVE_ACCOUNT_KEYRING_AND_WALLET,
+  ResolveAccountSource,
+} from './accountResolver';
 
 jest.mock('../utils/logger');
 

@@ -3,8 +3,8 @@ import { union } from '@metamask/superstruct';
 import type { CaipAssetType } from '@metamask/utils';
 import { definePattern } from '@metamask/utils';
 
-import { KnownCaip2ChainId } from './network';
 import { STELLAR_COIN_TYPE } from '../constants';
+import { KnownCaip2ChainId } from './network';
 
 /** Stellar Asset namespace */
 /** Please see https://namespaces.chainagnostic.org/stellar/caip19#asset-namespaces */

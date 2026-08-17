@@ -1,11 +1,11 @@
 import type { UserInputEvent } from '@metamask/snaps-sdk';
 import { UserInputEventType } from '@metamask/snaps-sdk';
 
-import { MaliciousAcknowledgementFormNames } from './constants';
-import { createEventHandlers } from './events';
 import { resolveInterface, updateInterfaceIfExists } from '../../../../utils';
 import { ConfirmationInterfaceKey, FetchStatus } from '../../api';
 import { renderConfirmationView } from '../render';
+import { MaliciousAcknowledgementFormNames } from './constants';
+import { createEventHandlers } from './events';
 
 jest.mock('../render', () => ({
   renderConfirmationView: jest.fn(() => 'RENDERED'),

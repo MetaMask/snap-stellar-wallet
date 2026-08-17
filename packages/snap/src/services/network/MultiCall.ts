@@ -9,9 +9,9 @@ import {
 } from '@stellar/stellar-sdk';
 import type { Operation, Transaction } from '@stellar/stellar-sdk';
 
-import { caip2ChainIdToNetwork } from './utils';
 import { KnownCaip2ChainId } from '../../api/network';
 import { BASE_FEE } from '../../constants';
+import { caip2ChainIdToNetwork } from './utils';
 
 /**
  * A simulation account to craft a transaction to simulate the balances read

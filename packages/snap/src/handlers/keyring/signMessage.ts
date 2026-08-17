@@ -1,15 +1,15 @@
 import { UserRejectedRequestError } from '@metamask/snaps-sdk';
 
-import type { SignMessageRequest, SignMessageResponse } from './api';
-import { SignMessageRequestStruct, SignMessageResponseStruct } from './api';
-import type { AccountResolver } from '../accountResolver';
-import { BaseSep43KeyringHandler } from './base';
-import type { Sep43Error } from './exceptions';
 import type { StellarKeyringAccount } from '../../services/account';
 import type { Wallet } from '../../services/wallet';
 import { ConfirmationInterfaceKey } from '../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
 import type { ILogger } from '../../utils';
+import type { AccountResolver } from '../accountResolver';
+import type { SignMessageRequest, SignMessageResponse } from './api';
+import { SignMessageRequestStruct, SignMessageResponseStruct } from './api';
+import { BaseSep43KeyringHandler } from './base';
+import type { Sep43Error } from './exceptions';
 
 /**
  * SEP-43 `signMessage` keyring handler.

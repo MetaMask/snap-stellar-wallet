@@ -1,7 +1,6 @@
 import type { Struct } from '@metamask/superstruct';
 import type { Json, JsonRpcRequest } from '@metamask/utils';
 
-import type { JsonRpcRequestWithAccount } from './api';
 import type { KnownCaip2ChainId } from '../../api';
 import { AccountNotActivatedException } from '../../services/network';
 import { render as renderAccountActivationPrompt } from '../../ui/confirmation/views/AccountActivationPrompt/render';
@@ -13,6 +12,7 @@ import type {
 } from '../accountResolver';
 import { DEFAULT_RESOLVE_ACCOUNT_OPTIONS } from '../accountResolver';
 import { BaseHandler } from '../base';
+import type { JsonRpcRequestWithAccount } from './api';
 /**
  * Interface for the client request handler.
  */

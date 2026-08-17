@@ -1,8 +1,8 @@
 import { BigNumber } from 'bignumber.js';
 
-import { multiplyFee } from './utils';
 import { AppConfig } from '../../config';
 import { toSmallestUnit } from '../../utils';
+import { multiplyFee } from './utils';
 
 const maxFeeThresholdInStroops = toSmallestUnit(
   new BigNumber(AppConfig.transaction.maxFeeThresholdInXLM),

@@ -1,4 +1,3 @@
-import { SynchronizeService } from './SynchronizeService';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { BackgroundEventMethod } from '../../handlers/cronjob/api';
@@ -20,6 +19,7 @@ import {
 } from '../on-chain-account/__mocks__/onChainAccount.fixtures';
 import { OnChainAccount } from '../on-chain-account/OnChainAccount';
 import { createMockTransactionService } from '../transaction/__mocks__/transaction.fixtures';
+import { SynchronizeService } from './SynchronizeService';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils', () => ({

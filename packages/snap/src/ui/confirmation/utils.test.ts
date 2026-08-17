@@ -1,3 +1,6 @@
+import { FieldType } from '../../services/transaction';
+import type { ReadableOperationField } from '../../services/transaction';
+import { TransactionScanValidationType } from '../../services/transaction-scan';
 import {
   defaultPreferences as preferences,
   maliciousScan,
@@ -14,9 +17,6 @@ import {
   resolveConfirmationBanner,
   shouldDisableConfirmation,
 } from './utils';
-import { FieldType } from '../../services/transaction';
-import type { ReadableOperationField } from '../../services/transaction';
-import { TransactionScanValidationType } from '../../services/transaction-scan';
 
 const warningScan = {
   ...maliciousScan,

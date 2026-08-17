@@ -5,14 +5,6 @@ import { InvalidParamsError } from '@metamask/snaps-sdk';
 import type { JsonRpcRequest } from '@metamask/snaps-sdk';
 import { create } from '@metamask/superstruct';
 
-import {
-  MultichainMethod,
-  SignAuthEntryResponseStruct,
-  SignMessageResponseStruct,
-  SignTransactionResponseStruct,
-} from './api';
-import type { IKeyringRequestHandler } from './base';
-import { KeyringHandler } from './keyring';
 import { KnownCaip2ChainId } from '../../api';
 import { METAMASK_ORIGIN } from '../../constants';
 import { AccountService } from '../../services/account';
@@ -44,6 +36,14 @@ import {
 import { bufferToUint8Array } from '../../utils/buffer';
 import { logger } from '../../utils/logger';
 import { SyncAccountsHandler } from '../cronjob/syncAccounts';
+import {
+  MultichainMethod,
+  SignAuthEntryResponseStruct,
+  SignMessageResponseStruct,
+  SignTransactionResponseStruct,
+} from './api';
+import type { IKeyringRequestHandler } from './base';
+import { KeyringHandler } from './keyring';
 
 jest.mock('../../utils/logger');
 jest.mock('../../utils/snap');

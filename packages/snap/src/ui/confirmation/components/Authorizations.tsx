@@ -8,10 +8,10 @@ import {
   Divider,
 } from '@metamask/snaps-sdk/jsx';
 
-import { InvocationSummary } from './InvocationSummary';
 import type { ReadableAuthorizationJson } from '../../../services/transaction/OperationMapper';
 import { i18n } from '../../../utils';
 import { getParam } from '../utils';
+import { InvocationSummary } from './InvocationSummary';
 
 export type AuthorizationsProps = {
   locale: string;

@@ -10,9 +10,9 @@ import {
   Text as SnapText,
 } from '@metamask/snaps-sdk/jsx';
 
-import { MaliciousAcknowledgementFormNames } from './constants';
 import { i18n } from '../../../../utils';
 import type { ConfirmationBaseProps } from '../../api';
+import { MaliciousAcknowledgementFormNames } from './constants';
 
 export type MaliciousAcknowledgementScreenProps = {
   locale: ConfirmationBaseProps['locale'];

@@ -1,16 +1,16 @@
 import { cloneDeep } from 'lodash';
 
 import type {
-  AssetMetadataByAssetId,
-  AssetMetadataState,
-  StellarAssetMetadata,
-} from './api';
-import type {
   AssetType,
   KnownCaip19AssetId,
   KnownCaip2ChainId,
 } from '../../api';
 import type { IStateManager } from '../state/IStateManager';
+import type {
+  AssetMetadataByAssetId,
+  AssetMetadataState,
+  StellarAssetMetadata,
+} from './api';
 
 export class AssetMetadataRepository {
   readonly #state: IStateManager<AssetMetadataState>;

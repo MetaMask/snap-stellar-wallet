@@ -1,8 +1,8 @@
 import type { Operation } from '@stellar/stellar-sdk';
 
+import { calculateSpendableBalance } from '../../on-chain-account/utils';
 import { TransactionValidationException } from '../exceptions';
 import type { AccountState, SimulationState } from './api';
-import { calculateSpendableBalance } from '../../on-chain-account/utils';
 
 /**
  * Gets the effective source account ID from the operation.

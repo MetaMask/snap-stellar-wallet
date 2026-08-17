@@ -1,15 +1,5 @@
 import { BigNumber } from 'bignumber.js';
 
-import type {
-  OnAmountInputJsonRpcRequest,
-  OnAmountInputJsonRpcResponse,
-} from './api';
-import {
-  MultiChainSendErrorCodes,
-  OnAmountInputJsonRpcRequestStruct,
-  OnAmountInputJsonRpcResponseStruct,
-} from './api';
-import { BaseClientRequestHandler } from './base';
 import type { AssetMetadataService } from '../../services/asset-metadata';
 import type { AccountNotActivatedException } from '../../services/network/exceptions';
 import type { TransactionService } from '../../services/transaction';
@@ -25,6 +15,16 @@ import type {
   ResolvedActivatedAccount,
 } from '../accountResolver';
 import { RESOLVE_ACCOUNT_FULL_FROM_KEYRING_STATE } from '../accountResolver';
+import type {
+  OnAmountInputJsonRpcRequest,
+  OnAmountInputJsonRpcResponse,
+} from './api';
+import {
+  MultiChainSendErrorCodes,
+  OnAmountInputJsonRpcRequestStruct,
+  OnAmountInputJsonRpcResponseStruct,
+} from './api';
+import { BaseClientRequestHandler } from './base';
 
 export class OnAmountInputHandler extends BaseClientRequestHandler<
   OnAmountInputJsonRpcRequest,

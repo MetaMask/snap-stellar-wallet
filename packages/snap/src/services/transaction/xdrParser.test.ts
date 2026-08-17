@@ -2,6 +2,14 @@ import type { Operation, xdr } from '@stellar/stellar-sdk';
 import { Asset, Networks, TransactionBuilder } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import { KnownCaip2ChainId } from '../../api';
+import {
+  getSlip44AssetId,
+  toCaip19ClassicAssetId,
+  toCaip19Sep41AssetId,
+} from '../../utils';
+import { bufferToUint8Array } from '../../utils/buffer';
+import { caip2ChainIdToNetwork } from '../network/utils';
 import {
   swapTransactionPathReceiveResponse,
   swapTransactionWithFeeCollectResponse,
@@ -21,14 +29,6 @@ import {
   TransactionResultType,
   xdrAssetToCaip19,
 } from './xdrParser';
-import { KnownCaip2ChainId } from '../../api';
-import {
-  getSlip44AssetId,
-  toCaip19ClassicAssetId,
-  toCaip19Sep41AssetId,
-} from '../../utils';
-import { bufferToUint8Array } from '../../utils/buffer';
-import { caip2ChainIdToNetwork } from '../network/utils';
 
 describe('transaction-xdr-decoder', () => {
   const scope = KnownCaip2ChainId.Mainnet;

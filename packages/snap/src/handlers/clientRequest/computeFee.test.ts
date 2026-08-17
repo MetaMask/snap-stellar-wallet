@@ -1,9 +1,6 @@
 import { FeeType } from '@metamask/keyring-api';
 import { Networks } from '@stellar/stellar-sdk';
 
-import { ClientRequestMethod } from './api';
-import type { ComputeFeeJsonRpcRequest } from './api';
-import { ComputeFeeHandler } from './computeFee';
 import { KnownCaip19Slip44IdMap, KnownCaip2ChainId } from '../../api';
 import { NATIVE_ASSET_SYMBOL } from '../../constants';
 import { AccountService } from '../../services/account';
@@ -32,6 +29,9 @@ import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import { logger } from '../../utils/logger';
 import { AccountResolver } from '../accountResolver';
+import { ClientRequestMethod } from './api';
+import type { ComputeFeeJsonRpcRequest } from './api';
+import { ComputeFeeHandler } from './computeFee';
 
 jest.mock('../../utils/logger');
 

@@ -1,9 +1,6 @@
 import type { Struct } from '@metamask/superstruct';
 import type { Json } from '@metamask/utils';
 
-import type { Sep43ErrorEnvelope, Sep43Opts } from './api';
-import type { Sep43Error } from './exceptions';
-import { Sep43ErrorCode, toSep43Error } from './exceptions';
 import type { KnownCaip2ChainId } from '../../api';
 import type { ILogger } from '../../utils';
 import { createPrefixedLogger, trackErrorIfNeeded } from '../../utils';
@@ -14,6 +11,9 @@ import type {
 } from '../accountResolver';
 import { RESOLVE_ACCOUNT_KEYRING_AND_WALLET } from '../accountResolver';
 import { BaseHandler } from '../base';
+import type { Sep43ErrorEnvelope, Sep43Opts } from './api';
+import type { Sep43Error } from './exceptions';
+import { Sep43ErrorCode, toSep43Error } from './exceptions';
 
 /**
  * Interface for the client request handler.

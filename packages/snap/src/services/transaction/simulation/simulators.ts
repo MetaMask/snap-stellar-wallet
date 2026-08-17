@@ -2,14 +2,6 @@ import type { Operation } from '@stellar/stellar-sdk';
 import { Asset } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { StellarOperationType } from '../api';
-import type {
-  OperationSimulator,
-  ApplyContext,
-  ValidateContext,
-  AccountState,
-} from './api';
-import { getAccount, effectiveSource, getSpendableNative } from './utils';
 import type {
   KnownCaip19ClassicAssetId,
   KnownCaip19Slip44Id,
@@ -23,6 +15,7 @@ import {
   toCaip19ClassicAssetId,
   toSmallestUnit,
 } from '../../../utils';
+import { StellarOperationType } from '../api';
 import {
   InsufficientBalanceException,
   InsufficientBalanceToCoverBaseReserveException,
@@ -36,6 +29,13 @@ import {
 } from '../exceptions';
 import { assertMemoWhenDestinationRequires } from '../utils';
 import { isSep41TransferInvoke, parseSep41TransferInvoke } from '../xdrParser';
+import type {
+  OperationSimulator,
+  ApplyContext,
+  ValidateContext,
+  AccountState,
+} from './api';
+import { getAccount, effectiveSource, getSpendableNative } from './utils';
 
 type ClassicAssetId = KnownCaip19ClassicAssetId | KnownCaip19Slip44Id;
 

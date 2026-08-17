@@ -1,6 +1,5 @@
 import type { InterfaceContext, UserInputEvent } from '@metamask/snaps-sdk';
 
-import type { UserInputUiEventHandler } from './api';
 import { createEventHandlers as createConfirmSendTransactionEvents } from '../../ui/confirmation/views/ConfirmSendTransaction/events';
 import { createEventHandlers as createSignAuthEntryEvents } from '../../ui/confirmation/views/ConfirmSignAuthEntry/events';
 import { createEventHandlers as createSignChangeTrustOptInEvents } from '../../ui/confirmation/views/ConfirmSignChangeTrustOptIn/events';
@@ -10,6 +9,7 @@ import { createEventHandlers as createSignTransactionEvents } from '../../ui/con
 import { createEventHandlers as createMaliciousAcknowledgementEvents } from '../../ui/confirmation/views/MaliciousAcknowledgement/events';
 import { withCatchAndThrowSnapError, createPrefixedLogger } from '../../utils';
 import type { ILogger } from '../../utils';
+import type { UserInputUiEventHandler } from './api';
 
 export class UserInputHandler {
   readonly #logger: ILogger;

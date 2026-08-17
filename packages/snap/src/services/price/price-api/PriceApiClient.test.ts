@@ -1,11 +1,11 @@
-import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from '../api';
-import { PriceApiClient } from './PriceApiClient';
 import { buildUrl } from '../../../utils';
 import {
   HttpException,
   HttpResponseException,
   InvalidHttpResponseException,
 } from '../../../utils/errors';
+import { GET_HISTORICAL_PRICES_RESPONSE_NULL_OBJECT } from '../api';
+import { PriceApiClient } from './PriceApiClient';
 
 jest.mock('../../../utils/logger');
 

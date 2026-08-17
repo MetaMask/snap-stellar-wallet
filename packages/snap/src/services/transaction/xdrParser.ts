@@ -9,7 +9,6 @@ import {
 } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import { XdrParseException } from './exceptions';
 import { StellarAddressOrContractStruct } from '../../api';
 import type {
   KnownCaip19ClassicAssetId,
@@ -25,6 +24,7 @@ import {
   toDisplayBalance,
 } from '../../utils';
 import { bufferToUint8Array } from '../../utils/buffer';
+import { XdrParseException } from './exceptions';
 
 export enum TransactionResultType {
   PathPaymentStrictSendSuccess = 'pathPaymentStrictSendSuccess',

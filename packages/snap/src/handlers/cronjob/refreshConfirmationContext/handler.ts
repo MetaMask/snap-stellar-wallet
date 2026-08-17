@@ -1,12 +1,5 @@
 import type { Json } from '@metamask/utils';
 
-import { ConfirmationContextRefresherKey } from './api';
-import type {
-  ConfirmationContextRefreshResult,
-  ConfirmationContextRefreshers,
-  ConfirmationDataContext,
-  IConfirmationContextRefresher,
-} from './api';
 import type { ConfirmationInterfaceKey } from '../../../ui/confirmation/api';
 import type { ConfirmationUXController } from '../../../ui/confirmation/controller';
 import type { ILogger } from '../../../utils/logger';
@@ -25,6 +18,13 @@ import {
   RefreshConfirmationContextJsonRpcRequestStruct,
 } from '../api';
 import { CronjobBaseHandler } from '../base';
+import { ConfirmationContextRefresherKey } from './api';
+import type {
+  ConfirmationContextRefreshResult,
+  ConfirmationContextRefreshers,
+  ConfirmationDataContext,
+  IConfirmationContextRefresher,
+} from './api';
 
 /**
  * Single writer for the confirmation interface context. Orchestrates

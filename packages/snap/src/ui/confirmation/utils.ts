@@ -2,16 +2,14 @@ import type { GetPreferencesResult } from '@metamask/snaps-sdk';
 import type { CaipAccountId, Json } from '@metamask/utils';
 import { BigNumber } from 'bignumber.js';
 
-import { FetchStatus } from './api';
-import type { FeeData } from './api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { KnownCaip2ChainId } from '../../api';
 import { AppConfig } from '../../config';
 import { getNativeAssetMetadata } from '../../services/asset-metadata/utils';
-import type { ReadableOperationField } from '../../services/transaction/OperationMapper';
-import { parseOperationAssetReferenceSafe } from '../../services/transaction/utils';
 import { TransactionScanValidationType } from '../../services/transaction-scan';
 import type { TransactionScanResult } from '../../services/transaction-scan';
+import type { ReadableOperationField } from '../../services/transaction/OperationMapper';
+import { parseOperationAssetReferenceSafe } from '../../services/transaction/utils';
 import type { Locale } from '../../utils';
 import {
   FALLBACK_LANGUAGE,
@@ -20,6 +18,8 @@ import {
   toDisplayBalance,
 } from '../../utils';
 import { xlmIcon } from '../images';
+import { FetchStatus } from './api';
+import type { FeeData } from './api';
 
 const NetworkName = {
   [KnownCaip2ChainId.Mainnet]: 'Mainnet',

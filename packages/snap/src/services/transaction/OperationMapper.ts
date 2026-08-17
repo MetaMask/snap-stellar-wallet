@@ -3,6 +3,8 @@ import type { Asset, Operation } from '@stellar/stellar-sdk';
 import { LiquidityPoolAsset, LiquidityPoolId, xdr } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
+import type { KnownCaip2ChainId } from '../../api';
+import { bufferToUint8Array } from '../../utils';
 import { StellarOperationType } from './api';
 import type { Transaction } from './Transaction';
 import {
@@ -10,8 +12,6 @@ import {
   getFunctionName,
   parseScValToReadableJson,
 } from './xdrParser';
-import type { KnownCaip2ChainId } from '../../api';
-import { bufferToUint8Array } from '../../utils';
 
 /**
  * Semantic hint for how a confirmation row should be rendered.

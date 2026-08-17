@@ -70,8 +70,8 @@ The `snap.manifest.json` contains a `shasum` that differs between local and prod
 
 This repository publishes curated Stellar asset lists used by MetaMask services and integrations.
 
-| File | Network | Description |
-|------|---------|-------------|
+| File                                                               | Network        | Description                                                  |
+| ------------------------------------------------------------------ | -------------- | ------------------------------------------------------------ |
 | [`tokenlists/unified-pubnet.json`](tokenlists/unified-pubnet.json) | Stellar pubnet | Curated list of supported Stellar assets (classic + Soroban) |
 
 ### Consumption
@@ -80,3 +80,4 @@ Raw URL (`main` branch):
 
 ```text
 https://raw.githubusercontent.com/MetaMask/snap-stellar-wallet/main/tokenlists/unified-pubnet.json
+```

@@ -1,6 +1,18 @@
 import { assert } from '@metamask/superstruct';
 import type { CaipAssetType } from '@metamask/utils';
 
+import { UrlStruct } from '../../../api';
+import type { AnyErrorConstructor } from '../../../utils';
+import { buildUrl, rethrowIfInstanceElseThrow } from '../../../utils';
+import {
+  assertHttpRequestParams,
+  assertHttpResponse,
+  HttpException,
+  HttpResponseException,
+  InvalidHttpRequestParamsException,
+  InvalidHttpResponseException,
+  normalizeHttpException,
+} from '../../../utils/errors';
 import type {
   FiatExchangeRatesResponse,
   GetHistoricalPricesParams,
@@ -16,18 +28,6 @@ import {
   GetSpotPricesResponseStruct,
 } from './api';
 import { PriceApiException } from './exceptions';
-import { UrlStruct } from '../../../api';
-import type { AnyErrorConstructor } from '../../../utils';
-import { buildUrl, rethrowIfInstanceElseThrow } from '../../../utils';
-import {
-  assertHttpRequestParams,
-  assertHttpResponse,
-  HttpException,
-  HttpResponseException,
-  InvalidHttpRequestParamsException,
-  InvalidHttpResponseException,
-  normalizeHttpException,
-} from '../../../utils/errors';
 
 export class PriceApiClient {
   readonly #fetch: typeof globalThis.fetch;

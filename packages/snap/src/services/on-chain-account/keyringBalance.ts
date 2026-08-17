@@ -12,10 +12,10 @@ import {
 import type { Infer } from '@metamask/superstruct';
 import { BigNumber } from 'bignumber.js';
 
-import type { SpendableBalance } from './api';
 import type { KnownCaip19AssetIdOrSlip44Id } from '../../api';
 import { NATIVE_ASSET_SYMBOL, STELLAR_DECIMAL_PLACES } from '../../constants';
 import { toDisplayBalance } from '../../utils';
+import type { SpendableBalance } from './api';
 
 export const StandardBalanceEntryStruct = object({
   unit: string(),

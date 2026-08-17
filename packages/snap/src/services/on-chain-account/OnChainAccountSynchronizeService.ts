@@ -3,15 +3,6 @@ import type { KeyringEventPayload } from '@metamask/keyring-api';
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { BigNumber } from 'bignumber.js';
 
-import {
-  toClassicBalanceEntry,
-  toNativeBalanceEntry,
-  toStandardBalanceEntry,
-} from './keyringBalance';
-import type { KeyringBalanceByAssetId } from './keyringBalance';
-import { OnChainAccount } from './OnChainAccount';
-import type { OnChainAccountRepository } from './OnChainAccountRepository';
-import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 import type {
   KnownCaip19AssetIdOrSlip44Id,
   KnownCaip19Sep41AssetId,
@@ -30,6 +21,15 @@ import {
 import type { StellarAssetMetadata } from '../asset-metadata';
 import type { NetworkService } from '../network';
 import type { ActivatedAccountPair } from '../sync/api';
+import {
+  toClassicBalanceEntry,
+  toNativeBalanceEntry,
+  toStandardBalanceEntry,
+} from './keyringBalance';
+import type { KeyringBalanceByAssetId } from './keyringBalance';
+import { OnChainAccount } from './OnChainAccount';
+import type { OnChainAccountRepository } from './OnChainAccountRepository';
+import type { OnChainAccountSerializableFull } from './OnChainAccountSerializable';
 
 type AccountAssetListDelta =
   KeyringEventPayload<KeyringEvent.AccountAssetListUpdated>['assets'][string];
