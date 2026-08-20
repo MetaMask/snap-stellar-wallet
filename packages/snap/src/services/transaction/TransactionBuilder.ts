@@ -348,9 +348,11 @@ export class TransactionBuilder {
         },
       );
 
-      // Clone the transaction operations
-      if ('tx' in rawTransaction) {
-        const tx = rawTransaction.tx as xdr.Transaction;
+      // Clone the transaction operations.
+      // `tx` is a prototype getter on Stellar TransactionBase (not an own
+      // property), so hasProperty / Object.hasOwn cannot detect it.
+      const { tx } = rawTransaction as unknown as { tx?: xdr.Transaction };
+      if (tx) {
         tx.operations().forEach((op) => builder.addOperation(op));
       } else {
         throw new TransactionBuilderException(

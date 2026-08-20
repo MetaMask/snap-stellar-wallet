@@ -11,6 +11,7 @@ import {
   createPrefixedLogger,
   getDefaultEntropySource,
   getSnapProvider,
+  uuid,
 } from '../../utils';
 import { getSupportedScopes } from '../../utils/scopes';
 import { getDerivationPath } from '../wallet';
@@ -334,7 +335,7 @@ export class AccountService {
     derivationPath,
     index,
     address,
-    id = globalThis.crypto.randomUUID(),
+    id = uuid(),
   }: {
     entropySource: EntropySourceId;
     derivationPath: StellarDerivationPath;

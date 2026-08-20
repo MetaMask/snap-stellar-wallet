@@ -18,7 +18,6 @@ export enum KeyringTransactionType {
   ChangeTrustOptIn = 'changeTrustOptIn',
   ChangeTrustOptOut = 'changeTrustOptOut',
   Send = 'send',
-  Pending = 'pending',
   Unknown = 'unknown',
 }
 
@@ -67,27 +66,6 @@ export type ChangeTrustTransactionRequest = {
   fees?: KeyringTransaction['fees'];
 };
 
-export type PendingTransactionRequest = {
-  txId: string;
-  account: StellarKeyringAccount;
-  scope: KnownCaip2ChainId;
-  status?: TransactionStatus;
-} & (
-  | {
-      transactionType?: TransactionType;
-      asset: {
-        type: KnownCaip19AssetIdOrSlip44Id;
-        symbol: string;
-      };
-    }
-  | {
-      transactionType: TransactionType;
-      from: KeyringTransaction['from'];
-      to: KeyringTransaction['to'];
-      fees?: KeyringTransaction['fees'];
-    }
-);
-
 export type UnknownTransactionRequest = {
   txId: string;
   account: StellarKeyringAccount;
@@ -112,10 +90,6 @@ export type KeyringTransactionRequest =
   | {
       type: KeyringTransactionType.Send;
       request: SendTransactionRequest;
-    }
-  | {
-      type: KeyringTransactionType.Pending;
-      request: PendingTransactionRequest;
     }
   | {
       type: KeyringTransactionType.Unknown;
@@ -143,8 +117,6 @@ export class KeyringTransactionBuilder {
         return this.#createSendTransaction(request.request);
       case KeyringTransactionType.Swap:
         return this.#createSwapTransaction(request.request);
-      case KeyringTransactionType.Pending:
-        return this.#createPendingTransaction(request.request);
       case KeyringTransactionType.Unknown:
       case KeyringTransactionType.BridgeSend:
         return this.#createUnknownTransaction(request.request);
@@ -232,63 +204,6 @@ export class KeyringTransactionBuilder {
       status,
       timestamp,
       fees,
-    });
-  }
-
-  #createPendingTransaction(
-    request: PendingTransactionRequest,
-  ): KeyringTransaction {
-    const timestamp = this.getCreateTime();
-    const { txId, account, scope } = request;
-    const status = request.status ?? TransactionStatus.Unconfirmed;
-
-    // if the request has from and to, it is a pending classic swap transaction
-    if ('from' in request) {
-      return this.#buildKeyringTransaction({
-        type: request.transactionType,
-        id: txId,
-        account,
-        scope,
-        from: request.from,
-        to: request.to,
-        status,
-        timestamp,
-        fees: request.fees ?? [],
-      });
-    }
-
-    const { asset } = request;
-
-    return this.#buildKeyringTransaction({
-      type: request.transactionType ?? TransactionType.Unknown,
-      id: txId,
-      account,
-      scope,
-      from: [
-        {
-          address: account.address,
-          asset: {
-            unit: asset.symbol,
-            type: asset.type,
-            amount: '0',
-            fungible: true,
-          },
-        },
-      ],
-      to: [
-        {
-          address: account.address,
-          asset: {
-            unit: asset.symbol,
-            type: asset.type,
-            amount: '0',
-            fungible: true,
-          },
-        },
-      ],
-      status,
-      timestamp,
-      fees: [],
     });
   }
 

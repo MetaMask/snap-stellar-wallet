@@ -26,7 +26,7 @@ import { Transaction } from './Transaction';
  * @param ops - SDK operations to include in the transaction.
  * @returns A wrapped Transaction ready for mapper tests.
  */
-function buildRawOpTransaction(...ops: any[]): Transaction {
+function buildRawOpTransaction(...ops: xdr.Operation[]): Transaction {
   const kp = Keypair.random();
   const account = new Account(kp.publicKey(), '1');
   const builder = new StellarTransactionBuilder(account, {

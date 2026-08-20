@@ -7,8 +7,7 @@ import { mockOnChainAccountService } from '../../services/on-chain-account/__moc
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
-import { bufferToUint8Array } from '../../utils/buffer';
-import { logger } from '../../utils/logger';
+import { bufferToUint8Array, logger, uuid } from '../../utils';
 import { AccountResolver } from '../accountResolver';
 import { MultichainMethod } from './api';
 import type { SignAuthEntryRequest } from './api';
@@ -79,7 +78,7 @@ describe('SignAuthEntryHandler', () => {
    */
   function setupHandler() {
     const wallet = getTestWallet();
-    const accountId = globalThis.crypto.randomUUID();
+    const accountId = uuid();
     const mockAccount = generateStellarKeyringAccount(
       accountId,
       wallet.address,

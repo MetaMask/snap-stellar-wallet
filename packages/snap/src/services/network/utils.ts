@@ -1,4 +1,4 @@
-import { ensureError } from '@metamask/utils';
+import { ensureError, hasProperty } from '@metamask/utils';
 import { Networks, NotFoundError } from '@stellar/stellar-sdk';
 import { BigNumber } from 'bignumber.js';
 
@@ -23,7 +23,7 @@ const StellarNetwork: Record<KnownCaip2ChainId, Networks> = {
 export function caip2ChainIdToNetwork(
   caip2ChainId: KnownCaip2ChainId,
 ): Networks {
-  if (!(caip2ChainId in StellarNetwork)) {
+  if (!hasProperty(StellarNetwork, caip2ChainId)) {
     throw new Error(`Network not found for caip2ChainId: ${caip2ChainId}`);
   }
   return StellarNetwork[caip2ChainId];

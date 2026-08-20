@@ -1,4 +1,6 @@
 /* eslint-disable no-empty-function */
+import { hasProperty } from '@metamask/utils';
+
 import { LogLevel } from '../api/loglevel';
 import { AppConfig } from '../config';
 
@@ -40,7 +42,7 @@ const withLogLevel =
   (fn: (...args: unknown[]) => void, level: LogLevel) =>
   (...args: unknown[]): void => {
     if (
-      AppConfig.logLevel in logLevelPriority &&
+      hasProperty(logLevelPriority, AppConfig.logLevel) &&
       logLevelPriority[level] <= logLevelPriority[AppConfig.logLevel]
     ) {
       fn(...args);

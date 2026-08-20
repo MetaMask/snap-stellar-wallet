@@ -59,7 +59,7 @@ export const ConfirmSignChangeTrustOptOut = ({
   scanFetchStatus = FetchStatus.Initial,
   transactionsFetchStatus = FetchStatus.Initial,
 }: ConfirmSignChangeTrustOptOutProps): ComponentOrElement => {
-  const t = i18n(locale);
+  const translate = i18n(locale);
   const { address } = account;
   const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
@@ -78,7 +78,7 @@ export const ConfirmSignChangeTrustOptOut = ({
         <Box alignment="center" center>
           <Box>{null}</Box>
           <Heading size="lg">
-            {t('confirmation.signChangeTrustOptOut.title', {
+            {translate('confirmation.signChangeTrustOptOut.title', {
               asset: assetMetadata.symbol,
             })}
           </Heading>
@@ -94,9 +94,9 @@ export const ConfirmSignChangeTrustOptOut = ({
             <Box alignment="space-between" direction="horizontal">
               <Box direction="horizontal" alignment="start">
                 <SnapText fontWeight="medium" color="alternative">
-                  {t('confirmation.origin')}
+                  {translate('confirmation.origin')}
                 </SnapText>
-                <Tooltip content={t('confirmation.origin.tooltip')}>
+                <Tooltip content={translate('confirmation.origin.tooltip')}>
                   <Icon name="question" color="muted" />
                 </Tooltip>
               </Box>
@@ -106,7 +106,7 @@ export const ConfirmSignChangeTrustOptOut = ({
           {/* From */}
           <Box alignment="space-between" direction="horizontal">
             <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.account')}
+              {translate('confirmation.account')}
             </SnapText>
             <Address
               address={getAccountName(scope, address)}
@@ -117,7 +117,7 @@ export const ConfirmSignChangeTrustOptOut = ({
           </Box>
           <Box alignment="space-between" direction="horizontal">
             <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.asset')}
+              {translate('confirmation.asset')}
             </SnapText>
 
             <Asset

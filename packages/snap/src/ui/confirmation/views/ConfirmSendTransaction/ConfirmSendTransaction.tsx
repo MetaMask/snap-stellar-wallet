@@ -57,7 +57,7 @@ export const ConfirmSendTransaction = ({
   scanFetchStatus = FetchStatus.Initial,
   transactionsFetchStatus = FetchStatus.Initial,
 }: ConfirmSendTransactionProps): ComponentOrElement => {
-  const t = i18n(locale);
+  const translate = i18n(locale);
   const { address } = account;
   const shouldDisableConfirmButton = shouldDisableConfirmation({
     scanFetchStatus,
@@ -75,7 +75,9 @@ export const ConfirmSendTransaction = ({
         />
         <Box alignment="center" center>
           <Box>{null}</Box>
-          <Heading size="lg">{t(`confirmation.transaction.title`)}</Heading>
+          <Heading size="lg">
+            {translate(`confirmation.transaction.title`)}
+          </Heading>
           <Box>{null}</Box>
         </Box>
 
@@ -94,9 +96,9 @@ export const ConfirmSendTransaction = ({
             <Box alignment="space-between" direction="horizontal">
               <Box direction="horizontal" alignment="start">
                 <SnapText fontWeight="medium" color="alternative">
-                  {t('confirmation.origin')}
+                  {translate('confirmation.origin')}
                 </SnapText>
-                <Tooltip content={t('confirmation.origin.tooltip')}>
+                <Tooltip content={translate('confirmation.origin.tooltip')}>
                   <Icon name="question" color="muted" />
                 </Tooltip>
               </Box>
@@ -106,7 +108,7 @@ export const ConfirmSendTransaction = ({
           {/* From */}
           <Box alignment="space-between" direction="horizontal">
             <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.account')}
+              {translate('confirmation.account')}
             </SnapText>
             <Link href={getAccountExplorerUrl(address)}>
               <Address
@@ -120,7 +122,7 @@ export const ConfirmSendTransaction = ({
           {/* To */}
           <Box alignment="space-between" direction="horizontal">
             <SnapText fontWeight="medium" color="alternative">
-              {t('confirmation.to')}
+              {translate('confirmation.to')}
             </SnapText>
             <Link href={getAccountExplorerUrl(toAddress)}>
               <Address

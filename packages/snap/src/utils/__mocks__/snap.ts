@@ -2,7 +2,7 @@ import type { SnapsProvider } from '@metamask/snaps-sdk';
 
 const actual = jest.requireActual('../snap');
 
-(globalThis as any).snap = {
+(globalThis as typeof globalThis & { snap: { request: jest.Mock } }).snap = {
   request: jest.fn(),
 };
 

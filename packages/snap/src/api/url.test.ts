@@ -3,11 +3,11 @@ import { assert } from '@metamask/superstruct';
 
 import { UrlStruct } from './url';
 
-const assertValid = (value: string) => {
+const assertValid = (value: string): void => {
   expect(() => assert(value, UrlStruct)).not.toThrow();
 };
 
-const assertInvalid = (value: string, expectedMessage?: string) => {
+const assertInvalid = (value: string, expectedMessage?: string): void => {
   try {
     assert(value, UrlStruct);
     throw new Error('Expected assertion to throw');

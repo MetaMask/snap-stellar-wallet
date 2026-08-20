@@ -41,18 +41,20 @@ export const ConfirmationFooter = ({
   confirmDisabled = false,
   requiresAcknowledgement = false,
 }: ConfirmationFooterProps): ComponentOrElement => {
-  const t = i18n(locale);
+  const translate = i18n(locale);
 
   return (
     <Footer>
-      <Button name={cancelButtonName}>{t('confirmation.cancelButton')}</Button>
+      <Button name={cancelButtonName}>
+        {translate('confirmation.cancelButton')}
+      </Button>
       {requiresAcknowledgement && !confirmDisabled ? (
         <Button name={MaliciousAcknowledgementFormNames.Review}>
-          {t('confirmation.reviewAlertsButton')}
+          {translate('confirmation.reviewAlertsButton')}
         </Button>
       ) : (
         <Button name={confirmButtonName} disabled={confirmDisabled}>
-          {t('confirmation.confirmButton')}
+          {translate('confirmation.confirmButton')}
         </Button>
       )}
     </Footer>

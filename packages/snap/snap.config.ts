@@ -1,3 +1,4 @@
+/* eslint-disable n/no-process-env */
 import type { SnapConfig } from '@metamask/snaps-cli';
 import { config as dotenv } from 'dotenv';
 import { resolve } from 'path';

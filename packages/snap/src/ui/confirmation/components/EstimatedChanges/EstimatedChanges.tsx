@@ -65,14 +65,14 @@ const EstimatedChangesHeader = ({
 }: {
   preferences: GetPreferencesResult;
 }): ComponentOrElement => {
-  const t = i18n(preferences.locale);
+  const translate = i18n(preferences.locale);
 
   return (
     <Box direction="horizontal" alignment="start">
       <SnapText fontWeight="medium">
-        {t('confirmation.estimatedChanges.title')}
+        {translate('confirmation.estimatedChanges.title')}
       </SnapText>
-      <Tooltip content={t('confirmation.estimatedChanges.tooltip')}>
+      <Tooltip content={translate('confirmation.estimatedChanges.tooltip')}>
         <Icon name="question" color="muted" />
       </Tooltip>
     </Box>
@@ -145,7 +145,7 @@ export const EstimatedChanges = ({
   preferences,
   scanFetchStatus,
 }: EstimatedChangesProps): ComponentOrElement => {
-  const t = i18n(preferences.locale);
+  const translate = i18n(preferences.locale);
   const isFetching = isFetchInProgress(scanFetchStatus);
   const isFetched = scanFetchStatus === FetchStatus.Fetched;
   const isFetchError = scanFetchStatus === FetchStatus.Error;
@@ -163,7 +163,7 @@ export const EstimatedChanges = ({
       <Section direction="vertical">
         <EstimatedChangesHeader preferences={preferences} />
         <SnapText color="alternative">
-          {t('confirmation.estimatedChanges.notAvailable')}
+          {translate('confirmation.estimatedChanges.notAvailable')}
         </SnapText>
       </Section>
     );
@@ -183,7 +183,7 @@ export const EstimatedChanges = ({
       <Section direction="vertical">
         <EstimatedChangesHeader preferences={preferences} />
         <SnapText color="alternative">
-          {t('confirmation.estimatedChanges.noChanges')}
+          {translate('confirmation.estimatedChanges.noChanges')}
         </SnapText>
       </Section>
     );
@@ -195,7 +195,7 @@ export const EstimatedChanges = ({
       {send.length > 0 ? (
         <Box alignment="space-between" direction="horizontal">
           <SnapText fontWeight="medium" color="alternative">
-            {t('confirmation.estimatedChanges.send')}
+            {translate('confirmation.estimatedChanges.send')}
           </SnapText>
           <Box direction="vertical" alignment="end">
             {send.map((asset, index) => (
@@ -209,7 +209,7 @@ export const EstimatedChanges = ({
       {receive.length > 0 ? (
         <Box alignment="space-between" direction="horizontal">
           <SnapText fontWeight="medium" color="alternative">
-            {t('confirmation.estimatedChanges.receive')}
+            {translate('confirmation.estimatedChanges.receive')}
           </SnapText>
           <Box direction="vertical" alignment="end">
             {receive.map((asset, index) => (

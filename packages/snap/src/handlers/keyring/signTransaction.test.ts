@@ -10,7 +10,7 @@ import { buildMockClassicTransaction } from '../../services/transaction/__mocks_
 import { WalletService } from '../../services/wallet';
 import { getTestWallet } from '../../services/wallet/__mocks__/wallet.fixtures';
 import type { ConfirmationUXController } from '../../ui/confirmation/controller';
-import { logger } from '../../utils/logger';
+import { logger, uuid } from '../../utils';
 import { AccountResolver } from '../accountResolver';
 import { MultichainMethod } from './api';
 import type { SignTransactionRequest } from './api';
@@ -29,7 +29,7 @@ describe('SignTransactionHandler', () => {
   function setupHandler() {
     const wallet = getTestWallet();
     const mockAccount = generateStellarKeyringAccount(
-      globalThis.crypto.randomUUID(),
+      uuid(),
       wallet.address,
       'entropy-source-1',
       0,

@@ -2,7 +2,7 @@ import { hexToBytes } from '@metamask/utils';
 import { Keypair } from '@stellar/stellar-sdk';
 
 import { KnownCaip2ChainId } from '../../api';
-import { bufferToUint8Array } from '../../utils/buffer';
+import { bufferToUint8Array, uuid } from '../../utils';
 import {
   generateMockStellarKeyringAccounts,
   generateStellarKeyringAccount,
@@ -103,7 +103,7 @@ describe('OnChainAccountService', () => {
     it('returns loaded account when Horizon account id matches the requested address', async () => {
       const signer = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
       const keyringAccount = generateStellarKeyringAccount(
-        globalThis.crypto.randomUUID(),
+        uuid(),
         signer.publicKey(),
         'entropy-source-1',
         0,
@@ -162,7 +162,7 @@ describe('OnChainAccountService', () => {
 
   describe('resolveOnChainAccountByKeyringAccountId', () => {
     it('returns null when no snapshot exists for the keyring id and scope', async () => {
-      const keyringAccountId = globalThis.crypto.randomUUID();
+      const keyringAccountId = uuid();
       const { onChainAccountService, onChainAccountRepository } =
         mockOnChainAccountService();
       const findByAccountIdSpy = jest.spyOn(
@@ -186,7 +186,7 @@ describe('OnChainAccountService', () => {
 
     it('returns rehydrated OnChainAccount when a snapshot exists', async () => {
       const signer = Keypair.fromRawEd25519Seed(bufferToUint8Array(seed));
-      const keyringAccountId = globalThis.crypto.randomUUID();
+      const keyringAccountId = uuid();
       const loadedAcc = createMockAccountWithBalances(
         signer.publicKey(),
         '1',

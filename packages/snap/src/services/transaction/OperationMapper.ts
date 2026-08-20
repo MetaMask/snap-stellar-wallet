@@ -1,3 +1,4 @@
+import { hasProperty } from '@metamask/utils';
 import type { Json } from '@metamask/utils';
 import type { Asset, Operation } from '@stellar/stellar-sdk';
 import { LiquidityPoolAsset, LiquidityPoolId, xdr } from '@stellar/stellar-sdk';
@@ -636,13 +637,16 @@ export class OperationMapper extends AbstractOperationMapper {
             this.field('homeDomain', setOptions.homeDomain, FieldType.text),
           );
         }
-        if ('signer' in setOptions && setOptions.signer !== undefined) {
+        if (
+          hasProperty(setOptions, 'signer') &&
+          setOptions.signer !== undefined
+        ) {
           // SDK Signer is a union of disjoint interfaces; cast to Record for key-based branching.
           const signer = setOptions.signer as unknown as Record<
             string,
             unknown
           >;
-          if ('ed25519PublicKey' in signer) {
+          if (hasProperty(signer, 'ed25519PublicKey')) {
             rows.push(
               this.field(
                 'signerEd25519',
@@ -650,7 +654,7 @@ export class OperationMapper extends AbstractOperationMapper {
                 FieldType.address,
               ),
             );
-          } else if ('sha256Hash' in signer) {
+          } else if (hasProperty(signer, 'sha256Hash')) {
             rows.push(
               this.field(
                 'signerSha256Hash',
@@ -658,7 +662,7 @@ export class OperationMapper extends AbstractOperationMapper {
                 FieldType.text,
               ),
             );
-          } else if ('preAuthTx' in signer) {
+          } else if (hasProperty(signer, 'preAuthTx')) {
             rows.push(
               this.field(
                 'signerPreAuthTx',
@@ -666,7 +670,7 @@ export class OperationMapper extends AbstractOperationMapper {
                 FieldType.text,
               ),
             );
-          } else if ('ed25519SignedPayload' in signer) {
+          } else if (hasProperty(signer, 'ed25519SignedPayload')) {
             rows.push(
               this.field(
                 'signerSignedPayload',
@@ -854,7 +858,8 @@ export class OperationMapper extends AbstractOperationMapper {
   }
 
   #mapRevokeSponsorship(operation: Operation): ReadableOperationField[] {
-    if ('seller' in operation && 'offerId' in operation) {
+    const op = operation as unknown as Record<string, unknown>;
+    if (hasProperty(op, 'seller') && hasProperty(op, 'offerId')) {
       const revokeOffer = operation as {
         seller: string;
         offerId: string;
@@ -864,24 +869,24 @@ export class OperationMapper extends AbstractOperationMapper {
         this.field('offerId', revokeOffer.offerId, 'text'),
       ];
     }
-    if ('balanceId' in operation && !('account' in operation)) {
+    if (hasProperty(op, 'balanceId') && !hasProperty(op, 'account')) {
       const revokeCb = operation as { balanceId: string };
       return [this.field('balanceId', revokeCb.balanceId, 'text')];
     }
-    if ('liquidityPoolId' in operation && !('account' in operation)) {
+    if (hasProperty(op, 'liquidityPoolId') && !hasProperty(op, 'account')) {
       const revokePool = operation as { liquidityPoolId: string };
       return [
         this.field('liquidityPoolId', revokePool.liquidityPoolId, 'text'),
       ];
     }
-    if ('account' in operation && 'name' in operation) {
+    if (hasProperty(op, 'account') && hasProperty(op, 'name')) {
       const revokeData = operation as { account: string; name: string };
       return [
         this.field('account', revokeData.account, 'address'),
         this.field('name', revokeData.name, 'text'),
       ];
     }
-    if ('account' in operation && 'signer' in operation) {
+    if (hasProperty(op, 'account') && hasProperty(op, 'signer')) {
       const revokeSigner = operation as {
         account: string;
         signer: unknown;
@@ -891,7 +896,7 @@ export class OperationMapper extends AbstractOperationMapper {
         this.field('signer', JSON.stringify(revokeSigner.signer), 'text'),
       ];
     }
-    if ('account' in operation && 'asset' in operation) {
+    if (hasProperty(op, 'account') && hasProperty(op, 'asset')) {
       const revokeTrust = operation as {
         account: string;
         asset: Asset | LiquidityPoolId;
@@ -906,7 +911,7 @@ export class OperationMapper extends AbstractOperationMapper {
         this.field('asset', assetLabel, 'asset'),
       ];
     }
-    if ('account' in operation) {
+    if (hasProperty(op, 'account')) {
       const revokeAccount = operation as { account: string };
       return [this.field('account', revokeAccount.account, 'address')];
     }

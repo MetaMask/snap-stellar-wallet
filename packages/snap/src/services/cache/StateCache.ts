@@ -1,4 +1,4 @@
-import { assert } from '@metamask/utils';
+import { assert, hasProperty } from '@metamask/utils';
 
 import type { ILogger } from '../../utils/logger';
 import { createPrefixedLogger } from '../../utils/logger';
@@ -201,9 +201,9 @@ export class StateCache implements ICache<Serializable | undefined> {
 
     // Then, handle keys that don't exist in the cache
     keys.forEach((key) => {
-      if (!(key in result)) {
+      if (!hasProperty(result, key)) {
         this.#logger.info(`[StateCache] ❌ Cache miss for key "${key}"`);
-        result[key] = undefined;
+        Object.assign(result, { [key]: undefined });
       }
     });
 
