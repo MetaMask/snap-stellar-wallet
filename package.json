@@ -32,6 +32,7 @@
     "prepare-preview-builds": "./scripts/prepare-preview-builds.sh",
     "setup": "yarn install",
     "test": "yarn workspace @metamask/stellar-wallet-snap run test:verbose",
+    "test:integration": "yarn workspace @metamask/stellar-wallet-snap run test:integration",
     "typecheck": "yarn workspace @metamask/snap-networks-utils run build && yarn workspaces foreach --all --parallel --verbose exec tsc --noEmit",
     "workspaces:list-versions": "./scripts/list-workspace-versions.sh"
   },
